@@ -604,6 +604,30 @@ const dirty = JSON.parse(good);
 dirty.net = [{ f: 'NOT_A_FISH', kg: 1, c: 'normal' }, { f: nf.id, kg: 1, c: 'normal' }];
 ok(St.importSave(JSON.stringify(dirty)).ok === true && St.netCount() === 1, '导入时会剔掉失效的鱼种条目');
 
+/* 脏数据：图鉴条目缺 colors / 不是对象 —— 这条路径每钓一条鱼都会走，绝不能炸
+   （实测过：导入 { book: { D01: { n: 1 } } } 之后钓到 D01，
+    recordCatch 会在 e.colors[colorKey] 上抛 TypeError，整条上鱼流程断掉） */
+const nf2 = G.FISH_BY_FIELD.C[0];      // 换一个钓场的鱼，别和上面用过的 nf 撞 id
+const dirtyBook = JSON.parse(good);
+dirtyBook.book = { [nf.id]: { n: 2 }, GHOST_ID: { n: 1 }, [nf2.id]: 'not-an-object' };
+ok(St.importSave(JSON.stringify(dirtyBook)).ok === true, '导入「图鉴条目缺字段」的存档仍然成功（会被就地修好）');
+ok(St.bookEntry(nf.id) && typeof St.bookEntry(nf.id).colors === 'object' && !Array.isArray(St.bookEntry(nf.id).colors),
+   '缺 colors 的条目在导入时补成对象');
+ok(St.get().book.GHOST_ID === undefined, '图鉴里不认识的鱼种 id 会被剔掉');
+ok(St.get().book[nf2.id] === undefined, '图鉴条目不是对象时直接丢掉（当没收集过）');
+let dirtyThrew = false, dirtyRes = null;
+try { dirtyRes = St.recordCatch(nf2, 2.5, 'normal'); } catch (e) { dirtyThrew = true; }
+ok(!dirtyThrew && !!dirtyRes && St.bookEntry(nf2.id).n === 1,
+   '条目被剔掉之后照样能重新记录渔获（不会因为脏档而断掉上鱼流程）');
+/* 直接对内存里的脏条目动手（绕开迁移，模拟运行期被改坏） */
+St.get().book[nf.id] = { n: 5 };
+ok(St.recordCatch(nf, 1, 'rare') !== null && St.bookEntry(nf.id).colors.rare === 1,
+   'recordCatch 自己也会补齐缺 colors 的条目（迁移不是唯一防线）');
+ok(St.bookEntry(nf.id).n === 6, '补条目时不会丢掉已有的渔获计数');
+St.get().book[nf2.id] = 42;
+ok(St.recordCatch(nf2, 1, 'normal') !== null && St.bookEntry(nf2.id).n === 1,
+   '条目是数字这类非法类型时当成「没收集过」，重建一条');
+
 /* =========================================================
    6. 数据一致性（轻量版，完整版见 tools/verify.js）
    ========================================================= */

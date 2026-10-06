@@ -190,6 +190,29 @@ G.State = (function () {
       d.stats[k] = Math.max(0, Math.round(safeNum(d.stats[k], 0)));
     });
     if (!G.FIELD_MAP[d.field] || !d.unlocked[d.field]) d.field = 'D';
+    /* 图鉴条目逐条纠正。条目结构 = { n, maxKg, colors, first }：
+       缺 colors 的条目会让 recordCatch 在整条上鱼路径上抛异常（导入脏档实测复现过），
+       类型不对 / 不认识的鱼种 id 直接丢掉 —— 宁可少一条记录，也别让游戏炸。 */
+    var cleanBook = {};
+    Object.keys(d.book || {}).forEach(function (id) {
+      var e = (d.book || {})[id];
+      if (!G.FISH_ID[id] || !e || typeof e !== 'object' || Array.isArray(e)) return;
+      var colors = {}, sum = 0;
+      if (e.colors && typeof e.colors === 'object' && !Array.isArray(e.colors)) {
+        Object.keys(e.colors).forEach(function (k) {
+          var n = Math.round(safeNum(e.colors[k], 0));
+          if (n > 0) { colors[k] = n; sum += n; }
+        });
+      }
+      cleanBook[id] = {
+        /* n 是「钓到过几条」，颜色计数是它的拆分，缺一边时用另一边补，别出现「收集了但 0 条」 */
+        n: Math.max(0, Math.round(safeNum(e.n, 0)), sum),
+        maxKg: Math.max(0, safeNum(e.maxKg, 0)),
+        colors: colors,
+        first: isFinite(Number(e.first)) ? Number(e.first) : Date.now(),
+      };
+    });
+    d.book = cleanBook;
     // 清掉失效的鱼种 id（比如以后删过鱼）
     d.net = (d.net || []).filter(function (e) {
       return e && G.FISH_ID[e.f] && isFinite(Number(e.kg)) && Number(e.kg) > 0;
@@ -491,12 +514,21 @@ G.State = (function () {
     if (!fish) return { isNew: false, isRecord: false };
     kg = Math.max(0, safeNum(kg, 0));
     var e = S.book[fish.id];
+    /* 脏条目兜底。这条路径**每钓一条鱼都会走**，必须自己扛住：
+       存档导入 / 被手改过的档里可能只有 { n: 1 }（缺 colors），
+       实测「导入这种档 → 钓到那条鱼」会在 e.colors[colorKey] 上抛 TypeError，
+       整条上鱼流程（结算卡、任务、成就）全断。类型不对的条目直接当没见过。 */
+    if (e && (typeof e !== 'object' || Array.isArray(e))) e = null;
     var isNew = !e;
     if (!e) {
       e = S.book[fish.id] = { n: 0, maxKg: 0, colors: {}, first: Date.now() };
     }
+    e.n = Math.max(0, Math.round(safeNum(e.n, 0)));
+    e.maxKg = Math.max(0, safeNum(e.maxKg, 0));
+    if (!e.colors || typeof e.colors !== 'object' || Array.isArray(e.colors)) e.colors = {};
+    if (!isFinite(e.first)) e.first = Date.now();
     e.n++;
-    e.colors[colorKey] = (e.colors[colorKey] || 0) + 1;
+    e.colors[colorKey] = Math.max(0, Math.round(safeNum(e.colors[colorKey], 0))) + 1;
     var isRecord = kg > e.maxKg;
     if (isRecord) e.maxKg = kg;
 

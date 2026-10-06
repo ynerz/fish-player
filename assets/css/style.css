@@ -850,11 +850,17 @@ input[type=range]{ width:130px; accent-color:var(--c-primary); }
 .dev-bar{
   position:fixed; left:50%; bottom:88px; transform:translateX(-50%);
   z-index:70; display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  max-width:min(94vw, 1100px);
   padding:7px 10px; border-radius:12px;
   background:rgba(24,38,52,.92);
   box-shadow:0 6px 24px rgba(0,0,0,.28);
   backdrop-filter:blur(8px);
 }
+/* 按钮已经十几颗，全展开会占满两行、遮住画面底部 ——
+   默认只留「DEV + 工具」两个，点「工具」再展开。
+   ⚠️ 面板只在 ?dev 下挂载，release 打包会整个剔掉，不影响玩家。 */
+.dev-bar .dev-btn.dev-toggle{ font-weight:700; }
+.dev-bar.collapsed .dev-btn:not(.dev-toggle){ display:none; }
 .dev-btn{
   padding:5px 11px; border-radius:8px; cursor:pointer;
   border:1px solid rgba(255,255,255,.18);

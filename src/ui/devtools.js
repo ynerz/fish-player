@@ -171,10 +171,20 @@ G.Cheat = (function () {
     if (document.getElementById('devBar')) return;
     var bar = document.createElement('div');
     bar.id = 'devBar';
-    bar.className = 'dev-bar';
+    bar.className = 'dev-bar collapsed';   // 默认收起：十几颗按钮全展开会遮住画面底部
     var log = document.createElement('span');
     log.className = 'dev-log';
     log.textContent = 'DEV';
+    /* 展开 / 收起。收起状态下只剩「工具」这一颗按钮，不再挡场景 */
+    var toggle = document.createElement('button');
+    toggle.className = 'dev-btn dev-toggle';
+    function setCollapsed(v) {
+      bar.classList.toggle('collapsed', v);
+      toggle.textContent = v ? '工具 ▸' : '工具 ▾';
+    }
+    setCollapsed(true);
+    toggle.onclick = function () { setCollapsed(!bar.classList.contains('collapsed')); };
+    bar.appendChild(toggle);
     BTNS.forEach(function (b) {
       var btn = document.createElement('button');
       btn.className = 'dev-btn';
@@ -189,7 +199,7 @@ G.Cheat = (function () {
     });
     bar.appendChild(log);
     document.body.appendChild(bar);
-    console.log('[devtools] 开发者面板已挂载。控制台可用 G.Cheat.*');
+    console.log('[devtools] 开发者面板已挂载（默认收起）。控制台可用 G.Cheat.*');
   }
 
   function boot() {

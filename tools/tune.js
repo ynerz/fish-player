@@ -4,6 +4,14 @@
    ========================================================= */
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
+
+/* ---------- 固定随机种子 ----------
+   扫描要跑真实对局，而 fight.js 内部用 Math.random —— 不固定种子的话，
+   同一份数值每次扫出来的胜率都不一样，没法判断「调完到底变好还是变坏」。
+   与 balance.js / verify.js 保持同一套口径（Lehmer LCG）。 */
+let _seed = 20260101;
+Math.random = function () { _seed = (_seed * 48271) % 2147483647; return _seed / 2147483647; };
+
 global.window = global;
 const H = { G: {} };
 Object.defineProperty(global, 'G', { get() { return H.G; }, set(v) { H.G = v; }, configurable: true });

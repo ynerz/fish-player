@@ -480,6 +480,18 @@ try {
   chainBad++;
 }
 
+/* 工具输出必须可复现：会用到随机性的工具都必须覆写 Math.random。
+   踩过的坑：balance.js / verify.js 的输出会抄进文档，它们的警戒线
+   （比如「C 场比 D 场高 15% 以上」）曾经会因为随机性 30 次里误报 1 次。 */
+['tools/balance.js', 'tools/verify.js', 'tools/tune.js', 'tools/fix-rarity-price.js'].forEach(rel => {
+  const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  if (!/Math\.random\s*=/.test(src)) {
+    err(`${rel} 没有固定随机种子（Math.random 未被覆写）—— 同一份数据两次跑出的结论会不同`);
+    chainBad++;
+  }
+});
+if (!chainBad) ok('4 个带随机性的工具全部固定了种子（balance / verify / tune / fix-rarity-price）');
+
 
 /* ---------------- 15. 错误采集（E4 空壳）的边界 ----------------
    这一层的价值全在「出问题时还能用」：它自己绝对不能碰需要联网/存储的能力，

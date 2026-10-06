@@ -1532,6 +1532,7 @@ function mkEl(tag) {
     appendChild(c) { this.children.push(c); return c; },
     removeChild(c) { this.children = this.children.filter(x => x !== c); return c; },
     insertBefore(c) { this.children.unshift(c); return c; },
+    get lastChild() { return this.children[this.children.length - 1] || null; },
     addEventListener() {}, setAttribute() {}, getAttribute() { return null; },
     querySelector() { return null; }, querySelectorAll() { return []; },
     getContext() { return null; },
@@ -1601,6 +1602,46 @@ ok(fTxt.indexOf('收满') >= 0 && fTxt.indexOf(hiddenPct) >= 0,
 ok(fTxt.indexOf(hiddenRanks) >= 0, `隐藏钓场名单现算自 fields.js（${hiddenRanks}）`);
 ok(fTxt.indexOf(G.FIELDS.length + ' 个钓场') >= 0,
    `钓场数量现算自 G.FIELDS.length（${G.FIELDS.length} 个）`);
+
+/* ---- ⑤ 鱼护 / 水族箱：整面板能不能渲染完（含懒绘制的降级路径） ----
+   这个面板此前从没在 Node 里被真跑过，而 render() 里有 requestAnimationFrame /
+   canvas 取上下文这类只有浏览器才有的东西 —— 真跑一遍才知道它有没有依赖环境。
+   Node 里没有 IntersectionObserver，走的就是「观察不到就直接画」的兜底分支。 */
+const realCanvasCreate = G.Platform.canvas.create;
+const noop = () => {};
+const fakeCtx = {
+  setTransform: noop, clearRect: noop, save: noop, restore: noop,
+  translate: noop, scale: noop, beginPath: noop, moveTo: noop, lineTo: noop,
+  closePath: noop, fill: noop, stroke: noop, ellipse: noop, fillRect: noop,
+  createLinearGradient: () => ({ addColorStop: noop }),
+  fillStyle: '', strokeStyle: '', lineWidth: 1, globalAlpha: 1,
+};
+G.Platform.canvas.create = () => ({ width: 0, height: 0, style: {}, className: '', getContext: () => fakeCtx });
+const realFishArt = G.FishArt;
+G.FishArt = { draw: noop };
+const realRAF = global.requestAnimationFrame, realCAF = global.cancelAnimationFrame;
+global.requestAnimationFrame = () => 1;
+global.cancelAnimationFrame = noop;
+
+const netA = G.FISH_BY_FIELD.D[0], netB = G.FISH_BY_FIELD.C[0];
+const savedNet = St.get().net, savedTank = St.get().tank;
+St.get().net = [{ f: netA.id, kg: 1.2, c: 'normal' }];
+St.get().tank = [{ f: netB.id, kg: 3.4, c: 'gold' }];
+const netRoot = mkEl('div');
+let netErr = null;
+try { Panels.VIEWS.net.render(netRoot); } catch (e) { netErr = e; }
+ok(!netErr, 'VIEWS.net.render 能跑通（Node 里没有 IntersectionObserver，走同步绘制兜底）',
+   netErr && netErr.message);
+const netTxt = panelText(netRoot);
+ok(netTxt.indexOf(netA.name) >= 0 && netTxt.indexOf(netB.name) >= 0,
+   '鱼护与水族箱里的鱼都渲染出了名字');
+
+/* 还原环境，别影响后面的断言 */
+St.get().net = savedNet; St.get().tank = savedTank;
+G.FishArt = realFishArt;
+G.Platform.canvas.create = realCanvasCreate;
+if (realRAF === undefined) delete global.requestAnimationFrame; else global.requestAnimationFrame = realRAF;
+if (realCAF === undefined) delete global.cancelAnimationFrame; else global.cancelAnimationFrame = realCAF;
 
 /* =========================================================
    Build —— 单文件打包（tools/build.js）

@@ -103,6 +103,8 @@ G.Panels = (function () {
 
   function close() {
     if (tankRAF && cancelAnimationFrame) { cancelAnimationFrame(tankRAF); tankRAF = 0; }
+    /* 面板关了就把列表的懒绘制观察器也断了（它一直握着已经脱离文档的节点） */
+    if (netIO) { netIO.disconnect(); netIO = null; }
     modal.classList.add('hidden');
     bodyEl.innerHTML = '';
     current = null;
@@ -650,25 +652,54 @@ G.Panels = (function () {
      ========================================================= */
   var tankRAF = 0;
 
+  /* 鱼护 / 水族箱每一行的小图：与图鉴一样走 IntersectionObserver 懒绘制。
+     原先是每行一个 `setTimeout(miniFish, 0)` —— 满格时一次建 N 个定时器，
+     而且面板已经关掉之后，那些脱离文档的 canvas 还会被画一遍（白跑）。
+     ⚠️ 懒绘制的 canvas 必须**先定好尺寸**：不设 width/height 的话浏览器会给
+     300×150 的默认值，行高会先被撑开、画完再回落。 */
+  var netIO = null;
+
+  var MINI_W = 96, MINI_H = 52;
+
+  /* 定尺寸并返回 dpr（建列表时与真正绘制时都要先走这一遍） */
+  function miniSize(cv) {
+    var dpr = G.Platform.sys.dpr();
+    cv.width = MINI_W * dpr; cv.height = MINI_H * dpr;
+    cv.style.width = MINI_W + 'px'; cv.style.height = MINI_H + 'px';
+    return dpr;
+  }
+
   /* 画一条鱼的小图标（列表用） */
   function miniFish(cv, entry) {
     var fish = G.FISH_ID[entry.f];
     if (!fish) return;
     var cm = G.Loot.colorByKey(entry.c);
     var ctx = cv.getContext('2d');
-    var dpr = G.Platform.sys.dpr();
-    var w = 96, h = 52;
-    cv.width = w * dpr; cv.height = h * dpr;
-    cv.style.width = w + 'px'; cv.style.height = h + 'px';
+    var dpr = miniSize(cv);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
-    G.FishArt.draw(ctx, fish, w / 2, h / 2, w * 0.9, {
+    ctx.clearRect(0, 0, MINI_W, MINI_H);
+    G.FishArt.draw(ctx, fish, MINI_W / 2, MINI_H / 2, MINI_W * 0.9, {
       tint: cm && cm.tint, tintAmt: cm && cm.tint ? 0.75 : 0, t: 0.6,
     });
   }
 
   function renderNet(root) {
     var s = St.get();
+
+    /* 每次整块重绘都要换一个观察器：旧的连着已废的 DOM 节点。
+       （回调里 unobserve 用局部 io，别用 netIO —— 重绘后它已经指向新的了） */
+    if (netIO) { netIO.disconnect(); netIO = null; }
+    var io = null;
+    if ('IntersectionObserver' in window) {
+      io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (!en.isIntersecting) return;
+          io.unobserve(en.target);
+          if (en.target._paint) en.target._paint();
+        });
+      }, { root: bodyEl, rootMargin: '260px' });
+      netIO = io;
+    }
     var netN = St.netCount(), tankN = St.tankCount();
     var yieldPerHour = St.tankYieldPerHour();
 
@@ -744,6 +775,7 @@ G.Panels = (function () {
         var row = U.el('div', 'net-row');
 
         var cv = G.Platform.canvas.create();
+        miniSize(cv);                    // 先定尺寸，别让默认的 300×150 撑开行高
         row.appendChild(cv);
 
         var info = U.el('div', 'net-info');
@@ -786,7 +818,8 @@ G.Panels = (function () {
 
         row.appendChild(ops);
         list.appendChild(row);
-        setTimeout(function () { miniFish(cv, entry); }, 0);
+        cv._paint = function () { miniFish(cv, entry); };
+        if (io) io.observe(cv); else cv._paint();
       });
       root.appendChild(list);
     }
@@ -908,6 +941,7 @@ G.Panels = (function () {
         var cm = G.Loot.colorByKey(entry.c);
         var row = U.el('div', 'net-row');
         var cv2 = G.Platform.canvas.create();
+        miniSize(cv2);                   // 同上：先定尺寸
         row.appendChild(cv2);
         var info2 = U.el('div', 'net-info');
         info2.innerHTML =
@@ -937,7 +971,8 @@ G.Panels = (function () {
         ops2.appendChild(bOut); ops2.appendChild(bSell);
         row.appendChild(ops2);
         tlist.appendChild(row);
-        setTimeout(function () { miniFish(cv2, entry); }, 0);
+        cv2._paint = function () { miniFish(cv2, entry); };
+        if (io) io.observe(cv2); else cv2._paint();
       });
       root.appendChild(tlist);
     }

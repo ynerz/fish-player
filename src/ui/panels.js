@@ -1049,12 +1049,26 @@ G.Panels = (function () {
         info.innerHTML =
           '<b>本版本为单机版，全部付费点暂未开启</b>（' + (m.enabled ? '已开启' : '开关关闭') + '）。<br>' +
           '以下是策划案里的付费设计，代码里已预留接口，接小程序 / Steam 时再打开：<br><br>';
+        /* ⚠️ 这里的数值必须来自 config / 道具表，不许写死在文案里。
+           原来硬编码了 20% / 5% / 10%，还写着「已实现为鱼竿稀有权重 ×1.08~×1.45」——
+           而 items.js 里鱼竿的实际区间是 ×1.06~×1.5，改数值时这两处一定会漂。
+           视频兑换码 / 广告券同理，由 monetization 的开关决定文案。 */
+        var pctOf = function (v) { return Math.round(v * 100) + '%'; };
+        var rodBoosts = G.RODS.map(function (r) { return r.rareMul; })
+          .filter(function (v) { return v > 1; });
+        var rodRange = rodBoosts.length
+          ? '×' + Math.min.apply(null, rodBoosts) + '~×' + Math.max.apply(null, rodBoosts)
+          : '—';
         var rows = [
-          ['🎣', '稀有鱼竿', '钓到稀有鱼的概率提高 20%（已实现为鱼竿稀有权重 ×1.08~×1.45）'],
-          ['📅', '月卡 · 自动挂机', '挂机自动帮上鱼，稀有鱼概率下降 5%（当前免费开放）'],
-          ['📤', '分享得鱼竿', '分享给好友可获得鱼竿，稀有鱼概率 +10%'],
-          ['🎬', '视频兑换码', '做视频发布到平台可领取兑换码，解锁挂机自动上鱼'],
-          ['📺', '看广告', '观看广告获得 1 小时挂机券'],
+          ['🎣', '稀有鱼竿', '钓到稀有鱼的概率提高 ' + pctOf(m.rodRareBoost) +
+            '（已实现为鱼竿稀有权重 ' + rodRange + '）'],
+          ['📅', '月卡 · 自动挂机', '挂机自动帮上鱼，稀有鱼概率下降 ' + pctOf(m.idleRareCut) +
+            '（' + (m.idleIsSubscribed ? '月卡功能' : '当前免费开放') + '）'],
+          ['📤', '分享得鱼竿', '分享给好友可获得鱼竿，稀有鱼概率 +' + pctOf(m.shareRodBoost)],
+          ['🎬', '视频兑换码', '做视频发布到平台可领取兑换码，解锁挂机自动上鱼' +
+            (m.videoCode ? '' : '（策划案里已取消）')],
+          ['📺', '看广告', '观看广告获得 1 小时挂机券' +
+            (m.adIdleTicket ? '' : '（策划案里已取消）')],
         ];
         rows.forEach(function (r) {
           var row = U.el('div', 'shop-item');

@@ -875,6 +875,40 @@ else {
 if (!catchBad) ok('结算卡第 2 行是体重占比；超过常规上限（巨物）会单独标注');
 
 
+/* ---------------- 24. 付费内容面板的数值不许写死 ----------------
+   原来文案里硬编码了 20% / 5% / 10%，还写着「已实现为鱼竿稀有权重 ×1.08~×1.45」，
+   而 items.js 里鱼竿的实际区间是 ×1.06~×1.5 —— 调数值时这两处一定会漂。
+   现在全部从 config.monetization / 道具表现算出来。 */
+console.log('\n[24] 付费内容面板的数值来自 config（不得硬编码）');
+let paidBad = 0;
+const paidBlock = (panelsSrc.match(/if \(shopTab === 'paid'\)\s*\{[\s\S]*?\n      \}/) || [''])[0];
+if (!paidBlock) { err("panels.js 里找不到 shopTab === 'paid' 分支"); paidBad++; }
+else {
+  const paidCode = paidBlock.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  if (/\d+\s*%/.test(paidCode)) {
+    err('付费内容面板的文案里又出现写死的百分比了 —— 数值要读 CFG.monetization');
+    paidBad++;
+  }
+  ['rodRareBoost', 'idleRareCut', 'shareRodBoost'].forEach(k => {
+    if (paidCode.indexOf('m.' + k) < 0) { err(`付费内容面板没有读 monetization.${k}`); paidBad++; }
+  });
+  if (paidCode.indexOf('rareMul') < 0 || paidCode.indexOf('Math.min') < 0 || paidCode.indexOf('Math.max') < 0) {
+    err('付费内容面板的「鱼竿稀有权重区间」没有按 items.js 的真实 rareMul 现算（应走 Math.min / Math.max）');
+    paidBad++;
+  }
+}
+/* monetization 的每个数值键都必须真的有消费方，否则就是「配了没人用」 */
+const monCfg = (CFG.monetization || {});
+const monKeys = Object.keys(monCfg).filter(k => k !== 'enabled');
+const panelsAndSrc = panelsSrc + fs.readFileSync(path.join(ROOT, 'src/main.js'), 'utf8')
+  + fs.readFileSync(path.join(ROOT, 'src/core/state.js'), 'utf8');
+const monOrphan = monKeys.filter(k => panelsAndSrc.indexOf('monetization.' + k) < 0 && panelsAndSrc.indexOf('m.' + k) < 0);
+if (monOrphan.length) {
+  err(`config.monetization 里这些键没有任何消费方：${monOrphan.join('、')}`); paidBad++;
+}
+if (!paidBad) ok(`付费内容面板的数值全部来自 config（monetization 的 ${monKeys.length} 个键都有消费方）`);
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

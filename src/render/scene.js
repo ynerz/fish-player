@@ -33,6 +33,7 @@ G.Scene = (function () {
 
   /* ---------------- 初始化 ---------------- */
   function init(canvas) {
+    clearGradCache();
     cv = canvas;
     ctx = cv.getContext('2d');
     window.addEventListener('resize', resize);
@@ -40,6 +41,7 @@ G.Scene = (function () {
   }
 
   function resize() {
+    clearGradCache();
     if (!cv) return;
     var r = cv.parentElement.getBoundingClientRect();
     dpr = G.Platform.sys.dpr();
@@ -75,6 +77,18 @@ G.Scene = (function () {
     }
   }
 
+  /* ---------------- 渐变缓存 ----------------
+     场景里 8 处渐变只跟「画布尺寸 / 钓场主题」有关，跟时间无关，
+     但原来是每帧重建 —— 60fps 下每秒新建 480 个 CanvasGradient 对象，
+     低端机 GC 压力明显。这里缓存起来，在 resize / setField 时失效。 */
+  var gradCache = {};
+  function grad(key, make) {
+    var g = gradCache[key];
+    if (!g) g = gradCache[key] = make();
+    return g;
+  }
+  function clearGradCache() { gradCache = {}; }
+
   function horizonY() { return H * 0.46; }
   function surfaceY() { return horizonY() + Math.min(70, H * 0.10); }
   function dockY() { return horizonY() + Math.min(78, H * 0.115); }
@@ -85,6 +99,7 @@ G.Scene = (function () {
 
   /* ---------------- 对外动作 ---------------- */
   function setField(f) {
+    clearGradCache();
     field = f;
     buildStatic();
     S.particles.length = 0;
@@ -225,9 +240,12 @@ G.Scene = (function () {
 
   /* ---------------- 天空 ---------------- */
   function drawSky(th) {
-    var g = ctx.createLinearGradient(0, 0, 0, horizonY() + 4);
-    g.addColorStop(0, th.sky[0]);
-    g.addColorStop(1, th.sky[1]);
+    var g = grad('sky', function () {
+      var gg = ctx.createLinearGradient(0, 0, 0, horizonY() + 4);
+      gg.addColorStop(0, th.sky[0]);
+      gg.addColorStop(1, th.sky[1]);
+      return gg;
+    });
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, horizonY() + 4);
   }
@@ -235,9 +253,12 @@ G.Scene = (function () {
   function drawCelestial(th) {
     if (th.sun) {
       var sx = th.sun.x * W, sy = th.sun.y * horizonY();
-      var gg = ctx.createRadialGradient(sx, sy, 1, sx, sy, th.sun.r * 6);
-      gg.addColorStop(0, th.sun.glow);
-      gg.addColorStop(1, 'rgba(255,255,255,0)');
+      var gg = grad('sunglow', function () {
+        var q = ctx.createRadialGradient(sx, sy, 1, sx, sy, th.sun.r * 6);
+        q.addColorStop(0, th.sun.glow);
+        q.addColorStop(1, 'rgba(255,255,255,0)');
+        return q;
+      });
       ctx.fillStyle = gg;
       ctx.beginPath(); ctx.arc(sx, sy, th.sun.r * 6, 0, 6.3); ctx.fill();
       ctx.beginPath(); ctx.arc(sx, sy, th.sun.r, 0, 6.3);
@@ -246,9 +267,12 @@ G.Scene = (function () {
     if (th.moon) {
       var mx = W * 0.76, my = horizonY() * 0.22;
       var mr = th.moonSize || 34;
-      var mg = ctx.createRadialGradient(mx, my, 1, mx, my, mr * 5);
-      mg.addColorStop(0, 'rgba(220,235,255,.35)');
-      mg.addColorStop(1, 'rgba(220,235,255,0)');
+      var mg = grad('moonglow', function () {
+        var q = ctx.createRadialGradient(mx, my, 1, mx, my, mr * 5);
+        q.addColorStop(0, 'rgba(220,235,255,.35)');
+        q.addColorStop(1, 'rgba(220,235,255,0)');
+        return q;
+      });
       ctx.fillStyle = mg;
       ctx.beginPath(); ctx.arc(mx, my, mr * 5, 0, 6.3); ctx.fill();
       ctx.beginPath(); ctx.arc(mx, my, mr, 0, 6.3);
@@ -322,10 +346,13 @@ G.Scene = (function () {
   /* ---------------- 水面 ---------------- */
   function drawWater(th) {
     var hy = horizonY();
-    var g = ctx.createLinearGradient(0, hy, 0, H);
-    g.addColorStop(0, th.water[0]);
-    g.addColorStop(0.42, th.water[1]);
-    g.addColorStop(1, th.deep[1]);
+    var g = grad('water', function () {
+      var q = ctx.createLinearGradient(0, hy, 0, H);
+      q.addColorStop(0, th.water[0]);
+      q.addColorStop(0.42, th.water[1]);
+      q.addColorStop(1, th.deep[1]);
+      return q;
+    });
     ctx.fillStyle = g;
     ctx.fillRect(0, hy, W, H - hy);
 
@@ -352,9 +379,12 @@ G.Scene = (function () {
     if (th.shimmer) {
       ctx.save();
       ctx.globalAlpha = 0.16 + 0.08 * Math.sin(time * 0.7);
-      var sg = ctx.createLinearGradient(0, hy, 0, hy + (H - hy) * 0.6);
-      sg.addColorStop(0, 'rgba(140,200,255,.55)');
-      sg.addColorStop(1, 'rgba(140,200,255,0)');
+      var sg = grad('shimmer', function () {
+        var q = ctx.createLinearGradient(0, hy, 0, hy + (H - hy) * 0.6);
+        q.addColorStop(0, 'rgba(140,200,255,.55)');
+        q.addColorStop(1, 'rgba(140,200,255,0)');
+        return q;
+      });
       ctx.fillStyle = sg;
       ctx.fillRect(0, hy, W, (H - hy) * 0.6);
       ctx.restore();
@@ -457,9 +487,12 @@ G.Scene = (function () {
       ctx.fillStyle = th.dockDark;
       ctx.fillRect(x, dy, 9, pilingH);
       // 水下渐隐
-      var g = ctx.createLinearGradient(0, dy, 0, dy + pilingH);
-      g.addColorStop(0, 'rgba(0,0,0,0)');
-      g.addColorStop(1, 'rgba(0,20,35,.55)');
+      var g = grad('piling' + (x | 0) + '_' + (pilingH | 0), function () {
+        var q = ctx.createLinearGradient(0, dy, 0, dy + pilingH);
+        q.addColorStop(0, 'rgba(0,0,0,0)');
+        q.addColorStop(1, 'rgba(0,20,35,.55)');
+        return q;
+      });
       ctx.fillStyle = g;
       ctx.fillRect(x, dy, 9, pilingH);
       // 受光边
@@ -615,8 +648,11 @@ G.Scene = (function () {
     ctx.lineTo(x + Hh * 0.135, shoY);
     ctx.quadraticCurveTo(x + Hh * 0.165, shoY + Hh * 0.06, x + Hh * 0.125, hipY);
     ctx.closePath();
-    var g = ctx.createLinearGradient(x - Hh * 0.16, 0, x + Hh * 0.16, 0);
-    g.addColorStop(0, shirtD); g.addColorStop(0.45, shirt); g.addColorStop(1, shirtD);
+    var g = grad('shirt' + (x | 0), function () {
+      var q = ctx.createLinearGradient(x - Hh * 0.16, 0, x + Hh * 0.16, 0);
+      q.addColorStop(0, shirtD); q.addColorStop(0.45, shirt); q.addColorStop(1, shirtD);
+      return q;
+    });
     ctx.fillStyle = g; ctx.fill();
 
     /* 领口 */
@@ -943,9 +979,12 @@ G.Scene = (function () {
   }
 
   function drawVignette(th) {
-    var g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.78);
-    g.addColorStop(0, 'rgba(0,0,0,0)');
-    g.addColorStop(1, th.vignette);
+    var g = grad('vignette', function () {
+      var q = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.78);
+      q.addColorStop(0, 'rgba(0,0,0,0)');
+      q.addColorStop(1, th.vignette);
+      return q;
+    });
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
   }

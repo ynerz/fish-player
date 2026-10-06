@@ -401,6 +401,32 @@ else {
   if (!bad && rows.length >= 5) ok(`GDD 版本历史表 ${rows.length} 行按版本号递增，标题对齐 v${CFG.version}`);
 }
 
+/* 11-h 文档里写的「单文件产物 ≈ N KB」必须与真实构建相符
+   这个数字在 GDD / 开发者文档里各写了一遍，谁都不会记得跟着改 ——
+   本轮实测：文档写 419 KB，真产物已经 464 KB（漂了 11%），而它正是
+   「双击 file:// 就能跑的单个文件有多大」这个对外说法。
+   容差 5%：dev 与 release 产物本来就有约 2% 的差（release 剔除 devtools.js）。
+   ⚠️ 判据只认「产物 ≈ N KB」与「≈ N KB」两种写法 ——
+   GDD 版本历史表里那句「（21 个脚本内联成一个 HTML，≈419 KB）」是**历史记录**，
+   刻意不纳入（它描述的是 v0.5.4 当时的产物）。改措辞时记得同步这里的正则。 */
+const realKB = Math.round(BLD.build({}).meta.bytes / 1024);
+let sizeClaimCount = 0;
+[['docs/GDD.md', /产物\s*[≈约]\s*\*{0,2}\s*(\d+)\s*KB/g],
+ ['docs/开发者文档.md', /[≈约]\s*\*{0,2}\s*(\d+)\s*KB/g]].forEach(function (pair) {
+  const file = pair[0];
+  const txt = fs.readFileSync(path.join(ROOT, file), 'utf8');
+  let m;
+  while ((m = pair[1].exec(txt))) {
+    sizeClaimCount++;
+    const claimed = +m[1];
+    if (Math.abs(claimed - realKB) / realKB > 0.05) {
+      err(`${file} 里写着产物 ≈${claimed} KB，实际构建是 ${realKB} KB（偏差 >5%，改文档或别内联那么多东西）`);
+      entryBad++;
+    }
+  }
+});
+if (!sizeClaimCount) { err('文档里再找不到「单文件产物 ≈ N KB」这句对外说法（被删了？）'); entryBad++; }
+
 if (!entryBad) {
   ok(`入口 ${listed.length} 个脚本 == src/ 下 ${onDisk.length} 个模块，顺序正确`);
   ok(`按 index.html 顺序加载：${ranCount} 个模块在 Node 里跑通` +

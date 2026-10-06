@@ -1463,7 +1463,7 @@ G.Panels = (function () {
         var row = U.el('div', 'pick-row' + (s.baitSel === b.id ? ' on' : (can ? '' : ' off')));
         row.innerHTML = '<div class="sh-ico" style="background:' + b.color + '"></div>' +
           '<div class="pr-main"><div class="pr-name">' + b.name + '</div>' +
-          '<div class="pr-desc">' + b.desc + '<br>速度 ×' + b.speed.toFixed(2) +
+          '<div class="pr-desc">' + b.desc + '<br>咬口时间 ×' + b.speed.toFixed(2) +
           ' ｜ 稀有 ×' + b.rareMul.toFixed(2) + (b.legendMul > 1 ? ' ｜ 传说 ×' + b.legendMul.toFixed(2) : '') + '</div></div>' +
           '<div class="pr-right' + (b.free ? ' free' : '') + '">' + (b.free ? '无限' : '×' + have) + '</div>';
         U.on(row, 'click', function () {

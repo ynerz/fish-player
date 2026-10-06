@@ -1091,9 +1091,17 @@ wordMods.forEach(m => {
     err(`${m} 里又把鱼饵 speed 写成「上鱼速度」了 —— 它乘的是咬口时间，越小越快，方向会说反`);
     baitWordBad++;
   }
+  /* 只叫「速度 ×0.56」同样说反（少了「上鱼」两个字，上一版就这么漏过去的：
+     商店改了、底栏的「选择鱼饵」面板没改）。鱼饵相关的文案只许叫「咬口时间」。 */
+  if (/速度\s*×/.test(code)) {
+    err(`${m} 里鱼饵 speed 又写成「速度 ×…」了 —— 只许叫「咬口时间」（越小越快）`);
+    baitWordBad++;
+  }
 });
-if (panelsSrc.indexOf('咬口时间 ×') < 0) {
-  err('商店的鱼饵卡片没有标「咬口时间 ×」'); baitWordBad++;
+/* 两处鱼饵界面（商店 / 底栏选饵面板）都得标「咬口时间 ×」 */
+const baitTimeHits = (panelsSrc.match(/咬口时间 ×/g) || []).length;
+if (baitTimeHits < 2) {
+  err(`鱼饵的「咬口时间 ×」标注只有 ${baitTimeHits} 处（商店 / 选饵面板各需一处）`); baitWordBad++;
 }
 ['docs/GDD.md', 'docs/说明书.html'].forEach(f => {
   const t = fs.readFileSync(path.join(ROOT, f), 'utf8');

@@ -967,6 +967,81 @@ if (utilDead.length) {
 if (!utilBad) ok(`util.js 导出的 ${utilFns.filter(f => new RegExp('(^|[\\s{,])' + escRe(f) + '\\s*:').test(utilExports)).length} 个函数都有真实消费方`);
 
 
+/* ---------------- 26. 文档页 / 工具页的脚本依赖自检（E5：缺依赖就报红） ----------------
+   `docs/说明书.html` 曾经漏挂 `loot.js` —— 页面能打开、样式也对，只有一小块内容
+   永远算不出来（静默降级），没人会注意到。这类问题每加一个页面就会复发一次，
+   所以在这里把它变成机器能查的事：
+     26-a 引用的脚本文件必须存在
+     26-b 脚本的相对顺序必须是 index.html 顺序的**子序列**（index.html 是规范加载序）
+     26-c 内联脚本里用到的每个「真的有人导出」的 `G.*`，都必须由页面已加载的模块提供 */
+console.log('\n[26] 文档页 / 工具页的脚本依赖自检');
+let docBad = 0;
+const gExportMap = {};        // 导出的 G.* 名字 -> 定义它的模块
+const gMods = [];
+(function walkJs(dir) {
+  fs.readdirSync(path.join(ROOT, dir)).forEach(name => {
+    const rel = dir + '/' + name;
+    if (fs.statSync(path.join(ROOT, rel)).isDirectory()) walkJs(rel);
+    else if (/\.js$/.test(name)) gMods.push(rel);
+  });
+})('src');
+gMods.forEach(m => {
+  const code = fs.readFileSync(path.join(ROOT, m), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  /* 只认「行首的 G.X = 」（排除 G.CONFIG.rarity = 这类深层赋值） */
+  (code.match(/^G\.([A-Za-z_$][\w$]*)\s*=(?!=)/gm) || []).forEach(line => {
+    const nm = line.replace(/^G\./, '').replace(/\s*=.*$/, '');
+    if (!(nm in gExportMap)) gExportMap[nm] = m;
+  });
+});
+const indexOrder = BLD.collectScripts(htmlRaw);
+const docPages = [];
+['docs', 'tools'].forEach(dir => fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+  if (/\.html$/.test(n)) docPages.push(dir + '/' + n);
+}));
+docPages.forEach(rel => {
+  let pageBad = 0;
+  const raw = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  const srcs = (raw.match(/<script[^>]*\bsrc\s*=\s*["'][^"']+["']/gi) || [])
+    .map(s => (s.match(/["']([^"']+)["']/) || [, ''])[1]);
+  const pageDir = path.dirname(path.join(ROOT, rel));
+  const loaded = [], order = [];
+  srcs.forEach(s => {
+    const abs = path.resolve(pageDir, s);
+    if (!fs.existsSync(abs)) { err(`${rel} 引用了不存在的脚本：${s}`); docBad++; pageBad++; return; }
+    const r = path.relative(ROOT, abs).split(path.sep).join('/');
+    loaded.push(r);
+    const i = indexOrder.indexOf(r);
+    if (i >= 0) order.push([i, r]);
+  });
+  /* 26-b */
+  for (let i = 1; i < order.length; i++) {
+    if (order[i][0] < order[i - 1][0]) {
+      err(`${rel} 的脚本顺序与 index.html 相反：${order[i][1]} 应在 ${order[i - 1][1]} 之前`);
+      docBad++; pageBad++;
+      break;
+    }
+  }
+  if (!loaded.length) { ok(`${rel}：不加载游戏代码，无需依赖检查`); return; }
+  /* 26-c */
+  const inline = (raw.match(/<script(?![^>]*\bsrc\b)[^>]*>([\s\S]*?)<\/script>/gi) || []).join('\n')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const used = {};
+  (inline.match(/G\.([A-Za-z_$][\w$]*)/g) || []).forEach(m => {
+    const nm = m.slice(2);
+    if (gExportMap[nm]) used[nm] = gExportMap[nm];      // 不存在于任何模块的名字当作文档里的示例，不管
+  });
+  const lack = Object.keys(used).filter(nm => loaded.indexOf(used[nm]) < 0);
+  if (lack.length) {
+    err(`${rel} 用到了 G.${lack.join(' / G.')}，但页面没加载定义它们的模块：` +
+      lack.map(nm => used[nm]).filter((v, i, a) => a.indexOf(v) === i).join('、'));
+    docBad++; pageBad++;
+  }
+  if (!pageBad) ok(`${rel}：${loaded.length} 个脚本齐全、顺序与入口一致、用到的 ${Object.keys(used).length} 个 G.* 都有来源`);
+});
+if (docPages.length === 0) { err('没有扫到任何文档页/工具页（路径写错了？）'); docBad++; }
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

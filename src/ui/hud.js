@@ -45,15 +45,21 @@ G.Hud = (function () {
     if (el.dangerMark) el.dangerMark.style.left = (G.Fight.SAFE * 100) + '%';
 
     /* 顶栏按钮
-       ⚠️ 弹层打开时 #modal（`position:fixed; inset:0; z-index:50`）会盖住整个顶栏，
-          所以「面板开着时点标签页」其实点不到这里 —— 点击落在遮罩上，
-          由 panels.js 的 backdrop 逻辑关掉面板（要再点一次才打开新的）。
-          这里的分支只处理「没开面板」的情况。 */
+       ⚠️ 弹层**不覆盖顶栏**（`.modal` 从 `top:var(--hud-h)` 开始，见 style.css），
+          所以面板开着的时候标签页仍然点得到，可以就地切换：
+          · 点别的标签页 → 直接换面板
+          · 点当前正开着的那个 → 收起来（当成开关用）
+      曾经 `.modal` 是 `inset:0; z-index:50`，把整条顶栏盖住 →
+          点击落在遮罩上只会关面板，切个面板要点两次。 */
     U.$$('.tab').forEach(function (b) {
       U.on(b, 'click', function () {
         var p = b.getAttribute('data-panel');
-        if (G.Panels.isOpen()) { G.Panels.close(); }
-        else { G.Panels.open(p); setActiveTab(p); }
+        if (G.Panels.isOpen() && G.Panels.current() === p) {
+          G.Panels.close();
+        } else {
+          G.Panels.open(p);
+          setActiveTab(p);
+        }
       });
     });
     G.Panels.setOnClose(function () { setActiveTab(null); });

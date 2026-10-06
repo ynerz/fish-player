@@ -671,6 +671,30 @@ if (tabN !== 1) { err(`hud.js 里给标签页绑 click 的地方有 ${tabN} 处�
 if (!panelBad) ok('close() 不再注销常驻回调；hud 的「关闭即清高亮」只注册一次');
 
 
+/* ---- [19] 弹层不得盖住顶栏（顶栏是面板的导航，被盖住就只能「先关一次、再点一次」） ----
+   原来 `.modal` 是 `inset:0`，整条顶栏都在遮罩底下 → 面板开着时点标签页，
+   点击落在遮罩上（只会关面板）。改成从 `top:var(--hud-h)` 开始，
+   hud.js 的 tab 分支才能就地切面板。 */
+console.log('\n[19] 弹层不从顶栏上方开始（顶栏在面板打开时仍可点）');
+let layerBad = 0;
+const modalRule = (fs.readFileSync(path.join(ROOT, 'assets/css/style.css'), 'utf8')
+  .match(/\.modal\s*\{[\s\S]*?\}/) || [''])[0];
+if (!modalRule) { err('style.css 里找不到 .modal 规则'); layerBad++; }
+else {
+  if (/inset\s*:\s*0/.test(modalRule)) {
+    err('.modal 又写回 inset:0 —— 遮罩会盖住顶栏，面板开着时点标签页只会关面板（切面板要点两次）');
+    layerBad++;
+  }
+  if (!/top\s*:\s*var\(--hud-h\)/.test(modalRule)) {
+    err('.modal 没有从 var(--hud-h) 开始 —— 弹层会压住顶栏，标签页点不到'); layerBad++;
+  }
+}
+if (!/G\.Panels\.isOpen\(\)\s*&&\s*G\.Panels\.current\(\)\s*===\s*p/.test(hudSrcTab)) {
+  err('hud.js 的标签页分支没有做「就地切换」（缺 isOpen() && current() === p 的判断）'); layerBad++;
+}
+if (!layerBad) ok('弹层从顶栏下方开始；点标签页可直接切换/收起面板');
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

@@ -373,8 +373,11 @@ html,body{
 }
 
 /* ================= 弹层 ================= */
+/* ⚠️ 顶栏**不在**遮罩底下：弹层从 `--hud-h` 开始（原来 inset:0 会把顶栏一起盖住，
+   于是「面板开着时点标签页」的点击落在遮罩上、只会关面板，要再点一次才切过去）。
+   留出顶栏还能让标签页在面板打开时就地切换 —— 见 hud.js 的 tab 分支。 */
 .modal{
-  position:fixed; inset:0; z-index:50;
+  position:fixed; left:0; right:0; bottom:0; top:var(--hud-h); z-index:50;
   display:flex; align-items:center; justify-content:center;
   padding:24px;
   background:rgba(20,40,55,.44);
@@ -383,7 +386,9 @@ html,body{
 }
 @keyframes fadeIn{ from{opacity:0;} to{opacity:1;} }
 .modal-box{
-  width:min(760px,100%); max-height:86vh;
+  width:min(760px,100%);
+  /* 可用高度 = 视口 − 顶栏 − 上下 padding，别再用 86vh（那样会顶出屏幕） */
+  max-height:calc(100vh - var(--hud-h) - 48px);
   display:flex; flex-direction:column;
   background:var(--c-panel); border-radius:16px;
   box-shadow:var(--shadow-l); overflow:hidden;

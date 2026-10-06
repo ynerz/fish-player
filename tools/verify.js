@@ -828,6 +828,31 @@ if (!/function sellFish\s*\(/.test(stateSrcSell) || !/sellFish:\s*sellFish/.test
 if (!incomeBad) ok('stats.totalValue 只在 state.js 的卖鱼出口里写，其余源码只调 St.sellFish()');
 
 
+/* ---------------- 23. 结算卡那一行是「体重占比」，不是「体长」 ----------------
+   游戏里没有「体长」这个数据（fishart 里的 L 是绘制像素）。
+   而 CFG.weight.giantProb 有 3% 的「巨物」会在常规上限之上再 ×1.55，
+   那时显示「155% 上限」自相矛盾 —— 必须点名是巨物。 */
+console.log('\n[23] 结算卡的体重占比（不得写成「体长」；巨物要单独标注）');
+let catchBad = 0;
+const showCatchBody = (panelsSrc.match(/function showCatch\s*\([\s\S]*?\n  \}/) || [''])[0];
+if (!showCatchBody) { err('panels.js 里找不到 showCatch()'); catchBad++; }
+else {
+  /* 只看代码，不看注释 —— 那段注释本身就要说明「以前写成体长」，
+     否则断言会被自己的说明文字绊倒 */
+  const showCatchCode = showCatchBody
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  if (showCatchCode.indexOf('体长') >= 0) {
+    err('结算卡又写「体长」了 —— 这一行算的是体重占常规上限的比例，游戏里根本没有体长数据');
+    catchBad++;
+  }
+  if (showCatchCode.indexOf('maxKg') < 0) { err('结算卡不再对比同种的体重上限了'); catchBad++; }
+  if (showCatchCode.indexOf('巨物') < 0) {
+    err('结算卡没有标注「巨物」—— 3% 概率的巨物会显示成「155% 上限」，自相矛盾'); catchBad++;
+  }
+}
+if (!catchBad) ok('结算卡第 2 行是体重占比；超过常规上限（巨物）会单独标注');
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

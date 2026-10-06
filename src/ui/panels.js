@@ -1563,9 +1563,17 @@ G.Panels = (function () {
       (info.isRecord && !info.isNew ? '<span class="cc-tag" style="background:#e8a020">新纪录</span>' : '');
 
     var rows = U.$('#ccRows');
+    /* ⚠️ 这一行原来写的是「体长参考」，但算的其实是**体重**占该鱼种常规上限的比例 ——
+       游戏里没有「体长」这个数据（fishart 里的 L 是绘制像素，与鱼本身无关），
+       写「体长」等于凭空造了一个玩家会去找的属性。
+       另外 CFG.weight.giantProb 有 3% 的「巨物」会在常规上限之上再 ×1.55，
+       那时显示「155% 上限」自相矛盾 —— 得点名它是巨物。 */
+    var kgPct = Math.round(info.kg / (info.fish.maxKg || 1) * 100);
     rows.innerHTML =
       '<div class="cc-row"><span>重量</span><span>' + U.kg(info.kg) + '</span></div>' +
-      '<div class="cc-row"><span>体长参考</span><span>' + (info.kg / (info.fish.maxKg || 1) * 100).toFixed(0) + '% 上限</span></div>' +
+      '<div class="cc-row"><span>体重占比</span><span>' + kgPct + '%' +
+        (kgPct > 100 ? '　<span class="cc-tag" style="background:#e8a020">巨物</span>' : '') +
+        '</span></div>' +
       '<div class="cc-row"><span>颜色系数</span><span>×' + info.color.valueMul.toFixed(2) + '</span></div>' +
       '<div class="cc-row"><span>卖出价</span><span>' + U.coin(info.price) + ' 金' + (info.isNew ? '（图鉴奖励 ×' + CFG.economy.firstCatchBonus + '）' : '') + '</span></div>' +
       '<div class="cc-row"><span>图鉴累计</span><span>' + (St.bookEntry(info.fish.id).n) + ' 条</span></div>';

@@ -487,6 +487,32 @@ for (let i = 0; i < 10; i++) St.expandTank();
 ok(St.netExpandCost() === null && St.expandNet().ok === false, '鱼护扩到上限后拒绝继续扩');
 ok(St.tankExpandCost() === null && St.expandTank().ok === false, '水族箱扩到上限后拒绝继续扩');
 
+/* 卖鱼进账必须和 addCoin 共用同一套兜底。
+   漏洞入口：netPrice → Loot.price → `Math.max(1, Math.round(NaN))` 仍然是 NaN
+   （Math.max 只要有一个 NaN 就返回 NaN），所以脏鱼护（kg 是 NaN）
+   能算出一个 NaN 价，而 `S.coin += NaN` 会把金币**永久**污染成 NaN
+   （存档再写出去就是 null）。 */
+St.reset();
+St.get().coin = 100;
+St.get().net.push({ f: nf.id, kg: NaN, c: 'normal' });
+ok(!isFinite(St.netPrice(St.get().net[0])), 'NaN 体重确实能算出一个非有限价（这就是漏洞入口）');
+const sellBad = St.sellNetAt(0);
+ok(sellBad === 0 && St.get().coin === 100,
+   `脏条目的卖出不污染金币（入账 ${sellBad}，金币仍是 ${St.get().coin}）`);
+St.get().coin = NaN;
+St.get().stats.totalValue = NaN;
+St.toNet(nf, 0.4, 'normal');
+const sellFix = St.sellNetAt(0);
+ok(isFinite(St.get().coin) && St.get().coin === sellFix, '金币本身已是 NaN 时，卖一条鱼能把它救回来');
+ok(isFinite(St.get().stats.totalValue) && St.get().stats.totalValue === sellFix,
+   '累计卖鱼收入（totalValue）同样带兜底，不会变成 NaN');
+St.get().coin = 50;
+St.get().tank.push({ f: nf.id, kg: NaN, c: 'normal' });
+ok(St.sellTankAt(0) === 0 && St.get().coin === 50, '水族箱卖出走同一条路径，同样不污染金币');
+St.get().coin = 80;
+St.get().net.push({ f: nf.id, kg: NaN, c: 'normal' });
+ok(St.sellAllNet() === 0 && St.get().coin === 80, '全部卖出（含脏条目）同样不污染金币');
+
 /* =========================================================
    5c. 存档导入与数值兜底
    ========================================================= */

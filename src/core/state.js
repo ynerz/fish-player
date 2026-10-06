@@ -312,21 +312,31 @@ G.State = (function () {
     return sum;
   }
 
+  /* 卖鱼进账统一走这里。
+     ⚠️ 不能直接用 `S.coin += p`：`netPrice()` 走 `Loot.price()`，而
+        `Math.max(1, Math.round(NaN))` 还是 NaN（`Math.max` 遇 NaN 返回 NaN），
+        所以脏存档 / 脏鱼护（kg 是 NaN）能算出一个 NaN 价，
+        `S.coin += NaN` 会让金币**永久变 NaN**，存档再写出去就是 null。
+     这里的安全兜底与 addCoin() 完全一致；顺带累计 stats.totalValue
+     （口径 = 累计卖鱼收入，成就要用它）。 */
+  function credit(p) {
+    p = safeNum(p, 0);
+    S.coin = Math.max(0, safeNum(S.coin, 0) + p);
+    S.stats.totalValue = Math.max(0, safeNum(S.stats.totalValue, 0) + p);
+    return p;
+  }
+
   function sellNetAt(i) {
     if (i < 0 || i >= S.net.length) return 0;
-    var p = netPrice(S.net[i]);
+    var p = credit(netPrice(S.net[i]));
     S.net.splice(i, 1);
-    S.coin += p;
-    S.stats.totalValue += p;
     save(); emit('coin'); emit('net');
     return p;
   }
   function sellAllNet() {
-    var p = netValue();
     if (!S.net.length) return 0;
+    var p = credit(netValue());
     S.net.length = 0;
-    S.coin += p;
-    S.stats.totalValue += p;
     save(); emit('coin'); emit('net');
     return p;
   }
@@ -423,10 +433,8 @@ G.State = (function () {
   }
   function sellTankAt(i) {
     if (i < 0 || i >= S.tank.length) return 0;
-    var p = netPrice(S.tank[i]);
+    var p = credit(netPrice(S.tank[i]));
     S.tank.splice(i, 1);
-    S.coin += p;
-    S.stats.totalValue += p;
     save(); emit('coin'); emit('net');
     return p;
   }

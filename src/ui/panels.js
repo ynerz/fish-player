@@ -1113,7 +1113,9 @@ G.Panels = (function () {
           ['📤', '分享得鱼竿', '分享给好友可获得鱼竿，稀有鱼概率 +' + pctOf(m.shareRodBoost)],
           ['🎬', '视频兑换码', '做视频发布到平台可领取兑换码，解锁挂机自动上鱼' +
             (m.videoCode ? '' : '（策划案里已取消）')],
-          ['📺', '看广告', '观看广告获得 1 小时挂机券' +
+          /* ⚠️ 券的时长也读 config —— 「1 小时」原来写死在这句文案里，
+             改了 monetization.adTicketHours 界面不会跟着变。 */
+          ['📺', '看广告', '观看广告获得 ' + m.adTicketHours + ' 小时挂机券' +
             (m.adIdleTicket ? '' : '（策划案里已取消）')],
         ];
         rows.forEach(function (r) {

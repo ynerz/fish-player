@@ -341,6 +341,7 @@ G.CONFIG = {
     shareRodBoost  : 0.10,    // ③ 分享得鱼竿：稀有鱼概率 +10%
     videoCode      : true,    // ④ 做视频发布领兑换码 → 挂机自动上鱼
     adIdleTicket   : true,    // ⑤ 看广告得小时挂机券
+    adTicketHours  : 1,       //    一张广告券换多少小时挂机（付费内容面板的文案要读它）
     idleIsSubscribed: false,  // 挂机是否为月卡功能（当前免费）
   },
 

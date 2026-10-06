@@ -907,6 +907,15 @@ else {
     err('付费内容面板的文案里又出现写死的百分比了 —— 数值要读 CFG.monetization');
     paidBad++;
   }
+  /* 时长同理：「观看广告获得 1 小时挂机券」里的「1 小时」原来写死在文案里 */
+  if (/\d+\s*小时/.test(paidCode)) {
+    err('付费内容面板的文案里又出现写死的时长了（N 小时）—— 应读 CFG.monetization.adTicketHours');
+    paidBad++;
+  }
+  if (paidCode.indexOf('m.adTicketHours') < 0) {
+    err('付费内容面板没有读 monetization.adTicketHours（广告券时长会与 config 分家）');
+    paidBad++;
+  }
   ['rodRareBoost', 'idleRareCut', 'shareRodBoost'].forEach(k => {
     if (paidCode.indexOf('m.' + k) < 0) { err(`付费内容面板没有读 monetization.${k}`); paidBad++; }
   });

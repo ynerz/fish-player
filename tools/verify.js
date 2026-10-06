@@ -798,6 +798,36 @@ if (!/castEnv\s*=\s*G\.Weather\.isReady/.test(fishingSrc)) {
 if (!attrBad) ok('鱼饵用 castBait、环境用 castEnv；两处都取自抛竿那一刻');
 
 
+/* ---------------- 22. 卖鱼入账只有一个出口 ----------------
+   金币与「累计卖鱼收入」(stats.totalValue) 必须一起涨：
+   挂机自动卖出（fishing.js）与结算卡「卖出」（main.js）原来各自
+   `addCoin(p)` + 手写一行 `stats.totalValue += p` —— 漏写一处，成就口径
+   就悄悄偏了，而且那一行没有 NaN 兜底。现在统一走 St.sellFish()。 */
+console.log('\n[22] 卖鱼入账单一出口（stats.totalValue 只许在 state.js 里写）');
+let incomeBad = 0;
+const allSrc = [];
+(function walk(dir) {
+  fs.readdirSync(path.join(ROOT, dir)).forEach(name => {
+    const rel = dir + '/' + name;
+    if (fs.statSync(path.join(ROOT, rel)).isDirectory()) walk(rel);
+    else if (/\.js$/.test(name)) allSrc.push(rel);
+  });
+})('src');
+allSrc.filter(r => r !== 'src/core/state.js').forEach(r => {
+  fs.readFileSync(path.join(ROOT, r), 'utf8').split('\n').forEach((ln, i) => {
+    if (/stats\.totalValue\s*(?:\+=|-=|=)/.test(ln)) {
+      err(`${r}:${i + 1} 直接改 stats.totalValue —— 卖鱼入账要走 St.sellFish()（金币与累计收入必须一起涨）`);
+      incomeBad++;
+    }
+  });
+});
+const stateSrcSell = fs.readFileSync(path.join(ROOT, 'src/core/state.js'), 'utf8');
+if (!/function sellFish\s*\(/.test(stateSrcSell) || !/sellFish:\s*sellFish/.test(stateSrcSell)) {
+  err('state.js 里没有对外暴露 sellFish() —— 卖鱼入账没有单一出口'); incomeBad++;
+}
+if (!incomeBad) ok('stats.totalValue 只在 state.js 的卖鱼出口里写，其余源码只调 St.sellFish()');
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

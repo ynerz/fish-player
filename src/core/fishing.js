@@ -163,11 +163,9 @@ G.Fishing = (function () {
       if (isIdleMode()) {
         s.stats.idleCatches++;
         if (CFG.storage.idleAutoSell) {
-          St.addCoin(price);
-          s.stats.totalValue += price;
+          St.sellFish(price);
         } else if (!St.toNet(fish, kg, color.key)) {
-          St.addCoin(price);
-          s.stats.totalValue += price;
+          St.sellFish(price);
         }
       }
 
@@ -384,10 +382,9 @@ G.Fishing = (function () {
       }
     });
 
-    St.addCoin(sumCoin);
+    St.sellFish(sumCoin);
     s.stats.catches += n;
     s.stats.idleCatches += n;
-    s.stats.totalValue += sumCoin;
     var ups = St.checkUnlocks();
     St.save(true);
     /* 离线补算也可能推进成就（挂机几千条），这里补一次判定 */

@@ -326,6 +326,17 @@ G.State = (function () {
     return p;
   }
 
+  /* 对外的「卖鱼入账」出口：金币与「累计卖鱼收入」必须一起涨，然后通知 UI。
+     挂机自动卖出（fishing.js）与结算卡的「卖出」（main.js）都要走这里 ——
+     它们原来各自 `addCoin(p)` 之后再手写一行 `stats.totalValue += p`：
+     漏写一处，成就「累计卖鱼收入」的口径就悄悄偏了；写错时也没有 NaN 兜底。 */
+  function sellFish(p) {
+    p = credit(p);
+    scheduleSave();
+    emit('coin', S.coin);
+    return p;
+  }
+
   function sellNetAt(i) {
     if (i < 0 || i >= S.net.length) return 0;
     var p = credit(netPrice(S.net[i]));
@@ -760,7 +771,7 @@ G.State = (function () {
     get: get, on: on, emit: emit,
     curBait: curBait, curRod: curRod, curLine: curLine,
     bait: bait, rod: rod, line: line, baitCount: baitCount,
-    addCoin: addCoin, spend: spend,
+    addCoin: addCoin, spend: spend, sellFish: sellFish,
     bookEntry: bookEntry, isCaught: isCaught, recordCatch: recordCatch, noteResult: noteResult,
     netCount: netCount, tankCount: tankCount, netFull: netFull, tankFull: tankFull,
     toNet: toNet, netPrice: netPrice, netValue: netValue,

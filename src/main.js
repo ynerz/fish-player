@@ -262,9 +262,9 @@
       if (action === 'keep') {
         Hud.toast({ text: '鱼护满了，先卖几条或扩容', kind: 'warn' });
       }
-      /* 卖出（含鱼护满时的兜底） */
-      G.State.addCoin(info.price);
-      G.State.get().stats.totalValue += info.price;
+      /* 卖出（含鱼护满时的兜底）—— 走 State 的「卖鱼入账」出口，
+         金币与「累计卖鱼收入」一起涨，别在这里手写 stats.totalValue */
+      G.State.sellFish(info.price);
       Hud.syncCoin(true);
     }
     onCatchCardClosed();

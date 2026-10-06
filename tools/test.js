@@ -514,6 +514,65 @@ St.get().net.push({ f: nf.id, kg: NaN, c: 'normal' });
 ok(St.sellAllNet() === 0 && St.get().coin === 80, '全部卖出（含脏条目）同样不污染金币');
 
 /* =========================================================
+   5b-2. 卖鱼入账只有一个出口
+   =========================================================
+   金币与「累计卖鱼收入」(stats.totalValue) 必须一起涨。挂机自动卖出
+   （fishing.js）与结算卡「卖出」（main.js）原来各自 `addCoin(p)`
+   之后再手写一行 `stats.totalValue += p`：漏写一处，成就「累计卖鱼收入」
+   的口径就悄悄偏了，而且那一行没有 NaN 兜底。
+   ========================================================= */
+G_('State · 卖鱼入账的统一出口');
+St.reset();
+St.get().coin = 0; St.get().stats.totalValue = 0;
+const fishGot = St.sellFish(1234);
+ok(fishGot === 1234 && St.get().coin === 1234 && St.get().stats.totalValue === 1234,
+   'sellFish 同时写入金币与累计卖鱼收入');
+ok(St.sellFish(NaN) === 0 && St.get().coin === 1234 && St.get().stats.totalValue === 1234,
+   'sellFish(NaN) 两个字段都不会被污染');
+let coinEvents = 0;
+St.on('coin', () => coinEvents++);
+St.sellFish(10);
+ok(coinEvents === 1, 'sellFish 发一次 coin 事件（HUD 的金币数字要跟着刷新）');
+
+/* 整竿跑一遍：挂机自动卖出走的也是这条出口 */
+(function () {
+  const prevFight = G.Fight;
+  const idleFightStub = {
+    begin() {}, end() {}, update() {}, drainEvents() { return []; },
+    get() {
+      return { over: true, result: 'success', tensionMax: 100, tension: 0,
+               struggle: 0, warn: 0, dashing: false, elapsed: 1 };
+    },
+    snapshot() { return {}; },
+  };
+  St.reset();
+  St.get().settings.idle = true;
+  G.Goals.init();
+  G.Scene = sceneStub; G.Audio = audioStub; G.Fight = idleFightStub;
+  G.Fishing.init({ onToast: () => {} });
+  const c0 = St.get().coin, v0 = St.get().stats.totalValue;
+  G.Fishing.cast();
+  G.Fishing.update(1.0);
+  G.Fishing.update(G.Fishing.getPending().wait + 0.001);
+  G.Fishing.strike();
+  G.Fishing.update(0.05);
+  const dc = St.get().coin - c0, dv = St.get().stats.totalValue - v0;
+  ok(G.Fishing.getState() === 'idle' && dc > 0, `挂机自动卖出入账 ${dc} 金`);
+  ok(dc === dv, '金币增量与「累计卖鱼收入」增量逐位一致（成交口径只有一个出口）',
+     `coin +${dc} / totalValue +${dv}`);
+  G.Fight = prevFight;
+})();
+
+/* 离线补算同理 */
+St.reset();
+G.Goals.init();
+Fish.init({});
+const ocIncome = Fish.offlineCatchUp(3600, 30);
+ok(ocIncome.coin > 0 && St.get().stats.totalValue === ocIncome.coin,
+   '离线补算的收入同样同时写进金币与「累计卖鱼收入」',
+   `coin ${ocIncome.coin} / totalValue ${St.get().stats.totalValue}`);
+
+/* =========================================================
    5c. 存档导入与数值兜底
    ========================================================= */
 G_('State · 存档导入与 NaN 兜底');

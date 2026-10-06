@@ -379,6 +379,28 @@ else if (baseM[1] !== CFG.version) {
   err(`版本号不一致：config.js 是 v${CFG.version}，docs/改进待办.md 头部基线是 v${baseM[1]}`); entryBad++;
 }
 
+/* 11-g GDD 的版本历史表必须按版本号递增排列，且标题写到当前版本
+   （踩过：v0.5.7 那一行被插在 v0.5.4 与 v0.5.6 之间，读起来像版本号倒退了） */
+const gddTxt = fs.readFileSync(path.join(ROOT, 'docs/GDD.md'), 'utf8');
+const histSec = (gddTxt.match(/### v([\d.]+) → v([\d.]+) 的变更[^\n]*\n[\s\S]*?(?=\n---|\n## )/) || [''])[0];
+if (!histSec) { err('GDD 里找不到「### vX → vY 的变更」版本历史表'); entryBad++; }
+else {
+  const rows = [...histSec.matchAll(/\|\s*\*\*v(\d+)\.(\d+)\.(\d+)\*\*\s*\|/g)]
+    .map(m => [+m[1], +m[2], +m[3]]);
+  let bad = 0;
+  for (let i = 1; i < rows.length; i++) {
+    const a = rows[i - 1], b = rows[i];
+    if (b[0] < a[0] || (b[0] === a[0] && b[1] < a[1]) || (b[0] === a[0] && b[1] === a[1] && b[2] < a[2])) bad++;
+  }
+  if (rows.length < 5) { err(`GDD 版本历史表只认出 ${rows.length} 行（表格被改坏了？）`); entryBad++; }
+  if (bad) { err(`GDD 版本历史表里有 ${bad} 处版本号倒退（应按 v0.4.0 → 当前版本 递增排列）`); entryBad++; }
+  const headM = gddTxt.match(/### v([\d.]+) → v([\d.]+) 的变更/);
+  if (headM && headM[2] !== CFG.version) {
+    err(`GDD 版本历史表的标题写到 v${headM[2]}，但当前版本是 v${CFG.version}`); entryBad++;
+  }
+  if (!bad && rows.length >= 5) ok(`GDD 版本历史表 ${rows.length} 行按版本号递增，标题对齐 v${CFG.version}`);
+}
+
 if (!entryBad) {
   ok(`入口 ${listed.length} 个脚本 == src/ 下 ${onDisk.length} 个模块，顺序正确`);
   ok(`按 index.html 顺序加载：${ranCount} 个模块在 Node 里跑通` +

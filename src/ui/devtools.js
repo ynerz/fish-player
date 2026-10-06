@@ -39,14 +39,14 @@ G.Cheat = (function () {
 
   /* 填满所有「品种 × 颜色」组合 */
   function fillColors() {
-    var s = St.get();
+    /* ⚠️ 图鉴条目的结构（n / maxKg / colors / first）由 state.js 的 recordCatch 负责建，
+       这里**不要自己拼一份** —— 抄一遍 schema 等于多一个会悄悄漂移的定义，
+       而且「条目缺 colors」（老档 / 被改过的档）时会直接抛异常。
+       查已有颜色前先确认 colors 存在，缺了就当没有，交给 recordCatch 补。 */
     G.FISH.forEach(function (f) {
-      var e = s.book[f.id];
-      if (!e) {
-        e = s.book[f.id] = { n: 0, maxKg: 0, colors: {}, first: Date.now() };
-      }
       G.CONFIG.colorMorphs.forEach(function (cm) {
-        if (e.colors[cm.key]) return;
+        var e = St.bookEntry(f.id);
+        if (e && e.colors && e.colors[cm.key]) return;   // 这个颜色已经登记过了
         St.recordCatch(f, G.Loot.rollKg(f), cm.key);
       });
     });

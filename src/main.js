@@ -39,7 +39,8 @@
       onPress: handlePress,
       onRelease: function () { F.release(); },
       onIdleToggle: function (v) {
-        Hud.toast({ text: v ? '已开启挂机，自动帮你上鱼（稀有 ×0.95）' : '已关闭挂机', kind: v ? 'good' : '' });
+        Hud.toast({ text: v ? '已开启挂机，自动帮你上鱼（稀有 ×' +
+          G.CONFIG.idle.rareWeightMul.toFixed(2) + '）' : '已关闭挂机', kind: v ? 'good' : '' });
         if (v) Hud.syncDeck();
       },
     });

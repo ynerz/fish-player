@@ -1110,6 +1110,35 @@ if (baitTimeHits < 2) {
 if (!baitWordBad) ok('商店 / GDD / 说明书都按「咬口时间」表述（越小越快），方向不再说反');
 
 
+/* ---------------- 29. 界面文案里的数值必须来自 config ----------------
+   项目硬约束：「平衡数值全部集中在 `src/data/config.js`，逻辑里不许写死数值」。
+   但文案字符串最容易漏 —— 挂机的「稀有 ×0.95」曾在 main.js / 设置页 / 离线报告
+   三处各写一遍、「离线补算上限 8 小时」也写死过。改 config 的时候没人会想起
+   这三句中文，于是界面说的和实际跑的就会悄悄分家。 */
+console.log('\n[29] 界面文案里的数值必须来自 config（不许写死）');
+let copyNumBad = 0;
+const copyTargets = ['src/main.js', 'src/ui/panels.js'];
+copyTargets.forEach(m => {
+  const code = fs.readFileSync(path.join(ROOT, m), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  if (code.indexOf('×0.95') >= 0) {
+    err(`${m} 里把挂机稀有权重写死成「×0.95」了 —— 应读 CFG.idle.rareWeightMul`); copyNumBad++;
+  }
+  if (/上限\s*8\s*小时/.test(code)) {
+    err(`${m} 里把离线补算上限写死成「8 小时」了 —— 应读 CFG.idle.maxCatchUp`); copyNumBad++;
+  }
+});
+['src/main.js', 'src/ui/panels.js'].forEach(m => {
+  if (fs.readFileSync(path.join(ROOT, m), 'utf8').indexOf('rareWeightMul') < 0) {
+    err(`${m} 没有消费 CFG.idle.rareWeightMul（挂机稀有倍率的文案会漂）`); copyNumBad++;
+  }
+});
+if (panelsSrc.indexOf('maxCatchUp') < 0) {
+  err('panels.js 没有消费 CFG.idle.maxCatchUp（离线补算上限的文案会漂）'); copyNumBad++;
+}
+if (!copyNumBad) ok('挂机稀有倍率 / 离线补算上限的界面文案全部现算自 config');
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

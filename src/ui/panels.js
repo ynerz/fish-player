@@ -1381,7 +1381,8 @@ G.Panels = (function () {
         });
       });
 
-      row('挂机', '自动抛竿、自动提竿、自动收线（稀有鱼概率 ×0.95）',
+      row('挂机', '自动抛竿、自动提竿、自动收线（稀有鱼概率 ×' +
+        CFG.idle.rareWeightMul.toFixed(2) + '）',
         '<button class="btn-ghost" id="setIdle">' + (s.settings.idle ? '已开启' : '已关闭') + '</button>',
         function (c) {
           U.on(c.querySelector('#setIdle'), 'click', function () {
@@ -1563,7 +1564,8 @@ G.Panels = (function () {
       }
       var tip = U.el('div', 'hint-text');
       tip.style.marginTop = '12px';
-      tip.textContent = '离线补算上限 8 小时。挂机期间稀有鱼概率 ×0.95。';
+      tip.textContent = '离线补算上限 ' + Math.round(CFG.idle.maxCatchUp / 3600) +
+        ' 小时。挂机期间稀有鱼概率 ×' + CFG.idle.rareWeightMul.toFixed(2) + '。';
       root.appendChild(tip);
     },
   };

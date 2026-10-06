@@ -224,12 +224,26 @@ G.State = (function () {
     return d;
   }
 
+  /* 「这看起来是不是本游戏的存档」。
+     只看 coin / playTime 太弱 —— 一段 {coin:1, playTime:0} 的无关 JSON 也会被收下，
+     而导入是**整档覆盖**，等于把玩家的存档清空。
+     所以再要求至少出现一个本游戏特有的字段（光有金币和时长不够）。 */
+  var OWN_KEYS = ['unlocked', 'book', 'baits', 'net', 'tank', 'rods', 'lines',
+                  'decors', 'medals', 'eco', 'stats', 'achSeen', 'daily', 'weekly'];
+  function looksLikeOurSave(d) {
+    if (typeof d.coin !== 'number' && typeof d.playTime !== 'number') return false;
+    for (var i = 0; i < OWN_KEYS.length; i++) {
+      if (d[OWN_KEYS[i]] !== undefined) return true;
+    }
+    return false;
+  }
+
   /* 存档导入：先校验再落地，避免一段烂 JSON 直接毁档 */
   function importSave(text) {
     var d;
     try { d = JSON.parse(text); } catch (e) { return { ok: false, msg: '不是合法的 JSON' }; }
     if (!d || typeof d !== 'object' || Array.isArray(d)) return { ok: false, msg: '存档格式不对' };
-    if (typeof d.coin !== 'number' && typeof d.playTime !== 'number') {
+    if (!looksLikeOurSave(d)) {
       return { ok: false, msg: '这看起来不是本游戏的存档' };
     }
     try {

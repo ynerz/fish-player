@@ -587,6 +587,11 @@ ok(isFinite(St.bookEntry(nf.id).maxKg), '重量 NaN 被兜成有限值');
 ok(St.importSave('不是 json').ok === false, '导入非 JSON 被拒绝');
 ok(St.importSave('[1,2,3]').ok === false, '导入数组被拒绝');
 ok(St.importSave('{"foo":"bar"}').ok === false, '导入无关对象被拒绝');
+/* 「像不像本游戏的存档」不能只看 coin/playTime —— 导入是整档覆盖，
+   一段 {coin:1} 的无关 JSON 被收下就等于把玩家的档清空 */
+ok(St.importSave('{"coin":1,"playTime":0}').ok === false, '只有 coin/playTime 的对象仍被拒绝（必须含本游戏特有字段）');
+ok(St.importSave('{"name":"x","coin":99}').ok === false, '别的应用里带 coin 字段的 JSON 被拒绝');
+ok(St.importSave('{"book":{},"unlocked":{"D":true}}').ok === false, '只有本游戏字段但没有 coin/playTime 的也拒绝（多半是残缺数据）');
 const good = JSON.stringify({
   v: 1, coin: 12345, playTime: 3600, field: 'D', unlocked: { D: true },
   book: { [nf.id]: { n: 3, maxKg: 0.5, colors: { normal: 3 }, first: 1 } },

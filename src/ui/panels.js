@@ -10,6 +10,13 @@ G.Panels = (function () {
   var current = null;
   var onCloseCb = null;
 
+  /* 钓场等级配色 —— **只此一份**。
+     原先在「钓场选择」「图鉴·各钓场进度」「统计·各钓场进度」三处各写了一遍，
+     而且兜底色还不一样（一处 #1f8fd6、一处 #8b98a5、一处干脆没有兜底）。
+     加一个新等级时只要漏改一处，同一张卡片就会在不同面板里变色。 */
+  var FIELD_RANK_COLOR = { D:'#8b98a5', C:'#5aa9d6', B:'#3f8f5f', A:'#2b6fc4', S:'#3b4a8f', SS:'#5b3fa8', SSS:'#a87a1f' };
+  function rankColor(rank) { return FIELD_RANK_COLOR[rank] || '#8b98a5'; }
+
   /* 小时 → 中文时长 */
   function fmtH(h) {
     if (!h) return '—';
@@ -113,11 +120,10 @@ G.Panels = (function () {
         var pct = Math.round(prog.pct * 100);
         var need = f.collectionPct >= 1 ? prog.total : St.needCount(prog.total, f.collectionPct || 0.8);
 
-        var rankColor = { D:'#8b98a5', C:'#5aa9d6', B:'#3f8f5f', A:'#2b6fc4', S:'#3b4a8f', SS:'#5b3fa8', SSS:'#a87a1f' }[f.rank] || '#1f8fd6';
         card.innerHTML =
           (s.field === f.id ? '<div class="fc-ribbon">当前</div>' : '') +
           '<div class="fc-top">' +
-            '<div class="fc-rank" style="background:' + rankColor + '">' + f.rank + '</div>' +
+            '<div class="fc-rank" style="background:' + rankColor(f.rank) + '">' + f.rank + '</div>' +
             '<div><div class="fc-name">' + (f.hidden && !st.unlocked ? '？？？' : f.name) + '</div>' +
             '<div style="font-size:10px;color:#93a9b8">' + f.sub + '</div></div>' +
           '</div>' +
@@ -216,15 +222,14 @@ G.Panels = (function () {
     return v.toExponential(2) + '%';
   }
 
-  /* 图鉴里每个钓场一行的双进度（品种 / 品种×颜色） */
-  var FIELD_RANK_COLOR = { D:'#8b98a5', C:'#5aa9d6', B:'#3f8f5f', A:'#2b6fc4', S:'#3b4a8f', SS:'#5b3fa8', SSS:'#a87a1f' };
+  /* 图鉴里每个钓场一行的双进度（品种 / 品种×颜色）。配色走模块顶部的 rankColor()。 */
   function fkRow(f) {
     var p = St.fieldProgress(f.id);
     var c = St.fieldColorProgress(f.id);
     var locked = !St.get().unlocked[f.id];
     var name = (f.hidden && locked) ? '？？？' : f.name;
     return '<div class="fk-row' + (locked ? ' locked' : '') + '">' +
-      '<span class="fk-rank" style="background:' + (FIELD_RANK_COLOR[f.rank] || '#8b98a5') + '">' + f.rank + '</span>' +
+      '<span class="fk-rank" style="background:' + rankColor(f.rank) + '">' + f.rank + '</span>' +
       '<div class="fk-main">' +
         '<div class="fk-top">' +
           '<span class="fk-name">' + name + '</span>' +
@@ -1144,7 +1149,7 @@ G.Panels = (function () {
         var need = f.collectionPct >= 1 ? p.total : St.needCount(p.total, f.collectionPct || 0.8);
         var row = U.el('div', 'shop-item' + (unlocked ? '' : ''));
         row.innerHTML = '<div class="sh-ico" style="font-weight:800;color:#fff;background:' +
-            ({ D:'#8b98a5', C:'#5aa9d6', B:'#3f8f5f', A:'#2b6fc4', S:'#3b4a8f', SS:'#5b3fa8', SSS:'#a87a1f' }[f.rank]) + '">' + f.rank + '</div>' +
+            rankColor(f.rank) + '">' + f.rank + '</div>' +
           '<div class="sh-main"><div class="sh-name">' + (f.hidden && !unlocked ? '？？？' : f.name) + '</div>' +
           '<div class="sh-desc">图鉴 ' + p.got + '/' + p.total + '（' + (p.pct * 100).toFixed(0) + '%）' +
           (unlocked ? ' ｜ 已解锁' : ' ｜ ' + (f.requireFull ? '需前置 100%' : '需 ' + Math.round((f.collectionPct || 0.8) * 100) + '%')) + '</div></div>';

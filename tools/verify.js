@@ -1110,12 +1110,14 @@ if (baitTimeHits < 2) {
 if (!baitWordBad) ok('商店 / GDD / 说明书都按「咬口时间」表述（越小越快），方向不再说反');
 
 
-/* ---------------- 29. 界面文案里的数值必须来自 config ----------------
+/* ---------------- 29. 界面里的文案数值与配色常量都要单一来源 ----------------
    项目硬约束：「平衡数值全部集中在 `src/data/config.js`，逻辑里不许写死数值」。
    但文案字符串最容易漏 —— 挂机的「稀有 ×0.95」曾在 main.js / 设置页 / 离线报告
    三处各写一遍、「离线补算上限 8 小时」也写死过。改 config 的时候没人会想起
-   这三句中文，于是界面说的和实际跑的就会悄悄分家。 */
-console.log('\n[29] 界面文案里的数值必须来自 config（不许写死）');
+   这三句中文，于是界面说的和实际跑的就会悄悄分家。
+   同理，钓场等级配色表曾在「钓场选择 / 图鉴 / 统计」三处各写了一份，
+   连兜底色都不一样 —— 加一个新等级漏改一处，同一张卡片会在不同面板里变色。 */
+console.log('\n[29] 界面文案的数值 / 配色常量必须单一来源');
 let copyNumBad = 0;
 const copyTargets = ['src/main.js', 'src/ui/panels.js'];
 copyTargets.forEach(m => {
@@ -1136,7 +1138,22 @@ copyTargets.forEach(m => {
 if (panelsSrc.indexOf('maxCatchUp') < 0) {
   err('panels.js 没有消费 CFG.idle.maxCatchUp（离线补算上限的文案会漂）'); copyNumBad++;
 }
-if (!copyNumBad) ok('挂机稀有倍率 / 离线补算上限的界面文案全部现算自 config');
+/* 钓场等级配色表只许有一份：SSS 的色值是它最独特的标记，全项目只该出现 1 次 */
+(function () {
+  let hits = 0;
+  const walk = dir => fs.readdirSync(path.join(ROOT, dir)).forEach(nm => {
+    const rel = dir + '/' + nm;
+    if (fs.statSync(path.join(ROOT, rel)).isDirectory()) walk(rel);
+    else if (/\.(js|css)$/.test(nm)) {
+      hits += (fs.readFileSync(path.join(ROOT, rel), 'utf8').match(/#a87a1f/g) || []).length;
+    }
+  });
+  walk('src'); walk('assets');
+  if (hits !== 1) {
+    err(`钓场等级配色表（#a87a1f）在代码里出现了 ${hits} 次，应恰好 1 次（多份会各自漂）`); copyNumBad++;
+  }
+})();
+if (!copyNumBad) ok('挂机倍率 / 离线补算上限的文案现算自 config，钓场配色表只有一份');
 
 
 console.log('\n' + '='.repeat(52));

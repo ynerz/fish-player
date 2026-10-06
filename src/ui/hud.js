@@ -81,6 +81,11 @@ G.Hud = (function () {
     PI.leave(el.btn, function () {
       if (handlers.onRelease) handlers.onRelease();
     });
+    /* 兜底：指针在窗口外抬起（拖到浏览器外 / 切成别的应用）收不到 pointerup，
+       不补这一条就会「一直收线」直到断线 */
+    U.on(window, 'blur', function () {
+      if (handlers.onRelease) handlers.onRelease();
+    });
 
     /* 键盘：空格（小程序端没有键盘，这段在 weapp 版里删掉即可） */
     PI.key(function (e) {

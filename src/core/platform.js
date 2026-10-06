@@ -90,7 +90,12 @@ G.Platform = (function () {
      统一成「按下 / 抬起」两个语义。小程序端换成 touchstart / touchend。 */
   var input = {
     down: function (el, fn) { el.addEventListener('pointerdown', fn); },
-    up: function (el, fn) { window.addEventListener('pointerup', fn); },
+    /* ⚠️ 签名是 up(fn)，**只有回调**（松手可能落在页面任意位置，所以绑 window）。
+       踩过的坑：这里曾写成 up(el, fn)，而调用方按 up(回调) 传参，
+       结果真正注册的是 addEventListener('pointerup', undefined) ——
+       「松手」这个动作**永远不会生效**：按住能收线、松开不收线，
+       张力必然拉满断线，且不报任何错。任何平台实现都必须保持 up(fn)。 */
+    up: function (fn) { window.addEventListener('pointerup', fn); },
     upOn: function (el, fn) { el.addEventListener('pointerup', fn); },
     cancel: function (el, fn) { el.addEventListener('pointercancel', fn); },
     /* 指针划出元素也要放开 —— 否则按住按钮拖出去会一直「收线」 */

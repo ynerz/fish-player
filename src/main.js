@@ -90,10 +90,14 @@
       Hud.toast({ text: sn.tm.icon + ' ' + sn.tm.name + '：' + sn.tm.tip, kind: '' });
     });
 
-    /* ---------- 画布点击 = 主按钮 ---------- */
+    /* ---------- 画布点击 = 主按钮 ----------
+       ⚠️ 这里**不要**再按 state 写白名单。踩过的坑：白名单只列了
+       idle/bite/waiting、漏了 fight，于是「拉扯中按住画布」收不了线，
+       而松手是全局监听（pointerup 绑在 window）→ 左右不对称，鱼必脱钩，
+       且不报任何错。handlePress() 自身已经处理了全部状态与面板守卫
+       （flying 状态天然是 no-op），所以直接透传即可。 */
     G.Platform.input.down(U.$('#scene'), function () {
-      var st = F.getState();
-      if (st === 'idle' || st === 'bite' || st === 'waiting') handlePress();
+      handlePress();
     });
 
     /* ---------- 网页隐藏 / 显示 ---------- */

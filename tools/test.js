@@ -691,6 +691,54 @@ St.reset();
 ok(St.get().tut.step === 0 && St.get().tut.done === false, '重置存档后引导重新开始');
 
 /* =========================================================
+   Platform —— 输入通道
+   踩过的坑：input.up 曾写成 up(el, fn)，调用方按 up(fn) 传参 →
+   真正注册的是 addEventListener('pointerup', undefined)，
+   「松手」永不生效（按住能收线、松开不收线，张力必拉满断线），且不报错。
+   ========================================================= */
+G_('Platform · 输入通道的按下 / 松开');
+(function () {
+  const PI = G.Platform.input;
+  const seen = [];
+  const prevWin = global.addEventListener;
+  const prevDoc = global.document;
+  /* 假装一个 window：把监听记下来，再手动触发 */
+  global.addEventListener = (type, fn) => { seen.push({ type, fn, on: 'window' }); };
+  const fakeEl = {
+    _l: [],
+    addEventListener(type, fn) { this._l.push({ type, fn }); },
+  };
+
+  ok(PI.up.length === 1, 'input.up 的签名是 up(fn)（只有回调一个参数）', '实际参数个数 ' + PI.up.length);
+
+  seen.length = 0;
+  const hitUp = [];
+  PI.up(() => hitUp.push(1));
+  const upL = seen.filter(s => s.type === 'pointerup' && typeof s.fn === 'function');
+  ok(upL.length === 1, 'input.up 真的把回调绑到了 window 的 pointerup 上',
+     '拿到 ' + upL.length + ' 个可用监听' + (seen.length ? '（注册了 ' + seen.length + ' 个）' : ''));
+  upL.forEach(s => s.fn({}));
+  ok(hitUp.length === 1, '触发 window 的 pointerup 会回调到 onRelease（松手能放线）');
+
+  fakeEl._l.length = 0;
+  const hitDown = [];
+  PI.down(fakeEl, () => hitDown.push(1));
+  ok(fakeEl._l.some(x => x.type === 'pointerdown' && typeof x.fn === 'function'),
+     'input.down(el, fn) 绑在元素上且回调可用');
+  fakeEl._l.forEach(x => { if (typeof x.fn === 'function') x.fn({ preventDefault() {} }); });
+  ok(hitDown.length === 1, '元素上的 pointerdown 能触发按下回调');
+
+  fakeEl._l.length = 0;
+  PI.cancel(fakeEl, () => {}); PI.leave(fakeEl, () => {});
+  ok(fakeEl._l.filter(x => x.type === 'pointercancel').length === 1 &&
+     fakeEl._l.filter(x => x.type === 'pointerleave').length === 1,
+     'input.cancel / input.leave 都绑成了可用监听（手指划出按钮也要放线）');
+
+  global.addEventListener = prevWin;
+  void prevDoc;
+})();
+
+/* =========================================================
    Build —— 单文件打包（tools/build.js）
    ========================================================= */
 const B = require(path.join(ROOT, 'tools/build.js'));

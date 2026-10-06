@@ -378,6 +378,39 @@ if (!entryBad) {
 }
 
 
+/* ---------------- 12. 画布按下 == 主按钮按下 ----------------
+   踩过的坑：`src/main.js` 的画布 pointerdown 曾按 state 写白名单
+   （只列了 idle/bite/waiting），漏掉 fight → **拉扯中按住画布收不了线**；
+   而松手是 window 级全局监听，于是「按下无效、抬起生效」，
+   鱼必脱钩且不报任何错。这条断言锁住「画布按下直接透传 handlePress()」。 */
+console.log('\n[12] 画布按下必须等同于主按钮（不得再写状态白名单）');
+const mainSrc = fs.readFileSync(path.join(ROOT, 'src/main.js'), 'utf8');
+let inputBad = 0;
+
+if (!/function handlePress\s*\(/.test(mainSrc)) { err('main.js 里没有 handlePress()'); inputBad++; }
+const hudSrc = fs.readFileSync(path.join(ROOT, 'src/ui/hud.js'), 'utf8');
+if (!/U\.on\(window,\s*'blur'/.test(hudSrc)) {
+  err('hud.js 没有在 window blur 时兜底放线 —— 指针在窗口外抬起（拖出浏览器 / 切应用）会一直收线到断线');
+  inputBad++;
+}
+const platSrc = fs.readFileSync(path.join(ROOT, 'src/core/platform.js'), 'utf8');
+if (!/up:\s*function\s*\(\s*fn\s*\)/.test(platSrc)) {
+  err('platform.js 的 input.up 签名必须是 up(fn) —— 写成 up(el, fn) 会让松手通道整体失效');
+  inputBad++;
+}
+const sceneAt = mainSrc.indexOf("input.down(U.$('#scene')");
+if (sceneAt < 0) { err('main.js 里找不到画布 pointerdown 绑定（#scene）'); inputBad++; }
+else {
+  const body = mainSrc.slice(sceneAt, mainSrc.indexOf('});', sceneAt));
+  if (!/handlePress\(\)/.test(body)) { err('画布按下回调没有调用 handlePress()'); inputBad++; }
+  if (/getState\(\)|\bst\s*===\s*'/.test(body)) {
+    err('画布按下回调里仍按 state 白名单过滤 —— 漏一个状态就是「按住不收线」，应直接透传 handlePress()');
+    inputBad++;
+  }
+}
+if (!inputBad) ok('画布按下 = 主按钮按下（无状态白名单，fight 状态也能收线）');
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

@@ -8,7 +8,7 @@ window.G = window.G || {};
 
 G.CONFIG = {
 
-  version   : '0.3.3',
+  version   : '0.3.4',
   saveKey   : 'fishplayer.save.v1',
   saveKeyBak: 'fishplayer.save.v1.bak',
 
@@ -98,7 +98,7 @@ G.CONFIG = {
      ---------------------------------------------------------
      设计意图：鱼越稀有，出稀有颜色的概率越高 ——
        越靠后的颜色（越值钱）随稀有度涨幅越大：
-         亮色/白化 每档 +1%　黄金 +3%　闪光 1→2→3→5
+         亮色/白化 10→11→16→20　黄金 3→6→9→12　闪光 1→2→3→5
      约束：每档 5 个概率必须**合计 = 100%**，且保持
        原色 > 亮色 ≥ 白化 > 黄金 > 闪光 ，
      这样「闪光 = 全场最稀有的颜色」在所有档位都成立。
@@ -107,9 +107,9 @@ G.CONFIG = {
      --------------------------------------------------------- */
   colorMorphs: [
     //                                            普通   稀有   史诗   传说
-    { key:'normal', name:'原色', tint:null,      probs:[0.76, 0.70, 0.64, 0.57], valueMul:1.00 },
-    { key:'bright', name:'亮色', tint:'#ffe08a', probs:[0.10, 0.11, 0.12, 0.13], valueMul:1.15 },
-    { key:'albino', name:'白化', tint:'#ffffff', probs:[0.10, 0.11, 0.12, 0.13], valueMul:1.60 },
+    { key:'normal', name:'原色', tint:null,      probs:[0.76, 0.70, 0.56, 0.43], valueMul:1.00 },
+    { key:'bright', name:'亮色', tint:'#ffe08a', probs:[0.10, 0.11, 0.16, 0.20], valueMul:1.15 },
+    { key:'albino', name:'白化', tint:'#ffffff', probs:[0.10, 0.11, 0.16, 0.20], valueMul:1.60 },
     { key:'golden', name:'黄金', tint:'#ffc93c', probs:[0.03, 0.06, 0.09, 0.12], valueMul:2.30 },
     { key:'shiny',  name:'闪光', tint:'#9be7ff', probs:[0.01, 0.02, 0.03, 0.05], valueMul:4.00 },
   ],

@@ -107,6 +107,25 @@ G.State = (function () {
     var b = blank();
     var from = safeNum(d.v, 1);
 
+    /* ---- 容器字段的类型纠正（必须最先做）----
+       下面一路都把这些字段当对象 / 数组用，却从没确认过它们**真的是**对象 / 数组。
+       脏档（手改过的导入 JSON、老版本写坏的字段、被别的程序改过的 localStorage）
+       会让它们变成数字或字符串，而后果大多不是「崩了就能看见」：
+         · `stats: 5`    → d.stats.byRar 是 undefined，`.map` 抛 TypeError；
+                           走 importSave 时只报一句「读不到 map」，走 load() 时
+                           直接抛在 boot 里 → **白屏**。
+         · `settings: 5` → 迁移看着「成功」，但 setIdle() 写的是 S.settings.idle，
+                           在数字上赋值是**静默无效** → 挂机开关永远打不开。
+         · `baits: 5`    → 买鱼饵扣了金币、`S.baits[id] = n` 静默不生效 → 饵没到账。
+         · `rods: 5`     → `S.rods.indexOf` 不是函数，换竿 / 买竿直接 TypeError。
+       先统一纠正类型，内容再由下面的逐字段兜底处理。 */
+    ['stats', 'settings', 'baits', 'unlocked', 'book', 'medalSeen'].forEach(function (k) {
+      if (!d[k] || typeof d[k] !== 'object' || Array.isArray(d[k])) d[k] = {};
+    });
+    ['net', 'tank', 'rods', 'lines', 'decors', 'locked', 'achSeen'].forEach(function (k) {
+      if (!Array.isArray(d[k])) d[k] = [];
+    });
+
     // 浅合并，保证新增字段有默认值
     Object.keys(b).forEach(function (k) { if (d[k] === undefined) d[k] = b[k]; });
     Object.keys(b.settings).forEach(function (k) { if (!d.settings || d.settings[k] === undefined) d.settings[k] = b.settings[k]; });
@@ -114,6 +133,15 @@ G.State = (function () {
     G.BAITS.forEach(function (x) { if (d.baits[x.id] === undefined) d.baits[x.id] = x.free ? -1 : 0; });
     if (!Array.isArray(d.net)) d.net = [];
     if (!Array.isArray(d.tank)) d.tank = [];
+    /* 拥有列表只留真实存在的道具 id（`{rods:[123]}` 之类的脏数据会让选竿面板
+       把每一把竿都显示成「已拥有」）；起手竿 / 线丢了就补回来，
+       否则「换竿 / 换线」永远失败而玩家看不出为什么。 */
+    ['rods', 'lines', 'decors'].forEach(function (k) {
+      var list = k === 'rods' ? G.RODS : (k === 'lines' ? G.LINES : G.DECORS);
+      d[k] = d[k].filter(function (id) { return list.some(function (x) { return x.id === id; }); });
+    });
+    if (d.rods.indexOf(G.RODS[0].id) < 0) d.rods.push(G.RODS[0].id);
+    if (d.lines.indexOf(G.LINES[0].id) < 0) d.lines.push(G.LINES[0].id);
     if (d.netCap == null) d.netCap = CFG.storage.netCap;
     if (d.tankCap == null) d.tankCap = CFG.storage.tankCap;
     if (d.netEx == null) d.netEx = 0;

@@ -1304,6 +1304,91 @@ G_('Track · 错误采集（空壳）');
 })();
 
 /* =========================================================
+   State · 容器字段的类型纠正（脏档不能让存档「静默半失效」）
+   `migrate()` 一路把 stats / settings / baits / rods… 当对象或数组用，
+   却从没确认过类型。脏档（手改过的导入 JSON / 老版本写坏的字段）会让它们
+   变成数字或字符串，而且后果大多看不见：
+     · `stats: 5`    → byRar 是 undefined，`.map` 抛异常（走 load() 就是白屏）
+     · `settings: 5` → 迁移看着成功，但 setIdle() 在数字上赋值静默无效
+                       → 挂机开关永远打不开
+     · `baits: 5`    → 买鱼饵扣了金币却加不进库存
+     · `rods: 5`     → S.rods.indexOf 不是函数，换竿直接 TypeError
+   这一节用「真跑一遍 load() + 真调一次对应 API」来验，
+   而不是只看字段类型 —— 类型对了但行为还是坏的才最坑。
+   ⚠️ 放在最后几节之一：它会反复 St.load()，别影响前面依赖存档内容的断言。
+   ========================================================= */
+G_('State · 容器字段的类型纠正（脏档兜底）');
+const goodSave = JSON.parse(JSON.stringify(St.get()));
+function loadWith(mut) {
+  const d = JSON.parse(JSON.stringify(goodSave));
+  mut(d);
+  store[CFG.saveKey] = JSON.stringify(d);
+  const before = St.get();
+  St.load();
+  return { before, after: St.get() };
+}
+function loadThrew(mut) {
+  try { loadWith(mut); return null; } catch (e) { return e; }
+}
+
+/* ① stats 是标量：原来直接抛在这 */
+ok(!loadThrew(d => { d.stats = 5; }), 'stats 是数字时 load() 不抛异常（原来 .map 直接炸）',
+   (loadThrew(d => { d.stats = 5; }) || {}).message);
+ok(!loadThrew(d => { d.stats = 'oops'; }), 'stats 是字符串时 load() 不抛异常');
+{
+  const r = loadWith(d => { d.stats = 5; });
+  ok(r.after.stats && typeof r.after.stats === 'object' && !Array.isArray(r.after.stats),
+     'stats 被纠正成对象');
+  ok(Array.isArray(r.after.stats.byRar) && r.after.stats.byRar.length === 4, '统计字段补全（byRar 4 档）');
+}
+
+/* ② settings 是标量：类型对不对，要看「挂机开关还能不能打开」 */
+{
+  const r = loadWith(d => { d.settings = 5; });
+  ok(r.after.settings && typeof r.after.settings === 'object', 'settings 被纠正成对象');
+}
+St.setIdle(true);
+ok(St.get().settings.idle === true, '脏 settings 档里 setIdle(true) 真的写进去了（原来静默无效）');
+ok(St.get().settings.sound === true && isFinite(St.get().settings.volume),
+   '音效 / 音量也有默认值（否则 G.Audio 会收到 undefined）');
+St.setIdle(false);
+
+/* ③ baits 是标量：买鱼饵必须真的到账 */
+{
+  const paidBaitId = G.BAITS.filter(b => !b.free)[0].id;
+  const r = loadWith(d => { d.baits = 5; d.coin = 999999; });
+  ok(r.after.baits && typeof r.after.baits === 'object', 'baits 被纠正成对象');
+  ok(St.baitCount(paidBaitId) === 0, '免费 / 收费鱼饵的初始数量都补上了（收费为 0）');
+  const got = St.buyBait(paidBaitId, 1);
+  const want = G.BAITS.filter(b => b.id === paidBaitId)[0].pack;
+  ok(got.ok && St.baitCount(paidBaitId) === want,
+     `脏 baits 档里买鱼饵真的到账了（${want} 枚，原来扣了金币却加不进库存）`);
+}
+
+/* ④ rods / lines / decors 是标量或含垃圾 id */
+ok(!loadThrew(d => { d.rods = 5; d.lines = 5; d.decors = { a: 1 }; }), '拥有列表是标量时 load() 不抛异常');
+{
+  const r = loadWith(d => { d.rods = 5; d.lines = ['n2', 123]; d.decors = ['tent', 42, null]; });
+  ok(Array.isArray(r.after.rods) && Array.isArray(r.after.lines) && Array.isArray(r.after.decors),
+     'rods / lines / decors 都被纠正成数组');
+  ok(r.after.rods.indexOf(G.RODS[0].id) >= 0, '起手鱼竿被补回来了（否则换竿永远失败）');
+  ok(r.after.lines.indexOf(G.LINES[0].id) >= 0, '起手鱼线被补回来了');
+  ok(r.after.decors.indexOf(42) < 0 && r.after.decors.indexOf(null) < 0,
+     '拥有列表里的垃圾 id 被清掉了（否则选竿面板会把所有竿都显示成已拥有）');
+  ok(r.after.decors.indexOf('tent') >= 0, '合法的装饰 id 保留');
+}
+
+/* ⑤ 修完之后整档仍然可用 */
+{
+  loadWith(d => { d.stats = 'x'; d.settings = 7; d.baits = 'y'; d.rods = null; });
+  const s = St.get();
+  ok(s.stats.casts === goodSave.stats.casts, '迁移不会把既有统计清零');
+  ok(s.coin === goodSave.coin, '迁移不会把金币清零');
+  G.Goals.init();
+  ok(G.Goals.quests().length === G.QUEST_PER_DAY, '脏容器档也能正常生成每日任务');
+}
+
+/* =========================================================
    Util —— 导出面
    G.U 里曾躺着 rnd / irange / pick / chance / normalize 五个零调用函数：
    它们长得像「基础设施」，读代码时会被当成常用工具，实际全项目没人用。

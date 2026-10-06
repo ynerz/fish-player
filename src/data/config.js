@@ -8,7 +8,7 @@ window.G = window.G || {};
 
 G.CONFIG = {
 
-  version   : '0.4.0',
+  version   : '0.5.3',
   saveKey   : 'fishplayer.save.v1',
   saveKeyBak: 'fishplayer.save.v1.bak',
 
@@ -262,6 +262,51 @@ G.CONFIG = {
        （比售价系数平缓得多：闪光 ×4.00 在这里只 ×2.0，避免刷颜色） */
     colorBase: 0.80,
     colorSpan: 0.30,
+  },
+
+  /* ---------------------------------------------------------
+     新手引导（v0.5.3）
+     ---------------------------------------------------------
+     第一次玩的人在没有任何提示的情况下，不知道「按住收线 /
+     松手放线 / 躲逃窜」这三件事，第一条鱼基本必断线。
+     这里用**非阻塞气泡**依次教这三个动作：气泡本身不吃点击
+     （pointer-events:none），玩家照常操作；5 步走完永久关闭，
+     设置里可以随时重看。
+
+     · showWhen：这句话在钓鱼的哪个阶段才该出现
+         idle = 可以抛竿 / bite = 咬钩窗口内 / fight = 拉扯中
+       ⚠️ 必须对得上：在「浮漂还没动静」时喊「快提竿」会教坏人。
+     · place：气泡挂屏幕哪边
+         btn   = 右下角主按钮上方
+         fight = 拉扯面板上方
+       ⚠️ 每个 place 都必须在 assets/css/style.css 里有 `.tut-bubble.at-<place>`
+         的定位规则，否则气泡会飘到左上空框里（tools/verify.js 会断言）。
+     · 每条的「怎么算学会」写在 src/ui/tutorial.js 的 RULES 里，
+       verify.js 断言两者一一对应，防止「加了步骤忘了写规则」的静默失效。
+     --------------------------------------------------------- */
+  tutorial: {
+    enabled : true,
+    /* 「按住收线」这一步要按住多久才算学会（秒） */
+    holdNeed: 1.0,
+    /* 最后一句「就是这样」停留多久自动消失（秒） */
+    doneHold: 4.0,
+    steps: [
+      { id: 'cast', place: 'btn', showWhen: 'idle',
+        text: '点这个按钮 <b>抛竿</b>（也可以按空格）',
+        tip : '抛出去之后等浮漂动，别急着点第二次' },
+      { id: 'strike', place: 'btn', showWhen: 'bite',
+        text: '浮漂沉了！马上点 <b>提竿</b>',
+        tip : '咬钩窗口只有 1~2 秒，慢一点鱼就跑了' },
+      { id: 'hold', place: 'fight', showWhen: 'fight',
+        text: '<b>按住</b>不要松手 —— 进度会涨，张力也会涨',
+        tip : '进度条满了这条鱼就是你的' },
+      { id: 'release', place: 'fight', showWhen: 'fight',
+        text: '张力碰到黄线就 <b>松手</b>，张力自己会掉下来',
+        tip : '黄线 = 危险线，压过去超过半秒就断线' },
+      { id: 'dash', place: 'fight', showWhen: 'fight',
+        text: '鱼<b>发力</b>时（红字 / 张力飙升）立刻松手',
+        tip : '躲过这一下，鱼就力竭了 —— 这就是拉扯的手感' },
+    ],
   },
 
   /* ---------------------------------------------------------

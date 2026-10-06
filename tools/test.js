@@ -30,7 +30,8 @@ global.localStorage = {
 ['src/data/config.js', 'src/data/fields.js', 'src/data/fish.js', 'src/data/items.js',
  'src/data/goals.js',
  'src/core/util.js', 'src/core/platform.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js',
- 'src/core/goals.js']
+ 'src/core/goals.js',
+ 'src/ui/tutorial.js']
   .forEach(r => (new Function(fs.readFileSync(path.join(ROOT, r), 'utf8'))).call(global));
 
 const G = global.G, CFG = G.CONFIG, L = G.Loot, F = G.Fight, St = G.State, U = G.U;
@@ -286,7 +287,7 @@ const good = JSON.stringify({
 const imp = St.importSave(good);
 ok(imp.ok === true, '导入合法存档成功');
 ok(St.get().coin === 12345, '导入后金币 = 12345（v1 老存档被正确迁移）');
-ok(St.get().v === 3, '老存档版本号被升到 3（当前 SAVE_V）');
+ok(St.get().v === 4, '老存档版本号被升到 4（当前 SAVE_V）');
 ok(Array.isArray(St.get().net) && Array.isArray(St.get().tank), 'v1 → v2 迁移补齐了鱼护字段');
 ok(St.bookEntry(nf.id).n === 3, '导入后图鉴数据保留');
 
@@ -545,7 +546,7 @@ const legacy2 = {
 store[CFG.saveKey] = JSON.stringify(legacy2);
 St.load();
 const sv = St.get();
-ok(sv.v === 3, '老存档版本号被升到 3');
+ok(sv.v === 4, '老存档版本号被升到 4');
 ok(Array.isArray(sv.stats.byRar) && sv.stats.byRar.length === 4, 'byRar 被补成 4 档');
 ok(sv.stats.byRar.every(x => x === 0), 'byRar 初始全 0');
 ok(sv.stats.byField && typeof sv.stats.byField === 'object' && !Array.isArray(sv.stats.byField), 'byField 被补成对象');
@@ -588,6 +589,106 @@ ok(G.QUEST_TPL.every(t => typeof t.text(1, '', St.get()) === 'string'), '任务�
 ok(G.QUEST_PER_DAY >= 1 && G.QUEST_PER_DAY <= G.QUEST_TPL.length, '每日条数不超过模板总数');
 const titled = G.ACHIEVEMENTS.filter(a => a.title).length + G.MEDAL_TITLES.length;
 ok(titled >= 10, `称号数量 ≥10（成就 ${G.ACHIEVEMENTS.filter(a => a.title).length} + 纪念币 ${G.MEDAL_TITLES.length}）`);
+
+/* =========================================================
+   8. Tutorial —— 新手引导（B6 / v0.5.3）
+   ========================================================= */
+G_('Tutorial · 配置');
+const T = G.Tutorial;
+const tSteps = CFG.tutorial.steps;
+const tById = id => tSteps.filter(s => s.id === id)[0];
+ok(tSteps.length === 5, `引导共 ${tSteps.length} 步（抛竿 / 提竿 / 收线 / 放线 / 躲逃窜）`);
+ok(tSteps.map(s => s.id).join(',') === 'cast,strike,hold,release,dash', '步骤顺序正确');
+const tIds = {}; let tDup = 0;
+tSteps.forEach(s => { if (tIds[s.id]) tDup++; tIds[s.id] = 1; });
+ok(tDup === 0, '步骤 id 无重复');
+ok(tSteps.every(s => s.text && s.tip && ['btn', 'fight'].indexOf(s.place) >= 0),
+   '每步都有文案 / 提示 / 合法的挂载位置');
+ok(tSteps.every(s => ['idle', 'bite', 'fight'].indexOf(s.showWhen) >= 0), '每步的 showWhen 都是合法阶段');
+/* 阶段必须对得上：浮漂还没动静就喊「快提竿」等于教坏人 */
+ok(tById('cast').showWhen === 'idle', '「抛竿」只在可以抛竿时出现');
+ok(tById('strike').showWhen === 'bite', '「提竿」只在咬钩窗口内出现');
+ok(['hold', 'release', 'dash'].every(id => tById(id).showWhen === 'fight'),
+   '收线 / 放线 / 躲逃窜三步都只在拉扯中出现');
+ok(CFG.tutorial.enabled === true && CFG.tutorial.holdNeed > 0 && CFG.tutorial.doneHold > 0,
+   '引导总开关与时长参数都是有效值');
+
+G_('Tutorial · 状态机');
+St.reset();
+ok(T.stepCount() === tSteps.length, 'stepCount() 与 config.tutorial.steps 一致');
+ok(T.active() === true && T.stepIndex() === 0, '全新存档 → 从第 1 步开始');
+ok(St.get().tut.done === false, '存档里记着「还没看过」');
+T.update(0.016, 'idle', null);
+ok(T.stepIndex() === 0, '停在 idle 不推进（等玩家抛竿）');
+T.update(0.016, 'flying', null);
+ok(T.stepIndex() === 1, '抛竿（→ flying）→ 学会第 1 步');
+T.update(0.016, 'waiting', null);
+ok(T.stepIndex() === 1, '等鱼期间不推进（这一步要等咬钩）');
+T.update(0.016, 'bite', null);
+ok(T.stepIndex() === 1, '咬钩本身不算学会提竿');
+T.update(0.016, 'fight', { holding: false, dashing: false });
+ok(T.stepIndex() === 2, '进入拉扯（= 提竿成功）→ 学会第 2 步');
+T.update(0.5, 'fight', { holding: true, dashing: false });
+ok(T.stepIndex() === 2, `按住不足 ${CFG.tutorial.holdNeed}s 不算学会`);
+T.update(0.6, 'fight', { holding: true, dashing: false });
+ok(T.stepIndex() === 3, `按住累计到 ${CFG.tutorial.holdNeed}s → 学会第 3 步`);
+T.update(0.1, 'fight', { holding: true, dashing: false });
+ok(T.stepIndex() === 3, '还按着，不推进');
+T.update(0.1, 'fight', { holding: false, dashing: false });
+ok(T.stepIndex() === 4, '松手 → 学会第 4 步');
+T.update(0.1, 'fight', { holding: false, dashing: true });
+ok(T.stepIndex() === 4, '鱼刚开始发力还不算躲过');
+T.update(0.1, 'fight', { holding: false, dashing: false });
+ok(T.stepIndex() === 5, '逃窜结束且没断线 → 学会第 5 步');
+ok(T.active() === false && St.get().tut.done === true, '5 步走完 → 引导永久关闭并写进存档');
+ok(St.get().tut.step === tSteps.length, '存档里的 step = 总步数');
+T.update(CFG.tutorial.doneHold + 0.1, 'idle', null);
+ok(T.active() === false, '收尾提示自己消失，之后不再回到引导');
+St.save(true); St.load();
+ok(St.get().tut.done === true, '读档后「已看过」保持（不会重复弹）');
+
+G_('Tutorial · 跳过 / 重看 / 挂机');
+St.reset();
+T.restart();
+ok(T.active() === true && T.stepIndex() === 0, '「重看引导」把进度清零');
+T.finish();
+ok(T.active() === false && St.get().tut.done === true, '「跳过」直接标成已看过');
+St.reset(); T.restart();
+St.setIdle(true);
+T.update(0.016, 'flying', null);
+ok(T.stepIndex() === 0, '挂机模式下不推进（AI 替你操作，教不了人）');
+St.setIdle(false);
+/* 关掉挂机后玩家自己抛竿：引导从当前步骤继续（挂机期间 AI 的操作不算「学会」） */
+T.update(0.016, 'idle', null);
+T.update(0.016, 'flying', null);
+ok(T.stepIndex() === 1, '关掉挂机后，玩家自己抛竿仍然能推进引导');
+St.save(true); St.load();
+ok(St.get().tut.step === 1 && St.get().tut.done === false, '中途进度写进了存档（关页面不会重来）');
+
+G_('Tutorial · 老存档迁移与脏数据');
+const legacy3 = JSON.parse(JSON.stringify(legacy2));
+store[CFG.saveKey] = JSON.stringify(legacy3);
+St.load();
+ok(St.get().v === 4, '老存档版本号被升到 4（当前 SAVE_V）');
+ok(St.get().tut && St.get().tut.done === true, '老存档（v<4）默认「已看过」，不往老玩家脸上糊教学');
+ok(T.active() === false, '所以老存档不会弹教学气泡');
+const dirtyT = JSON.parse(JSON.stringify(legacy2));
+dirtyT.tut = { step: 'oops', done: 'yes' };
+store[CFG.saveKey] = JSON.stringify(dirtyT);
+St.load();
+ok(St.get().tut.step === 0 && St.get().tut.done === true, '脏 tut 被纠正成 0..N 的整数 + 布尔');
+const overT = JSON.parse(JSON.stringify(legacy2));
+overT.v = 4; overT.tut = { step: 99, done: false };
+store[CFG.saveKey] = JSON.stringify(overT);
+St.load();
+ok(St.get().tut.step === tSteps.length && St.get().tut.done === true, 'step 越界被夹回总步数并视为已完成');
+const badT = JSON.parse(JSON.stringify(legacy2));
+badT.v = 4; badT.tut = 'nonsense';
+store[CFG.saveKey] = JSON.stringify(badT);
+St.load();
+ok(!!St.get().tut && St.get().tut.step === 0 && St.get().tut.done === false, 'tut 不是对象时重建为默认值');
+St.reset();
+ok(St.get().tut.step === 0 && St.get().tut.done === false, '重置存档后引导重新开始');
 
 /* ---------- 汇总 ---------- */
 console.log('\n' + '='.repeat(52));

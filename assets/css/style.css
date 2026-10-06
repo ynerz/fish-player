@@ -53,6 +53,15 @@ html,body{
   height:100vh; height:100dvh; width:100vw;
 }
 
+/* 禁用 JS 时的兜底提示（index.html 的 <noscript>） */
+.noscript-note{
+  position:fixed; left:50%; top:50%; transform:translate(-50%,-50%);
+  width:min(420px,86vw); padding:20px 22px;
+  border:1px solid var(--c-line); border-radius:var(--radius);
+  background:var(--c-panel); box-shadow:var(--shadow-m);
+  text-align:center; font-size:14px;
+}
+
 /* ================= 顶栏 ================= */
 #hud{
   height:var(--hud-h); flex:0 0 auto;
@@ -239,6 +248,59 @@ html,body{
 .toast.bad{ background:rgba(200,60,64,.92); }
 @keyframes toastIn{ from{opacity:0; transform:translateY(-8px);} to{opacity:1;transform:none;} }
 @keyframes toastOut{ to{opacity:0; transform:translateY(-8px);} }
+
+/* ================= 新手引导气泡 =================
+   非阻塞：气泡本身 pointer-events:none，只有「跳过」可点，
+   所以它绝不会挡住主按钮。每个 place 都必须有一条定位规则
+   （tools/verify.js 会比对 config.tutorial.steps[].place 与这里）。 */
+.tut-bubble{
+  position:absolute; z-index:40;
+  width:268px; padding:12px 14px;
+  border-radius:14px;
+  background:rgba(24,42,58,.94); color:#fff;
+  font-size:13px; line-height:1.5;
+  box-shadow:var(--shadow-l);
+  pointer-events:none;
+  animation:tutIn .24s ease;
+}
+.tut-bubble b{ color:#ffd977; font-weight:700; }
+.tut-bubble .tb-idx{
+  display:block; margin-bottom:4px;
+  font-size:10.5px; letter-spacing:1.5px; color:rgba(255,255,255,.52);
+}
+.tut-bubble .tb-tip{
+  display:block; margin-top:6px;
+  font-size:11.5px; color:rgba(255,255,255,.62);
+}
+.tut-bubble .tb-skip{
+  position:absolute; right:7px; top:6px;
+  padding:2px 8px; border:none; border-radius:11px;
+  background:rgba(255,255,255,.14); color:rgba(255,255,255,.82);
+  font-family:inherit; font-size:11px; cursor:pointer;
+  pointer-events:auto;
+}
+.tut-bubble .tb-skip:hover{ background:rgba(255,255,255,.26); color:#fff; }
+/* 指向目标的小三角 */
+.tut-bubble::after{
+  content:""; position:absolute; bottom:-7px;
+  border:7px solid transparent; border-top-color:rgba(24,42,58,.94);
+  border-bottom:0;
+}
+/* 位置 A：右下角主按钮上方 */
+.tut-bubble.at-btn{ right:16px; bottom:calc(var(--deck-h) + 16px); }
+.tut-bubble.at-btn::after{ right:34px; }
+/* 位置 B：拉扯面板上方 */
+.tut-bubble.at-fight{ left:50%; margin-left:-134px; bottom:148px; }
+.tut-bubble.at-fight::after{ left:50%; margin-left:-7px; }
+@keyframes tutIn{ from{opacity:0;} to{opacity:1;} }
+
+/* 正在被讲解的那个元素的呼吸光晕 —— 用 filter 而不是 box-shadow，
+   否则会把按钮自己的立体投影覆盖掉 */
+.tut-glow{ animation:tutGlow 1.5s ease-in-out infinite; }
+@keyframes tutGlow{
+  0%,100%{ filter:none; }
+  50%{ filter:brightness(1.12) drop-shadow(0 0 10px rgba(255,159,67,.85)); }
+}
 
 /* ================= 底栏 ================= */
 #deck{

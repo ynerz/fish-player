@@ -1314,6 +1314,21 @@ G.Panels = (function () {
           });
         });
 
+      /* 新手引导：非阻塞气泡教「按住收线 / 松手放线 / 躲逃窜」三个动作。
+         走完（或跳过）就永久关闭，但随时可以从这里重看。 */
+      var tutDone = !!(s.tut && s.tut.done);
+      var tutStep = (s.tut && s.tut.step) || 0;
+      var tutTotal = G.Tutorial.stepCount();
+      row('新手引导', '在拉扯中依次教「按住收线 / 松手放线 / 躲逃窜」三个动作。' +
+        (tutDone ? '已完成。' : '进度 ' + tutStep + '/' + tutTotal + '。'),
+        '<button class="btn-ghost" id="setTut">' + (tutDone ? '重 看' : '从头') + '</button>',
+        function (c) {
+          U.on(c.querySelector('#setTut'), 'click', function () {
+            G.Tutorial.restart();
+            close();          // 先把设置面板关掉，否则气泡被弹层压在下面
+          });
+        });
+
       var tip = U.el('div', 'hint-text');
       tip.style.marginTop = '16px';
       tip.innerHTML =

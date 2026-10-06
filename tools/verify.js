@@ -226,6 +226,57 @@ const noPrice = G.DECORS.filter(d => !(d.price > 0));
 if (noPrice.length) err(`装饰缺价格：${noPrice.map(d => d.id).join('、')}`);
 else ok('装饰都有正价格');
 
+/* ---------------- 10. 新手引导：config ↔ 实现的一致性 ----------------
+   和第 ⑨ 节同一类坑：步骤写在 config，规则写在 tutorial.js。
+   加了一步却忘了写规则 → 那一步永远学不会；place 拼错 → 气泡飘到左上角。
+   两种都是「不报错的静默失败」，所以这里做交叉检查。 */
+console.log('\n[10] 新手引导：每一步都有实现与定位');
+let tutBad = 0;
+const tutSrc  = fs.readFileSync(path.join(ROOT, 'src/ui/tutorial.js'), 'utf8');
+const tutHtml = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const tutCss  = fs.readFileSync(path.join(ROOT, 'assets/css/style.css'), 'utf8');
+const tSteps  = (CFG.tutorial && CFG.tutorial.steps) || [];
+
+if (!tSteps.length) { err('config.tutorial.steps 是空的'); tutBad++; }
+if (typeof CFG.tutorial.enabled !== 'boolean') { err('config.tutorial.enabled 不是布尔值'); tutBad++; }
+if (!(CFG.tutorial.holdNeed > 0) || !(CFG.tutorial.doneHold > 0)) {
+  err('tutorial.holdNeed / doneHold 必须是正数'); tutBad++;
+}
+const tSeen = {};
+tSteps.forEach(s => {
+  if (tSeen[s.id]) { err(`引导步骤 id 重复：${s.id}`); tutBad++; }
+  tSeen[s.id] = 1;
+  if (!new RegExp('(^|\\n)\\s*' + s.id + '\\s*:\\s*function').test(tutSrc)) {
+    err(`步骤「${s.id}」在 tutorial.js 的 RULES 里没有完成条件（这一步永远学不会）`); tutBad++;
+  }
+  if (!s.text || !s.tip) { err(`步骤「${s.id}」缺文案或提示`); tutBad++; }
+  if (['idle', 'bite', 'fight'].indexOf(s.showWhen) < 0) {
+    err(`步骤「${s.id}」的 showWhen 非法：${s.showWhen}`); tutBad++;
+  }
+});
+/* 每个用到的 place 都必须有 .tut-bubble.at-<place> 定位规则 */
+const tPlaces = [];
+tSteps.forEach(s => { if (tPlaces.indexOf(s.place) < 0) tPlaces.push(s.place); });
+tPlaces.forEach(p => {
+  if (!new RegExp('\\.tut-bubble\\.at-' + p + '\\b').test(tutCss)) {
+    err(`步骤位置「${p}」在 style.css 里没有 .tut-bubble.at-${p} 定位规则（气泡会飘到左上角）`); tutBad++;
+  }
+});
+const bubbleRule = (tutCss.match(/\.tut-bubble\{[^}]*\}/) || [''])[0];
+if (!/position:absolute/.test(bubbleRule)) { err('.tut-bubble 必须是绝对定位'); tutBad++; }
+if (!/pointer-events:\s*none/.test(bubbleRule)) {
+  err('.tut-bubble 必须 pointer-events:none（否则会挡住抛竿按钮，变成阻塞式引导）'); tutBad++;
+}
+if (!/id="tutBubble"/.test(tutHtml)) { err('index.html 里没有 #tutBubble 容器'); tutBad++; }
+const tIdx = tutHtml.indexOf('src/ui/tutorial.js'), mIdx = tutHtml.indexOf('src/main.js');
+if (!(tIdx > 0 && mIdx > tIdx)) {
+  err('tutorial.js 必须在 index.html 里、且在 main.js 之前加载'); tutBad++;
+}
+if (!tutBad) {
+  ok(`${tSteps.length} 步：规则 / 文案 / 定位 / 顺序全部对得上`);
+  ok('.tut-bubble 是绝对定位 + 非阻塞（pointer-events:none）');
+}
+
 /* ---------------- 汇总 ---------------- */
 console.log('\n' + '='.repeat(52));
 if (errors) {

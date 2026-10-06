@@ -48,6 +48,8 @@ G.Fishing = (function () {
   function isIdleMode() { return !!St.get().settings.idle; }
   function getState() { return state; }
   function getPending() { return pending; }
+  /* 玩家当前是否按住收线 —— 新手引导靠它判断「学会按住 / 刚松手」 */
+  function isHolding() { return holding; }
 
   /* ---------------- 抛竿 ---------------- */
   function canCast() { return state === 'idle'; }
@@ -351,7 +353,7 @@ G.Fishing = (function () {
     cast: cast, giveUp: giveUp, strike: strike,
     press: press, release: release,
     getState: getState, getPending: getPending,
-    isIdleMode: isIdleMode, hardReset: hardReset,
+    isIdleMode: isIdleMode, isHolding: isHolding, hardReset: hardReset,
     offlineCatchUp: offlineCatchUp,
   };
 })();

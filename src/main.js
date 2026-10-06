@@ -43,6 +43,9 @@
     Hud.setField(field);
     Hud.syncAll();
 
+    /* ---------- 新手引导（首次抛竿前就出现，非阻塞气泡） ---------- */
+    G.Tutorial.init();
+
     /* ---------- 钓鱼 ---------- */
     F.init({
       onState: onStateChange,
@@ -327,6 +330,13 @@
         Hud.toast({ text: '鱼开始力竭了，顺势收线！', kind: 'good' });
       }
     }
+
+    /* 新手引导：失焦时 dt 传 0，只保持显示不推进进度 */
+    var fsnap = F.getState() === 'fight' ? G.Fight.snapshot() : null;
+    G.Tutorial.update(focused ? dt : 0, F.getState(), {
+      holding: F.isHolding(),
+      dashing: !!(fsnap && fsnap.dashing),
+    });
 
     S.render(dt);
 

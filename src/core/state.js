@@ -13,14 +13,20 @@ G.State = (function () {
   /* 存档结构版本。改动存档字段时把它 +1，并在 migrate() 里补一条分支。
      版本 2：新增 net / tank / netCap / tankCap / netEx / tankEx
      版本 3：新增每日任务 / 纪念币 / 称号，以及 stats 的分维计数
-             （byRar / byField / byBait / byWx / byTm / streak / maxStreak） */
-  var SAVE_V = 3;
+             （byRar / byField / byBait / byWx / byTm / streak / maxStreak）
+     版本 4：新增新手引导进度 tut（老存档直接视为「已看过」，不刷教学气泡） */
+  var SAVE_V = 4;
 
   /* 数字兜底：任何来自存档或计算的数值都要过一遍，
      否则 NaN 会被 JSON.stringify 写成 null，静默污染整个存档。 */
   function safeNum(v, dft) {
     v = Number(v);
     return isFinite(v) ? v : (dft || 0);
+  }
+
+  /* 新手引导一共几步 —— 只由 config 决定，存档里不冗余记录 */
+  function tutStepCount() {
+    return (CFG.tutorial && CFG.tutorial.steps) ? CFG.tutorial.steps.length : 0;
   }
 
   function blank() {
@@ -57,6 +63,10 @@ G.State = (function () {
       titleSel: '',                    // 佩戴中的称号 id
       achSeen: [],                     // 已播报过的成就 id（成就是纯派生的，不存状态）
       achInit: false,                  // 老存档首次接入成就系统时静默补登记
+      /* ---- 新手引导（v4）----
+         step = 已经学会的步数（0 = 还没开始，= config.tutorial.steps.length = 全学会）
+         done = 是否已完成（完成后永不再弹，设置里可重看） */
+      tut: { step: 0, done: false },
       stats: {
         casts: 0, catches: 0, escapes: 0, snaps: 0, idleCatches: 0,
         maxKg: 0, maxKgFish: '', totalValue: 0, days: 0,
@@ -133,6 +143,15 @@ G.State = (function () {
     d.stats.streak = Math.max(0, Math.round(safeNum(d.stats.streak, 0)));
     d.stats.maxStreak = Math.max(0, Math.round(safeNum(d.stats.maxStreak, 0)));
     if (d.stats.maxStreak < d.stats.streak) d.stats.maxStreak = d.stats.streak;
+
+    /* ---- 新手引导（v4）----
+       老存档（v < 4）显然不是新手，直接标成「已看过」，
+       否则一更新就弹教学气泡，等于往老玩家脸上糊提示。 */
+    if (!d.tut || typeof d.tut !== 'object' || Array.isArray(d.tut)) d.tut = { step: 0, done: false };
+    d.tut.step = Math.max(0, Math.min(tutStepCount(), Math.round(safeNum(d.tut.step, 0))));
+    d.tut.done = !!d.tut.done;
+    if (from < 4) d.tut.done = true;
+    if (d.tut.step >= tutStepCount()) d.tut.done = true;
 
     /* ---- 按版本号迁移 ---- */
     if (from < 2) {

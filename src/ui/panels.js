@@ -1483,7 +1483,11 @@ G.Panels = (function () {
       root.appendChild(list);
       var tip = U.el('div', 'hint-text');
       tip.style.marginTop = '12px';
-      tip.textContent = '鱼饵每抛一竿消耗一个。蚯蚓无限免费，永远不会让你空军。';
+      /* ⚠️ 这句必须与 v0.5.7 的口径一致：抛竿扣 1，但**提前收杆整枚退回**
+         （鱼咬过钩就不退）。只写「每抛一竿消耗一个」等于说错 ——
+         GDD §6.1 与说明书都写了退还，界面漏了会让玩家以为收杆也亏饵。 */
+      tip.textContent = '鱼饵每抛一竿消耗一个。鱼还没咬钩时「收杆」（提前收杆）的鱼饵会退回；' +
+        '蚯蚓无限免费，永远不会让你空军。';
       root.appendChild(tip);
     },
   };

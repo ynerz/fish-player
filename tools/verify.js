@@ -1098,10 +1098,18 @@ wordMods.forEach(m => {
     baitWordBad++;
   }
 });
-/* 两处鱼饵界面（商店 / 底栏选饵面板）都得标「咬口时间 ×」 */
-const baitTimeHits = (panelsSrc.match(/咬口时间 ×/g) || []).length;
+/* 两处鱼饵界面（商店 / 底栏选饵面板）都得标「咬口时间 ×」。
+   ⚠️ 必须扫**去掉注释**后的代码 —— 第一次写这条时用的是原始源码，
+   结果被自己那段「写成『速度 ×0.56』方向正好说反」的说明注释喂饱了（假通过）。 */
+const panelsCode = panelsSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+const baitTimeHits = (panelsCode.match(/咬口时间 ×/g) || []).length;
 if (baitTimeHits < 2) {
   err(`鱼饵的「咬口时间 ×」标注只有 ${baitTimeHits} 处（商店 / 选饵面板各需一处）`); baitWordBad++;
+}
+/* 消耗口径同理：只写「每抛一竿消耗一个」而不提「提前收杆退回」，
+   与 v0.5.7 的实现（以及 GDD §6.1 / 说明书）不一致 —— 玩家会以为收杆也亏饵。 */
+if (panelsCode.indexOf('提前收杆') < 0) {
+  err('panels.js 的鱼饵消耗说明没提「提前收杆退饵」，与 v0.5.7 的口径不一致'); baitWordBad++;
 }
 ['docs/GDD.md', 'docs/说明书.html'].forEach(f => {
   const t = fs.readFileSync(path.join(ROOT, f), 'utf8');

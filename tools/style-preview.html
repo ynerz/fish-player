@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>鱼类美术风格对比 · 钓鱼人生</title>
+<style>
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:26px 30px 40px;
+    background:#eef6fb; color:#1d3446;
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+  }
+  h1{ font-size:23px; margin:0 0 4px; letter-spacing:.5px; }
+  .sub{ font-size:13px; color:#5b7488; margin-bottom:22px; }
+  h2{ font-size:16px; margin:30px 0 12px; padding-bottom:7px; border-bottom:2px solid #cfe3f0; }
+  .grid{ display:grid; gap:14px; }
+  .rowlabel{
+    display:flex; flex-direction:column; justify-content:center;
+    padding:10px 12px; border-radius:12px;
+    background:#fff; border:2px solid #d8e6f0;
+  }
+  .rowlabel b{ font-size:15px; }
+  .rowlabel .tag{
+    display:inline-block; margin-top:4px; font-size:10px; font-weight:700;
+    color:#fff; background:#1f8fd6; border-radius:8px; padding:1px 8px; align-self:flex-start;
+  }
+  .rowlabel p{ margin:7px 0 0; font-size:11px; line-height:1.55; color:#5b7488; }
+  .cell{
+    border-radius:12px; background:#fff; border:1px solid #d8e6f0;
+    display:flex; flex-direction:column; align-items:center;
+    padding:6px 4px 8px; overflow:hidden;
+  }
+  .cell canvas{ display:block; width:100%; height:auto; }
+  .cell .nm{ font-size:10.5px; color:#5b7488; margin-top:2px; letter-spacing:.2px; }
+  .cell .rz{ font-size:9.5px; font-weight:700; }
+  .hero{ display:grid; grid-template-columns:repeat(6,1fr); gap:14px; }
+  .hero .cell{ padding:10px 8px 12px; }
+  .hero .cell .nm{ font-size:13px; font-weight:700; color:#1d3446; }
+  .hero .cell .rz{ font-size:11px; }
+  .note{
+    margin-top:26px; padding:14px 18px; border-radius:12px;
+    background:#fff; border-left:4px solid #1f8fd6; font-size:12.5px; line-height:1.85; color:#3c5a70;
+  }
+  .note b{ color:#1d3446; }
+</style>
+</head>
+<body>
+
+<h1>🐟 鱼类美术风格对比</h1>
+<div class="sub">
+  同一套参数化几何 + 6 套风格渲染器。用的都是游戏里的真实鱼种数据，
+  换风格不需要重画任何素材 —— 改一个参数即可全局切换。
+</div>
+
+<h2>一、全形态总览（6 风格 × 10 种体型）</h2>
+<div class="grid" id="grid1"></div>
+
+<h2>二、重点鱼种大图（6 风格 × 3 条旗舰鱼）</h2>
+<div class="hero" id="hero"></div>
+
+<div class="note" id="note"></div>
+
+<script src="../src/data/config.js"></script>
+<script src="../src/data/fields.js"></script>
+<script src="../src/data/fish.js"></script>
+<script src="../src/data/items.js"></script>
+<script src="../src/core/util.js"></script>
+<script src="../src/render/fishart.js"></script>
+<script>
+(function () {
+  var U = G.U, FA = G.FishArt;
+
+  var RAR_COLOR = ['#8b98a5', '#2b8fe0', '#8b5cf6', '#e8901a'];
+  var RAR_NAME  = ['普通', '稀有', '史诗', '传说'];
+
+  /* 10 种体型代表 */
+  var SHAPES = ['D03', 'D04', 'C10', 'B12', 'A10', 'S12', 'S13', 'SS06', 'SS18', 'SS08', 'SS10'];
+  /* 3 条旗舰鱼 */
+  var HERO = ['D03', 'B12', 'SS10'];
+
+  var styleKeys = ['flat', 'bold', 'water', 'real', 'neon', 'pixel'];
+
+  function drawCell(canvas, fish, styleKey, w, h, px) {
+    var dpr = 2;
+    var st = FA.STYLES[styleKey];
+    FA.setStyle(styleKey);
+    var ctx = canvas.getContext('2d');
+    canvas.width = w * dpr; canvas.height = h * dpr;
+    canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+
+    var pixel = st.pixel ? st.pixel : 0;
+    canvas.dataset.px = pixel ? 1 : 0;
+    var target = ctx;
+    var off = null;
+    if (pixel) {
+      off = document.createElement('canvas');
+      off.width = Math.max(6, Math.ceil(w / pixel));
+      off.height = Math.max(6, Math.ceil(h / pixel));
+      target = off.getContext('2d');
+      target.setTransform(1 / pixel, 0, 0, 1 / pixel, 0, 0);
+    } else {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    /* 背景 */
+    var bg = target.createLinearGradient(0, 0, 0, h);
+    if (st.darkBG) { bg.addColorStop(0, '#0d1830'); bg.addColorStop(1, '#1b2c4a'); }
+    else { bg.addColorStop(0, '#f4fbff'); bg.addColorStop(1, '#d3ecfa'); }
+    target.fillStyle = bg;
+    target.fillRect(0, 0, w, h);
+
+    /* 水纹 */
+    target.strokeStyle = st.darkBG ? 'rgba(140,190,255,.16)' : 'rgba(255,255,255,.65)';
+    target.lineWidth = 1.4;
+    for (var i = 0; i < 3; i++) {
+      target.beginPath();
+      for (var x = 0; x <= w; x += 8) {
+        var y = h * 0.74 + i * h * 0.09 + Math.sin(x * 0.05 + i) * 2;
+        if (x === 0) target.moveTo(x, y); else target.lineTo(x, y);
+      }
+      target.stroke();
+    }
+
+    var L = Math.min(w * 0.76, h * 1.5);
+    FA.draw(target, fish, w * 0.5, h * 0.45, L, { t: 0.7 });
+    FA.setStyle('flat');
+
+    if (off) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
+    }
+  }
+
+  /* ---------- 网格 ---------- */
+  var grid = document.getElementById('grid1');
+  var CW = 178, CH = 96;
+  grid.style.gridTemplateColumns = '150px repeat(' + SHAPES.length + ', ' + CW + 'px)';
+
+  /* 表头行 */
+  grid.appendChild(document.createElement('div'));
+  SHAPES.forEach(function (id) {
+    var f = G.FISH_ID[id];
+    var c = document.createElement('div');
+    c.className = 'cell';
+    c.style.padding = '8px 4px';
+    c.innerHTML = '<div style="font-size:11.5px;font-weight:700">' + f.name + '</div>' +
+                  '<div class="rz" style="color:' + RAR_COLOR[f.rar] + '">' + RAR_NAME[f.rar] + ' · ' + f.shape + '</div>';
+    grid.appendChild(c);
+  });
+
+  styleKeys.forEach(function (sk) {
+    var st = FA.STYLES[sk];
+    var lab = document.createElement('div');
+    lab.className = 'rowlabel';
+    lab.innerHTML = '<b>' + st.label + '</b><span class="tag">' + sk + '</span><p>' + st.desc + '</p>';
+    grid.appendChild(lab);
+
+    SHAPES.forEach(function (id) {
+      var f = G.FISH_ID[id];
+      var cell = document.createElement('div');
+      cell.className = 'cell';
+      var cv = document.createElement('canvas');
+      cell.appendChild(cv);
+      grid.appendChild(cell);
+      drawCell(cv, f, sk, CW - 8, CH, st.pixel);
+    });
+  });
+
+  /* ---------- 旗舰大图 ---------- */
+  var hero = document.getElementById('hero');
+  var HW = 300, HH = 200;
+  styleKeys.forEach(function (sk) {
+    var st = FA.STYLES[sk];
+    var col = document.createElement('div');
+    col.style.display = 'flex';
+    col.style.flexDirection = 'column';
+    col.style.gap = '10px';
+    var head = document.createElement('div');
+    head.className = 'rowlabel';
+    head.style.textAlign = 'center';
+    head.style.alignItems = 'center';
+    head.innerHTML = '<b>' + st.label + '</b>';
+    col.appendChild(head);
+    HERO.forEach(function (id) {
+      var f = G.FISH_ID[id];
+      var cell = document.createElement('div');
+      cell.className = 'cell';
+      var cv = document.createElement('canvas');
+      var nm = document.createElement('div');
+      nm.className = 'nm';
+      nm.textContent = f.name;
+      var rz = document.createElement('div');
+      rz.className = 'rz';
+      rz.style.color = RAR_COLOR[f.rar];
+      rz.textContent = RAR_NAME[f.rar];
+      cell.appendChild(cv); cell.appendChild(nm); cell.appendChild(rz);
+      col.appendChild(cell);
+      drawCell(cv, f, sk, HW - 20, HH, st.pixel);
+    });
+    hero.appendChild(col);
+  });
+
+  document.getElementById('note').innerHTML =
+    '<b>怎么选：</b><br>' +
+    '· <b>扁平卡通</b>（当前默认）—— 观感干净、多端适配最省事、AI 生成素材也最容易统一，推荐先按这个做。<br>' +
+    '· <b>粗描边卡通</b> —— 辨识度最高。缩成图鉴小图标时最容易分清鱼种，也是最好做「图鉴辨识度」的风格。<br>' +
+    '· <b>水彩柔光</b> —— 最治愈，适合走情绪向；但细节在深色钓场里会被吃掉一些。<br>' +
+    '· <b>写实渐变</b> —— 拟真最强、单条鱼最"值钱"，但和挂机小游戏的调性偏冲突，且开发成本最高。<br>' +
+    '· <b>霓虹剪影</b> —— 幽蓝海沟 / 星陨之渊 / 时之尽头 三个夜钓场氛围最好，白天钓场偏暗。<br>' +
+    '· <b>像素风</b> —— 复古可爱、素材复用度高，但 UI 与动效需要另配一套风格。<br><br>' +
+    '<b>说明：</b>以上全部由同一套几何 + <code>G.FishArt.STYLES</code> 参数渲染，<b>不需要任何图片素材</b>。' +
+    '确认风格后我把它设成默认，其余风格保留成可切换项（也可以做成"不同钓场用不同画风"的彩蛋）。';
+})();
+</script>
+</body>
+</html>

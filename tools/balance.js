@@ -150,29 +150,98 @@ for (const field of G.FIELDS) {
   );
 }
 
-console.log('\n=== ③ 单钓场「集齐 100% 图鉴」预估（含传说鱼收集）===');
-console.log('钓场    鱼种   平均单竿   集齐期望竿数   预估耗时');
+/* ---------------- ③ 图鉴收集耗时（用游戏真实抽卡逻辑蒙特卡洛） ---------------- */
+const FIGHT_EXP = [7.3, 22, 34, 50];   // 每竿期望耗时（含失败重来），秒
+
+function simulateCollect(field, needCount, opts) {
+  const seen = new Set();
+  let casts = 0, sec = 0;
+  while (seen.size < needCount && casts < 4000000) {
+    const pick = G.Loot.rollFish(field, opts);
+    seen.add(pick.fish.id);
+    casts++;
+    sec += G.Loot.biteTime(pick.rar, opts) + FIGHT_EXP[pick.rar];
+  }
+  return { casts, sec };
+}
+
+const TRIALS = Number(process.env.TRIALS || 400);
+
+/* 精确公式：收齐「全部」鱼种的期望竿数（长尾分布下蒙特卡洛样本不足，必须用解析解） */
+function expectedAll(ps) {
+  let pmin = Infinity;
+  for (const p of ps) if (p < pmin) pmin = p;
+  if (!(pmin > 0)) return Infinity;
+  const q = ps.map(p => p / pmin);
+  const M = 2000, U = 95, h = U / M;
+  const f = (u) => {
+    let prod = 1;
+    for (let i = 0; i < q.length; i++) {
+      prod *= (1 - Math.exp(-q[i] * u));
+      if (prod < 1e-15) return 1;
+    }
+    return 1 - prod;
+  };
+  let acc = f(0) + f(U);
+  for (let i = 1; i < M; i++) acc += (i % 2 ? 4 : 2) * f(i * h);
+  return (acc * h / 3) / pmin;
+}
+
+/* 用游戏真实掉率算出每个鱼种的单竿概率与单竿期望耗时 */
+function realProbs(field, opts) {
+  const w = G.Loot.rarityWeights(field, opts || {});
+  const tw = w.reduce((a, b) => a + b, 0);
+  const out = [];
+  G.FISH_BY_FIELD[field.id].forEach(f => {
+    const tier = G.FISH_BY_FIELD_RARITY[field.id][f.rar];
+    const W = tier.reduce((a, b) => a + b.w, 0);
+    out.push({ fish: f, p: (w[f.rar] / tw) * (f.w / W) });
+  });
+  return out;
+}
+
+function cycleOf(field) {
+  let c = 0;
+  const w = G.Loot.rarityWeights(field, {});
+  const tw = w.reduce((a, b) => a + b, 0);
+  for (let t = 0; t < 4; t++) {
+    c += (w[t] / tw) * ((CFG.rarity[t].timeMin + CFG.rarity[t].timeMax) / 2 + FIGHT_EXP[t]);
+  }
+  return c;
+}
+
+console.log('\n=== ③ 图鉴收集耗时（蒙特卡洛 ' + TRIALS + ' 次，使用游戏真实掉率）===');
+console.log('钓场   鱼种  80%需   到80%(均值)  100%均值   100%中位   累计(100%均值)');
+
+const rowData = [];
+let cum100 = 0;
 for (const field of G.FIELDS) {
   const list = G.FISH_BY_FIELD[field.id];
-  let expCasts = 0;
-  for (const fish of list) {
-    // 该鱼的单次出现概率
-    const pRar = field.rarity[fish.rar] / 100;
-    const tierW = G.FISH_BY_FIELD_RARITY[field.id][fish.rar];
-    const wSum = tierW.reduce((a, b) => a + b.w, 0);
-    const p = pRar * (fish.w / wSum);
-    expCasts += 1 / Math.max(p, 1e-9);   // 该鱼的期望竿数
-  }
-  // 平均单竿耗时（上半段计算过，这里复用近似：按稀有度加权）
-  let avg = 0;
-  const wsum = field.rarity.reduce((a, b) => a + b, 0);
-  field.rarity.forEach((v, i) => {
-    avg += (v / wsum) * ((CFG.rarity[i].timeMin + CFG.rarity[i].timeMax) / 2 + 12);
-  });
-  const hours = expCasts * avg / 3600;
+  const n = list.length;
+  const need80 = Math.ceil(n * 0.8);
+  const a80 = [];
+  for (let i = 0; i < TRIALS; i++) a80.push(simulateCollect(field, need80, {}).sec / 3600);
+  a80.sort((x, y) => x - y);
+  const mean = arr => arr.reduce((x, y) => x + y, 0) / arr.length;
+  const h80 = mean(a80);
+  /* 100% 用解析解 */
+  const probs = realProbs(field, {});
+  const cyc = cycleOf(field);
+  const m100 = expectedAll(probs.map(x => x.p)) * cyc / 3600;
+  const h100 = m100;
+  cum100 += m100;
+  rowData.push({ id: field.id, name: field.name, n, need80, h80, h100: m100, med: h100, cum: cum100 });
   console.log(
-    `${field.rank.padEnd(5)}  ${String(list.length).padStart(4)}  ` +
-    `${avg.toFixed(1).padStart(8)}s  ${expCasts.toFixed(0).padStart(13)}  ${hours.toFixed(1).padStart(8)} h`
+    `${field.rank.padEnd(5)} ${String(n).padStart(4)} ${String(need80).padStart(5)}  ` +
+    `${h80.toFixed(2).padStart(10)} h  ${m100.toFixed(2).padStart(9)} h  ${h100.toFixed(2).padStart(9)} h  ${cum100.toFixed(1).padStart(12)} h`
   );
 }
+console.log('\n累计解锁节奏（达到该钓场图鉴 100% 时的总时长）：');
+let c = 0;
+G.FIELDS.forEach((f, i) => {
+  c += rowData[i].h100;
+  console.log(`  ${f.rank.padEnd(4)} ${f.name.padEnd(10)} → 累计 ${c.toFixed(1)} h`);
+});
+console.log(`\n全部 7 个钓场 100% 收满 ≈ ${c.toFixed(0)} 小时`);
 console.log('');
+

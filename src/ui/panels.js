@@ -10,6 +10,14 @@ G.Panels = (function () {
   var current = null;
   var onCloseCb = null;
 
+  /* 小时 → 中文时长 */
+  function fmtH(h) {
+    if (!h) return '—';
+    if (h < 1) return Math.round(h * 60) + ' 分钟';
+    if (h < 24) return (Math.round(h * 10) / 10) + ' 小时';
+    return (Math.round(h / 24 * 10) / 10) + ' 天';
+  }
+
   function init() {
     modal = U.$('#modal');
     titleEl = U.$('#modalTitle');
@@ -81,7 +89,12 @@ G.Panels = (function () {
               ? (s.field === f.id ? '<span class="ok">正在这里</span>' : '<span class="ok">可进入</span>')
               : '<span class="no">未解锁</span>') +
           '</div>' +
-          (st.unlocked ? '' : '<div class="fc-legend">' + st.reason + '</div>');
+          '<div class="fc-legend">' +
+            (f.estUnlockHours > 0
+              ? '预计累计 <b>' + fmtH(f.estUnlockHours) + '</b> 解锁 ｜ 本场收满约 ' + fmtH(f.estOwnHours)
+              : '起始钓场 ｜ 本场收满约 ' + fmtH(f.estOwnHours)) +
+          '</div>' +
+          (st.unlocked ? '' : '<div class="fc-legend" style="color:#e8595c">' + st.reason + '</div>');
 
         U.on(card, 'click', function () {
           if (!st.unlocked) { G.Audio.deny(); return; }
@@ -99,11 +112,17 @@ G.Panels = (function () {
       var tip = U.el('div', 'hint-text');
       tip.style.marginTop = '14px';
       tip.innerHTML =
-        '解锁规则：本钓场图鉴收集达 <b>80%</b> 即可解锁下一个钓场；' +
+        '<b>解锁规则</b>：本钓场图鉴收集达 <b>80%</b> 即可解锁下一个钓场；' +
         '隐藏钓场 <b>SS / SSS</b> 需要前面所有钓场 <b>100%</b> 收满。<br>' +
-        '参考时长（仅作设计节奏，不影响解锁）：' +
-        G.FIELDS.filter(function (f) { return f.unlockHours > 0; })
-          .map(function (f) { return '<span class="lg" style="margin-left:4px">' + f.rank + ' ' + f.refHoursText + '</span>'; }).join('');
+        '<b>关于时长</b>：时长不是解锁门槛，只是按当前掉率算出来的<b>期望耗时</b>（' +
+        '由 <code>tools/solve-drop.js</code> 反推、<code>tools/balance.js</code> 复核）。' +
+        '七个钓场全部 100% 收满约 <b>' + fmtH(G.FIELDS[G.FIELDS.length - 1].estUnlockHours +
+                                          G.FIELDS[G.FIELDS.length - 1].estOwnHours) + '</b>。<br>' +
+        '累计解锁节奏：' +
+        G.FIELDS.filter(function (f) { return f.estUnlockHours > 0; })
+          .map(function (f) {
+            return '<span class="lg" style="margin-left:4px">' + f.rank + ' <b>' + fmtH(f.estUnlockHours) + '</b></span>';
+          }).join('');
       root.appendChild(tip);
     },
   };
@@ -379,7 +398,9 @@ G.Panels = (function () {
         box('总抛竿数', U.num(st.casts)) +
         box('总钓获', U.num(st.catches)) +
         box('图鉴收集', gp.got + ' / ' + gp.total) +
-        box('图鉴完成度', (gp.pct * 100).toFixed(1), '%');
+        box('图鉴完成度', (gp.pct * 100).toFixed(1), '%') +
+        box('当前钓场预计收满', fmtH((G.FIELD_MAP[s.field] || {}).estOwnHours || 0)) +
+        box('全部收满预计', fmtH(G.FIELDS[G.FIELDS.length - 1].estUnlockHours + G.FIELDS[G.FIELDS.length - 1].estOwnHours));
       root.appendChild(g1);
 
       root.appendChild(U.el('div', 'section-title', '记录'));

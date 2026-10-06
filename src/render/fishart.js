@@ -17,6 +17,54 @@ window.G = window.G || {};
 G.FishArt = (function () {
   var U = G.U;
 
+  /* =========================================================
+     风格层
+     =========================================================
+     同一套几何形状，通过下面这组参数就能渲染出完全不同的画风。
+     切换风格： G.FishArt.setStyle('bold')
+     ========================================================= */
+  var STYLES = {
+    /* 扁平卡通：当前的默认风格，柔渐变 + 细描边 */
+    flat: { key:'flat', label:'扁平卡通', lineScale:1.0, gloss:0.22, spec:true,
+            filter:'none', desc:'柔和的线性渐变 + 极细描边，清爽易读，多端适配最省事。' },
+
+    /* 粗描边卡通：厚轮廓 + 双色平涂，像手绘贴纸 */
+    bold: { key:'bold', label:'粗描边卡通', lineScale:2.4, gloss:0, spec:false, flatFill:true,
+            lineColorFn: function (p) { return '#22313d'; },
+            filter:'none', desc:'粗黑轮廓 + 双色平涂，辨识度最高，缩到很小也看得清种类。' },
+
+    /* 水彩柔光：低透明叠色 + 轻微模糊，像手绘水彩本 */
+    water: { key:'water', label:'水彩柔光', lineScale:0.85, gloss:0.34, spec:true, alpha:0.62, bleed:2,
+            lineColorFn: function (p) { return U.rgba(p.bodyDark, 0.30); },
+            filter:'saturate(1.45) brightness(1.10) blur(1.1px)', paper:true,
+            desc:'半透明叠色 + 轻微晕染，柔和不刺眼，适合走治愈向。' },
+
+    /* 写实渐变：多段渐变 + 高光 + 鳞片纹理 */
+    real: { key:'real', label:'写实渐变', lineScale:0.55, gloss:0.7, spec:true, scales:true,
+            filter:'saturate(1.12) contrast(1.10)',
+            desc:'多段体色渐变 + 油亮高光 + 鳞片纹理，拟真感最强，单条鱼最贵。' },
+
+    /* 霓虹剪影：深色鱼身 + 高亮描边，赛博/街机感 */
+    neon: { key:'neon', label:'霓虹剪影', lineScale:2.1, gloss:0, spec:false, dark:0.68, glowBoost:2.4,
+            lineColorFn: function (p) { return U.lighten(p.accent, 0.45); },
+            filter:'saturate(1.35)', darkBG:true,
+            desc:'压暗鱼身、点亮轮廓，深海/星陨钓场氛围最好，但白天场景会偏暗。' },
+
+    /* 像素风：低分辨率 + 硬边放大（由外部按 pixel 参数处理） */
+    pixel: { key:'pixel', label:'像素风', lineScale:1.6, gloss:0, spec:false, flatFill:true, pixel:8,
+            lineColorFn: function (p) { return '#1a2430'; },
+            filter:'none', desc:'低分辨率 + 硬边放大，复古可爱，素材可复用度高。' },
+  };
+
+  var ST = STYLES.flat;
+
+  function setStyle(key) { ST = STYLES[key] || STYLES.flat; return ST; }
+  function getStyle() { return ST; }
+  function listStyles() { return Object.keys(STYLES).map(function (k) { return STYLES[k]; }); }
+
+  /* 描边宽度统一出口 */
+  function LWM(min, v) { return Math.max(min, v) * (ST.lineScale || 1); }
+
   /* 以 fish.id 生成稳定伪随机（保证斑点位置固定） */
   function seedRand(str) {
     var h = 2166136261;
@@ -37,14 +85,23 @@ G.FishArt = (function () {
       body = U.mix(body, opt.tint, amt);
       accent = U.mix(accent, opt.tint, amt * 0.8);
     }
+    if (ST.dark) {
+      body = U.darken(body, ST.dark);
+      accent = U.darken(accent, ST.dark * 0.45);
+    }
+    var line = U.darken(body, 0.38);
+    if (ST.lineColorFn) line = ST.lineColorFn({ body: body, bodyDark: U.darken(body, 0.22),
+                                                bodyLight: U.lighten(body, 0.28), accent: accent,
+                                                accentDark: U.darken(accent, 0.18), belly: U.lighten(body, 0.55) });
     return {
       body: body,
-      bodyDark: U.darken(body, 0.22),
+      bodyDark: ST.flatFill ? U.darken(body, 0.30) : U.darken(body, 0.22),
       bodyLight: U.lighten(body, 0.28),
       accent: accent,
       accentDark: U.darken(accent, 0.18),
-      belly: U.lighten(body, 0.55),
-      line: U.darken(body, 0.38),
+      belly: ST.flatFill ? U.lighten(body, 0.34) : U.lighten(body, 0.55),
+      line: line,
+      lineScale: ST.lineScale || 1,
     };
   }
 
@@ -109,7 +166,7 @@ G.FishArt = (function () {
       ctx.fillStyle = g;
     } else ctx.fillStyle = (p && p.accent) || '#888';
     ctx.fill();
-    if (p) { ctx.strokeStyle = p.line; ctx.lineWidth = Math.max(0.6, L * 0.008); ctx.stroke(); }
+    if (p) { ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.6, L * 0.008); ctx.stroke(); }
   }
 
   /* ---------------- 背鳍 ---------------- */
@@ -136,7 +193,7 @@ G.FishArt = (function () {
     }
     ctx.fillStyle = U.rgba(p.accent, 0.92);
     ctx.fill();
-    ctx.strokeStyle = p.line; ctx.lineWidth = Math.max(0.6, L * 0.008); ctx.stroke();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.6, L * 0.008); ctx.stroke();
   }
 
   /* ---------------- 腹/臀鳍 ---------------- */
@@ -167,7 +224,7 @@ G.FishArt = (function () {
       ctx.save();
       ctx.globalAlpha = 0.35;
       ctx.strokeStyle = p.bodyDark;
-      ctx.lineWidth = Math.max(1, L * 0.028);
+      ctx.lineWidth = LWM(1, L * 0.028);
       ctx.lineCap = 'round';
       for (var i = 0; i < 6; i++) {
         var x = (0.30 - i * 0.13) * L;
@@ -245,7 +302,7 @@ G.FishArt = (function () {
     ctx.fillStyle = g;
     ctx.fill();
     ctx.strokeStyle = p.line;
-    ctx.lineWidth = Math.max(0.7, L * 0.009);
+    ctx.lineWidth = LWM(0.7, L * 0.009);
     ctx.stroke();
 
     patterns(ctx, fish, L, h, p, rand);
@@ -255,7 +312,7 @@ G.FishArt = (function () {
     // 须
     if (fish.barbels) {
       ctx.strokeStyle = p.accentDark;
-      ctx.lineWidth = Math.max(0.8, L * 0.012);
+      ctx.lineWidth = LWM(0.8, L * 0.012);
       ctx.lineCap = 'round';
       [0.18, 0.34].forEach(function (a, i) {
         ctx.beginPath();
@@ -280,7 +337,7 @@ G.FishArt = (function () {
 
     // 鮟鱇的发光诱饵
     if (fish.lure) {
-      ctx.strokeStyle = p.accentDark; ctx.lineWidth = Math.max(0.9, L * 0.014);
+      ctx.strokeStyle = p.accentDark; ctx.lineWidth = LWM(0.9, L * 0.014);
       ctx.beginPath();
       ctx.moveTo(0.30 * L, -0.55 * h);
       ctx.quadraticCurveTo(0.52 * L, -1.05 * h, 0.72 * L, -0.72 * h);
@@ -292,7 +349,7 @@ G.FishArt = (function () {
     }
 
     // 嘴
-    ctx.strokeStyle = p.line; ctx.lineWidth = Math.max(0.7, L * 0.010);
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.7, L * 0.010);
     ctx.beginPath();
     ctx.moveTo(0.50 * L, 0.02 * h);
     ctx.quadraticCurveTo(0.42 * L, 0.14 * h, 0.32 * L, 0.12 * h);
@@ -327,7 +384,7 @@ G.FishArt = (function () {
     var g = ctx.createLinearGradient(0, -h, 0, h);
     g.addColorStop(0, p.bodyDark); g.addColorStop(0.5, p.body); g.addColorStop(1, p.belly);
     ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = p.line; ctx.lineWidth = Math.max(0.7, L * 0.008); ctx.stroke();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.7, L * 0.008); ctx.stroke();
     // 背鳍（连续褶边）
     ctx.beginPath();
     ctx.moveTo(0.34 * L, pts[4].y - pts[4].w * 0.5);
@@ -336,7 +393,7 @@ G.FishArt = (function () {
                            pts[c + 1].x, pts[c + 1].y - pts[c + 1].w * 0.5);
     }
     ctx.strokeStyle = U.rgba(p.accent, 0.85);
-    ctx.lineWidth = Math.max(1.4, h * 0.34); ctx.lineCap = 'round';
+    ctx.lineWidth = LWM(1.4, h * 0.34); ctx.lineCap = 'round';
     ctx.stroke();
     if (fish.teeth) {
       ctx.fillStyle = '#fffdf5';
@@ -353,37 +410,58 @@ G.FishArt = (function () {
 
   TPL.ray = function (ctx, fish, L, opt, p, rand) {
     var t = (opt.t || 0);
-    var h = L * 0.72;
-    var flap = Math.sin(t * 2.4) * 0.10;
-    // 尾
+    var h = L * 0.95;                       // 翼展
+    var flap = Math.sin(t * 2.2) * 0.10;    // 振翅
+
+    /* 尾鞭 */
     ctx.beginPath();
-    ctx.moveTo(-0.30 * L, 0);
-    ctx.quadraticCurveTo(-0.66 * L, flap * h * 0.8, -1.02 * L, -h * 0.06 + flap * h);
-    ctx.quadraticCurveTo(-0.64 * L, h * 0.10 + flap * h, -0.30 * L, h * 0.05);
+    ctx.moveTo(-0.40 * L, -h * 0.05);
+    ctx.quadraticCurveTo(-0.72 * L, flap * h * 0.5 - h * 0.02, -1.05 * L, -h * 0.06 + flap * h);
+    ctx.quadraticCurveTo(-0.70 * L, h * 0.03 + flap * h, -0.40 * L, h * 0.05);
     ctx.closePath();
-    ctx.fillStyle = p.accent; ctx.fill();
-    // 翼
+    ctx.fillStyle = p.bodyDark;
+    ctx.fill();
+
+    /* 翼身一体 */
     ctx.beginPath();
-    ctx.moveTo(0.44 * L, 0);
-    ctx.bezierCurveTo(0.30 * L, -h * (0.62 + flap), -0.10 * L, -h * (0.72 + flap), -0.34 * L, -h * 0.14);
-    ctx.quadraticCurveTo(-0.10 * L, -h * 0.10, 0.06 * L, 0);
-    ctx.quadraticCurveTo(-0.10 * L, h * 0.10, -0.34 * L, h * 0.14);
-    ctx.bezierCurveTo(-0.10 * L, h * (0.72 - flap), 0.30 * L, h * (0.62 - flap), 0.44 * L, 0);
+    ctx.moveTo(0.46 * L, 0);                                            // 吻端
+    ctx.bezierCurveTo(0.34 * L, -h * (0.22 + flap), 0.06 * L, -h * (0.62 + flap),
+                      -0.34 * L, -h * (0.78 + flap));                    // 前缘 → 左翼尖
+    ctx.quadraticCurveTo(-0.24 * L, -h * 0.30, -0.42 * L, -h * 0.06);    // 后缘收回尾根
+    ctx.lineTo(-0.42 * L, h * 0.06);
+    ctx.quadraticCurveTo(-0.24 * L, h * 0.30, -0.34 * L, h * (0.78 - flap)); // 右翼尖
+    ctx.bezierCurveTo(0.06 * L, h * (0.62 - flap), 0.34 * L, h * (0.22 - flap), 0.46 * L, 0);
     ctx.closePath();
     var g = ctx.createLinearGradient(0, -h * 0.7, 0, h * 0.7);
-    g.addColorStop(0, p.bodyDark); g.addColorStop(0.5, p.body); g.addColorStop(1, p.belly);
-    ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = p.line; ctx.lineWidth = Math.max(0.7, L * 0.008); ctx.stroke();
+    g.addColorStop(0, p.bodyDark);
+    g.addColorStop(0.45, p.body);
+    g.addColorStop(1, p.belly);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.7, L * 0.008); ctx.stroke();
+
+    /* 头鳍（两条小角） */
+    ctx.beginPath();
+    ctx.moveTo(0.34 * L, -h * 0.06);
+    ctx.quadraticCurveTo(0.52 * L, -h * 0.16, 0.46 * L, -h * 0.02);
+    ctx.moveTo(0.34 * L, h * 0.06);
+    ctx.quadraticCurveTo(0.52 * L, h * 0.16, 0.46 * L, h * 0.02);
+    ctx.strokeStyle = p.accentDark; ctx.lineWidth = LWM(0.9, L * 0.014);
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    /* 斑点 */
     if (fish.spots) {
-      ctx.save(); ctx.globalAlpha = 0.35; ctx.fillStyle = p.bodyDark;
-      for (var i = 0; i < 12; i++) {
+      ctx.save(); ctx.globalAlpha = 0.3; ctx.fillStyle = p.bodyDark;
+      for (var i = 0; i < 14; i++) {
         ctx.beginPath();
-        ctx.arc((rand() * 0.8 - 0.42) * L, (rand() - 0.5) * h * 1.1, L * (0.015 + rand() * 0.028), 0, 6.3);
+        ctx.arc(rand() * 0.8 * L - 0.42 * L, (rand() - 0.5) * h * 1.1, L * (0.012 + rand() * 0.022), 0, 6.3);
         ctx.fill();
       }
       ctx.restore();
     }
-    eye(ctx, L, h, 0.30 * L, -h * 0.10, Math.max(1.4, L * 0.045), p);
+
+    eye(ctx, L, h, 0.36 * L, -h * 0.10, Math.max(1.4, L * 0.040), p);
   };
 
   TPL.squid = function (ctx, fish, L, opt, p, rand) {
@@ -394,7 +472,7 @@ G.FishArt = (function () {
     ctx.lineCap = 'round';
     for (var i = 0; i < 9; i++) {
       var a = (i / 8 - 0.5) * 1.5;
-      ctx.lineWidth = Math.max(1.2, L * (0.030 - Math.abs(a) * 0.014));
+      ctx.lineWidth = LWM(1.2, L * (0.030 - Math.abs(a) * 0.014));
       ctx.beginPath();
       ctx.moveTo(0.10 * L, 0);
       var wob = Math.sin(t * 2.6 + i * 0.7) * h * 0.20;
@@ -411,7 +489,7 @@ G.FishArt = (function () {
     var g = ctx.createLinearGradient(0, -h * 0.6, 0, h * 0.6);
     g.addColorStop(0, p.bodyDark); g.addColorStop(0.45, p.body); g.addColorStop(1, p.belly);
     ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = p.line; ctx.lineWidth = Math.max(0.7, L * 0.008); ctx.stroke();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.7, L * 0.008); ctx.stroke();
     // 鳍
     ctx.beginPath();
     ctx.moveTo(-0.42 * L, -h * 0.34);
@@ -431,7 +509,7 @@ G.FishArt = (function () {
     for (var i = 0; i < 11; i++) {
       var x = -r * 0.85 + (i / 10) * r * 1.7;
       var len = L * (0.55 + Math.sin(i * 1.3) * 0.22);
-      ctx.lineWidth = Math.max(0.8, L * 0.016);
+      ctx.lineWidth = LWM(0.8, L * 0.016);
       ctx.beginPath();
       ctx.moveTo(x, r * 0.30);
       var wob = Math.sin(t * 2.0 + i * 0.9) * L * 0.10;
@@ -449,10 +527,10 @@ G.FishArt = (function () {
     g.addColorStop(0.6, p.body);
     g.addColorStop(1, U.rgba(p.bodyDark, 0.85));
     ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = U.rgba(p.accent, 0.6); ctx.lineWidth = Math.max(0.8, L * 0.010); ctx.stroke();
+    ctx.strokeStyle = U.rgba(p.accent, 0.6); ctx.lineWidth = LWM(0.8, L * 0.010); ctx.stroke();
     // 内部环
     ctx.beginPath(); ctx.ellipse(0, -r * 0.22, r * 0.55, r * 0.46, 0, 0, 6.3);
-    ctx.strokeStyle = U.rgba(p.accent, 0.55); ctx.lineWidth = Math.max(0.8, L * 0.012); ctx.stroke();
+    ctx.strokeStyle = U.rgba(p.accent, 0.55); ctx.lineWidth = LWM(0.8, L * 0.012); ctx.stroke();
   };
 
   TPL.oarfish = function (ctx, fish, L, opt, p, rand) {
@@ -485,7 +563,7 @@ G.FishArt = (function () {
     var g = ctx.createLinearGradient(0, -h, 0, h);
     g.addColorStop(0, p.bodyDark); g.addColorStop(0.5, p.bodyLight); g.addColorStop(1, p.body);
     ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = p.line; ctx.lineWidth = Math.max(0.6, L * 0.006); ctx.stroke();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.6, L * 0.006); ctx.stroke();
     // 腹鳍小点
     ctx.fillStyle = U.rgba(p.accent, 0.9);
     for (var e = 2; e < N; e += 3) {
@@ -534,10 +612,10 @@ G.FishArt = (function () {
     var g = ctx.createLinearGradient(0, -h * 0.6, 0, h * 0.6);
     g.addColorStop(0, p.bodyDark); g.addColorStop(0.5, p.body); g.addColorStop(1, p.belly);
     ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = p.line; ctx.lineWidth = Math.max(0.7, L * 0.008); ctx.stroke();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.7, L * 0.008); ctx.stroke();
     // 鳃裂
     ctx.strokeStyle = U.rgba(p.bodyDark, 0.55);
-    ctx.lineWidth = Math.max(0.7, L * 0.010);
+    ctx.lineWidth = LWM(0.7, L * 0.010);
     for (var i = 0; i < 5; i++) {
       var x = (0.30 - i * 0.038) * L;
       ctx.beginPath();
@@ -579,7 +657,7 @@ G.FishArt = (function () {
     var g = ctx.createLinearGradient(0, -h * 0.7, 0, h * 0.7);
     g.addColorStop(0, p.bodyDark); g.addColorStop(0.45, p.body); g.addColorStop(1, p.belly);
     ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = p.line; ctx.lineWidth = Math.max(0.7, L * 0.008); ctx.stroke();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.7, L * 0.008); ctx.stroke();
     // 胸鳍
     ctx.beginPath();
     ctx.moveTo(0.18 * L, h * 0.26);
@@ -595,7 +673,7 @@ G.FishArt = (function () {
       ctx.restore();
     }
     // 嘴线
-    ctx.strokeStyle = p.line; ctx.lineWidth = Math.max(0.8, L * 0.010);
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.8, L * 0.010);
     ctx.beginPath();
     ctx.moveTo(0.50 * L, h * 0.14);
     ctx.quadraticCurveTo(0.40 * L, h * 0.26, 0.26 * L, h * 0.24);
@@ -638,7 +716,7 @@ G.FishArt = (function () {
     var g = ctx.createLinearGradient(0, -h, 0, h);
     g.addColorStop(0, p.bodyDark); g.addColorStop(0.42, p.body); g.addColorStop(1, p.belly);
     ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = p.line; ctx.lineWidth = Math.max(0.7, L * 0.008); ctx.stroke();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.7, L * 0.008); ctx.stroke();
     // 鳞片
     ctx.save();
     ctx.globalAlpha = 0.22; ctx.fillStyle = '#ffffff';
@@ -649,7 +727,7 @@ G.FishArt = (function () {
     }
     ctx.restore();
     // 龙须
-    ctx.strokeStyle = p.accent; ctx.lineWidth = Math.max(0.9, L * 0.011); ctx.lineCap = 'round';
+    ctx.strokeStyle = p.accent; ctx.lineWidth = LWM(0.9, L * 0.011); ctx.lineCap = 'round';
     [0, 1].forEach(function (i) {
       ctx.beginPath();
       ctx.moveTo(0.44 * L, (i ? 0.10 : -0.10) * h);
@@ -657,7 +735,7 @@ G.FishArt = (function () {
       ctx.stroke();
     });
     // 角
-    ctx.strokeStyle = p.accent; ctx.lineWidth = Math.max(1, L * 0.014);
+    ctx.strokeStyle = p.accent; ctx.lineWidth = LWM(1, L * 0.014);
     ctx.beginPath();
     ctx.moveTo(0.30 * L, -h * 0.48);
     ctx.lineTo(0.22 * L, -h * 0.98);
@@ -679,16 +757,56 @@ G.FishArt = (function () {
     if (opt.flip) ctx.scale(-1, 1);
     if (opt.scale && opt.scale !== 1) ctx.scale(opt.scale, opt.scale);
 
-    var glowing = fish.glow || opt.forceGlow;
+    if (ST.filter && ST.filter !== 'none') ctx.filter = ST.filter;
+    if (ST.alpha != null) ctx.globalAlpha = ST.alpha;
+
+    var glowing = fish.glow || opt.forceGlow || ST.glowBoost;
     if (glowing) {
-      ctx.shadowColor = U.rgba(p.accent, 0.85);
-      ctx.shadowBlur = L * 0.55;
+      ctx.shadowColor = U.rgba(ST.glowBoost ? U.lighten(p.accent, 0.35) : p.accent, 0.9);
+      ctx.shadowBlur = L * 0.55 * (ST.glowBoost || 1);
     }
 
     var tpl = TPL[fish.shape] || TPL.fish;
-    tpl(ctx, fish, L, opt, p, rand);
+    var passes = ST.bleed || 1;
+    for (var ps = 0; ps < passes; ps++) {
+      if (ps > 0) {
+        ctx.globalAlpha = (ST.alpha != null ? ST.alpha : 1) * 0.55;
+        ctx.translate(L * 0.022 * ps, L * 0.014 * ps);
+        rand = seedRand(fish.id + ps);
+      }
+      tpl(ctx, fish, L, opt, p, rand);
+    }
+
+    /* 鳞片纹理（写实风） */
+    if (ST.scales) {
+      ctx.save();
+      ctx.globalAlpha = 0.16;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = Math.max(0.6, L * 0.004);
+      for (var rr = 0; rr < 7; rr++) {
+        for (var cc = 0; cc < 12; cc++) {
+          var sx = (cc * 0.085 - 0.48) * L + (rr % 2) * L * 0.042;
+          var sy = (rr * 0.095 - 0.30) * L;
+          ctx.beginPath();
+          ctx.arc(sx, sy, L * 0.026, Math.PI * 1.12, Math.PI * 1.88);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
 
     ctx.shadowBlur = 0;
+    ctx.filter = 'none';
+    ctx.globalAlpha = 1;
+    if (ST.paper) {
+      ctx.save();
+      ctx.globalAlpha = 0.07;
+      ctx.fillStyle = '#c9b78e';
+      for (var i = 0; i < 26; i++) {
+        ctx.fillRect((rand() * 1.6 - 1.3) * L, (rand() * 1.4 - 0.7) * L, L * 0.03, L * 0.012);
+      }
+      ctx.restore();
+    }
     ctx.restore();
   }
 
@@ -729,5 +847,6 @@ G.FishArt = (function () {
     return ctx;
   }
 
-  return { draw: draw, drawSilhouette: drawSilhouette, paintTo: paintTo, palette: palette };
+  return { draw: draw, drawSilhouette: drawSilhouette, paintTo: paintTo, palette: palette,
+           setStyle: setStyle, getStyle: getStyle, listStyles: listStyles, STYLES: STYLES };
 })();

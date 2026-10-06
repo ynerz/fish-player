@@ -217,9 +217,12 @@ G.Panels = (function () {
           cv.width = 260 * dpr; cv.height = 112 * dpr;
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
           if (e) {
-            /* 显示已收集到的「最稀有颜色」，比只显示原色更有收集感 */
+            /* 显示已收集到的「最稀有颜色」（按概率取最小，不依赖数组顺序） */
             var best = null;
-            CFG.colorMorphs.forEach(function (cm) { if (e.colors && e.colors[cm.key]) best = cm; });
+            CFG.colorMorphs.forEach(function (cm) {
+              if (!(e.colors && e.colors[cm.key])) return;
+              if (!best || cm.prob < best.prob) best = cm;
+            });
             var amt = best && best.tint ? (best.key === 'dark' ? 0.6 : 0.75) : 0;
             G.FishArt.draw(ctx, f, 130, 56, 168, {
               tint: best && best.tint, tintAmt: amt, t: 0.6,

@@ -18,6 +18,16 @@
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
 
+/* ---------- 固定随机种子 ----------
+   第 ⑦ / ⑧ 节与 estOwnHours 复算都靠采样。用 Math.random 的话，
+   同一份数据每次跑出来的数字都略有不同 —— 实测第 ⑧ 节的 C/D 比值
+   会偶尔掉到 1.15 的警戒线以下（30 次里 1 次），于是「自检通过 0 警告」
+   变成抽奖。门禁必须可复现，所以这里换成定种子的 LCG。
+   踩过的坑：fish.js 的价格做过一次归一化（见 fix-rarity-price.js），
+   C/D 的比值变近警戒线，这个老毛病才被暴露出来。 */
+let _vseed = 20260101;
+Math.random = function () { _vseed = (_vseed * 48271) % 2147483647; return _vseed / 2147483647; };
+
 global.window = global;
 const H = { G: {} };
 Object.defineProperty(global, 'G', { get() { return H.G; }, set(v) { H.G = v; }, configurable: true });
@@ -436,6 +446,39 @@ if (!/zoneSafe[\s\S]{0,200}G\.Fight\.SAFE/.test(hudSrcSafe) ||
   err('hud.js 没有把 G.Fight.SAFE 写进安全区带 / 危险标（改了 config 界面不跟着变）'); safeBad++;
 }
 if (!safeBad) ok(`安全线 ${(safeR * 100).toFixed(0)}% 只存在于 config.js，CSS 里没有第二份`);
+
+
+/* ---------------- 14. 数值链幂等：fish.js 必须已归一化 ----------------
+   踩过的坑：fix-rarity-price.js 的「重量系数」用 Math.random 采样估计，
+   两次运行结果不同 → 写回的鱼价在最后一位抖动 → 后来「按标准顺序重跑数值链」
+   会莫名改掉 fish.js 上百行，工作区变脏、容易被误当成自己的改动提交。
+   现在该脚本固定了随机种子并迭代到不动点，跑第二遍必须是 0 条改动。
+   这里直接干跑一次，把「第二次运行会不会改文件」变成一条可执行的断言。 */
+console.log('\n[14] 数值链幂等：fix-rarity-price.js 干跑应为 0 条改动');
+let chainBad = 0;
+try {
+  /* 用模块入口干跑（不写盘、跑完还原内存），比开子进程更稳也更快 */
+  const FP = require(path.join(ROOT, 'tools/fix-rarity-price.js'));
+  const dr = FP.dryRun();
+  if (!dr.converged) {
+    err(`归一化在 ${FP.MAX_ROUNDS} 轮内没有收敛（仍要改动 ${dr.residual} 条）`); chainBad++;
+  } else if (dr.changed !== 0) {
+    err(`fish.js 未处于归一化状态：干跑还会改动 ${dr.changed} 条鱼价（标准数值链重跑会把工作区改脏）`); chainBad++;
+  } else if (dr.residual !== 0) {
+    err(`不动点上再套一遍仍会改动 ${dr.residual} 条 —— 本工具不幂等`); chainBad++;
+  }
+  const dr2 = FP.dryRun();
+  if (dr2.changed !== dr.changed || dr2.rounds !== dr.rounds) {
+    err('连跑两次干跑结果不一致 —— 随机源没固定住'); chainBad++;
+  }
+  if (!chainBad) {
+    ok(`fish.js 在不动点上：干跑 0 条改动（收敛 ${dr.rounds} 轮，残差 ${dr.drift.toExponential(1)}）`);
+    ok('干跑可复现：连跑两次结论完全一致（随机源已固定）');
+  }
+} catch (e) {
+  err('fix-rarity-price.js 干跑跑不通：' + String(e.message || e).split('\n')[0]);
+  chainBad++;
+}
 
 
 console.log('\n' + '='.repeat(52));

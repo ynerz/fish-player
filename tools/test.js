@@ -827,6 +827,19 @@ ok(bRel.meta.moduleCount === 20, `release 版内联 ${bRel.meta.moduleCount} 个
 ok(bRel.html.indexOf('G.Cheat') < 0, 'release 版剔除了 devtools（产物里没有 G.Cheat）');
 ok(bRel.meta.bytes < bDev.meta.bytes, 'release 版比开发版小');
 
+/* =========================================================
+   数值链 —— fix-rarity-price 的幂等性
+   （放最后：它会把 Math.random 换成定种子的实现，别影响上面的随机性断言）
+   ========================================================= */
+G_('数值链 · fix-rarity-price 幂等');
+const FP = require(path.join(ROOT, 'tools/fix-rarity-price.js'));
+ok(FP.TARGET.length === 4 && FP.TARGET[0] === 1, '收益目标比值表完整（普通档为基准 ×1）');
+const dr1 = FP.dryRun(), dr2 = FP.dryRun();
+ok(dr1.converged && dr1.changed === 0 && dr1.residual === 0,
+   'fish.js 已在归一化不动点上（重跑数值链是 0 条改动）', JSON.stringify(dr1));
+ok(dr1.changed === dr2.changed && dr1.rounds === dr2.rounds && dr1.drift === dr2.drift,
+   '连跑两次干跑结果逐位一致（随机源已固定，工作区不会再莫名变脏）');
+
 /* ---------- 汇总 ---------- */
 console.log('\n' + '='.repeat(52));
 if (fail) { console.log(`\u2716 测试未通过：${pass} 通过 / ${fail} 失败\n`); process.exit(1); }

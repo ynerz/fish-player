@@ -604,9 +604,17 @@ if (!/function weekKey\s*\(/.test(coreGoalsSrc)) { err('core/goals.js 里没有 
 /* 面板：必须真的渲染并给出领取入口 */
 if (panelsSrc.indexOf('Gl.weekly(') < 0) { err('panels.js 的「目标」面板没有渲染周常挑战（完成了却看不到）'); goalBad++; }
 if (panelsSrc.indexOf('claimWeekly') < 0) { err('panels.js 里没有领取周常的入口（claimWeekly）'); goalBad++; }
-/* 徽标要同时算上周常，否则周常完成的提醒永远不会出现 */
-if (!/function medalClaimable[\s\S]{0,400}weekly\(\)/.test(coreGoalsSrc)) {
-  err('medalClaimable() 没有把周常算进徽标数（周常完成不会提醒）'); goalBad++;
+/* 徽标要同时算上周常，否则周常完成的提醒永远不会出现。
+   ⚠️ 断言看的是「两个 board 都遍历了」，不是某个具体函数名 ——
+      徽标计数后来改成不走 questState()（不生成展示文案），
+      写死 `weekly()` 会误报。 */
+const badgeBody = (coreGoalsSrc.match(/function medalClaimable\s*\(\)\s*\{[\s\S]*?\n  \}/) || [''])[0];
+if (!badgeBody || badgeBody.indexOf('S.daily') < 0 || badgeBody.indexOf('S.weekly') < 0) {
+  err('medalClaimable() 没有同时统计每日与周常（周常完成不会提醒）'); goalBad++;
+}
+/* 徽标每 0.4 秒被问一次数，走 questState() 会白造十几段展示文案 */
+if (badgeBody.indexOf('questState(') >= 0) {
+  err('medalClaimable() 走回 questState() 了 —— 它每条都要生成展示文案，而徽标只需要一个数'); goalBad++;
 }
 
 if (!goalBad) {

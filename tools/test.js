@@ -633,6 +633,29 @@ ok(G.Goals.metrics.rareUp(S_) === S_.stats.byRar[1] + S_.stats.byRar[2] + S_.sta
 ok(G.Goals.fmtVal({ fmt: null }, 3.7) === '4', 'fmtVal 默认取整');
 ok(G.Goals.fmtVal({ fmt: v => v.toFixed(1) + ' kg' }, 3.25) === '3.3 kg', 'fmtVal 走自定义格式化');
 
+G_('Goals · 徽标计数（不生成文案 + 语义不变）');
+{
+  /* 语义：换实现不许改结果 */
+  const byFull = G.Goals.quests().filter(q => q.done && !q.claimed).length
+               + G.Goals.weekly().filter(q => q.done && !q.claimed).length;
+  ok(G.Goals.medalClaimable() === byFull,
+     `medalClaimable() 与逐条统计一致（${byFull} 条）`);
+
+  /* 开销：徽标每 0.4 秒被 syncStats() 问一次数，不许生成展示文案 */
+  const badgeTpls = G.QUEST_TPL.concat(G.WEEKLY_TPL || []);
+  const badgeOrig = badgeTpls.map(t => t.text);
+  let badgeTextCalls = 0;
+  badgeTpls.forEach(t => { t.text = function () { badgeTextCalls++; return ''; }; });
+  G.Goals.quests();
+  const questTextCalls = badgeTextCalls;
+  badgeTextCalls = 0;
+  G.Goals.medalClaimable();
+  const badgeOnly = badgeTextCalls;
+  badgeTpls.forEach((t, i) => { t.text = badgeOrig[i]; });
+  ok(questTextCalls > 0, `quests() 会生成展示文案（对照：${questTextCalls} 次）`);
+  ok(badgeOnly === 0, 'medalClaimable() 生成 0 段文案（徽标只做数值比较）');
+}
+
 G_('Goals · 成就（纯派生）');
 St.reset();
 G.Goals.init();

@@ -133,10 +133,16 @@ G.Hud = (function () {
   }
   function syncTitle() { if (G.Goals) setTitle(G.Goals.equipped()); }
 
-  /* 顶栏「目标」角标：有几条已完成但没领的任务 */
+  /* 顶栏「目标」角标：有几条已完成但没领的任务。
+     每 0.4 秒被 syncStats() 问一次，所以这里只在「数变了」的时候才动 DOM
+     （`-1` 是哨兵值：首次一定写一次）。计数本身也换成了不生成文案的实现，
+     见 goals.js 的 medalClaimable()。 */
+  var goalBadgeN = -1;
   function syncGoalBadge() {
     if (!el.goalBadge || !G.Goals) return;
     var n = G.Goals.medalClaimable();
+    if (n === goalBadgeN) return;
+    goalBadgeN = n;
     el.goalBadge.textContent = n > 0 ? String(n) : '';
     el.goalBadge.classList.toggle('hidden', n <= 0);
   }

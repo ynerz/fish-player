@@ -116,10 +116,16 @@ G.Goals = (function () {
     G.FIELDS.forEach(function (f) { if (S.unlocked[f.id]) n++; });
     return n;
   }
+  /* id → 模板。原来是每次调用都 `concat` 出新数组再线性扫（顶栏徽标每 0.4 秒
+     就要解 5 条任务）→ 改成第一次用的时候建一次索引。数据表是静态的，
+     建好就不会再变。 */
+  var TPL_IDX = null;
   function tplById(id) {
-    var all = G.QUEST_TPL.concat(G.WEEKLY_TPL || []);
-    for (var i = 0; i < all.length; i++) if (all[i].id === id) return all[i];
-    return null;
+    if (!TPL_IDX) {
+      TPL_IDX = {};
+      G.QUEST_TPL.concat(G.WEEKLY_TPL || []).forEach(function (t) { TPL_IDX[t.id] = t; });
+    }
+    return TPL_IDX[id] || null;
   }
 
   /* ---------------- 每日任务生成 ---------------- */
@@ -332,11 +338,32 @@ G.Goals = (function () {
     return got;
   }
 
-  /* 徽标数 = 所有「已完成但没领」的条目（每日 + 周常） */
+  /* 徽标数 = 所有「已完成但没领」的条目（每日 + 周常）
+     ⚠️ 这里刻意**不走 questState()**：它每条都要 `t.text(...)` 生成一遍展示文案，
+        而顶栏徽标每 0.4 秒就要问一次数（`hud.js` 的 syncStats → syncGoalBadge），
+        每秒十几段字符串纯属白造。这里只做数值比较这一件事。 */
+  function questDone(d, i) {
+    var q = (d && d.q && d.q[i]) || null;
+    if (!q) return false;
+    /* 与 questState() 的兜底保持一致（模板下架时按 catch 算） */
+    var t = tplById(q.tpl) || { metric: 'catch' };
+    var m = METRICS[t.metric];
+    var cur = m ? (m(St.get(), q.key, d) - (d.base[t.metric] || 0)) : 0;
+    if (!isFinite(cur)) cur = 0;
+    return Math.max(0, cur) >= q.need;
+  }
+
   function medalClaimable() {
-    var n = 0;
-    quests().forEach(function (q) { if (q.done && !q.claimed) n++; });
-    weekly().forEach(function (q) { if (q.done && !q.claimed) n++; });
+    var S = St.get();
+    if (!S) return 0;
+    ensureDay(true); ensureWeek(true);
+    var n = 0, i;
+    for (i = 0; i < S.daily.q.length; i++) {
+      if (questDone(S.daily, i) && !(S.daily.claimed && S.daily.claimed[i])) n++;
+    }
+    for (i = 0; i < S.weekly.q.length; i++) {
+      if (questDone(S.weekly, i) && !(S.weekly.claimed && S.weekly.claimed[i])) n++;
+    }
     return n;
   }
 

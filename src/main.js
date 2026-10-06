@@ -71,6 +71,9 @@
     St.on('reset', function () { location.reload(); });
     St.on('goals', function () {
       Hud.setTitle(G.Goals.equipped());
+      /* 徽标平时靠 0.4 秒一次的 syncStats() 顺带刷；这里补一次，
+         让「刚好完成一条任务」时角标立刻出现，不等下一拍 */
+      Hud.syncGoalBadge();
       if (P.current() === 'goals') P.refresh();
     });
 

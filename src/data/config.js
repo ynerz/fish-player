@@ -13,6 +13,10 @@ G.CONFIG = {
      否则所有老存档都会读不到（当前存档格式版本见 state.js 的 SAVE_V = 5）。 */
   saveKey   : 'fishplayer.save.v1',
   saveKeyBak: 'fishplayer.save.v1.bak',
+  /* 主档 + 备份都读不出来时，把原始文本原封不动挪到这里再开新档 ——
+     不能只靠日志：下一个自动存档（30 秒后）就会把坏档连同备份一起盖掉，
+     那才是真的丢档。玩家至少还能从这个键里把原文捞出来。 */
+  saveKeyRescue: 'fishplayer.save.v1.rescue',
 
   /* 是否把「设计时长」也当作硬性解锁门槛。
      用户口径：只需要收藏即可 → false（时长只做展示与预估）。 */

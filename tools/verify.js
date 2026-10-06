@@ -1223,6 +1223,48 @@ if (panelsSrc.indexOf('maxCatchUp') < 0) {
 if (!copyNumBad) ok('挂机倍率 / 离线补算上限 / 解锁门槛 / 颜色基准概率的文案都现算自数据，钓场配色表只有一份');
 
 
+/* ---------------- 30. 读档兜底的接线 ----------------
+   `load()` 现在会在读档出问题时给 `St.loadNote()` 留一句话（退备份 / 已重置），
+   但如果 main.js 没人读它，这句话就永远不出现 —— 玩家看到的还是「进度莫名没了」。
+   同理 `config.saveKeyRescue`（坏档留存）必须有写入方。
+   这里只接线；真正的行为断言在 tools/test.js 的「读档失败不再白屏」一节。 */
+console.log('\n[30] 读档兜底的接线（提示语要有人播、rescue 键要有人写）');
+let loadWireBad = 0;
+(function () {
+  const mainSrc = fs.readFileSync(path.join(ROOT, 'src/main.js'), 'utf8');
+  const stateCode = fs.readFileSync(path.join(ROOT, 'src/core/state.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const stateExports = /loadNote:\s*loadNoteText/.test(stateCode);
+  if (!stateExports) { err('state.js 没有把 loadNote() 暴露出去（提示语传不到 UI）'); loadWireBad++; }
+  if (!/St\.loadNote[\s\S]{0,240}Hud\.toast/.test(mainSrc)) {
+    err('main.js 没有把 St.loadNote() 通过 toast 播出去 —— 读档出问题时玩家收不到任何提示');
+    loadWireBad++;
+  }
+  const cfgSrc = fs.readFileSync(path.join(ROOT, 'src/data/config.js'), 'utf8');
+  if (cfgSrc.indexOf('saveKeyRescue') < 0) {
+    err('config 里没有 saveKeyRescue —— 坏档没地方留存，下一次自动存档就把证据盖掉了');
+    loadWireBad++;
+  }
+  if (stateCode.indexOf('CFG.saveKeyRescue') < 0) {
+    err('state.js 没有写 saveKeyRescue（坏档留存等于没做）'); loadWireBad++;
+  }
+  /* migrate 抛异常必须被接住。
+     原来那条会冒到 boot() 的写法是「三元里直接调」：
+       `S = data && typeof data === 'object' ? migrate(data) : blank();`
+     （不能简单地找 `S = ... migrate(` —— 修好之后 `S = migrate(data);` 仍在，
+      只是被 try 包住了。） */
+  if (/\?\s*migrate\(/.test(stateCode)) {
+    err('load() 又在三元表达式里裸调 migrate() 了 —— 迁移抛异常会一路冒到 boot() 变白屏');
+    loadWireBad++;
+  }
+  const loadBody = (stateCode.match(/function load\(\)\s*\{[\s\S]*?\n  \}/) || [''])[0];
+  if (loadBody.indexOf('migrate(') < 0 || loadBody.indexOf('try {') < 0 || loadBody.indexOf('catch') < 0) {
+    err('load() 没有把 migrate() 包在 try / catch 里（读档失败就会白屏）'); loadWireBad++;
+  }
+})();
+if (!loadWireBad) ok('读档提示语会播出去，坏档也有留存，迁移异常被接住');
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

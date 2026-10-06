@@ -91,15 +91,50 @@ G.State = (function () {
   }
 
   /* ---------------- 存读档 ---------------- */
+  /* 读档出问题时的提示语：由 main.js 在 boot 之后（Hud 就绪时）播一条 toast。
+     原来迁移抛异常会一路冒到 boot() → **白屏**：存档其实还在 localStorage 里，
+     页面却已经打不开了，玩家既看不到原因，也没有任何自救入口。 */
+  var loadNote = '';
+  function loadNoteText() { return loadNote; }
+
   function load() {
     var PS = G.Platform.storage;
-    var raw = PS.get(CFG.saveKey);
-    var data = null;
-    if (raw) { try { data = JSON.parse(raw); } catch (e) { data = null; } }
-    if (!data) {
-      try { var bak = PS.get(CFG.saveKeyBak); if (bak) data = JSON.parse(bak); } catch (e) {}
+    loadNote = '';
+    var sawAny = false;
+    /* 主存档 → 备份存档，逐个试。
+       ⚠️ 「JSON 解析失败」和「迁移抛异常」都要退到下一级，别直接白屏 / 清档。 */
+    var keys = [CFG.saveKey, CFG.saveKeyBak];
+    for (var i = 0; i < keys.length; i++) {
+      var raw = null;
+      try { raw = PS.get(keys[i]); } catch (e) { raw = null; }
+      if (!raw) continue;
+      sawAny = true;
+      var data = null;
+      try { data = JSON.parse(raw); } catch (e) { data = null; }
+      if (!data || typeof data !== 'object' || Array.isArray(data)) {
+        if (G.Track) G.Track.error('存档不是对象（' + (i === 0 ? '主存档' : '备份存档') + '）', null, { stage: 'load' });
+        continue;
+      }
+      try {
+        S = migrate(data);
+        if (i > 0) loadNote = '主存档读不出来，已从备份恢复到上次的进度';
+        return S;
+      } catch (e) {
+        /* 迁移本身抛异常：记进 G.Track（G.Track.init() 在 St.load() 之前跑，这里一定拿得到），
+           然后退一级用备份。以前这里没有 try，异常直接冒到 boot() → 白屏。 */
+        if (G.Track) G.Track.error('存档迁移失败（' + (i === 0 ? '主存档' : '备份存档') + '）', e, { stage: 'migrate' });
+      }
     }
-    S = data && typeof data === 'object' ? migrate(data) : blank();
+    /* 全废了：先把原始文本挪到 rescue 键（否则下一个自动存档就把证据盖掉了），
+       再开新档并告诉玩家一声 —— 静默清零比白屏更让人抓狂。 */
+    if (sawAny) {
+      try {
+        var r0 = PS.get(CFG.saveKey), r1 = PS.get(CFG.saveKeyBak);
+        PS.set(CFG.saveKeyRescue, [r0, r1].filter(function (x) { return !!x; }).join('\n---bak---\n'));
+      } catch (e) { /* 存不进去也不能在这里再抛一次 */ }
+      loadNote = '存档读取失败，已重置为新档（原始内容已留存在 ' + CFG.saveKeyRescue + '）';
+    }
+    S = blank();
     return S;
   }
 
@@ -841,6 +876,7 @@ G.State = (function () {
   return {
     SAVE_V: SAVE_V,          // 暴露给测试与调试用（断言「升档后写回的就是它」）
     load: load, save: save, scheduleSave: scheduleSave, reset: reset,
+    loadNote: loadNoteText,
     importSave: importSave,
     get: get, on: on, emit: emit,
     curBait: curBait, curRod: curRod, curLine: curLine,

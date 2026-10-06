@@ -1389,6 +1389,56 @@ ok(!loadThrew(d => { d.rods = 5; d.lines = 5; d.decors = { a: 1 }; }), '拥有�
 }
 
 /* =========================================================
+   State · 读档失败不再白屏（主存档 → 备份 → 新档）
+   load() 原来直接把 migrate() 的结果赋给 S：JSON 半截、或迁移抛异常时，
+   异常会一路冒到 boot() → **白屏**（存档其实还在 localStorage 里，
+   页面却打不开，玩家既看不到原因也没有自救入口）。
+   现在：每个存档源都单独 try，坏了退下一级；全废才开新档，
+   并且把原始文本挪到 rescue 键（否则下一个自动存档就把证据盖掉了），
+   再通过 St.loadNote() 让 main.js 播一条 toast。
+   ⚠️ 会反复覆盖 store[CFG.saveKey]，放在最后几节之一。
+   ========================================================= */
+G_('State · 读档失败不再白屏（退备份 → 再退新档）');
+const realErrLoad = console.error;
+console.error = () => {};        // G.Track.error 会打 console，这里不希望刷屏
+const pristine = JSON.parse(JSON.stringify(St.get()));
+
+/* ① 主存档是半截 JSON（写到一半断电 / 手改坏了），备份是好的 → 用备份 */
+store[CFG.saveKey] = '{"v":5,"coin":99,';
+const bakGood = JSON.parse(JSON.stringify(pristine)); bakGood.coin = 4321;
+store[CFG.saveKeyBak] = JSON.stringify(bakGood);
+let loadErr1 = null;
+try { St.load(); } catch (e) { loadErr1 = e; }
+ok(!loadErr1, '主存档是半截 JSON 时 load() 不抛异常（原来会冒到 boot 变白屏）', loadErr1 && loadErr1.message);
+ok(St.get().coin === 4321, '退到备份档，进度真的恢复了');
+ok(/备份/.test(St.loadNote()), '并且给出「已从备份恢复」的提示语');
+
+/* ② 主存档是合法 JSON 但不是对象 → 同样退备份 */
+store[CFG.saveKey] = '"not an object"';
+St.load();
+ok(St.get().coin === 4321 && /备份/.test(St.loadNote()), '主存档不是对象时也退备份');
+
+/* ③ 主 + 备份全废 → 开新档，但原始内容必须留一份 */
+store[CFG.saveKey] = '{oops';
+store[CFG.saveKeyBak] = 'also not json';
+let loadErr3 = null;
+try { St.load(); } catch (e) { loadErr3 = e; }
+ok(!loadErr3, '两份存档都读不出来时 load() 也不抛异常（原来直接白屏）', loadErr3 && loadErr3.message);
+ok(St.get().coin === CFG.economy.startCoin, '两份都读不出来时开新档而不是白屏');
+ok(/重置/.test(St.loadNote()), '并且明确告诉玩家「已重置为新档」');
+const rescueTxt = String(store[CFG.saveKeyRescue] || '');
+ok(rescueTxt.indexOf('{oops') >= 0,
+   '原始坏档被挪到 rescue 键留存（否则下一个自动存档就把证据盖掉了）');
+ok(rescueTxt.indexOf('also not json') >= 0, '备份的原始内容也一起留存');
+
+/* ④ 一切正常时不打扰玩家 */
+store[CFG.saveKey] = JSON.stringify(pristine);
+St.load();
+ok(St.loadNote() === '', '正常读档时不产生任何提示语（别没事找事弹警告）');
+ok(St.get().coin === pristine.coin, '正常读档走的还是主存档');
+console.error = realErrLoad;
+
+/* =========================================================
    Util —— 导出面
    G.U 里曾躺着 rnd / irange / pick / chance / normalize 五个零调用函数：
    它们长得像「基础设施」，读代码时会被当成常用工具，实际全项目没人用。

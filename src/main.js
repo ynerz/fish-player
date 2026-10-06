@@ -47,6 +47,11 @@
     Hud.setField(field);
     Hud.syncAll();
 
+    /* 读档出过问题就明确说一声（主存档退备份 / 全废重置）。
+       静默清零比白屏更让人抓狂 —— 玩家至少要知道"为什么我的进度没了"。 */
+    var loadNote = St.loadNote && St.loadNote();
+    if (loadNote) setTimeout(function () { Hud.toast({ text: '⚠️ ' + loadNote, kind: 'bad' }); }, 600);
+
     /* ---------- 新手引导（首次抛竿前就出现，非阻塞气泡） ---------- */
     G.Tutorial.init();
 

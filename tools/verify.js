@@ -365,7 +365,7 @@ listed.forEach(rel => {
 /* 11-e 加载完，模块表必须是齐的 */
 const WANT = ['CONFIG', 'FIELDS', 'FIELD_MAP', 'FISH', 'FISH_ID', 'FISH_BY_FIELD', 'FISH_BY_FIELD_RARITY',
   'TOTAL_FISH', 'BAITS', 'RODS', 'LINES', 'DECORS', 'ACHIEVEMENTS',
-  'U', 'Platform', 'Audio', 'Loot', 'State', 'Goals', 'FishArt', 'Scene', 'Fight', 'Weather',
+  'U', 'Platform', 'Audio', 'Loot', 'State', 'Goals', 'FishArt', 'Scene', 'Fight', 'Weather', 'Track',
   'Fishing', 'Panels', 'Hud', 'Tutorial'];
 const gone = WANT.filter(k => !sandbox.G || sandbox.G[k] == null);
 if (gone.length) { err('按序加载后缺这些全局模块：' + gone.join('、')); entryBad++; }
@@ -479,6 +479,41 @@ try {
   err('fix-rarity-price.js 干跑跑不通：' + String(e.message || e).split('\n')[0]);
   chainBad++;
 }
+
+
+/* ---------------- 15. 错误采集（E4 空壳）的边界 ----------------
+   这一层的价值全在「出问题时还能用」：它自己绝对不能碰需要联网/存储的能力，
+   也绝对不能因为记日志而抛异常。参数（缓冲条数等）同样只许来自 config。 */
+console.log('\n[15] 错误采集 G.Track：参数只在 config，且不接任何外部能力');
+let trackBad = 0;
+const tkCfg = CFG.track;
+if (!tkCfg) { err('config.js 里没有 track 段'); trackBad++; }
+else {
+  if (!(tkCfg.buffer > 0)) { err('track.buffer 必须是正数'); trackBad++; }
+  if (!(tkCfg.maxMessage > 0)) { err('track.maxMessage 必须是正数'); trackBad++; }
+  if (typeof tkCfg.enabled !== 'boolean') { err('track.enabled 必须是布尔值'); trackBad++; }
+}
+const tkSrc = fs.readFileSync(path.join(ROOT, 'src/core/track.js'), 'utf8');
+/* 只看代码，不看注释（注释里会提到「不碰 localStorage」这类词） */
+const tkCode = tkSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+if (!/CFG\.track/.test(tkCode)) { err('track.js 没有读 CFG.track（参数可能会散落成硬编码）'); trackBad++; }
+['localStorage', 'sessionStorage'].forEach(k => {
+  if (tkCode.indexOf(k) >= 0) { err(`track.js 里出现了 ${k} —— 平台能力必须走 G.Platform`); trackBad++; }
+});
+['XMLHttpRequest', 'sendBeacon', 'fetch('].forEach(k => {
+  if (tkCode.indexOf(k) >= 0) { err(`track.js 里出现了 ${k} —— E4 明确要求不接外部服务（空壳）`); trackBad++; }
+});
+const tkIdx = htmlRaw.indexOf('src/core/track.js'), mnIdx = htmlRaw.indexOf('src/main.js');
+if (!(tkIdx > 0 && mnIdx > tkIdx)) {
+  err('track.js 必须在 index.html 里、且在 main.js 之前加载（否则启动期的崩溃采不到）'); trackBad++;
+}
+if (mainSrc.indexOf('G.Track.init()') < 0) {
+  err('main.js 没有调 G.Track.init()（全局异常不会被采集）'); trackBad++;
+}
+if (!/function safeBoot\s*\(/.test(mainSrc)) {
+  err('main.js 没有把 boot 包起来 —— 启动期抛异常就只剩白屏，拿不到任何线索'); trackBad++;
+}
+if (!trackBad) ok(`config.track 参数齐全（缓冲 ${tkCfg.buffer} 条）；track.js 不碰存储 / 不联网；main.js 已挂采集`);
 
 
 console.log('\n' + '='.repeat(52));

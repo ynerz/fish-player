@@ -30,7 +30,7 @@ global.localStorage = {
 ['src/data/config.js', 'src/data/fields.js', 'src/data/fish.js', 'src/data/items.js',
  'src/data/goals.js',
  'src/core/util.js', 'src/core/platform.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js',
- 'src/core/goals.js', 'src/core/weather.js', 'src/core/fishing.js',
+ 'src/core/goals.js', 'src/core/weather.js', 'src/core/fishing.js', 'src/core/track.js',
  'src/ui/tutorial.js']
   .forEach(r => (new Function(fs.readFileSync(path.join(ROOT, r), 'utf8'))).call(global));
 
@@ -731,6 +731,59 @@ ok(Object.keys(St.get().stats.byWx).length === 0 && Object.keys(St.get().stats.b
    '离线补算不写天气 / 时段分维（离线跨很多次变天，硬记一个反而失真）');
 
 /* =========================================================
+   Track —— 错误采集（E4 空壳）
+   ========================================================= */
+G_('Track · 错误采集（空壳）');
+(() => {
+  const Tk = G.Track;
+  const realErr = console.error;
+  console.error = function () {};    // error() 会往控制台补一条，测的时候别刷屏
+  try {
+    Tk.clear();
+    ok(Tk.count() === 0, 'clear() 后缓冲为空');
+    ok(Tk.enabled() === true, '默认开启（CFG.track.enabled）');
+
+    const e1 = Tk.error('测试', new Error('boom'), { a: 1 });
+    ok(e1 && e1.level === 'error' && e1.msg === 'boom', 'error() 记下消息文本');
+    ok(!!e1.stack && e1.stack.indexOf('boom') >= 0, '异常连栈一起记下（不然拿不到崩溃点）');
+    ok(e1.extra && e1.extra.a === 1, 'extra 被安全序列化');
+    ok(e1.ctx && e1.ctx.phase && e1.ctx.ver === CFG.version,
+       'ctx 记下「卡在哪一步」：版本 + 钓鱼阶段 + 钓场', JSON.stringify(e1.ctx));
+
+    Tk.error('测试', new Error('boom'));
+    ok(Tk.count() === 1, '连续重复的同名同文只累加次数，不新占一条（渲染循环报错是每帧一次）');
+    ok(Tk.list()[0].n === 2, '连击次数累加正确');
+
+    for (let i = 0; i < CFG.track.buffer + 10; i++) Tk.warn('w' + i, 'msg' + i);
+    ok(Tk.count() === CFG.track.buffer, `环形缓冲封顶在 ${CFG.track.buffer} 条`, '实际 ' + Tk.count());
+    ok(Tk.list()[Tk.count() - 1].msg === 'msg' + (CFG.track.buffer + 9), '留在缓冲里的是最新那条（旧的从头部丢）');
+
+    const cyc = { name: 'x' }; cyc.self = cyc;
+    ok(Tk.error('循环引用', new Error('cyc'), { c: cyc }) !== null, 'extra 里有循环引用也不抛异常');
+    ok(Tk.error('无异常对象', 'plain string') !== null, '第二个参数不是 Error 时也不崩');
+
+    let initThrew = false;
+    try { Tk.init(); } catch (e) { initThrew = true; }
+    ok(!initThrew, 'init() 在没有 addEventListener 的环境里也不抛（采集点仍然可用）');
+
+    const dumped = Tk.dump();
+    ok(typeof dumped === 'string' && dumped.indexOf('v' + CFG.version) >= 0, 'dump() 能导出可粘贴的纯文本');
+    ok(typeof Tk.dumpJson() === 'string' && Tk.dumpJson().indexOf('records') >= 0, 'dumpJson() 输出 JSON');
+
+    ok(Tk.flush([]) === false, 'flush() 仍是空壳：明确返回 false，说明没接外部服务');
+
+    const saved = CFG.track.enabled;
+    CFG.track.enabled = false; Tk.clear();
+    Tk.error('x', new Error('y'));
+    ok(Tk.count() === 0, 'CFG.track.enabled=false 时采集是 no-op（不占内存）');
+    CFG.track.enabled = saved;
+  } finally {
+    console.error = realErr;
+    G.Track.clear();
+  }
+})();
+
+/* =========================================================
    Platform —— 输入通道
    踩过的坑：input.up 曾写成 up(el, fn)，调用方按 up(fn) 传参 →
    真正注册的是 addEventListener('pointerup', undefined)，
@@ -813,18 +866,23 @@ ok(B.collectStyles('<link rel="stylesheet" href="x.css">').join() === 'x.css', '
 
 G_('Build · 真实入口干跑');
 const bDev = B.build({});
+const N_SCRIPTS = B.collectScripts(fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8')).length;
 ok(bDev.errors.length === 0, '真实 index.html 干跑构建 0 错误', bDev.errors.join('；'));
-ok(bDev.meta.moduleCount === 21, `开发版内联 ${bDev.meta.moduleCount} 个模块（期望 21）`);
+ok(bDev.meta.moduleCount === N_SCRIPTS,
+   `开发版内联了 index.html 里的全部 ${N_SCRIPTS} 个模块（数字来自 index.html，不写死）`);
 ok(bDev.meta.version === CFG.version, `产物横幅版本号取自 config.js（${bDev.meta.version}）`);
 ok(bDev.meta.bytes < B.MAX_BYTES, `产物体积 ${(bDev.meta.bytes / 1024).toFixed(1)} KB，在上限内`);
 ok(bDev.html.indexOf('<script src=') < 0, '产物里没有任何 <script src=');
 ok(bDev.html.indexOf('<link rel="stylesheet"') < 0, '产物里没有外链样式表');
 ok(bDev.html.indexOf('G.Tutorial') >= 0, '开发版产物含 tutorial.js');
+ok(bDev.html.indexOf('G.Track') >= 0, '开发版产物含 track.js（错误采集）');
 ok(bDev.html.indexOf('G.Cheat') >= 0, '开发版产物含调试面板（?dev 用）');
 const bRel = B.build({ release: true });
 ok(bRel.errors.length === 0, 'release 干跑构建 0 错误', bRel.errors.join('；'));
-ok(bRel.meta.moduleCount === 20, `release 版内联 ${bRel.meta.moduleCount} 个模块（期望 20）`);
+ok(bRel.meta.moduleCount === N_SCRIPTS - 1,
+   `release 版只少 debug 面板那 1 个（${bRel.meta.moduleCount} / ${N_SCRIPTS}）`);
 ok(bRel.html.indexOf('G.Cheat') < 0, 'release 版剔除了 devtools（产物里没有 G.Cheat）');
+ok(bRel.html.indexOf('G.Track') >= 0, 'release 版保留 track.js（上线要靠它拿崩溃栈）');
 ok(bRel.meta.bytes < bDev.meta.bytes, 'release 版比开发版小');
 
 /* =========================================================

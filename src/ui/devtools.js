@@ -124,6 +124,30 @@ G.Cheat = (function () {
     return '纪念币 = ' + St.get().medals;
   }
 
+  /* ---------------- 错误日志（E4 空壳的查看入口） ---------------- */
+  function dumpTrack() {
+    if (!G.Track) return '无 Track 模块';
+    return G.Track.dump();
+  }
+  function trackCount() {
+    if (!G.Track) return '无 Track 模块';
+    return '日志 ' + G.Track.count() + ' 条（上限 ' +
+      ((G.CONFIG.track && G.CONFIG.track.buffer) || '?') + '）';
+  }
+  function copyTrack() {
+    if (!G.Track) return '无 Track 模块';
+    var text = G.Track.dump();
+    /* 剪贴板是平台能力，但开发者面板不属于正式包（release 版会被剔掉） */
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+        return '日志已复制（' + G.Track.count() + ' 条）';
+      }
+    } catch (e) {}
+    try { console.log(text); } catch (e) {}
+    return '日志已打到控制台';
+  }
+
   /* ---------------- 面板 ---------------- */
   var BTNS = [
     ['解锁全部钓场', function () { return unlockAll(); }],
@@ -136,6 +160,10 @@ G.Cheat = (function () {
     ['+10 纪念币', function () { return addMedals(10); }],
     ['+100 生态值', function () { return addEco(100); }],
     ['解锁全部装饰', function () { return allDecors(); }],
+    ['日志条数', function () { return trackCount(); }],
+    ['导出日志', function () { return copyTrack(); }],
+    ['清空日志', function () { G.Track && G.Track.clear(); return '已清空'; }],
+    ['造一个错误', function () { try { null.x = 1; } catch (e) { G.Track.error('devtools 自测', e); } return '已记录 1 条'; }],
     ['清档重开', function () { clearSave(); return 'reloading'; }],
   ];
 
@@ -177,6 +205,7 @@ G.Cheat = (function () {
     unlockAll: unlockAll, fillBook: fillBook, fillColors: fillColors,
     addCoin: addCoin, setPlayTime: setPlayTime, clearSave: clearSave,
     finishQuests: finishQuests, addMedals: addMedals, addEco: addEco, allDecors: allDecors,
+    dumpTrack: dumpTrack, trackCount: trackCount,
     mount: mount,
   };
 })();

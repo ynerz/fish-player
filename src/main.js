@@ -7,6 +7,9 @@
   var blurred = false;   /* 窗口失焦（切到别的应用）时也停掉逻辑与计时 */
 
   function boot() {
+    /* ---------- 错误采集（先挂上：后面任何一步崩了，日志里都有「崩在哪一步」） ---------- */
+    if (G.Track) G.Track.init();
+
     /* ---------- 存档 ---------- */
     St.load();
     var s = St.get();
@@ -352,10 +355,21 @@
     requestAnimationFrame(loop);
   }
 
-  /* ---------------- go ---------------- */
+  /* ---------------- go ----------------
+     boot 里抛异常原来就是白屏、什么都不留。现在至少把「崩在启动阶段」
+     连同当时的版本 / 钓场 / 钓鱼状态记进 G.Track，方便回捞。 */
+  function safeBoot() {
+    try {
+      boot();
+    } catch (e) {
+      if (G.Track) G.Track.error('boot 启动失败', e, { stage: 'boot' });
+      throw e;    // 原样抛出去，控制台照旧能看到完整栈
+    }
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
+    document.addEventListener('DOMContentLoaded', safeBoot);
   } else {
-    boot();
+    safeBoot();
   }
 })();

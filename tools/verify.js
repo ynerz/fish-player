@@ -649,6 +649,28 @@ if (!/function lanternGlow\s*\(/.test(sceneSrc)) {
 if (!gradBad) ok('渐变缓存是「按 resize / setField 失效」的唯一入口');
 
 
+/* ---------------- 18. 面板关闭回调必须常驻 ----------------
+   一个「不报错但玩家能看出来」的坑：onCloseCb 被 close() 自己置空。
+   它其实是 hud.js 在 init 时只注册一次的常驻回调（用来清掉顶栏标签页高亮），
+   写成一次性之后，从第二次关面板开始，那个标签页会一直亮着。
+   （浏览器实测：点图鉴→✕、再点图鉴→✕，第二次高亮就留在顶栏不掉了。） */
+console.log('\n[18] 面板关闭回调必须常驻（close() 不得把自己注销掉）');
+let panelBad = 0;
+const closeBody = (panelsSrc.match(/function close\s*\(\)\s*\{[\s\S]*?\n  \}/) || [''])[0];
+if (!closeBody) { err('panels.js 里找不到 close()'); panelBad++; }
+else if (/onCloseCb\s*=\s*null/.test(closeBody)) {
+  err('panels.js 的 close() 把 onCloseCb 置空了 —— 它是 hud.js 只注册一次的常驻回调，第二次关闭起标签页高亮就清不掉了');
+  panelBad++;
+}
+const hudSrcTab = fs.readFileSync(path.join(ROOT, 'src/ui/hud.js'), 'utf8');
+if (!/G\.Panels\.setOnClose\(function \(\) \{ setActiveTab\(null\); \}\)/.test(hudSrcTab)) {
+  err('hud.js 没有在关闭时清掉标签页高亮（setOnClose → setActiveTab(null)）'); panelBad++;
+}
+const tabN = (hudSrcTab.match(/U\.on\(b, 'click'/g) || []).length;
+if (tabN !== 1) { err(`hud.js 里给标签页绑 click 的地方有 ${tabN} 处（重复注册会一次点击触发多次）`); panelBad++; }
+if (!panelBad) ok('close() 不再注销常驻回调；hud 的「关闭即清高亮」只注册一次');
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

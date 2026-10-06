@@ -44,7 +44,11 @@ G.Hud = (function () {
     if (el.zoneSafe)   el.zoneSafe.style.width  = (G.Fight.SAFE * 100) + '%';
     if (el.dangerMark) el.dangerMark.style.left = (G.Fight.SAFE * 100) + '%';
 
-    /* 顶栏按钮 */
+    /* 顶栏按钮
+       ⚠️ 弹层打开时 #modal（`position:fixed; inset:0; z-index:50`）会盖住整个顶栏，
+          所以「面板开着时点标签页」其实点不到这里 —— 点击落在遮罩上，
+          由 panels.js 的 backdrop 逻辑关掉面板（要再点一次才打开新的）。
+          这里的分支只处理「没开面板」的情况。 */
     U.$$('.tab').forEach(function (b) {
       U.on(b, 'click', function () {
         var p = b.getAttribute('data-panel');

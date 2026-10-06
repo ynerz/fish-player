@@ -72,7 +72,11 @@ G.Panels = (function () {
     modal.classList.add('hidden');
     bodyEl.innerHTML = '';
     current = null;
-    if (onCloseCb) { var f = onCloseCb; onCloseCb = null; f(); }
+    /* ⚠️ 这里**不要**把 onCloseCb 置空。它是 hud.js 在 init 时注册一次的
+       「关面板时清掉顶栏标签页高亮」—— 原来写成一次性回调（调完就置 null），
+       于是从第二次关面板开始，那个标签页会一直保持高亮。
+       常驻回调就应该常驻；确实需要一次性的话，由回调自己负责注销。 */
+    if (onCloseCb) onCloseCb();
   }
 
   function refresh() {

@@ -277,7 +277,107 @@ if (!tutBad) {
   ok('.tut-bubble 是绝对定位 + 非阻塞（pointer-events:none）');
 }
 
-/* ---------------- 汇总 ---------------- */
+/* ---------------- 11. 入口完整性 + 模块按序可加载 ----------------
+   index.html 是唯一的「装配清单」，它和 src/ 一旦对不上就是白屏。
+   三类静默失败在这里一次抓住：
+     · 新增模块却忘了在 index.html 里引 → 运行时 undefined，页面半死
+     · 脚本顺序错（用到的模块还没定义）  → 一加载就抛，整个游戏起不来
+     · 模块里有语法错误                  → 同上
+   devtools.js / main.js 在加载时就会碰 location / document，
+   在 Node 里只做「语法解析」不做「执行」——
+   判据：报错是 ReferenceError 且说的是浏览器全局 → 可预期，放过；
+   其他任何异常（含「顺序错」引发的 TypeError）一律报错。 */
+console.log('\n[11] 入口完整性：index.html 的 <script src> ↔ src/ 下的 .js');
+const BLD = require('./build.js');
+const htmlRaw = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const listed = BLD.collectScripts(htmlRaw);
+let entryBad = 0;
+
+/* 11-a 引用的文件都存在、且不重复 */
+const miss = listed.filter(r => !fs.existsSync(path.join(ROOT, r)));
+if (miss.length) { err('index.html 引用了不存在的脚本：' + miss.join('、')); entryBad++; }
+const seenS = {}, dupS = [];
+listed.forEach(r => { if (seenS[r]) dupS.push(r); seenS[r] = 1; });
+if (dupS.length) { err('index.html 重复引用脚本：' + dupS.join('、')); entryBad++; }
+
+/* 11-b src/ 下每一个 .js 都必须被引用（加了新模块忘记挂 = 白屏） */
+const onDisk = [];
+(function walk(dir) {
+  fs.readdirSync(path.join(ROOT, dir)).forEach(name => {
+    const rel = dir + '/' + name;
+    if (fs.statSync(path.join(ROOT, rel)).isDirectory()) walk(rel);
+    else if (/\.js$/.test(name)) onDisk.push(rel);
+  });
+})('src');
+const notWired = onDisk.filter(r => listed.indexOf(r) < 0);
+const ghost = listed.filter(r => onDisk.indexOf(r) < 0 && fs.existsSync(path.join(ROOT, r)));
+if (notWired.length) { err('src/ 下这些模块没被 index.html 引用（永远不会被加载）：' + notWired.join('、')); entryBad++; }
+if (ghost.length) { err('index.html 引了 src/ 目录之外的脚本：' + ghost.join('、')); entryBad++; }
+if (listed[0] !== BLD.MUST_BE_FIRST) {
+  err(`第一个脚本应是 ${BLD.MUST_BE_FIRST}（它建 window.G），实际是 ${listed[0]}`); entryBad++;
+}
+if (listed[listed.length - 1] !== BLD.MUST_BE_LAST) {
+  err(`最后一个脚本应是 ${BLD.MUST_BE_LAST}（它 boot 整个游戏），实际是 ${listed[listed.length - 1]}`); entryBad++;
+}
+
+/* 11-c 样式表（缺了游戏能跑但没皮肤，属于静默降级） */
+const cssListed = BLD.collectStyles(htmlRaw);
+if (!cssListed.length) { err('index.html 里没有外链样式表'); entryBad++; }
+cssListed.forEach(r => {
+  if (!fs.existsSync(path.join(ROOT, r))) { err('样式表不存在：' + r); entryBad++; }
+});
+
+/* 11-d 按 index.html 的顺序真的加载一遍 */
+const vm = require('vm');
+const silent = { log() {}, warn() {}, error() {} };
+const sandbox = { console: silent, setTimeout, clearTimeout, setInterval, clearInterval, Math, Date, JSON };
+sandbox.window = sandbox; sandbox.globalThis = sandbox;
+sandbox.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+vm.createContext(sandbox);
+const DOM_GLOBALS = ['document', 'location', 'navigator', 'innerWidth', 'innerHeight',
+  'requestAnimationFrame', 'cancelAnimationFrame', 'performance', 'Image', 'Audio', 'screen'];
+const isDomRef = e => e && e.name === 'ReferenceError' &&
+  new RegExp('^(' + DOM_GLOBALS.join('|') + ') is not defined').test(String(e.message));
+const deferred = [];
+let ranCount = 0;
+listed.forEach(rel => {
+  const src = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  let sc;
+  try { sc = new vm.Script(src, { filename: rel }); }
+  catch (e) { err(`${rel} 有语法错误：${e.message}`); entryBad++; return; }
+  try { sc.runInContext(sandbox); ranCount++; }
+  catch (e) {
+    if (isDomRef(e)) { deferred.push(rel); return; }   // 需要 DOM，可预期
+    err(`${rel} 按 index.html 的顺序加载就抛错：${e.name}: ${e.message}（多半是顺序错了）`); entryBad++;
+  }
+});
+
+/* 11-e 加载完，模块表必须是齐的 */
+const WANT = ['CONFIG', 'FIELDS', 'FIELD_MAP', 'FISH', 'FISH_ID', 'FISH_BY_FIELD', 'FISH_BY_FIELD_RARITY',
+  'TOTAL_FISH', 'BAITS', 'RODS', 'LINES', 'DECORS', 'ACHIEVEMENTS',
+  'U', 'Platform', 'Audio', 'Loot', 'State', 'Goals', 'FishArt', 'Scene', 'Fight', 'Weather',
+  'Fishing', 'Panels', 'Hud', 'Tutorial'];
+const gone = WANT.filter(k => !sandbox.G || sandbox.G[k] == null);
+if (gone.length) { err('按序加载后缺这些全局模块：' + gone.join('、')); entryBad++; }
+
+/* 11-f 版本号单一来源：文档基线必须跟着 config.js 走
+   （踩过：CFG.version 一度停在 0.4.0，设置面板和文档各说各话） */
+const todoTxt = fs.readFileSync(path.join(ROOT, 'docs/改进待办.md'), 'utf8');
+const baseM = todoTxt.match(/当前基线：v([\d.]+)/);
+if (!baseM) { err('docs/改进待办.md 头部找不到「当前基线：vX.Y.Z」'); entryBad++; }
+else if (baseM[1] !== CFG.version) {
+  err(`版本号不一致：config.js 是 v${CFG.version}，docs/改进待办.md 头部基线是 v${baseM[1]}`); entryBad++;
+}
+
+if (!entryBad) {
+  ok(`入口 ${listed.length} 个脚本 == src/ 下 ${onDisk.length} 个模块，顺序正确`);
+  ok(`按 index.html 顺序加载：${ranCount} 个模块在 Node 里跑通` +
+     (deferred.length ? `（${deferred.length} 个需要 DOM，跳过执行：${deferred.join('、')}）` : ''));
+  ok(`${WANT.length} 个全局模块齐全（G.CONFIG … G.Tutorial）`);
+  ok(`版本号单一来源：config.js 与 docs/改进待办.md 头部基线都是 v${CFG.version}`);
+}
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

@@ -2,7 +2,8 @@
 
 一款纯前端的单机钓鱼游戏：**抛竿 → 等咬钩 → 张力拉扯 → 收进图鉴**。
 7 个钓场、362 种鱼、4 级稀有度、5 档颜色变异、鱼护与水族箱，
-全程程序化绘制与合成音效，**零依赖、零构建**。
+全程程序化绘制与合成音效，**零依赖、零构建**（改完刷新即可；
+`tools/build.js` 只是可选的发布打包，见「打包成单文件」）。
 
 > 文档分档：
 > - [`docs/说明书.html`](docs/说明书.html) —— **玩家向**：玩法 / 图鉴 / 节奏 / 装备 / FAQ
@@ -15,6 +16,12 @@
 ## 快速开始
 
 **最简单**：双击 `index.html` 就能玩（刻意不用 ES Module，`file://` 直接可跑）。
+
+**单文件版**（把 21 个脚本 + 样式表压成一个 HTML，方便分发）：
+
+```bash
+node tools/build.js --release    # → dist/fish-player.release.html，双击即玩
+```
 
 **推荐**（避免个别浏览器对 `file://` 的限制）：
 
@@ -48,7 +55,8 @@ src/core/               逻辑层：抽卡 · 存档 · 拉扯玩法 · 钓鱼�
 src/render/             Canvas 渲染：鱼类绘制器 · 场景
 src/ui/                 HUD 与各类弹层
 src/main.js             启动与主循环
-tools/                  数值仿真、调参、自检与单测（不参与游戏运行）
+tools/                  数值仿真、调参、自检、单测与打包（不参与游戏运行）
+dist/                   单文件构建产物（不入库，由 tools/build.js 生成）
 docs/                   四份文档 + 配图
 ```
 
@@ -94,6 +102,11 @@ node tools/test.js
 node tools/tune.js               # 扫 dashPower 找合适的拉扯难度
 node tools/check-roster.js       # 看各钓场鱼种与档位分布
 node tools/gen-collect-time.js   # 重新生成 docs/收集耗时表.html
+
+# 打包成单个 HTML 文件（可选，只在发布前用；开发期改完刷新即可）
+node tools/build.js              # → dist/fish-player.html
+node tools/build.js --release    # → dist/fish-player.release.html（剔除调试面板）
+node tools/build.js --check      # 只跑产物断言，不写文件
 ```
 
 **改完数值的标准流程**（顺序不能换）：

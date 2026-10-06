@@ -690,6 +690,55 @@ ok(!!St.get().tut && St.get().tut.step === 0 && St.get().tut.done === false, 'tu
 St.reset();
 ok(St.get().tut.step === 0 && St.get().tut.done === false, '重置存档后引导重新开始');
 
+/* =========================================================
+   Build —— 单文件打包（tools/build.js）
+   ========================================================= */
+const B = require(path.join(ROOT, 'tools/build.js'));
+
+G_('Build · 模块拼接');
+const twoMods = [{ rel: 'a.js', body: 'G.A = 1;' }, { rel: 'b.js', body: 'G.B = G.A + 1;' }];
+const bun = B.assemble(twoMods);
+ok(bun.indexOf('a.js') >= 0 && bun.indexOf('b.js') > bun.indexOf('a.js'), '模块按传入顺序拼进产物');
+ok(bun.indexOf('G.A = 1;') >= 0 && bun.indexOf('G.B = G.A + 1;') >= 0, '模块正文原样保留，没有被改写');
+ok(B.assemble(twoMods) === bun, '拼接是确定性的（同一输入 → 同一产物）');
+/* 上一段末尾缺分号时，直接接下一段的 (function(){})() 会被解析成「函数调用」，静默改语义 */
+ok(/\n;\n/.test(bun), '模块之间插了独立一行 `;` 作分隔（防 ASI 粘连）');
+ok(/\n;\n/.test(B.assemble([{ rel: 'x.js', body: 'var s = 1\n(function(){})()' }])),
+   '末尾缺分号的模块之后仍然有分隔符');
+
+G_('Build · 产物断言会拦住危险内容');
+ok(B.auditBundle(bun, {}).length === 0, '干净的内联内容不报错');
+ok(B.auditBundle('var s = "</script>";', {}).length > 0, '内容里出现 </script 会被拦下（会提前闭合脚本标签）');
+ok(B.auditBundle('import x from "y"', {}).length > 0, 'ES Module 的 import 会被拦下（file:// 下会被 CORS 拦）');
+ok(B.auditBundle('  export default 1', {}).length > 0, '带缩进的 export 也能被拦下');
+ok(B.auditBundle('G.Cheat = {};', {}).length === 0, '非 release 版允许调试面板');
+ok(B.auditBundle('G.Cheat = {};', { release: true }).length > 0, 'release 版里出现 G.Cheat 会被拦下');
+ok(B.auditHtml('<script src="a.js"></script>', { bytes: 10 }).length > 0, '产物里残留 <script src= 会被拦下');
+ok(B.auditHtml('<link rel="stylesheet" href="x.css">', { bytes: 10 }).length > 0, '产物里残留外链样式表会被拦下');
+ok(B.auditHtml('<img src="data:image/png;base64,AA"><a href="#x">y</a>', { bytes: 10 }).length === 0,
+   'data: / # 这类内联引用被正确放过');
+ok(B.auditHtml('<script>var a=1;</script>', { bytes: B.MAX_BYTES + 1 }).length > 0, '体积超上限会被拦下');
+ok(B.collectScripts('<script src="a.js"></script>\n<script src="b.js"></script>').join() === 'a.js,b.js',
+   'collectScripts 按出现顺序取路径');
+ok(B.collectScripts('<script src="a.js" defer></script>').join() === 'a.js', '带其他属性的 <script src> 也能取到');
+ok(B.collectStyles('<link rel="stylesheet" href="x.css">').join() === 'x.css', 'collectStyles 能取到样式表路径');
+
+G_('Build · 真实入口干跑');
+const bDev = B.build({});
+ok(bDev.errors.length === 0, '真实 index.html 干跑构建 0 错误', bDev.errors.join('；'));
+ok(bDev.meta.moduleCount === 21, `开发版内联 ${bDev.meta.moduleCount} 个模块（期望 21）`);
+ok(bDev.meta.version === CFG.version, `产物横幅版本号取自 config.js（${bDev.meta.version}）`);
+ok(bDev.meta.bytes < B.MAX_BYTES, `产物体积 ${(bDev.meta.bytes / 1024).toFixed(1)} KB，在上限内`);
+ok(bDev.html.indexOf('<script src=') < 0, '产物里没有任何 <script src=');
+ok(bDev.html.indexOf('<link rel="stylesheet"') < 0, '产物里没有外链样式表');
+ok(bDev.html.indexOf('G.Tutorial') >= 0, '开发版产物含 tutorial.js');
+ok(bDev.html.indexOf('G.Cheat') >= 0, '开发版产物含调试面板（?dev 用）');
+const bRel = B.build({ release: true });
+ok(bRel.errors.length === 0, 'release 干跑构建 0 错误', bRel.errors.join('；'));
+ok(bRel.meta.moduleCount === 20, `release 版内联 ${bRel.meta.moduleCount} 个模块（期望 20）`);
+ok(bRel.html.indexOf('G.Cheat') < 0, 'release 版剔除了 devtools（产物里没有 G.Cheat）');
+ok(bRel.meta.bytes < bDev.meta.bytes, 'release 版比开发版小');
+
 /* ---------- 汇总 ---------- */
 console.log('\n' + '='.repeat(52));
 if (fail) { console.log(`\u2716 测试未通过：${pass} 通过 / ${fail} 失败\n`); process.exit(1); }

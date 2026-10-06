@@ -8,7 +8,7 @@ window.G = window.G || {};
 
 G.CONFIG = {
 
-  version   : '0.5.3',
+  version   : '0.5.4',
   saveKey   : 'fishplayer.save.v1',
   saveKeyBak: 'fishplayer.save.v1.bak',
 

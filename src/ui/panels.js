@@ -17,6 +17,31 @@ G.Panels = (function () {
   var FIELD_RANK_COLOR = { D:'#8b98a5', C:'#5aa9d6', B:'#3f8f5f', A:'#2b6fc4', S:'#3b4a8f', SS:'#5b3fa8', SSS:'#a87a1f' };
   function rankColor(rank) { return FIELD_RANK_COLOR[rank] || '#8b98a5'; }
 
+  /* 钓场解锁门槛 —— **从钓场数据现算**，绝不在文案里写死。
+     规则：普通钓场「本场图鉴 ≥ collectionPct 就解锁下一个」，
+           隐藏钓场（requireFull）需要前置钓场全部收满。
+     ⚠️ 「钓场选择」页原来把「80%」「SS / SSS」「七个钓场」三样全写死在说明里，
+        而同一页的钓场卡片读的是 `f.collectionPct` / `G.FIELDS` ——
+        改一次数据，说明和卡片就会分家（与 verify 第 ㉙ 节盯的
+        「挂机 ×0.95 / 离线 8 小时」是同一类问题）。 */
+  function fieldGateText() {
+    var normal = null, full = null, hiddenRanks = [];
+    G.FIELDS.forEach(function (f) {
+      if (f.requireFull) {                       // 隐藏钓场：前置全部收满
+        hiddenRanks.push(f.rank);
+        if (full == null || f.collectionPct > full) full = f.collectionPct;
+      } else if (f.requires != null) {           // 普通钓场：前置那一场达到 N%
+        if (normal == null || f.collectionPct > normal) normal = f.collectionPct;
+      }
+    });
+    return {
+      normal: normal == null ? '—' : Math.round(normal * 100) + '%',
+      full: full == null ? '—' : Math.round(full * 100) + '%',
+      hiddenRanks: hiddenRanks.length ? hiddenRanks.join(' / ') : '隐藏钓场',
+      count: G.FIELDS.length,
+    };
+  }
+
   /* 小时 → 中文时长 */
   function fmtH(h) {
     if (!h) return '—';
@@ -154,14 +179,15 @@ G.Panels = (function () {
       });
       root.appendChild(grid);
 
+      var gate = fieldGateText();
       var tip = U.el('div', 'hint-text');
       tip.style.marginTop = '14px';
       tip.innerHTML =
-        '<b>解锁规则</b>：本钓场图鉴收集达 <b>80%</b> 即可解锁下一个钓场；' +
-        '隐藏钓场 <b>SS / SSS</b> 需要前面所有钓场 <b>100%</b> 收满。<br>' +
+        '<b>解锁规则</b>：本钓场图鉴收集达 <b>' + gate.normal + '</b> 即可解锁下一个钓场；' +
+        '隐藏钓场 <b>' + gate.hiddenRanks + '</b> 需要前面所有钓场 <b>' + gate.full + '</b> 收满。<br>' +
         '<b>关于时长</b>：时长不是解锁门槛，只是按当前掉率算出来的<b>期望耗时</b>（' +
         '由 <code>tools/solve-drop.js</code> 反推、<code>tools/balance.js</code> 复核）。' +
-        '七个钓场全部 100% 收满约 <b>' + fmtH(G.FIELDS[G.FIELDS.length - 1].estUnlockHours +
+        gate.count + ' 个钓场全部收满约 <b>' + fmtH(G.FIELDS[G.FIELDS.length - 1].estUnlockHours +
                                           G.FIELDS[G.FIELDS.length - 1].estOwnHours) + '</b>。<br>' +
         '累计解锁节奏：' +
         G.FIELDS.filter(function (f) { return f.estUnlockHours > 0; })

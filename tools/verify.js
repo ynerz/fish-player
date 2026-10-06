@@ -1161,7 +1161,30 @@ if (panelsSrc.indexOf('maxCatchUp') < 0) {
     err(`钓场等级配色表（#a87a1f）在代码里出现了 ${hits} 次，应恰好 1 次（多份会各自漂）`); copyNumBad++;
   }
 })();
-if (!copyNumBad) ok('挂机倍率 / 离线补算上限的文案现算自 config，钓场配色表只有一份');
+/* 钓场解锁门槛的文案必须现算自 fields.js。
+   「钓场选择」页的说明原来把「80%」「隐藏钓场 SS / SSS」「七个钓场」三样全写死，
+   而同一页的钓场卡片读的是 `f.collectionPct` / `G.FIELDS.length` ——
+   改一次数据，说明和卡片就分家（同 §29 上面这类「文案里的第二份真相」）。
+   `docs/说明书.html` 的钓场表同理。 */
+(function () {
+  const code = panelsSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  if (/\b80\s*%/.test(code)) {
+    err('panels.js 里又把钓场解锁门槛写死成「80%」了 —— 应走 fieldGateText() 现算'); copyNumBad++;
+  }
+  if (code.indexOf('七个钓场') >= 0) {
+    err('panels.js 里把钓场数量写死成「七个钓场」了 —— 应读 G.FIELDS.length'); copyNumBad++;
+  }
+  const gateHits = (code.match(/fieldGateText/g) || []).length;
+  if (gateHits < 2) {
+    err(`fieldGateText() 出现 ${gateHits} 次（定义 1 次 + 至少 1 处调用）—— 解锁门槛文案会与钓场数据分家`);
+    copyNumBad++;
+  }
+  const manual = fs.readFileSync(path.join(ROOT, 'docs/说明书.html'), 'utf8');
+  if (/图鉴\s*80%/.test(manual)) {
+    err('docs/说明书.html 的钓场表又把「图鉴 80%」写死了 —— 应读 f.collectionPct'); copyNumBad++;
+  }
+})();
+if (!copyNumBad) ok('挂机倍率 / 离线补算上限 / 解锁门槛的文案现算自数据，钓场配色表只有一份');
 
 
 console.log('\n' + '='.repeat(52));

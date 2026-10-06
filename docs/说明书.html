@@ -500,8 +500,8 @@
     var n = G.FISH_BY_FIELD[f.id].length;
     var rk = { D:'#8b98a5', C:'#5aa9d6', B:'#3f8f5f', A:'#2b6fc4', S:'#3b4a8f', SS:'#5b3fa8', SSS:'#a87a1f' };
     var cond = f.requires == null ? '开局即开放'
-      : (f.requireFull ? f.requires.join('~') + ' 全部 100%'
-                       : f.requires + ' 图鉴 80%');
+      : (f.requireFull ? f.requires.join('~') + ' 全部 ' + Math.round(f.collectionPct * 100) + '%'
+                       : f.requires + ' 图鉴 ' + Math.round(f.collectionPct * 100) + '%');
     ft.insertAdjacentHTML('beforeend',
       '<tr><td><span style="display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;' +
       'border-radius:7px;background:' + rk[f.rank] + ';color:#fff;font-weight:800;font-size:12px">' + f.rank + '</span></td>' +

@@ -248,6 +248,11 @@ G.Panels = (function () {
     return v.toExponential(2) + '%';
   }
 
+  /* 面板入参的数字兜底：面板既可能被带 payload 打开（main.js 传 offlineCatchUp
+     的结果），也可能被 refresh() 这种「不带参数重绘」的路径调到 ——
+     任何 undefined / NaN 都会把文案渲染成字面「NaN」或「undefined」。 */
+  function numOr0(v) { return isFinite(v) ? v : 0; }
+
   /* 概率文案的「短版」：嵌在中文句子里用（0.01 → 1%、0.065 → 6.5%）。
      fmtPct() 是给列表单元格用的（会把 1% 补成 1.00%），嵌进句子太吵。 */
   function pctPlain(p) {
@@ -1589,16 +1594,27 @@ G.Panels = (function () {
   VIEWS.offline = {
     title: '挂机收获',
     render: function (root, r) {
+      /* ⚠️ `r` 由 main.js 的 `F.offlineCatchUp()` 结果传进来，但 refresh() 走的是
+         `renderCurrent()`（**不带参数**）—— 任何一次不带 payload 的打开都会在
+         `r.seconds` 上抛 TypeError，把整块面板炸成空白。这里统一兜底：
+         数字全部过一遍 numOr0()，没有数据就渲染空态。 */
+      r = r || {};
+      var secs = numOr0(r.seconds), n = numOr0(r.count);
+      if (!secs && !n) {
+        root.appendChild(U.el('div', 'empty-tip',
+          '这次没有挂机记录（离开时间太短，或者没开挂机）。'));
+        return;
+      }
       root.innerHTML =
-        '<div class="hint-text" style="font-size:13px">你离开了 <b>' + U.dur(r.seconds) + '</b>，' +
-        '挂机替你完成了 <b>' + r.count + '</b> 次抛竿。</div>';
+        '<div class="hint-text" style="font-size:13px">你离开了 <b>' + U.dur(secs) + '</b>，' +
+        '挂机替你完成了 <b>' + n + '</b> 次抛竿。</div>';
       var g = U.el('div', 'stat-grid');
       g.style.marginTop = '14px';
       g.innerHTML =
-        '<div class="stat-box"><div class="sb-label">钓获</div><div class="sb-value">' + r.count + '<small>条</small></div></div>' +
-        '<div class="stat-box"><div class="sb-label">收入</div><div class="sb-value">' + U.coin(r.coin) + '<small>金</small></div></div>' +
-        '<div class="stat-box"><div class="sb-label">史诗 / 传说</div><div class="sb-value">' + r.rare + '<small>条</small></div></div>' +
-        '<div class="stat-box"><div class="sb-label">新增图鉴</div><div class="sb-value">' + r.kinds + '<small>种</small></div></div>';
+        '<div class="stat-box"><div class="sb-label">钓获</div><div class="sb-value">' + n + '<small>条</small></div></div>' +
+        '<div class="stat-box"><div class="sb-label">收入</div><div class="sb-value">' + U.coin(numOr0(r.coin)) + '<small>金</small></div></div>' +
+        '<div class="stat-box"><div class="sb-label">史诗 / 传说</div><div class="sb-value">' + numOr0(r.rare) + '<small>条</small></div></div>' +
+        '<div class="stat-box"><div class="sb-label">新增图鉴</div><div class="sb-value">' + numOr0(r.kinds) + '<small>种</small></div></div>';
       root.appendChild(g);
       /* 代表渔获：离线补算是抽样折算的，但玩家总得看到「具体钓到了什么」 */
       if (r.recent && r.recent.length) {

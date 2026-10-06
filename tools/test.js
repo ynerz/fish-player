@@ -1371,6 +1371,95 @@ G_('Platform · 输入通道的按下 / 松开');
 })();
 
 /* =========================================================
+   Panels —— 面板 render 的入参兜底与「现算文案」
+   panels.js 的 render 只在**运行期**碰 DOM（模块加载时不碰），所以能在 Node 里
+   用最小 DOM 桩真跑一遍 —— 比「扫源码断言」可信得多：源码断言只能证明
+   「某句话还在 / 某个名字被调用了」，真跑一遍才能证明「渲染出来是对的」。
+   这一节守着两件事：
+     ① 面板被「不带 payload 重绘」（refresh → renderCurrent()）时不许崩、
+        也不许把 NaN / undefined 渲染成字面量；
+     ② 界面里的门槛百分比 / 钓场数量必须与 fields.js 的现值一致。
+   ========================================================= */
+G_('Panels · 面板入参兜底与现算文案');
+function mkEl(tag) {
+  return {
+    tagName: tag, className: '', innerHTML: '', textContent: '', children: [],
+    style: {}, disabled: false,
+    classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
+    appendChild(c) { this.children.push(c); return c; },
+    removeChild(c) { this.children = this.children.filter(x => x !== c); return c; },
+    insertBefore(c) { this.children.unshift(c); return c; },
+    addEventListener() {}, setAttribute() {}, getAttribute() { return null; },
+    querySelector() { return null; }, querySelectorAll() { return []; },
+    getContext() { return null; },
+  };
+}
+/* 面板渲染出来的文字 = 自身的 innerHTML / textContent + 全部后代的（两层足够） */
+function panelText(node) {
+  let out = String(node.innerHTML || '') + String(node.textContent || '');
+  (node.children || []).forEach(c => { out += panelText(c); });
+  return out;
+}
+global.document = { createElement: mkEl, querySelector: () => null, querySelectorAll: () => [] };
+new Function(fs.readFileSync(path.join(ROOT, 'src/ui/panels.js'), 'utf8')).call(global);
+const Panels = G.Panels;
+ok(!!(Panels && Panels.VIEWS && Panels.VIEWS.offline), 'panels.js 能在 Node 里加载并导出 VIEWS');
+
+/* ---- ① 挂机收获：没有 payload 时不能崩 ---- */
+let offErr1 = null;
+const offRoot1 = mkEl('div');
+try { Panels.VIEWS.offline.render(offRoot1, undefined); } catch (e) { offErr1 = e; }
+ok(!offErr1, 'VIEWS.offline.render(root) 不带 payload 不抛错（refresh 走的就是这条路）',
+   offErr1 && offErr1.message);
+ok(panelText(offRoot1).indexOf('没有挂机记录') >= 0, '不带 payload 时渲染空态提示');
+
+/* ---- ② 半截 payload：数字兜底，不许出现字面 NaN / undefined ---- */
+let offErr2 = null;
+const offRoot2 = mkEl('div');
+try { Panels.VIEWS.offline.render(offRoot2, { seconds: 600 }); } catch (e) { offErr2 = e; }
+ok(!offErr2, 'VIEWS.offline.render 只给一半字段也不抛错', offErr2 && offErr2.message);
+const offTxt2 = panelText(offRoot2);
+ok(offTxt2.indexOf('10 分钟') >= 0, '离开时长按 U.dur 渲染（600 秒 → 10 分钟）');
+ok(!/NaN|undefined/.test(offTxt2), '缺字段不会渲染成字面 NaN / undefined');
+
+/* ---- ③ 完整 payload：内容与「上限 / 倍率来自 config」都要对 ---- */
+const offRoot3 = mkEl('div');
+let offErr3 = null;
+try {
+  Panels.VIEWS.offline.render(offRoot3, {
+    seconds: 7200, count: 180, coin: 12345, rare: 3, kinds: 2,
+    recent: [{ fish: { name: '测试鱼' }, color: { name: '黄金' }, kg: 2.5, price: 900 }],
+    unlocks: [{ name: '测试钓场' }],
+  });
+} catch (e) { offErr3 = e; }
+ok(!offErr3, 'VIEWS.offline.render 带完整 payload 不抛错', offErr3 && offErr3.message);
+const offTxt3 = panelText(offRoot3);
+ok(offTxt3.indexOf('2 小时') >= 0 && offTxt3.indexOf('180') >= 0 && offTxt3.indexOf('测试鱼') >= 0 &&
+   offTxt3.indexOf('测试钓场') >= 0, '离开时长 / 竿数 / 代表渔获 / 解锁钓场都渲染出来');
+ok(offTxt3.indexOf('上限 ' + Math.round(CFG.idle.maxCatchUp / 3600) + ' 小时') >= 0 &&
+   offTxt3.indexOf('×' + CFG.idle.rareWeightMul.toFixed(2)) >= 0,
+   '底部说明的离线上限与挂机倍率现算自 config（改 config 文案会跟着变）');
+
+/* ---- ④ 钓场选择页的门槛文案必须与 fields.js 一致 ---- */
+const fRoot = mkEl('div');
+let fErr = null;
+try { Panels.VIEWS.fields.render(fRoot); } catch (e) { fErr = e; }
+ok(!fErr, 'VIEWS.fields.render 能跑通', fErr && fErr.message);
+const fTxt = panelText(fRoot).replace(/<[^>]*>/g, '');
+const normField = G.FIELDS.filter(f => f.requires != null && !f.requireFull)[0];
+const normPct = Math.round(normField.collectionPct * 100) + '%';
+const hiddenFields = G.FIELDS.filter(f => f.requireFull);
+const hiddenPct = Math.round(hiddenFields[0].collectionPct * 100) + '%';
+const hiddenRanks = hiddenFields.map(f => f.rank).join(' / ');
+ok(fTxt.indexOf('图鉴收集达 ' + normPct) >= 0,
+   `解锁门槛现算自 f.collectionPct（普通钓场 ${normPct}）`);
+ok(fTxt.indexOf('收满') >= 0 && fTxt.indexOf(hiddenPct) >= 0,
+   `隐藏钓场的门槛现算自 f.collectionPct（${hiddenPct}）`);
+ok(fTxt.indexOf(hiddenRanks) >= 0, `隐藏钓场名单现算自 fields.js（${hiddenRanks}）`);
+ok(fTxt.indexOf(G.FIELDS.length + ' 个钓场') >= 0,
+   `钓场数量现算自 G.FIELDS.length（${G.FIELDS.length} 个）`);
+
+/* =========================================================
    Build —— 单文件打包（tools/build.js）
    ========================================================= */
 const B = require(path.join(ROOT, 'tools/build.js'));

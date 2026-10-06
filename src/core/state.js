@@ -485,6 +485,21 @@ G.State = (function () {
     return { got: got, total: _colorTotal, pct: _colorTotal ? got / _colorTotal : 0 };
   }
 
+  /* 单个钓场的「品种 × 颜色」收集进度（图鉴要按钓场分别展示） */
+  function fieldColorProgress(fid) {
+    var list = G.FISH_BY_FIELD[fid] || [];
+    var total = list.length * CFG.colorMorphs.length;
+    var got = 0;
+    for (var i = 0; i < list.length; i++) {
+      var e = S.book[list[i].id];
+      if (!e || !e.colors) continue;
+      for (var c = 0; c < CFG.colorMorphs.length; c++) {
+        if (e.colors[CFG.colorMorphs[c].key]) got++;
+      }
+    }
+    return { got: got, total: total, pct: total ? got / total : 0 };
+  }
+
   /* ---------------- 各钓场图鉴进度统计 ---------------- */
   function globalProgress() {
     var got = 0;
@@ -511,6 +526,7 @@ G.State = (function () {
     buyBait: buyBait, buyRod: buyRod, buyLine: buyLine, buyDecor: buyDecor,
     selectBait: selectBait, selectRod: selectRod, selectLine: selectLine,
     setIdle: setIdle, globalProgress: globalProgress, colorProgress: colorProgress,
+    fieldColorProgress: fieldColorProgress,
     needCount: needCount,
   };
 })();

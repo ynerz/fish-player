@@ -193,6 +193,27 @@ G.Panels = (function () {
     return v.toExponential(2) + '%';
   }
 
+  /* 图鉴里每个钓场一行的双进度（品种 / 品种×颜色） */
+  var FIELD_RANK_COLOR = { D:'#8b98a5', C:'#5aa9d6', B:'#3f8f5f', A:'#2b6fc4', S:'#3b4a8f', SS:'#5b3fa8', SSS:'#a87a1f' };
+  function fkRow(f) {
+    var p = St.fieldProgress(f.id);
+    var c = St.fieldColorProgress(f.id);
+    var locked = !St.get().unlocked[f.id];
+    var name = (f.hidden && locked) ? '？？？' : f.name;
+    return '<div class="fk-row' + (locked ? ' locked' : '') + '">' +
+      '<span class="fk-rank" style="background:' + (FIELD_RANK_COLOR[f.rank] || '#8b98a5') + '">' + f.rank + '</span>' +
+      '<div class="fk-main">' +
+        '<div class="fk-top">' +
+          '<span class="fk-name">' + name + '</span>' +
+          '<span class="fk-num">品种 <b>' + p.got + '</b>/' + p.total +
+            '　颜色 <b>' + c.got + '</b>/' + c.total + '</span>' +
+        '</div>' +
+        '<div class="fk-bar"><i style="width:' + (p.pct * 100).toFixed(1) + '%;background:#1f8fd6"></i></div>' +
+        '<div class="fk-bar"><i style="width:' + (c.pct * 100).toFixed(1) + '%;background:#8b5cf6"></i></div>' +
+      '</div>' +
+    '</div>';
+  }
+
   /* 图鉴顶部的一条进度条（品种 / 品种×颜色 各一条） */
   function bkBar(label, note, got, total, color) {
     var pct = total ? got / total : 0;
@@ -404,6 +425,17 @@ G.Panels = (function () {
 
       head.appendChild(filters);
       root.appendChild(head);
+
+      /* 各钓场各自的图鉴比例（上面两条是全局总比例） */
+      var fk = U.el('div', 'field-progress');
+      fk.innerHTML = '<div class="fk-title">各钓场进度</div>' +
+        '<div class="fk-grid">' + G.FIELDS.map(fkRow).join('') + '</div>' +
+        '<div class="fk-legend">' +
+          '<span><i style="background:#1f8fd6"></i>品种（解锁条件看这个）</span>' +
+          '<span><i style="background:#8b5cf6"></i>品种 × 颜色</span>' +
+        '</div>';
+      root.appendChild(fk);
+
       root.appendChild(rarRow);
 
       /* ---- 搜索 + 只看未收集 ---- */

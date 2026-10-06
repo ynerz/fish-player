@@ -34,11 +34,19 @@ G.Loot = (function () {
     for (var i = 0; i < CFG.colorMorphs.length; i++) t += colorProb(CFG.colorMorphs[i], rarIdx);
     return t;
   }
-  function rollColor(rarIdx) {
+  function rollColor(rarIdx, env) {
     rarIdx = rarIdx || 0;
-    var total = colorProbTotal(rarIdx), i, r = Math.random() * total;
-    for (i = 0; i < CFG.colorMorphs.length; i++) {
-      r -= colorProb(CFG.colorMorphs[i], rarIdx);
+    var boost = (env && env.colorBoost) ? env.colorBoost : 1;
+    /* 原色不参与加成，其余 4 档整体放大后再归一化 ——
+       这样「越稀有的颜色」在好天气里提升得更明显（因为它起点低）。 */
+    var ws = CFG.colorMorphs.map(function (c, i) {
+      return colorProb(c, rarIdx) * (i === 0 ? 1 : boost);
+    });
+    var total = 0, i;
+    for (i = 0; i < ws.length; i++) total += ws[i];
+    var r = Math.random() * total;
+    for (i = 0; i < ws.length; i++) {
+      r -= ws[i];
       if (r <= 0) return CFG.colorMorphs[i];
     }
     return CFG.colorMorphs[0];
@@ -57,10 +65,37 @@ G.Loot = (function () {
     var boost = 1;
     if (opts.bait && opts.bait.rareMul) boost *= opts.bait.rareMul;
     if (opts.rod && opts.rod.rareMul) boost *= opts.rod.rareMul;
+    /* 天气 / 时段：抬高稀有档整体权重（env 为 null 时等于中性） */
+    if (opts.env && opts.env.rareMul) boost *= opts.env.rareMul;
     var idleMul = opts.idle ? CFG.idle.rareWeightMul : 1;
     for (var i = 1; i < w.length; i++) w[i] *= boost * idleMul;
     if (opts.bait && opts.bait.legendMul) w[3] *= opts.bait.legendMul;
     return w;
+  }
+
+  /* ---------------- 天气 / 时段对鱼种的影响 ----------------
+     鱼种可以带 wx / tm 偏好（见 tools/gen-fish.py）。
+     命中时它在**本档鱼池内**的抽取权重 ×fishWxMul / ×fishTmMul。
+     这是「更容易出」而不是「只有这时才出」，避免图鉴被天气卡住。 */
+  function envWeight(fish, env) {
+    if (!env) return 1;
+    var m = 1;
+    if (env.wx && fish.wx === env.wx) m *= CFG.weather.fishWxMul;
+    if (env.tm && fish.tm === env.tm) m *= CFG.weather.fishTmMul;
+    return m;
+  }
+
+  /* 按（档内权重 × 天气倍率）挑一条鱼 */
+  function pickInBucket(bucket, env) {
+    var total = 0, i;
+    for (i = 0; i < bucket.length; i++) total += (bucket[i].w || 0) * envWeight(bucket[i], env);
+    if (total <= 0) return bucket[0] || null;
+    var r = Math.random() * total;
+    for (i = 0; i < bucket.length; i++) {
+      r -= (bucket[i].w || 0) * envWeight(bucket[i], env);
+      if (r <= 0) return bucket[i];
+    }
+    return bucket[bucket.length - 1];
   }
 
   /* ---------------- 抽一条鱼 ---------------- */
@@ -75,7 +110,7 @@ G.Loot = (function () {
       buckets = G.FISH_BY_FIELD_RARITY[field.id][0];
       rar = 0;
     }
-    return { fish: U.weighted(buckets, 'w'), rar: rar };
+    return { fish: pickInBucket(buckets, opts.env), rar: rar };
   }
 
   /* ---------------- 上鱼耗时（秒） ----------------
@@ -109,12 +144,13 @@ G.Loot = (function () {
   function generate(field, opts) {
     var pick = rollFish(field, opts);
     var kg = rollKg(pick.fish);
-    var color = rollColor(pick.rar);
+    var color = rollColor(pick.rar, opts.env);
     return { fish: pick.fish, rar: pick.rar, kg: kg, color: color, wait: biteTime(pick.rar, opts) };
   }
 
   return {
     rollKg: rollKg, rollColor: rollColor, colorByKey: colorByKey,
+    envWeight: envWeight, pickInBucket: pickInBucket,
     colorProb: colorProb, colorProbTotal: colorProbTotal,
     rarityWeights: rarityWeights, rollFish: rollFish,
     biteTime: biteTime, price: price, generate: generate,

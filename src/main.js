@@ -14,6 +14,11 @@
     G.Audio.setEnabled(s.settings.sound);
     G.Audio.setVolume(s.settings.volume);
 
+    /* ---------- 天气与时段 ---------- */
+    G.Weather.init(Math.random());
+    G.Weather.on(function (sn) { Hud.setWeather(sn); });
+    Hud.setWeather(G.Weather.snapshot());
+
     /* ---------- 场景 ---------- */
     var field = G.FIELD_MAP[s.field] || G.FIELDS[0];
     S.init(U.$('#scene'));
@@ -64,6 +69,13 @@
     }
     G.Platform.input.down(window, arm);
     G.Platform.input.key(arm, true);
+
+    /* ---------- 天气/时段 芯片点一下可以看说明 ---------- */
+    U.on(U.$('#weatherChip'), 'click', function () {
+      var sn = G.Weather.snapshot();
+      Hud.toast({ text: sn.wx.icon + ' ' + sn.wx.name + '：' + sn.wx.tips, kind: '' });
+      Hud.toast({ text: sn.tm.icon + ' ' + sn.tm.name + '：' + sn.tm.tip, kind: '' });
+    });
 
     /* ---------- 画布点击 = 主按钮 ---------- */
     G.Platform.input.down(U.$('#scene'), function () {
@@ -266,7 +278,10 @@
     var paused = P.isCatchOpen();
 
     var focused = document.visibilityState === 'visible' && !blurred;
-    if (focused) St.tick(dt);
+    if (focused) {
+      St.tick(dt);
+      G.Weather.update(dt);
+    }
 
     if (!paused && focused) {
       F.update(dt);

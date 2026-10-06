@@ -31,6 +31,9 @@ G.Hud = (function () {
     el.badgeSub  = U.$('.fb-sub');
     el.idleChip  = U.$('#idleChip');
     el.catchLog  = U.$('#catchLog');
+    el.wxIcon    = U.$('#wxIcon');
+    el.wxText    = U.$('#wxText');
+    el.wxChip    = U.$('#weatherChip');
     el.zoneSafe  = U.$('.tension-track .zone-safe');
     el.dangerMark = U.$('.tension-track .danger-mark');
 
@@ -137,6 +140,19 @@ G.Hud = (function () {
     el.idleChip.classList.toggle('hidden', !s.settings.idle);
   }
 
+  /* ---------------- 天气 / 时段 ---------------- */
+  function setWeather(sn) {
+    if (!sn || !el.wxText) return;
+    el.wxIcon.textContent = sn.wx.icon + sn.tm.icon;
+    el.wxText.textContent = sn.wx.name + ' · ' + sn.tm.name + ' ' + sn.clock;
+    /* 稀有加成明显时给个高亮，让玩家看得出「现在是好时机」 */
+    var good = sn.rareMul >= 1.2;
+    el.wxChip.classList.toggle('good', good);
+    el.wxChip.title = sn.wx.name + '（' + sn.wx.tips + '）／' + sn.tm.name + '（' + sn.tm.tip + '）' +
+      '\n稀有档权重 ×' + sn.rareMul.toFixed(2) + '　稀有颜色 ×' + sn.colorBoost.toFixed(2) +
+      '\n接下来 ' + Math.max(1, Math.round(sn.left / 60)) + ' 分钟左右会变天';
+  }
+
   function setField(f) {
     el.badgeName.textContent = f.name;
     el.badgeSub.textContent = f.rank + ' 级钓场 · ' + f.sub;
@@ -201,7 +217,7 @@ G.Hud = (function () {
   return {
     init: init, syncAll: syncAll, syncCoin: syncCoin, syncStats: syncStats, syncDeck: syncDeck,
     setAction: setAction, showBite: showBite, showFight: showFight, updateFight: updateFight,
-    toast: toast, setField: setField,
+    toast: toast, setField: setField, setWeather: setWeather,
     pushCatch: pushCatch, clearCatchLog: clearCatchLog,
     el: el,
   };

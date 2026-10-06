@@ -29,6 +29,9 @@ G.Scene = (function () {
     stars: [],
     clouds: [],
     decor: {},
+    rain: [],          // 雨丝 [{x, y, len, v, a}]
+    wxKey: null,       // 上一帧的天气 key，用来在变天时重建雨丝
+    fogPhase: 0,
   };
 
   /* ---------------- 初始化 ---------------- */
@@ -54,6 +57,7 @@ G.Scene = (function () {
   }
 
   function buildStatic() {
+    S.wxKey = null;
     S.stars = [];
     var n = field.theme.stars ? 110 : 0;
     for (var i = 0; i < n; i++) {
@@ -200,6 +204,109 @@ G.Scene = (function () {
     return floatHomeX();
   }
 
+  /* =========================================================
+     天气与时段
+     =========================================================
+     只做「叠一层表现」，不改各个钓场自己的主题配色 ——
+     否则 D 场的晴天草原和 SSS 场的极光夜会被冲掉。
+     ========================================================= */
+  function ensureRain() {
+    var n = Math.round(W / 9);
+    S.rain.length = 0;
+    for (var i = 0; i < n; i++) {
+      S.rain.push({
+        x: Math.random() * (W + 80) - 40,
+        y: Math.random() * H,
+        len: 9 + Math.random() * 16,
+        v: 620 + Math.random() * 420,
+        a: 0.18 + Math.random() * 0.32,
+      });
+    }
+  }
+
+  function updateWeatherFx(dt) {
+    if (!G.Weather || !G.Weather.isReady()) return;
+    var sn = G.Weather.snapshot();
+    if (sn.wx.key !== S.wxKey) { S.wxKey = sn.wx.key; ensureRain(); }
+    S.fogPhase = (S.fogPhase || 0) + dt * 0.35;
+    if (sn.wx.key === 'rain') {
+      for (var i = 0; i < S.rain.length; i++) {
+        var r = S.rain[i];
+        r.y += r.v * dt;
+        r.x += r.v * dt * 0.16;      // 斜着下
+        if (r.y > H) { r.y = -20; r.x = Math.random() * (W + 80) - 40; }
+        if (r.x > W + 40) r.x = -40;
+      }
+    }
+  }
+
+  function drawWeatherFx() {
+    if (!G.Weather || !G.Weather.isReady()) return;
+    var sn = G.Weather.snapshot();
+
+    /* --- 时段色调 --- */
+    if (sn.tm.tint) {
+      ctx.save();
+      ctx.fillStyle = sn.tm.tint;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
+    /* --- 天气色调 --- */
+    if (sn.wx.skyTint) {
+      ctx.save();
+      ctx.fillStyle = sn.wx.skyTint;
+      ctx.fillRect(0, 0, W, H);
+      ctx.restore();
+    }
+
+    /* --- 雨丝 --- */
+    if (sn.wx.key === 'rain') {
+      ctx.save();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(200,226,255,1)';
+      for (var i = 0; i < S.rain.length; i++) {
+        var r = S.rain[i];
+        ctx.globalAlpha = r.a;
+        ctx.beginPath();
+        ctx.moveTo(r.x, r.y);
+        ctx.lineTo(r.x - r.len * 0.16, r.y + r.len);
+        ctx.stroke();
+      }
+      ctx.restore();
+      /* 水面被雨点打出的细碎涟漪 */
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,.32)';
+      ctx.lineWidth = 1;
+      var hy = surfaceY();
+      for (var k = 0; k < 14; k++) {
+        var px = ((time * 90 + k * 137) % (W + 60)) - 30;
+        var pr = 2 + ((time * 40 + k * 53) % 12);
+        ctx.globalAlpha = Math.max(0, 1 - pr / 14) * 0.7;
+        ctx.beginPath();
+        ctx.ellipse(px, hy + (k % 5) * 26, pr, pr * 0.3, 0, 0, 6.3);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    /* --- 雾：贴着水面的柔白带 --- */
+    if (sn.wx.key === 'fog') {
+      var hy2 = horizonY();
+      var g2 = grad('fogband', function () {
+        var q = ctx.createLinearGradient(0, hy2 - H * 0.16, 0, hy2 + H * 0.34);
+        q.addColorStop(0, 'rgba(226,236,244,0)');
+        q.addColorStop(0.45, 'rgba(226,236,244,.62)');
+        q.addColorStop(1, 'rgba(226,236,244,0)');
+        return q;
+      });
+      ctx.save();
+      ctx.globalAlpha = 0.75 + Math.sin(S.fogPhase) * 0.12;
+      ctx.fillStyle = g2;
+      ctx.fillRect(0, hy2 - H * 0.16, W, H * 0.5);
+      ctx.restore();
+    }
+  }
+
   /* ---------------- 主渲染 ---------------- */
   function render(dt) {
     if (!ctx) return;
@@ -209,6 +316,7 @@ G.Scene = (function () {
     updateParticles(dt);
     updateClouds(dt);
     updateShadow(dt);
+    updateWeatherFx(dt);
 
     /* 抛竿动画推进 */
     if (S.floatState === 'flying') {
@@ -235,6 +343,7 @@ G.Scene = (function () {
     drawFloat(th);
     drawParticles();
     drawAmbientFront(th);
+    drawWeatherFx();
     drawVignette(th);
   }
 

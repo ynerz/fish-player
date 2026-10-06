@@ -62,6 +62,7 @@ G.Fishing = (function () {
       bait: St.curBait(),
       rod: St.curRod(),
       idle: isIdleMode(),
+      env: G.Weather.isReady() ? G.Weather.env() : null,
     });
 
     s.stats.casts++;
@@ -300,7 +301,9 @@ G.Fishing = (function () {
     var sumCoin = 0, gained = {}, rareGot = 0, newKinds = 0;
     var sample = Math.min(n, 4000);
     for (var i = 0; i < sample; i++) {
-      var g = Loot.generate(field, { bait: null, rod: null, idle: true });
+      /* 离线期间会跨过很多次天气变化，这里用「中性环境」，
+         保证与 tools/balance.js 的节奏表口径一致 */
+      var g = Loot.generate(field, { bait: null, rod: null, idle: true, env: G.Weather.neutral() });
       var isNew = !St.isCaught(g.fish.id);
       var p = Loot.price(g.fish, g.kg, g.color, false);
       sumCoin += p;

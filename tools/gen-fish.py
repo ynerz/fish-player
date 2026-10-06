@@ -24,6 +24,26 @@ OUT = os.path.join(os.path.dirname(__file__), '..', 'src', 'data', 'fish.js')
 # 改完必须重跑：
 #   python tools/gen-fish.py && node tools/solve-drop.js
 #   && node tools/balance.js && node tools/verify.js
+# -------------------------------------------------------------
+# 天气 / 时段偏好
+# -------------------------------------------------------------
+# 规则：稀有度越高，越可能「挑条件」——传说鱼往往只在特定天气或时段活跃。
+# ⚠️ 这只是**权重 ×2.2**，不是硬门禁：晴天白天一样钓得到，
+#    否则图鉴会变成「等天气」，那是设计事故。
+WX_CYCLE = ['rain', 'fog', 'cloudy', 'clear']
+TM_CYCLE = ['night', 'dawn', 'dusk', 'day']
+
+def pref_of(i, rar):
+    wx = None
+    tm = None
+    if rar >= 1 and i % 4 == 0:
+        wx = WX_CYCLE[(i // 4) % len(WX_CYCLE)]
+    if rar >= 2 and i % 3 == 0:
+        tm = TM_CYCLE[(i // 3) % len(TM_CYCLE)]
+    if rar >= 3 and i % 2 == 0:
+        wx = wx or WX_CYCLE[(i // 2) % len(WX_CYCLE)]
+    return wx, tm
+
 FIELD_PRICE_MUL = {
     'D':   1.00,   # 2150 金/时  基准
     'C':   1.40,   # 2150 → 2930（原本 2090 反而低于 D，倒挂）
@@ -547,6 +567,8 @@ def build():
     lines.append("      spiny: !!opts.spiny, barbels: !!opts.barbels,")
     lines.append("      glow: !!opts.glow, teeth: !!opts.teeth,")
     lines.append("      lure: !!opts.lure, stripes: !!opts.stripes, spots: !!opts.spots,")
+    # 天气 / 时段偏好：命中的话在档内权重会 ×2.2（见 config.weather）
+    lines.append("      wx: opts.wx || null, tm: opts.tm || null,")
     lines.append("      field: id.slice(0, id.search(/\\d/)).replace(/[^A-Za-z]/g, ''),")
     lines.append("    });")
     lines.append("  }")
@@ -563,7 +585,15 @@ def build():
         for i, (name, rar, shape, mn, mx, price, opts) in enumerate(rows):
             body, accent = pal[i % len(pal)]
             fidx = "%s%02d" % (fid, i + 1)
-            o = ("w:1, " + opts) if opts else "w:1"
+            wx, tm = pref_of(i, rar)
+            bits = ["w:1"]
+            if opts:
+                bits.append(opts)
+            if wx:
+                bits.append("wx:'%s'" % wx)
+            if tm:
+                bits.append("tm:'%s'" % tm)
+            o = ", ".join(bits)
             lines.append("  F('%s', '%s', %d, '%s', '%s', '%s', %s, %s, %d, { %s });" % (
                 fidx, name, rar, shape, body, accent,
                 ("%.2f" % mn) if mn < 1 else ("%.1f" % mn),

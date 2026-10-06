@@ -424,7 +424,6 @@ G.Goals = (function () {
   function medals() { return Math.max(0, Math.round(St.get().medals || 0)); }
 
   /* 纪念币刚跨过里程碑 → 提示解锁新称号 */
-  var _medalSeen = null;
   function checkMedalTitles(S) {
     var m = S.medals || 0;
     G.MEDAL_TITLES.forEach(function (t) {
@@ -509,10 +508,9 @@ G.Goals = (function () {
     } else if (!Array.isArray(S.achSeen)) {
       S.achSeen = [];
     }
-    var rolled = ensureDay(true);
+    ensureDay(true);
     ensureWeek(true);
     checkMedalTitles(S);
-    void rolled;
     emit('goals');
   }
 

@@ -19,7 +19,7 @@
 window.G = window.G || {};
 
 G.Weather = (function () {
-  var CFG = G.CONFIG;
+  var U = G.U, CFG = G.CONFIG;
   var W = CFG.weather;
 
   var cur = null;        // 当前天气定义
@@ -44,12 +44,11 @@ G.Weather = (function () {
 
   function init(seed) {
     cur = rollWeather(null);
-    left = U2range(W.minDur, W.maxDur);
+    left = U.range(W.minDur, W.maxDur);
     /* 让每次开局的起点不完全一样，但又不会太离谱 */
     tClock = (seed || Math.random()) * W.dayLen;
     tIdx = Math.floor(tClock / (W.dayLen / W.times.length)) % W.times.length;
   }
-  function U2range(a, b) { return a + Math.random() * (b - a); }
 
   function emit() {
     listeners.forEach(function (fn) { fn(snapshot()); });
@@ -61,7 +60,7 @@ G.Weather = (function () {
     left -= dt;
     if (left <= 0) {
       cur = rollWeather(cur.key);
-      left = U2range(W.minDur, W.maxDur);
+      left = U.range(W.minDur, W.maxDur);
       emit();
     }
     tClock = (tClock + dt) % W.dayLen;

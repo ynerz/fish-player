@@ -677,6 +677,19 @@ else {
   });
   if (!tankGradBad && nTankGrad) ok(`水族箱动画的 ${nTankGrad} 个渐变走尺寸缓存（每帧 0 新建）`);
   else if (!nTankGrad) { err('drawTank 里找不到渐变（水体绘制被改掉了？）'); tankGradBad++; }
+
+  /* 空鱼缸必须按需重绘：面板开着时原来每秒把水 + 亮带 + 沙整幅重画 60 次，
+     缸里却一条鱼都没有。早退必须发生在**任何绘制之前**（拿到尺寸之后就判断）。 */
+  const guardAt = dtLines.findIndex(ln => /if \(!tankN && tankPainted/.test(ln));
+  const drawAt = dtLines.findIndex(ln => /getContext\('2d'\)/.test(ln));
+  if (guardAt < 0) {
+    err('panels.js drawTank 里没有「空鱼缸尺寸没变就早退」的判断 —— 面板开着时会一直空转重绘');
+    tankGradBad++;
+  } else if (drawAt >= 0 && guardAt > drawAt) {
+    err('空鱼缸的早退写在了取 ctx 之后 —— 一定要在绘制之前，否则白跑'); tankGradBad++;
+  } else {
+    ok(`空鱼缸按需重绘（第 ${guardAt + 1} 行早退，早于第 ${drawAt + 1} 行取 ctx）`);
+  }
 }
 
 

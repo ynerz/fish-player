@@ -783,11 +783,18 @@ G.Panels = (function () {
        口径与 scene.js 的 `grad()` 缓存工厂一致：渲染路径里不许造渐变对象。
        （verify 第 ⑰ 节会扫这段的源码断言。） */
     var waterGrad = null, waterGradH = -1;
+    /* 空的鱼缸里没有会动的东西 —— 尺寸没变就别重画。
+       原来无条件每帧把水 + 亮带 + 沙全画一遍，面板开着时每秒 60 次纯浪费；
+       但也不能「只画一帧」：窗口缩放时画布该跟着重新铺水，不能一直糊着旧尺寸。
+       所以走「按需重绘」：每帧只做一次尺寸比较，真的变了才画。 */
+    var tankPainted = false, tankW = -1, tankH = -1;
     function drawTank(now) {
       if (!isOpen() || current !== 'net') { tankRAF = 0; return; }
       tankRAF = requestAnimationFrame(drawTank);
       var dpr = G.Platform.sys.dpr();
       var Wp = box.clientWidth || 320, Hp = box.clientHeight || 170;
+      if (!tankN && tankPainted && Wp === tankW && Hp === tankH) return;
+      tankPainted = true; tankW = Wp; tankH = Hp;
       if (box.width !== Wp * dpr || box.height !== Hp * dpr) {
         box.width = Wp * dpr; box.height = Hp * dpr;
       }

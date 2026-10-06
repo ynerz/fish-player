@@ -42,7 +42,7 @@ G.Scene = (function () {
   function resize() {
     if (!cv) return;
     var r = cv.parentElement.getBoundingClientRect();
-    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    dpr = G.Platform.sys.dpr();
     W = Math.max(320, r.width);
     H = Math.max(240, r.height);
     cv.width = Math.round(W * dpr);

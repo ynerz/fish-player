@@ -57,12 +57,12 @@ G.State = (function () {
 
   /* ---------------- 存读档 ---------------- */
   function load() {
-    var raw = null;
-    try { raw = localStorage.getItem(CFG.saveKey); } catch (e) {}
+    var PS = G.Platform.storage;
+    var raw = PS.get(CFG.saveKey);
     var data = null;
     if (raw) { try { data = JSON.parse(raw); } catch (e) { data = null; } }
     if (!data) {
-      try { var bak = localStorage.getItem(CFG.saveKeyBak); if (bak) data = JSON.parse(bak); } catch (e) {}
+      try { var bak = PS.get(CFG.saveKeyBak); if (bak) data = JSON.parse(bak); } catch (e) {}
     }
     S = data && typeof data === 'object' ? migrate(data) : blank();
     return S;
@@ -139,10 +139,9 @@ G.State = (function () {
     if (!S) return;
     S.lastSeen = Date.now();
     var txt = JSON.stringify(S);
-    try {
-      localStorage.setItem(CFG.saveKey, txt);
-      if (now !== false) localStorage.setItem(CFG.saveKeyBak, txt);
-    } catch (e) {}
+    var PS = G.Platform.storage;
+    PS.set(CFG.saveKey, txt);
+    if (now !== false) PS.set(CFG.saveKeyBak, txt);
   }
 
   function scheduleSave() {

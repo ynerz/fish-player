@@ -62,11 +62,11 @@
         G.Audio.startAmbience();
       }
     }
-    U.on(window, 'pointerdown', arm, { once: false });
-    U.on(window, 'keydown', arm, { once: false });
+    G.Platform.input.down(window, arm);
+    G.Platform.input.key(arm, true);
 
     /* ---------- 画布点击 = 主按钮 ---------- */
-    U.on(U.$('#scene'), 'pointerdown', function (e) {
+    G.Platform.input.down(U.$('#scene'), function () {
       var st = F.getState();
       if (st === 'idle' || st === 'bite' || st === 'waiting') handlePress();
     });

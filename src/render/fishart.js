@@ -828,7 +828,7 @@ G.FishArt = (function () {
   /* 画在指定 canvas 上（自适应尺寸，用于图鉴 / 结算卡） */
   function paintTo(canvas, fish, opt) {
     opt = opt || {};
-    var dpr = window.devicePixelRatio || 1;
+    var dpr = G.Platform.sys.dpr();
     var w = canvas.clientWidth || canvas.width;
     var h = canvas.clientHeight || canvas.height;
     canvas.width = Math.max(1, Math.round(w * dpr));

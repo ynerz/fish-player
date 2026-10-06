@@ -232,7 +232,7 @@ G.Panels = (function () {
   function paintBookItem(cv, f, e) {
     cv.setAttribute('data-drawn', '1');   // 供自测脚本确认懒绘制是否触发
     var ctx = cv.getContext('2d');
-    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var dpr = G.Platform.sys.dpr();
     cv.width = 260 * dpr; cv.height = 112 * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (e) {
@@ -282,7 +282,7 @@ G.Panels = (function () {
     /* ---- 鱼卡 ---- */
     var card = U.el('div', 'fd-card');
 
-    var cv = document.createElement('canvas');
+    var cv = G.Platform.canvas.create();
     cv.className = 'fd-canvas';
     cv.width = 380; cv.height = 190;
     card.appendChild(cv);
@@ -296,7 +296,7 @@ G.Panels = (function () {
     });
 
     (function () {
-      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      var dpr = G.Platform.sys.dpr();
       cv.width = 380 * dpr; cv.height = 190 * dpr;
       cv.style.width = '380px'; cv.style.height = '190px';
       var ctx = cv.getContext('2d');
@@ -508,7 +508,7 @@ G.Panels = (function () {
             refresh();
           });
 
-          var cv = document.createElement('canvas');
+          var cv = G.Platform.canvas.create();
           cv.width = 260; cv.height = 112;
           cv.className = 'bi-canvas';
           item.appendChild(cv);
@@ -584,7 +584,7 @@ G.Panels = (function () {
     if (!fish) return;
     var cm = G.Loot.colorByKey(entry.c);
     var ctx = cv.getContext('2d');
-    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var dpr = G.Platform.sys.dpr();
     var w = 96, h = 52;
     cv.width = w * dpr; cv.height = h * dpr;
     cv.style.width = w + 'px'; cv.style.height = h + 'px';
@@ -651,7 +651,7 @@ G.Panels = (function () {
         var cm = G.Loot.colorByKey(entry.c);
         var row = U.el('div', 'net-row');
 
-        var cv = document.createElement('canvas');
+        var cv = G.Platform.canvas.create();
         row.appendChild(cv);
 
         var info = U.el('div', 'net-info');
@@ -729,7 +729,7 @@ G.Panels = (function () {
     root.appendChild(tacts);
 
     var wrap = U.el('div', 'tank-wrap');
-    var box = document.createElement('canvas');
+    var box = G.Platform.canvas.create();
     box.className = 'tank-canvas';
     wrap.appendChild(box);
     if (!tankN) {
@@ -747,7 +747,7 @@ G.Panels = (function () {
     function drawTank(now) {
       if (!isOpen() || current !== 'net') { tankRAF = 0; return; }
       tankRAF = requestAnimationFrame(drawTank);
-      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      var dpr = G.Platform.sys.dpr();
       var Wp = box.clientWidth || 320, Hp = box.clientHeight || 170;
       if (box.width !== Wp * dpr || box.height !== Hp * dpr) {
         box.width = Wp * dpr; box.height = Hp * dpr;
@@ -798,7 +798,7 @@ G.Panels = (function () {
         if (!fish) return;
         var cm = G.Loot.colorByKey(entry.c);
         var row = U.el('div', 'net-row');
-        var cv2 = document.createElement('canvas');
+        var cv2 = G.Platform.canvas.create();
         row.appendChild(cv2);
         var info2 = U.el('div', 'net-info');
         info2.innerHTML =
@@ -1103,7 +1103,9 @@ G.Panels = (function () {
       var tip = U.el('div', 'hint-text');
       tip.style.marginTop = '16px';
       tip.innerHTML =
-        '当前版本 <b>v' + CFG.version + '</b> ｜ 存档保存在浏览器 localStorage，清缓存会丢档。<br>' +
+        '当前版本 <b>v' + CFG.version + '</b> ｜ 存档保存在 ' +
+        (G.Platform.storage.kind() === 'localStorage' ? '浏览器 localStorage' : '<b>内存</b>（浏览器禁用了本地存储，关掉页面就会丢档，请尽快导出备份）') +
+        '。<br>' +
         '快捷键：<kbd>空格</kbd> 抛竿 / 提竿 / 收线。';
       root.appendChild(tip);
 
@@ -1286,7 +1288,7 @@ G.Panels = (function () {
 
     // 绘制
     var cv = catchCanvas;
-    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var dpr = G.Platform.sys.dpr();
     cv.width = 360 * dpr; cv.height = 200 * dpr;
     var ctx = cv.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

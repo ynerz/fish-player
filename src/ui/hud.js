@@ -60,31 +60,36 @@ G.Hud = (function () {
       if (handlers.onIdleToggle) handlers.onIdleToggle(el.chkIdle.checked);
     });
 
-    /* 主按钮：按下 = 抛竿/提竿/收线，抬起 = 放线 */
-    U.on(el.btn, 'pointerdown', function (e) {
-      e.preventDefault();
+    /* 主按钮：按下 = 抛竿/提竿/收线，抬起 = 放线
+       统一走 G.Platform.input，小程序端换成 touchstart/touchend 即可 */
+    var PI = G.Platform.input;
+    PI.down(el.btn, function (e) {
+      if (e && e.preventDefault) e.preventDefault();
       if (handlers.onPress) handlers.onPress();
     });
-    U.on(window, 'pointerup', function () {
+    PI.up(function () {
       if (handlers.onRelease) handlers.onRelease();
     });
-    U.on(el.btn, 'pointerleave', function () {
+    PI.cancel(el.btn, function () {
+      if (handlers.onRelease) handlers.onRelease();
+    });
+    PI.leave(el.btn, function () {
       if (handlers.onRelease) handlers.onRelease();
     });
 
-    /* 键盘：空格 */
-    U.on(window, 'keydown', function (e) {
+    /* 键盘：空格（小程序端没有键盘，这段在 weapp 版里删掉即可） */
+    PI.key(function (e) {
       if (e.code === 'Space' || e.key === ' ') {
         e.preventDefault();
         if (e.repeat) return;
         if (handlers.onPress) handlers.onPress();
       }
-    });
-    U.on(window, 'keyup', function (e) {
+    }, true);
+    PI.key(function (e) {
       if (e.code === 'Space' || e.key === ' ') {
         if (handlers.onRelease) handlers.onRelease();
       }
-    });
+    }, false);
 
     syncAll();
   }

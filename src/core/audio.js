@@ -15,9 +15,8 @@ G.Audio = (function () {
   function ensure() {
     if (ctx) return true;
     try {
-      var AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) return false;
-      ctx = new AC();
+      ctx = G.Platform.audio.createContext();
+      if (!ctx) return false;
       master = ctx.createGain();
       master.gain.value = vol;
       master.connect(ctx.destination);

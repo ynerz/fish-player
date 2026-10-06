@@ -598,13 +598,19 @@ G.State = (function () {
     S.stats.days = Math.floor(S.playTime / 86400);
   }
 
-  /* ---------------- 鱼饵消耗 ---------------- */
+  /* ---------------- 鱼饵消耗 ----------------
+     **返回这一竿实际生效的鱼饵对象**（不是布尔值）。
+     ⚠️ 调用方必须用它、而不是回头再读 `curBait()`：
+        以前 fishing.js 是「先 consumeBait() 再 curBait()」，
+        而消耗掉最后一枚的瞬间 baitSel 已经被切回蚯蚓 →
+        **那一枚鱼饵白花了**（付了它的价、没吃到它的 speed / rareMul 加成），
+        而且不报任何错。 */
   function consumeBait() {
     var b = curBait();
-    if (b.free) return true;
+    if (b.free) return b;
     if (baitCount(b.id) <= 0) {
       // 自动回退到免费饵
-      S.baitSel = 'worm'; emit('bait'); return true;
+      S.baitSel = 'worm'; emit('bait'); return bait('worm');
     }
     S.baits[b.id]--;
     if (S.baits[b.id] <= 0) {
@@ -615,7 +621,7 @@ G.State = (function () {
     }
     scheduleSave();
     emit('bait');
-    return true;
+    return b;
   }
 
   /* ---------------- 购买 ---------------- */

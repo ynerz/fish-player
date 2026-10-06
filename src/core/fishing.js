@@ -57,11 +57,14 @@ G.Fishing = (function () {
   function cast() {
     if (!canCast()) return false;
     var s = St.get();
-    St.consumeBait();
+    /* ⚠️ 先消耗、并**用它的返回值**决定这一竿的鱼饵。
+       不要再写「consumeBait() 之后读 curBait()」——
+       用掉最后一枚时 baitSel 已经切回蚯蚓，那一枚鱼饵会白花（见 state.js 的注释）。 */
+    var usedBait = St.consumeBait();
 
     // 决定这一竿的渔获
     pending = Loot.generate(field, {
-      bait: St.curBait(),
+      bait: usedBait,
       rod: St.curRod(),
       idle: isIdleMode(),
       env: G.Weather.isReady() ? G.Weather.env() : null,

@@ -222,6 +222,61 @@ ok(!!sm.baits.worm, '缺失的鱼饵库存被补全');
 ok(Array.isArray(sm.stats.byRar) && sm.stats.byRar.length === 4, '缺失的分维计数（byRar）被补全');
 
 /* =========================================================
+   5a. 鱼饵消耗的返回值（最后一枚不能白花）
+   ========================================================= */
+G_('State · 鱼饵消耗返回「实际生效的饵」');
+St.reset();
+const freeB = St.bait('worm');
+ok(St.consumeBait() === freeB, '蚯蚓是免费饵，消耗后仍返回它自己');
+ok(St.get().baits.worm === -1, '免费饵的库存不会被扣（-1 = 无限）');
+
+const paid = G.BAITS.find(b => !b.free);
+St.get().baits[paid.id] = 3;
+St.selectBait(paid.id);
+ok(St.curBait().id === paid.id, `已选中付费饵「${paid.name}」`);
+const usedB = St.consumeBait();
+ok(usedB && usedB.id === paid.id, '库存还有时，返回的就是选中的付费饵');
+ok(St.get().baits[paid.id] === 2, '库存正常 -1');
+
+/* 🔴 关键回归：用掉**最后一枚**时，baitSel 会被切回蚯蚓，
+   但本竿生效的必须还是那枚付费饵 —— 否则「付了它的价、没吃到它的加成」。 */
+St.get().baits[paid.id] = 1;
+St.selectBait(paid.id);
+const lastB = St.consumeBait();
+ok(lastB && lastB.id === paid.id, '🔴 用掉最后一枚时，返回的仍是那枚付费饵（而不是已切回的蚯蚓）');
+ok(lastB.rareMul === paid.rareMul && lastB.speed === paid.speed, '它的 speed / rareMul 加成确实作用于本竿');
+ok(St.get().baits[paid.id] === 0, '最后一枚被扣到 0');
+ok(St.get().baitSel === 'worm' && St.curBait().id === 'worm', '同时自动切回蚯蚓（下一竿用免费饵）');
+
+/* 选了一个库存为 0 的付费饵 → 回退到蚯蚓，且返回的是蚯蚓（不能返回一个用不了的饵） */
+St.get().baits[paid.id] = 0;
+const fallback = St.consumeBait();
+ok(fallback && fallback.id === 'worm' && St.curBait().id === 'worm', '库存为 0 时消耗返回蚯蚓（回退生效）');
+
+/* 抛竿链路：fishing.js 必须用 consumeBait() 的返回值决定渔获
+   （用桩函数把传给 Loot.generate 的 opts 截下来看，不改生产代码） */
+St.reset();
+St.get().baits[paid.id] = 1;
+St.selectBait(paid.id);
+G.Fishing.init({});
+/* fishing.js 会调 G.Scene 做表现；Node 里没有渲染层，给个空壳顶上 */
+const origScene = G.Scene;
+G.Scene = {
+  cast() {}, beginWait() {}, bite() {}, endFight() {}, beginFight() {},
+  floatNudge() {}, setRodBend() {}, splash() {}, sparkle() {},
+};
+const origGen = L.generate;
+let seenOpts = null;
+L.generate = function (f, opts) { seenOpts = opts; return origGen(f, opts); };
+G.Fishing.cast();
+L.generate = origGen;
+G.Fishing.hardReset();
+G.Scene = origScene;
+ok(seenOpts && seenOpts.bait && seenOpts.bait.id === paid.id,
+   '🔴 抛竿用掉最后一枚付费饵时，本竿渔获仍是按这枚饵算的',
+   `传给 Loot.generate 的 bait = ${seenOpts && seenOpts.bait && seenOpts.bait.id}`);
+
+/* =========================================================
    5b. 鱼护 / 水族箱
    ========================================================= */
 G_('State · 鱼护与水族箱');

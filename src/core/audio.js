@@ -9,6 +9,7 @@ G.Audio = (function () {
   var master = null;
   var ambGain = null;
   var ambSrc = null;
+  var ambLfo = null;   // 环境音的缓慢起伏 LFO（停止时要一起收，见 stopAmbience）
   var enabled = true;
   var vol = 0.55;
 
@@ -171,10 +172,17 @@ G.Audio = (function () {
       lfo.frequency.value = 0.09; lfoG.gain.value = 0.055;
       lfo.connect(lfoG); lfoG.connect(ambGain.gain);
       lfo.start();
+      ambLfo = lfo;
     },
+    /* ⚠️ 三样都要收：buffer 源、LFO、以及挂在 master 上的那个 gain 节点。
+       原来只 `ambSrc.stop()` —— LFO 是另一个独立振荡器，不 stop 就会**一直跑下去**
+       （它连在 ambGain.gain 上，而 ambGain 自己也还挂在 master 上），
+       表现是：在设置里反复开关环境音，后台悄悄多出几套一直在跑的振荡器。 */
     stopAmbience: function () {
       try { if (ambSrc) ambSrc.stop(); } catch (e) {}
-      ambSrc = null; ambGain = null;
+      try { if (ambLfo) ambLfo.stop(); } catch (e) {}
+      try { if (ambGain) ambGain.disconnect(); } catch (e) {}
+      ambSrc = null; ambGain = null; ambLfo = null;
     },
   };
 

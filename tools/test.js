@@ -1710,6 +1710,58 @@ ok(dr1.converged && dr1.changed === 0 && dr1.residual === 0,
 ok(dr1.changed === dr2.changed && dr1.rounds === dr2.rounds && dr1.drift === dr2.drift,
    '连跑两次干跑结果逐位一致（随机源已固定，工作区不会再莫名变脏）');
 
+/* =========================================================
+   Audio —— 环境音反复开关，不许留下还在跑的节点
+   audio.js 在这里才真加载（前面用的是空壳 stub）；Node 里没有 AudioContext，
+   所以先用一个「只记录谁 start / 谁 stop」的最小 ctx 桩替掉 createContext。
+   ========================================================= */
+G_('Audio · 环境音的开启 / 停止');
+(function () {
+  const made = { osc: [], src: [], gain: [] };
+  const mkNode = () => ({ _dis: false, connect() {}, disconnect() { this._dis = true; } });
+  const fakeCtx = {
+    sampleRate: 48000, currentTime: 0, state: 'running',
+    destination: mkNode(),
+    resume() {},
+    createGain() { const g = mkNode(); g.gain = { value: 0 }; made.gain.push(g); return g; },
+    createBuffer(ch, len) { return { getChannelData: () => new Float32Array(len) }; },
+    createBufferSource() {
+      const s = mkNode();
+      s.start = () => { s._started = true; }; s.stop = () => { s._stopped = true; };
+      made.src.push(s); return s;
+    },
+    createBiquadFilter() { const f = mkNode(); f.frequency = { value: 0 }; f.Q = { value: 0 }; return f; },
+    createOscillator() {
+      const o = mkNode();
+      o.frequency = { value: 0 }; o.start = () => { o._started = true; }; o.stop = () => { o._stopped = true; };
+      made.osc.push(o); return o;
+    },
+  };
+  const realCreate = G.Platform.audio.createContext;
+  G.Platform.audio.createContext = () => fakeCtx;
+  new Function(fs.readFileSync(path.join(ROOT, 'src/core/audio.js'), 'utf8')).call(global);
+  const A = G.Audio;
+
+  A.setEnabled(true);
+  A.startAmbience();
+  A.startAmbience();   // 重复开只该有一套
+  ok(made.src.length === 1 && made.osc.length === 1, '重复 startAmbience 不会叠出第二套环境音节点');
+  ok(made.src[0]._started === true && made.osc[0]._started === true, '环境音的 buffer 源与起伏 LFO 都起来了');
+
+  A.stopAmbience();
+  ok(made.src[0]._stopped === true && made.osc[0]._stopped === true,
+     'stopAmbience 连 LFO 一起停（只停 buffer 源会留下一个永远在跑的振荡器）');
+  ok(made.gain.some(g => g._dis), 'stopAmbience 断开了环境音的 gain 节点（否则它一直挂在 master 上）');
+
+  A.startAmbience();
+  ok(made.src.length === 2 && made.src[1]._started === true,
+     '停掉之后还能重新开启（设置里「环境音」关 → 开走的就是这条路）');
+  A.stopAmbience();
+
+  G.Platform.audio.createContext = realCreate;
+  G.Audio = audioStub;   // 还原成空壳：后面还有 resolve() 的定时器会调它
+})();
+
 /* ---------- 汇总 ---------- */
 console.log('\n' + '='.repeat(52));
 if (fail) { console.log(`\u2716 测试未通过：${pass} 通过 / ${fail} 失败\n`); process.exit(1); }

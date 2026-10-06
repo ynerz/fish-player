@@ -656,6 +656,29 @@ if (!/function lanternGlow\s*\(/.test(sceneSrc)) {
 }
 if (!gradBad) ok('渐变缓存是「按 resize / setField 失效」的唯一入口');
 
+/* 同一条红线也适用于 panels.js 的**每帧**绘制：水族箱动画（drawTank）原来每帧
+   建一个水体线性渐变。一次性绘制（图鉴详情页的鱼卡背景）不在约束内。 */
+console.log('  · panels.js 的每帧绘制同样不许新建渐变');
+let tankGradBad = 0;
+const panelsSrcG = fs.readFileSync(path.join(ROOT, 'src/ui/panels.js'), 'utf8');
+const drawTankBody = (panelsSrcG.match(/function drawTank\s*\([\s\S]*?\n    \}/) || [''])[0];
+if (!drawTankBody) { err('panels.js 里找不到 drawTank()（水族箱动画）'); tankGradBad++; }
+else {
+  const dtLines = drawTankBody.split('\n');
+  let nTankGrad = 0;
+  dtLines.forEach((ln, i) => {
+    if (!/create(?:Linear|Radial)Gradient\s*\(/.test(ln)) return;
+    nTankGrad++;
+    const before = dtLines.slice(Math.max(0, i - 4), i).join('\n');
+    if (!/waterGradH/.test(before)) {
+      err(`panels.js drawTank 里直接建了渐变，前面 4 行没有缓存判断 —— 面板开着时每帧都会造一个新对象`);
+      tankGradBad++;
+    }
+  });
+  if (!tankGradBad && nTankGrad) ok(`水族箱动画的 ${nTankGrad} 个渐变走尺寸缓存（每帧 0 新建）`);
+  else if (!nTankGrad) { err('drawTank 里找不到渐变（水体绘制被改掉了？）'); tankGradBad++; }
+}
+
 
 /* ---------------- 18. 面板关闭回调必须常驻 ----------------
    一个「不报错但玩家能看出来」的坑：onCloseCb 被 close() 自己置空。

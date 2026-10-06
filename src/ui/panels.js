@@ -779,6 +779,10 @@ G.Panels = (function () {
       return { e: e, ph: Math.random() * 6.28, sp: 0.35 + Math.random() * 0.5, y: 0.25 + Math.random() * 0.5 };
     });
     var t0 = performance.now();
+    /* 水体的渐变只跟画布高度有关 —— 按尺寸缓存，别每帧新建。
+       口径与 scene.js 的 `grad()` 缓存工厂一致：渲染路径里不许造渐变对象。
+       （verify 第 ⑰ 节会扫这段的源码断言。） */
+    var waterGrad = null, waterGradH = -1;
     function drawTank(now) {
       if (!isOpen() || current !== 'net') { tankRAF = 0; return; }
       tankRAF = requestAnimationFrame(drawTank);
@@ -792,9 +796,12 @@ G.Panels = (function () {
       var tt = (now - t0) / 1000;
 
       /* 水与沙 */
-      var g = ctx.createLinearGradient(0, 0, 0, Hp);
-      g.addColorStop(0, '#dff1fb'); g.addColorStop(1, '#8fc7e6');
-      ctx.fillStyle = g; ctx.fillRect(0, 0, Wp, Hp);
+      if (waterGradH !== Hp) {
+        waterGrad = ctx.createLinearGradient(0, 0, 0, Hp);
+        waterGrad.addColorStop(0, '#dff1fb'); waterGrad.addColorStop(1, '#8fc7e6');
+        waterGradH = Hp;
+      }
+      ctx.fillStyle = waterGrad; ctx.fillRect(0, 0, Wp, Hp);
       ctx.fillStyle = 'rgba(255,244,200,.45)';
       ctx.beginPath();
       for (var x = 0; x <= Wp; x += 8) {

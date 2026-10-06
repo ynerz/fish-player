@@ -62,6 +62,8 @@ G.Panels = (function () {
       bookFilter.q = '';
       bookFilter.onlyNew = false;
     }
+    /* 反正要整块重画了，排队等的那次 refresh 就没必要了 */
+    if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = 0; }
     renderCurrent(arg);
     modal.classList.remove('hidden');
     G.Audio.click();
@@ -79,8 +81,17 @@ G.Panels = (function () {
     if (onCloseCb) onCloseCb();
   }
 
+  /* ⚠️ 一次交互里 refresh() 常被喊好几遍 —— 点击回调自己喊一次，
+     St 的 'net' 事件又让 main.js 喊一次（放生更狠：releaseNetAt 连发 'net' 和 'eco'，
+     main.js 两个都订阅了）→ 同一个动作把整面板 DOM 重建 2~3 遍，纯浪费。
+     这里合并成「一个 tick 最多重绘一次」：先排队，等当前调用栈跑完再画。 */
+  var refreshTimer = 0;
   function refresh() {
-    if (isOpen()) renderCurrent();
+    if (!isOpen() || refreshTimer) return;
+    refreshTimer = setTimeout(function () {
+      refreshTimer = 0;
+      if (isOpen()) renderCurrent();
+    }, 0);
   }
 
   function setOnClose(fn) { onCloseCb = fn; }

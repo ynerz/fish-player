@@ -738,6 +738,34 @@ if (!/G\.Panels\.isOpen\(\)\s*&&\s*G\.Panels\.current\(\)\s*===\s*p/.test(hudSrc
 }
 if (!layerBad) ok('弹层从顶栏下方开始；点标签页可直接切换/收起面板');
 
+/* ---- [21] 一个 tick 里最多重绘一次面板 ----
+   一次点击里 refresh() 会被喊 2~3 遍（点击回调一次 + St 的 'net'/'eco' 事件各一次），
+   整面板 DOM 就被重建 2~3 遍。refresh() 必须改成「排队到本 tick 末尾」再画。 */
+console.log('\n[21] refresh() 一个 tick 最多重绘一次（不许被事件连击打出重复渲染）');
+let coalesceBad = 0;
+const refreshBody = (panelsSrc.match(/function refresh\s*\(\)\s*\{[\s\S]*?\n  \}/) || [''])[0];
+if (!refreshBody) { err('panels.js 里找不到 refresh()'); coalesceBad++; }
+else {
+  const queueAt = refreshBody.indexOf('setTimeout');
+  const drawAt = refreshBody.indexOf('renderCurrent');
+  if (queueAt < 0) {
+    err('panels.js 的 refresh() 是同步重绘 —— 一次点击里被喊几遍就重建几遍 DOM'); coalesceBad++;
+  } else if (drawAt >= 0 && drawAt < queueAt) {
+    err('panels.js 的 refresh() 既同步画又排队 —— 同步那次就是白画的，等于没合并'); coalesceBad++;
+  }
+  if (!/if \(!isOpen\(\) \|\| refreshTimer\) return;/.test(refreshBody)) {
+    err('refresh() 没有「已排队就跳过」的闸门 —— 连击仍然会排出多次重绘'); coalesceBad++;
+  }
+}
+/* open() 必须是同步重绘的：面板刚打开不能先白一帧 */
+const openBody = (panelsSrc.match(/function open\s*\(name, arg\)\s*\{[\s\S]*?\n  \}/) || [''])[0];
+if (!openBody || openBody.indexOf('renderCurrent(arg)') < 0) {
+  err('panels.js 的 open() 不再同步渲染了 —— 打开面板会先空一帧'); coalesceBad++;
+} else if (openBody.indexOf('clearTimeout(refreshTimer)') < 0) {
+  err('open() 没有取消排队中的 refresh —— 打开后会紧接着被重绘一遍'); coalesceBad++;
+}
+if (!coalesceBad) ok('refresh() 排队合并到本 tick 末尾；open() 仍同步渲染并取消排队');
+
 
 /* ---------------- 20. 渔获归因必须用「抛竿时」的值 ----------------
    resolve() 记 `stats.byBait / byWx / byTm` 时一度读的是**现值**

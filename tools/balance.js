@@ -12,6 +12,13 @@ const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 
+/* ---------- 固定随机种子 ----------
+   本工具是全项目「每小时收益 / 收集耗时」这些数字的唯一来源，文档也照抄它的输出。
+   用 Math.random 的话每次跑出来的数都略有不同，文档里的表就永远对不上。
+   换成定种子 LCG（Lehmer），保证同一份数据每次得到完全一样的结论。 */
+let _seed = 20260101;
+Math.random = function () { _seed = (_seed * 48271) % 2147483647; return _seed / 2147483647; };
+
 /* 模拟浏览器环境：window 即全局，window.G 同时也裸写成 G */
 global.window = global;
 const G_HOLDER = { G: {} };

@@ -151,6 +151,11 @@
       <a href="#s7">⑦ 装备与经济</a>
       <a href="#s8">⑧ 挂机</a>
       <a href="#s9">⑨ 付费设计</a>
+      <a href="#s11">⑪ 天气与时段</a>
+      <a href="#s12">⑫ 每日任务 · 成就 · 称号</a>
+      <a href="#s13">⑬ 放生 · 生态值 · 限定装饰</a>
+      <a href="#s14">⑭ 水族箱被动收益</a>
+      <a href="#s15">⑮ 新手引导</a>
       <a href="#s10">⑩ 常见问题</a>
     </div>
   </div>
@@ -270,8 +275,10 @@
     <table id="paceTable"></table>
     <div class="note">
       <b>关于「平均 20 秒一条」：</b>原始设定里同时写了「平均 20s 中一条」和「稀有鱼 40s~10 分钟」，
-      这两件事数学上无法同时成立。本作的取舍是：<b>普通鱼单竿约 28 秒（D 钓场），
-      随钓场等级递增到 SSS 的约 49 秒</b>。既保住了「普通鱼很快就来」的手感，又给稀有鱼留足了仪式感。
+      这两件事数学上无法同时成立。本作的取舍是：<b>普通鱼单竿约 48 秒（D 钓场），
+      随钓场等级递增到 SSS 的约 118 秒</b>（后期钓场的普通鱼咬口会变慢，最多 3.5 倍 ——
+      这是「让后期自然变慢」的唯一手段，见下表 biteMul）。既保住了普通鱼很快上钩的手感，
+      又给稀有鱼留足了仪式感。
     </div>
   </div>
 
@@ -280,11 +287,12 @@
   <div class="card">
     <p>鱼咬钩之后进入拉扯。两条进度条：上面是<b>收线进度</b>，下面是<b>张力</b>。</p>
     <ul>
-      <li><b>按住</b>（鼠标左键 / 空格）→ 进度上涨，张力上涨</li>
+      <li><b>按住</b>（鼠标左键 / 空格 / 按住画面任意位置）→ 进度上涨，张力上涨</li>
       <li><b>松开</b> → 进度缓慢回落，张力下降</li>
       <li>鱼会不定时<b>逃窜</b>，逃窜期间张力急剧上升。逃窜前 0.55 秒 UI 会提示「要逃窜了」—— <b>看到就松手</b></li>
       <li>张力触顶 0.45 秒 → 断线；张力贴地 1.6 秒 → 脱钩</li>
       <li>进度过 20% 后鱼开始力竭，最多减 22% 挣扎强度，所以后期会越来越顺</li>
+      <li><b>断线要花钱修线</b>：修理费 = 鱼线价 × 2%（保底 20 金），所以认真躲逃窜是划算的</li>
     </ul>
     <h3>实测胜率（各 6 万次对局）</h3>
     <table id="winTable"></table>
@@ -366,12 +374,81 @@
     </div>
   </div>
 
+  <!-- ================= 11 ================= -->
+  <h2 id="s11">⑪ 天气与时段</h2>
+  <div class="card">
+    <p>什么时候钓是有讲究的 —— 但<b>没有硬门槛</b>（不会出现「只有下雨才能钓到某条鱼」这种卡图鉴的设计）。</p>
+    <table id="wxTable"></table>
+    <table id="tmTable"></table>
+    <div class="note">
+      天气每 3~8 分钟变一次；<b>游戏内一天只有 20 分钟</b>，所以上线一会儿就能轮到一次夜钓。<br>
+      另外每个鱼种还有自己的<b>天气偏好 / 时段偏好</b>，命中时它在同档鱼里的出现权重要 <b>×2.2</b> ——
+      只是「更容易出」，不是唯一解。<br>
+      顶栏的天气芯片点一下会解释当前加成；加成明显时芯片会变绿。
+      <b>雨天夜钓</b>是全场最好的时机（稀有档权重 ×1.24 ×1.28）。
+    </div>
+  </div>
+
+  <!-- ================= 12 ================= -->
+  <h2 id="s12">⑫ 每日任务 · 成就 · 称号</h2>
+  <div class="card">
+    <ul>
+      <li><b>每日任务 3 条</b>：每天固定一套（按本地日期生成，不联网），
+          完成一条得 <b>1 枚纪念币</b>。像是「钓 25 条鱼」「用某鱼饵钓 5 条」「下雨天钓 8 条」。</li>
+      <li><b>成就 31 个</b>：分图鉴类、纪录类、操作类。达到条件会自动弹提示。</li>
+      <li><b>称号 17 个</b>：来自成就与纪念币里程碑，可以在「目标」面板佩戴，显示在顶栏。</li>
+    </ul>
+    <div class="note">
+      <b>奖励只有称号和纪念币。</b>纪念币<b>没有任何花钱的地方</b> —— 它换不到金币、鱼饵、装备或掉率，
+      只是「坚持登录」的纪念章（唯一例外：2 件限定装饰要用纪念币换）。
+    </div>
+  </div>
+
+  <!-- ================= 13 ================= -->
+  <h2 id="s13">⑬ 放生 · 生态值 · 限定装饰</h2>
+  <div class="card">
+    <p>把鱼<b>放生</b>（在鱼护 / 水族箱里点放生）会得到<b>生态值</b>，
+       数量 = 稀有度基础值 × 体重系数 × 颜色系数：</p>
+    <table class="mini">
+      <tr><th>稀有度</th><th class="num">普通</th><th class="num">稀有</th><th class="num">史诗</th><th class="num">传说</th></tr>
+      <tr><td>基础生态值</td><td class="num">1</td><td class="num">5</td><td class="num">20</td><td class="num">70</td></tr>
+    </table>
+    <p>体重越大、颜色越稀有价值越高（体重系数 0.6~2.0 倍，颜色系数 0.8~2.0 倍）。</p>
+    <div class="note">
+      生态值<b>只能换限定装饰</b>（芦苇丛 30 / 睡莲 120 / 白鹭 400 / 珊瑚礁 1000），
+      买不到金币、鱼饵、鱼竿，也不会影响掉率。<br>
+      14 件装饰里，金币 8 件（600 ~ 260 万）+ 限定 6 件（生态值 4 + 纪念币 2）。
+    </div>
+  </div>
+
+  <!-- ================= 14 ================= -->
+  <h2 id="s14">⑭ 水族箱被动收益</h2>
+  <div class="card">
+    <p>放进水族箱的鱼会持续产金币（「活鱼租金」）：</p>
+    <p><code>单条产出 = 10 × √(该鱼当前售价 ÷ 200)　金 / 小时</code></p>
+    <div class="note">
+      <b>为什么开平方：</b>线性算的话，几条百万级的顶级鱼就能让「躺着赚」超过「主动钓」，玩法直接废掉。<br>
+      实测水族箱平均满格产出只相当于主动钓鱼的 <b>2.6% ~ 3.9%</b>，
+      就算全放最贵的 24 条也只到 <b>12% ~ 27%</b> —— 它是一份「补贴」，不是替代品。<br>
+      关掉页面也照样产（上限 8 小时），和挂机开关无关。
+    </div>
+  </div>
+
+  <!-- ================= 15 ================= -->
+  <h2 id="s15">⑮ 新手引导</h2>
+  <div class="card">
+    <p>第一次进游戏会出现一个<b>不会挡住操作</b>的小气泡，一共 5 步教你：
+       抛竿 → 提竿 → 按住收线 → 松手放线 → 躲逃窜。学会了就自动进入下一步，走完永久不再出现。</p>
+    <div class="note">想看第二遍：设置面板里点「重看新手引导」。挂机时不会推进引导。</div>
+  </div>
+
   <!-- ================= 10 ================= -->
   <h2 id="s10">⑩ 常见问题</h2>
   <div class="card" id="faq"></div>
 
   <footer>
-    钓鱼人生 v0.2.0 ｜ 全部数值由 <code>tools/solve-drop.js</code> 反推、<code>tools/balance.js</code> 复核<br>
+    钓鱼人生 v0.5.5 ｜ 全部数值由 <code>tools/solve-drop.js</code> 反推、<code>tools/balance.js</code> 复核<br>
+    <code>balance.js</code> 已固定随机种子 —— 本页与 GDD 里的数字每次跑都一致。<br>
     本页所有鱼类图案都是打开页面时实时绘制的，没有使用任何图片素材
   </footer>
 </div>
@@ -539,10 +616,10 @@
   document.getElementById('paceTable').innerHTML =
     '<tr><th>钓场</th><th class="num">平均等待</th><th class="num">平均拉扯</th><th class="num">单竿合计</th>' +
     '<th class="num">每小时竿数</th><th class="num">平均鱼价</th><th class="num">每小时金币</th></tr>' +
-    [['D',19.8,8.5,28.3,127,10.3,1309],['C',41.5,11.8,53.3,67,32.3,2180],
-     ['B',28.8,10.2,39.0,92,29.4,2717],['A',46.7,14.2,60.9,59,96.8,5723],
-     ['S',41.3,12.7,54.1,67,99.9,6649],['SS',42.3,12.6,54.9,66,230.5,15119],
-     ['SSS',37.2,12.0,49.2,73,320.0,23438]]
+    [['D',37.1,11.2,48.3,75,34.0,2532],['C',36.9,11.7,48.6,74,38.8,2873],
+     ['B',52.6,13.5,66.1,54,66.3,3613],['A',81.9,16.9,98.8,36,176.0,6414],
+     ['S',102.0,17.8,119.8,30,283.9,8530],['SS',96.0,13.6,109.6,33,301.6,9911],
+     ['SSS',106.4,12.0,118.4,30,466.4,14182]]
     .map(function (r) {
       return '<tr><td><b>' + r[0] + '</b></td>' + r.slice(1, 7).map(function (v) {
         return '<td class="num">' + v + '</td>'; }).join('') + '</tr>';
@@ -552,10 +629,10 @@
   document.getElementById('winTable').innerHTML =
     '<tr><th>稀有度</th><th class="num">熟练玩家胜率</th><th class="num">耗时</th>' +
     '<th class="num">普通玩家胜率</th><th class="num">耗时</th><th>主要失败原因</th></tr>' +
-    [['普通','100.0%','7.3 s','100.0%','7.3 s','—'],
-     ['稀有','99.2%','22.7 s','94.0%','19.7 s','断线 6.0%'],
-     ['史诗','91.9%','30.1 s','91.1%','30.6 s','断线 7.8%'],
-     ['传说','77.8%','37.9 s','73.6%','35.4 s','断线 26.3%']]
+    [['普通','100.0%','7.3 s','100.0%','7.2 s','—'],
+     ['稀有','99.5%','22.0 s','93.8%','19.9 s','断线 6.2%'],
+     ['史诗','90.3%','30.6 s','90.5%','30.4 s','断线 8.1%'],
+     ['传说','77.4%','39.0 s','75.2%','35.2 s','断线 24.8%']]
     .map(function (r) {
       return '<tr><td>' + r[0] + '</td>' + r.slice(1, 5).map(function (v) {
         return '<td class="num">' + v + '</td>'; }).join('') + '<td>' + r[5] + '</td></tr>';
@@ -635,6 +712,24 @@
         U.num(total) + '</td><td>' + label + '</td></tr>';
     }).join('');
 
+  /* ---------------- 天气 / 时段 ---------------- */
+  var WX = CFG.weather;
+  document.getElementById('wxTable').innerHTML =
+    '<tr><th>天气</th><th class="num">出现权重</th><th class="num">稀有档权重</th>' +
+    '<th class="num">稀有颜色</th><th>说明</th></tr>' +
+    WX.types.map(function (t) {
+      return '<tr><td><b>' + t.icon + ' ' + t.name + '</b></td><td class="num">' + t.weight + '</td>' +
+        '<td class="num">×' + t.rareMul.toFixed(2) + '</td><td class="num">×' + t.colorBoost.toFixed(2) + '</td>' +
+        '<td>' + t.tips + '</td></tr>';
+    }).join('');
+  document.getElementById('tmTable').innerHTML =
+    '<tr><th>时段</th><th class="num">稀有档权重</th><th class="num">稀有颜色</th><th>说明</th></tr>' +
+    WX.times.map(function (t) {
+      return '<tr><td><b>' + t.icon + ' ' + t.name + '</b></td>' +
+        '<td class="num">×' + t.rareMul.toFixed(2) + '</td><td class="num">×' + t.colorBoost.toFixed(2) + '</td>' +
+        '<td>' + t.tip + '</td></tr>';
+    }).join('');
+
   /* ---------------- 付费 ---------------- */
   document.getElementById('paidTable').innerHTML =
     '<tr><th>#</th><th>付费点</th><th>数值实现</th><th>状态</th></tr>' +
@@ -678,7 +773,14 @@
     ['改数值要改哪里？',
      '所有平衡数值集中在 <code>src/data/config.js</code>；节奏表在 <code>tools/solve-drop.js</code> 的 FIELD_TARGETS；' +
      '鱼名/体重/价格在 <code>tools/gen-fish.py</code>。<br>' +
-     '改完按顺序跑：<code>python tools/gen-fish.py</code> → <code>node tools/solve-drop.js</code> → <code>node tools/balance.js</code>。']
+     '改完按顺序跑：<code>python tools/gen-fish.py</code> → <code>node tools/solve-drop.js</code> → ' +
+     '<code>node tools/fix-rarity-price.js</code> → <code>node tools/balance.js</code> → ' +
+     '<code>node tools/verify.js</code>（顺序不能换）。<br>' +
+     '<code>fix-rarity-price.js</code> 是<b>幂等</b>的：鱼价已经在归一化后的不动点上，' +
+     '重跑一遍应该是「0 条改动」，不会把你的工作区改脏。'],
+    ['画面上有别的画风吗？',
+     '没有，也不打算开放。鱼的绘制器内部有 6 套风格参数，另外 5 套只在开发期用来做对比，' +
+     '正式版固定为「扁平卡通」。']
   ].map(function (q) {
     return '<h3>' + q[0] + '</h3><p>' + q[1] + '</p>';
   }).join('');

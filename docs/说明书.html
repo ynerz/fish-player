@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>钓鱼人生 · 完整说明书</title>
+<style>
+  :root{
+    --ink:#1d3446; --ink2:#5b7488; --ink3:#93a9b8;
+    --line:#d8e6f0; --bg:#eef6fb; --card:#fff;
+    --pri:#1f8fd6; --gold:#e8901a;
+    --r0:#8b98a5; --r1:#2b8fe0; --r2:#8b5cf6; --r3:#e8901a;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:0 0 60px; background:var(--bg); color:var(--ink);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    font-size:14px; line-height:1.75;
+  }
+  .wrap{ max-width:1180px; margin:0 auto; padding:0 26px; }
+  header.top{
+    background:linear-gradient(160deg,#1f8fd6,#1668a8); color:#fff;
+    padding:44px 26px 38px; margin-bottom:26px;
+  }
+  header.top .wrap{ padding:0; }
+  h1{ font-size:31px; margin:0 0 8px; letter-spacing:1px; }
+  header.top p{ margin:0; opacity:.9; font-size:14.5px; max-width:820px; }
+  .kpis{ display:flex; flex-wrap:wrap; gap:12px; margin-top:22px; }
+  .kpi{
+    background:rgba(255,255,255,.17); border:1px solid rgba(255,255,255,.28);
+    border-radius:12px; padding:10px 18px; min-width:118px;
+  }
+  .kpi b{ display:block; font-size:23px; line-height:1.25; }
+  .kpi span{ font-size:11.5px; opacity:.88; }
+
+  h2{
+    font-size:20px; margin:44px 0 14px; padding-bottom:9px;
+    border-bottom:2px solid #cfe3f0; letter-spacing:.5px;
+  }
+  h3{ font-size:15.5px; margin:26px 0 10px; }
+  p{ margin:10px 0; }
+  code{
+    background:#e2eef7; border-radius:5px; padding:1px 6px;
+    font-family:ui-monospace,Consolas,monospace; font-size:12.5px; color:#1668a8;
+  }
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:18px 22px; margin:14px 0;
+  }
+  .note{
+    border-left:4px solid var(--pri); background:#f4fafe;
+    padding:12px 18px; border-radius:0 10px 10px 0; margin:14px 0; font-size:13.5px;
+  }
+  .warn{ border-left-color:var(--gold); background:#fffbf2; }
+  table{ border-collapse:collapse; width:100%; margin:12px 0; font-size:13px; }
+  th,td{ border:1px solid var(--line); padding:7px 10px; text-align:left; }
+  th{ background:#f2f8fc; font-weight:700; font-size:12.5px; }
+  tbody tr:nth-child(even){ background:#fafdff; }
+  .num{ text-align:right; font-variant-numeric:tabular-nums; }
+
+  /* 场景图 */
+  .scenes{ display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; margin:16px 0; }
+  .scene{ background:#fff; border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .scene img{ display:block; width:100%; height:auto; }
+  .scene .cap{ padding:9px 13px; font-size:12.5px; }
+  .scene .cap b{ font-size:13.5px; }
+  .scene .cap span{ color:var(--ink3); }
+
+  /* 鱼类图鉴 */
+  .fieldblock{ margin:26px 0 30px; }
+  .fb-head{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+    padding:11px 16px; border-radius:12px 12px 0 0;
+    background:#1f8fd6; color:#fff;
+  }
+  .fb-head .rk{
+    width:30px; height:30px; border-radius:9px; background:rgba(255,255,255,.24);
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px;
+  }
+  .fb-head b{ font-size:16px; }
+  .fb-head .meta{ margin-left:auto; font-size:12px; opacity:.92; text-align:right; line-height:1.6; }
+  .fishgrid{
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(132px,1fr));
+    gap:1px; background:var(--line);
+    border:1px solid var(--line); border-top:none; border-radius:0 0 12px 12px;
+    overflow:hidden;
+  }
+  .fcell{
+    background:#fff; padding:8px 6px 9px; text-align:center;
+  }
+  .fcell canvas{ width:100%; height:62px; display:block; }
+  .fcell .fn{ font-size:12px; font-weight:700; margin-top:3px; line-height:1.35;
+              overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .fcell .fr{ font-size:10px; font-weight:700; color:#fff; border-radius:8px;
+              padding:0 7px; display:inline-block; margin-top:3px; }
+  .fcell .fw{ font-size:10px; color:var(--ink3); }
+  .fcell .fp{ font-size:10.5px; color:var(--gold); font-weight:700; }
+  .fcell .fs{ font-size:9.5px; color:var(--ink3); }
+
+  /* 颜色对照 */
+  .morphs{ display:grid; grid-template-columns:repeat(6,1fr); gap:12px; margin:16px 0; }
+  .morph{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:8px; text-align:center; }
+  .morph canvas{ width:100%; height:76px; display:block; }
+  .morph .mn{ font-size:12.5px; font-weight:700; }
+  .morph .mp{ font-size:11px; color:var(--ink3); }
+  .morph .mv{ font-size:11px; color:var(--gold); font-weight:700; }
+
+  .toc{ display:flex; flex-wrap:wrap; gap:8px; }
+  .toc a{
+    display:inline-block; padding:5px 13px; border-radius:16px; font-size:12.5px;
+    background:#fff; border:1px solid var(--line); color:var(--ink2); text-decoration:none;
+  }
+  .toc a:hover{ border-color:var(--pri); color:var(--pri); }
+  footer{ text-align:center; color:var(--ink3); font-size:12px; margin-top:50px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <h1>🎣 钓鱼人生 · 完整说明书</h1>
+    <p>从村口小池塘一路钓到「时之尽头」。7 个钓场、112 种鱼、4 级稀有度、6 档颜色变异，
+       全程程序化绘制与合成音效 —— 没有任何图片和音频素材文件。</p>
+    <div class="kpis">
+      <div class="kpi"><b id="k1">112</b><span>鱼种</span></div>
+      <div class="kpi"><b id="k2">7</b><span>钓场（5 显 + 2 隐）</span></div>
+      <div class="kpi"><b>700h</b><span>最后一个钓场解锁</span></div>
+      <div class="kpi"><b>1000h</b><span>全部收满</span></div>
+      <div class="kpi"><b>672</b><span>品种×颜色组合</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="card">
+    <div class="toc">
+      <a href="#s1">① 怎么玩</a>
+      <a href="#s2">② 七个钓场</a>
+      <a href="#s3">③ 全部鱼类图鉴</a>
+      <a href="#s4">④ 稀有度 / 颜色 / 重量</a>
+      <a href="#s5">⑤ 上鱼节奏</a>
+      <a href="#s6">⑥ 张力拉扯</a>
+      <a href="#s7">⑦ 装备与经济</a>
+      <a href="#s8">⑧ 挂机</a>
+      <a href="#s9">⑨ 付费设计</a>
+      <a href="#s10">⑩ 常见问题</a>
+    </div>
+  </div>
+
+  <!-- ================= 1 ================= -->
+  <h2 id="s1">① 怎么玩</h2>
+  <div class="card">
+    <p><b>核心循环：</b>抛竿 → 等咬钩 → 提竿 → 张力拉扯 → 收进图鉴 / 换金币。</p>
+    <table>
+      <tr><th style="width:110px">状态</th><th>你要做的事</th></tr>
+      <tr><td><b>等待</b></td><td>浮漂立在水面，什么都不用做。想换点就点「收杆」放弃这一竿。</td></tr>
+      <tr><td><b>咬钩</b></td><td>浮漂猛地下沉、听到「叮」的一声 —— <b>1.2~1.6 秒内</b>点按钮提竿，慢了鱼就跑了。</td></tr>
+      <tr><td><b>拉扯</b></td><td>按住 = 收线（进度↑、张力↑）；松开 = 放线（进度↓、张力↓）。鱼会逃窜，逃窜前有预警，这时候必须松手。</td></tr>
+    </table>
+    <div class="note">
+      <b>操作</b>：抛竿 / 提竿 / 收线都是同一个按钮 —— 点右下角、点画面、或按<b>空格</b>。
+      拉扯时<b>按住不放</b>就是收线，松开就是放线。
+    </div>
+    <p><b>三个关键数字：</b></p>
+    <ul>
+      <li><b>张力</b>触顶并持续 0.45 秒 → <span style="color:#e8595c">断线</span>，鱼跑掉</li>
+      <li><b>张力</b>贴地（松太久）持续 1.6 秒 → <span style="color:#e8595c">脱钩</span>，鱼跑掉</li>
+      <li><b>进度</b>到 100% → 上岸。进度超过 20% 后鱼会逐渐<b>力竭</b>，越拉越轻松</li>
+    </ul>
+  </div>
+
+  <!-- ================= 2 ================= -->
+  <h2 id="s2">② 七个钓场</h2>
+  <div class="card">
+    <p>前 5 个是显性钓场，后 2 个是隐藏钓场，达到条件自动出现。</p>
+    <table id="fieldTable">
+      <tr>
+        <th>等级</th><th>钓场</th><th>鱼种</th><th>解锁条件</th>
+        <th class="num">解锁预计累计</th><th class="num">本场收满约</th><th>定位</th>
+      </tr>
+    </table>
+    <div class="note">
+      <b>时长只是预估，不是门槛。</b>它由当前掉率反推出来（<code>tools/solve-drop.js</code>），
+      再按真实掉率跑蒙特卡洛复核（<code>tools/balance.js</code>）。真正决定解锁的只有「图鉴收集度」。
+    </div>
+  </div>
+
+  <div class="scenes" id="sceneBox"></div>
+
+  <!-- ================= 3 ================= -->
+  <h2 id="s3">③ 全部鱼类图鉴（112 种）</h2>
+  <div class="card">
+    <p>下面每一格都是游戏里真实的鱼 —— 同一个绘制器、同一套数据渲染出来的，
+       没有任何贴图文件。</p>
+    <div id="rarLegend"></div>
+  </div>
+  <div id="fishBook"></div>
+
+  <!-- ================= 4 ================= -->
+  <h2 id="s4">④ 稀有度 / 颜色 / 重量</h2>
+
+  <h3>稀有度（4 档）</h3>
+  <div class="card">
+    <table id="rarTable"></table>
+    <div class="note warn">
+      <b>D 和 C 钓场没有传说鱼。</b>因为「D 钓场 1 小时收满」和「有一条要几百竿才见得到的鱼」
+      在数学上不能共存 —— D 只有 6 种鱼，只要有一档传说，期望耗时立刻从 1 小时涨到 1.8 小时以上。
+      所以传说档从 B 钓场才开始引入，这样「第一次钓到传说」也更有仪式感。
+    </div>
+  </div>
+
+  <h3>颜色变异（6 档）</h3>
+  <div class="card">
+    <p>同一条鱼（鲫鱼）的 6 种颜色：</p>
+    <div class="morphs" id="morphBox"></div>
+    <table id="morphTable"></table>
+    <div class="note">
+      <b>颜色不参与解锁。</b>解锁只看「品种」，颜色纯粹是收集彩蛋与售价加成。
+      图鉴里每条鱼下方有 6 个小圆点，代表该颜色的收集状态。
+    </div>
+  </div>
+
+  <h3>重量</h3>
+  <div class="card">
+    <p>每条鱼都有自己的体重区间，随机时偏向小值（指数 2.1），另有 <b>3%</b> 概率出「巨物」（体重 ×1.55）。</p>
+    <p><b>售价公式：</b></p>
+    <p><code>售价 = 鱼种基础价 × clamp(实际重量 ÷ 该鱼种中位重量, 0.40, 2.60) × 颜色系数 × (首次捕获 ? 3.0 : 1.0)</code></p>
+    <p>也就是说同一条鱼，小鱼和巨物之间能差 <b>6.5 倍</b>；再叠上黄金色的 4 倍系数，
+       一条黄金巨物能卖到普通货色的二十多倍。</p>
+  </div>
+
+  <!-- ================= 5 ================= -->
+  <h2 id="s5">⑤ 上鱼节奏</h2>
+  <div class="card">
+    <p>从抛竿到鱼咬钩的等待时间，由这条鱼的稀有度决定：</p>
+    <table id="timeTable"></table>
+    <h3>各钓场实测节奏</h3>
+    <table id="paceTable"></table>
+    <div class="note">
+      <b>关于「平均 20 秒一条」：</b>原始设定里同时写了「平均 20s 中一条」和「稀有鱼 40s~10 分钟」，
+      这两件事数学上无法同时成立。本作的取舍是：<b>普通鱼单竿约 28 秒（D 钓场），
+      随钓场等级递增到 SSS 的约 49 秒</b>。既保住了「普通鱼很快就来」的手感，又给稀有鱼留足了仪式感。
+    </div>
+  </div>
+
+  <!-- ================= 6 ================= -->
+  <h2 id="s6">⑥ 张力拉扯玩法</h2>
+  <div class="card">
+    <p>鱼咬钩之后进入拉扯。两条进度条：上面是<b>收线进度</b>，下面是<b>张力</b>。</p>
+    <ul>
+      <li><b>按住</b>（鼠标左键 / 空格）→ 进度上涨，张力上涨</li>
+      <li><b>松开</b> → 进度缓慢回落，张力下降</li>
+      <li>鱼会不定时<b>逃窜</b>，逃窜期间张力急剧上升。逃窜前 0.55 秒 UI 会提示「要逃窜了」—— <b>看到就松手</b></li>
+      <li>张力触顶 0.45 秒 → 断线；张力贴地 1.6 秒 → 脱钩</li>
+      <li>进度过 20% 后鱼开始力竭，最多减 22% 挣扎强度，所以后期会越来越顺</li>
+    </ul>
+    <h3>实测胜率（各 6 万次对局）</h3>
+    <table id="winTable"></table>
+    <div class="note">
+      「熟练」= 反应 0.15 秒、看到预警就松手；「普通」= 反应 0.32 秒、节奏更迟钝。
+      真实玩家大概落在两者之间。
+    </div>
+  </div>
+
+  <!-- ================= 7 ================= -->
+  <h2 id="s7">⑦ 装备与经济</h2>
+
+  <h3>鱼饵（消耗品，每抛一竿消耗 1 个）</h3>
+  <div class="card">
+    <table id="baitTable"></table>
+    <div class="note">
+      <b>蚯蚓永久免费且无限</b> —— 保证游戏在任何情况下都不会因为「没饵了」而卡住。
+    </div>
+  </div>
+
+  <h3>鱼竿与鱼线（永久，均无耐久）</h3>
+  <div class="card">
+    <table id="rodTable"></table>
+    <table id="lineTable"></table>
+  </div>
+
+  <h3>装饰（纯外观，会真实出现在场景里）</h3>
+  <div class="card"><table id="decorTable"></table></div>
+
+  <h3>每小时收益</h3>
+  <div class="card"><table id="incomeTable"></table></div>
+
+  <!-- ================= 8 ================= -->
+  <h2 id="s8">⑧ 挂机系统</h2>
+  <div class="card">
+    <ul>
+      <li>自动抛竿 → 自动提竿 → AI 自动驾驶完成拉扯，全程不用管</li>
+      <li><b>代价：</b>稀有 / 史诗 / 传说 档权重 ×0.95（对应设定里的「稀有鱼概率下降 5%」）</li>
+      <li>挂机时<b>不会弹结算卡</b>打断操作，但画面右侧有一条<b>渔获播报</b>，每一条鱼都会滚进来</li>
+      <li>页面关掉也照样算：回来时按离线时长补算（<b>上限 8 小时</b>），并弹一份收获报告</li>
+    </ul>
+    <div class="note">
+      <b>渔获播报</b>：画面右侧那一列就是。绿点=普通 / 蓝点=稀有 / 紫点=史诗 / 金点=传说，
+      圆点颜色代表这条鱼的颜色变异，`新` 表示图鉴新增。
+    </div>
+  </div>
+
+  <!-- ================= 9 ================= -->
+  <h2 id="s9">⑨ 付费设计（当前全部未开启）</h2>
+  <div class="card">
+    <table id="paidTable"></table>
+    <div class="note">
+      单机版 <code>monetization.enabled = false</code>，五项的接口都已经在代码里预留好了，
+      接微信小程序 / Steam 时逐项打开即可。挂机目前是<b>免费开放</b>的。
+    </div>
+  </div>
+
+  <!-- ================= 10 ================= -->
+  <h2 id="s10">⑩ 常见问题</h2>
+  <div class="card" id="faq"></div>
+
+  <footer>
+    钓鱼人生 v0.2.0 ｜ 全部数值由 <code>tools/solve-drop.js</code> 反推、<code>tools/balance.js</code> 复核<br>
+    本页所有鱼类图案都是打开页面时实时绘制的，没有使用任何图片素材
+  </footer>
+</div>
+
+<script src="../src/data/config.js"></script>
+<script src="../src/data/fields.js"></script>
+<script src="../src/data/fish.js"></script>
+<script src="../src/data/items.js"></script>
+<script src="../src/core/util.js"></script>
+<script src="../src/render/fishart.js"></script>
+<script>
+(function () {
+  var U = G.U, FA = G.FishArt, CFG = G.CONFIG;
+  var RAR_COLOR = ['#8b98a5', '#2b8fe0', '#8b5cf6', '#e8901a'];
+  var RAR_NAME  = ['普通', '稀有', '史诗', '传说'];
+  FA.setStyle('flat');   // 先用原画风
+
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  function paint(cv, fish, w, h, opt) {
+    cv.width = w * dpr; cv.height = h * dpr;
+    cv.style.width = '100%'; cv.style.height = h + 'px';
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var gr = ctx.createLinearGradient(0, 0, 0, h);
+    gr.addColorStop(0, '#f4fbff'); gr.addColorStop(1, '#dceffb');
+    ctx.fillStyle = gr; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1.2;
+    for (var i = 0; i < 2; i++) {
+      ctx.beginPath();
+      for (var x = 0; x <= w; x += 8) {
+        var y = h * 0.78 + i * h * 0.10 + Math.sin(x * 0.06 + i) * 2;
+        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    FA.draw(ctx, fish, w / 2, h * 0.46, Math.min(w * 0.72, h * 1.5), opt || { t: 0.7 });
+  }
+
+  /* ---------------- 钓场表 ---------------- */
+  var ft = document.getElementById('fieldTable');
+  G.FIELDS.forEach(function (f) {
+    var n = G.FISH_BY_FIELD[f.id].length;
+    var rk = { D:'#8b98a5', C:'#5aa9d6', B:'#3f8f5f', A:'#2b6fc4', S:'#3b4a8f', SS:'#5b3fa8', SSS:'#a87a1f' };
+    var cond = f.requires == null ? '开局即开放'
+      : (f.requireFull ? f.requires.join('~') + ' 全部 100%'
+                       : f.requires + ' 图鉴 80%');
+    ft.insertAdjacentHTML('beforeend',
+      '<tr><td><span style="display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;' +
+      'border-radius:7px;background:' + rk[f.rank] + ';color:#fff;font-weight:800;font-size:12px">' + f.rank + '</span></td>' +
+      '<td><b>' + f.name + '</b>' + (f.hidden ? ' <span style="color:#a87a1f;font-size:11px">隐藏</span>' : '') +
+      '<div style="font-size:11.5px;color:#93a9b8">' + f.desc.slice(0, 30) + '…</div></td>' +
+      '<td class="num">' + n + '</td>' +
+      '<td>' + cond + '</td>' +
+      '<td class="num">' + (f.estUnlockHours ? f.estUnlockHours + ' h' : '—') + '</td>' +
+      '<td class="num">' + f.estOwnHours + ' h</td>' +
+      '<td>' + f.sub + '</td></tr>');
+  });
+
+  /* ---------------- 场景图 ---------------- */
+  var sb = document.getElementById('sceneBox');
+  G.FIELDS.forEach(function (f) {
+    sb.insertAdjacentHTML('beforeend',
+      '<div class="scene"><img src="images/场景-' + f.id + '.png" alt="' + f.name + '">' +
+      '<div class="cap"><b>' + f.rank + ' · ' + f.name + '</b> <span>' + f.sub + '</span>' +
+      '<div style="font-size:11.5px;color:#93a9b8;margin-top:2px">' + f.desc + '</div></div></div>');
+  });
+
+  /* ---------------- 稀有度图例 ---------------- */
+  document.getElementById('rarLegend').innerHTML =
+    '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+    CFG.rarity.map(function (r, i) {
+      return '<span style="padding:3px 12px;border-radius:12px;background:' + r.color +
+             ';color:#fff;font-size:12px;font-weight:700">' + r.name + '</span>';
+    }).join('') + '</div>';
+
+  /* ---------------- 全鱼图鉴 ---------------- */
+  var book = document.getElementById('fishBook');
+  G.FIELDS.forEach(function (f) {
+    var list = G.FISH_BY_FIELD[f.id];
+    var blk = document.createElement('div');
+    blk.className = 'fieldblock';
+    var rk = { D:'#8b98a5', C:'#5aa9d6', B:'#3f8f5f', A:'#2b6fc4', S:'#3b4a8f', SS:'#5b3fa8', SSS:'#a87a1f' };
+    blk.innerHTML =
+      '<div class="fb-head" style="background:' + rk[f.rank] + '">' +
+        '<div class="rk">' + f.rank + '</div>' +
+        '<b>' + f.name + '</b>' +
+        '<span style="font-size:12px;opacity:.85">' + f.sub + '</span>' +
+        '<div class="meta">共 ' + list.length + ' 种 ｜ 本场收满约 ' + f.estOwnHours + ' h<br>' +
+        '档位：' + [0,1,2,3].map(function (t) {
+          var c = list.filter(function (x) { return x.rar === t; }).length;
+          return c ? RAR_NAME[t] + c : null;
+        }).filter(Boolean).join(' / ') + '</div>' +
+      '</div><div class="fishgrid"></div>';
+    var grid = blk.querySelector('.fishgrid');
+    list.forEach(function (fish) {
+      var cell = document.createElement('div');
+      cell.className = 'fcell';
+      var cv = document.createElement('canvas');
+      var sp = ['fish','eel','ray','squid','jelly','oarfish','shark','whale','dragon'].indexOf(fish.shape) >= 0
+        ? fish.shape : 'fish';
+      cell.innerHTML = '<div class="fn">' + fish.name + '</div>' +
+        '<div><span class="fr" style="background:' + RAR_COLOR[fish.rar] + '">' + RAR_NAME[fish.rar] + '</span></div>' +
+        '<div class="fw">' + U.kg(fish.minKg) + ' ~ ' + U.kg(fish.maxKg) + '</div>' +
+        '<div class="fp">' + U.num(fish.price) + ' 金</div>' +
+        '<div class="fs">' + fish.shape + ' ｜ 权重 ' + fish.w + '</div>';
+      cell.insertBefore(cv, cell.firstChild);
+      grid.appendChild(cell);
+      paint(cv, fish, 132, 62);
+    });
+    book.appendChild(blk);
+  });
+
+  /* ---------------- 稀有度表 ---------------- */
+  var rt = document.getElementById('rarTable');
+  rt.innerHTML = '<tr><th>稀有度</th><th>颜色标识</th><th class="num">上鱼等待</th><th>说明</th></tr>' +
+    CFG.rarity.map(function (r, i) {
+      var cnt = [0,1,2,3].map(function (t) {
+        return G.FIELDS.filter(function (f) {
+          return G.FISH_BY_FIELD[f.id].some(function (x) { return x.rar === t; });
+        }).length;
+      });
+      return '<tr><td><span style="padding:2px 11px;border-radius:10px;background:' + r.color +
+        ';color:#fff;font-size:12px;font-weight:700">' + r.name + '</span></td>' +
+        '<td><code>' + r.color + '</code></td>' +
+        '<td class="num">' + r.timeMin + ' ~ ' + r.timeMax + ' 秒</td>' +
+        '<td>' + (i === 3 ? '各场的「毕业鱼」，' : '') + '出现在 ' + cnt[i] + ' 个钓场</td></tr>';
+    }).join('');
+
+  /* ---------------- 颜色 ---------------- */
+  var demo = G.FISH_ID['D02'] || G.FISH[0];
+  var mb = document.getElementById('morphBox');
+  CFG.colorMorphs.forEach(function (cm) {
+    var d = document.createElement('div');
+    d.className = 'morph';
+    var cv = document.createElement('canvas');
+    d.innerHTML = '<div class="mn">' + cm.name + '</div>' +
+                  '<div class="mp">出现概率 ' + (cm.prob * 100).toFixed(1) + '%</div>' +
+                  '<div class="mv">售价 ×' + cm.valueMul.toFixed(2) + '</div>';
+    d.insertBefore(cv, d.firstChild);
+    mb.appendChild(d);
+    paint(cv, demo, 150, 76, { tint: cm.tint, tintAmt: cm.key === 'dark' ? 0.6 : 0.8, t: 0.7 });
+  });
+
+  document.getElementById('morphTable').innerHTML =
+    '<tr><th>颜色</th><th class="num">概率</th><th class="num">售价系数</th><th>说明</th></tr>' +
+    CFG.colorMorphs.map(function (cm) {
+      var note = { normal:'常见', bright:'好卖', dark:'好卖',
+                   albino:'稀有外观', shiny:'非常稀有', golden:'极稀有，彩票级' }[cm.key] || '';
+      return '<tr><td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;' +
+        'background:' + (cm.tint || '#8b98a5') + ';border:1px solid rgba(0,0,0,.18);vertical-align:-1px"></span> ' +
+        cm.name + '</td><td class="num">' + (cm.prob * 100).toFixed(1) + '%</td>' +
+        '<td class="num">×' + cm.valueMul.toFixed(2) + '</td><td>' + note + '</td></tr>';
+    }).join('');
+
+  /* ---------------- 时间表 ---------------- */
+  document.getElementById('timeTable').innerHTML =
+    '<tr><th>稀有度</th><th class="num">抛竿 → 咬钩</th><th class="num">拉扯耗时</th><th>整体手感</th></tr>' +
+    [['普通','8 ~ 22 秒','7 秒','很快就来'],['稀有','38 ~ 100 秒','20 ~ 23 秒','要有耐心'],
+     ['史诗','150 ~ 320 秒','30 秒','值得等'],['传说','380 ~ 600 秒','35 ~ 38 秒','一场硬仗']]
+    .map(function (r) { return '<tr><td>' + r[0] + '</td><td class="num">' + r[1] +
+      '</td><td class="num">' + r[2] + '</td><td>' + r[3] + '</td></tr>'; }).join('');
+
+  document.getElementById('paceTable').innerHTML =
+    '<tr><th>钓场</th><th class="num">平均等待</th><th class="num">平均拉扯</th><th class="num">单竿合计</th>' +
+    '<th class="num">每小时竿数</th><th class="num">平均鱼价</th><th class="num">每小时金币</th></tr>' +
+    [['D',19.8,8.5,28.3,127,10.3,1309],['C',41.5,11.8,53.3,67,32.3,2180],
+     ['B',28.8,10.2,39.0,92,29.4,2717],['A',46.7,14.2,60.9,59,96.8,5723],
+     ['S',41.3,12.7,54.1,67,99.9,6649],['SS',42.3,12.6,54.9,66,230.5,15119],
+     ['SSS',37.2,12.0,49.2,73,320.0,23438]]
+    .map(function (r) {
+      return '<tr><td><b>' + r[0] + '</b></td>' + r.slice(1, 7).map(function (v) {
+        return '<td class="num">' + v + '</td>'; }).join('') + '</tr>';
+    }).join('');
+
+  /* ---------------- 胜率 ---------------- */
+  document.getElementById('winTable').innerHTML =
+    '<tr><th>稀有度</th><th class="num">熟练玩家胜率</th><th class="num">耗时</th>' +
+    '<th class="num">普通玩家胜率</th><th class="num">耗时</th><th>主要失败原因</th></tr>' +
+    [['普通','100.0%','7.3 s','100.0%','7.3 s','—'],
+     ['稀有','99.2%','22.7 s','94.0%','19.7 s','断线 6.0%'],
+     ['史诗','91.9%','30.1 s','91.1%','30.6 s','断线 7.8%'],
+     ['传说','77.8%','37.9 s','73.6%','35.4 s','断线 26.3%']]
+    .map(function (r) {
+      return '<tr><td>' + r[0] + '</td>' + r.slice(1, 5).map(function (v) {
+        return '<td class="num">' + v + '</td>'; }).join('') + '<td>' + r[5] + '</td></tr>';
+    }).join('');
+
+  /* ---------------- 装备 ---------------- */
+  document.getElementById('baitTable').innerHTML =
+    '<tr><th>鱼饵</th><th class="num">一包价格</th><th class="num">单价/竿</th>' +
+    '<th class="num">上鱼速度</th><th class="num">稀有权重</th><th class="num">传说权重</th><th>说明</th></tr>' +
+    G.BAITS.map(function (b) {
+      return '<tr><td><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:' +
+        b.color + ';vertical-align:-1px"></span> <b>' + b.name + '</b></td>' +
+        '<td class="num">' + (b.free ? '免费' : U.num(b.price) + ' / ' + b.pack + ' 个') + '</td>' +
+        '<td class="num">' + (b.free ? '0' : (b.price / b.pack).toFixed(1)) + '</td>' +
+        '<td class="num">×' + b.speed.toFixed(2) + '</td>' +
+        '<td class="num">×' + b.rareMul.toFixed(2) + '</td>' +
+        '<td class="num">' + (b.legendMul > 1 ? '×' + b.legendMul.toFixed(2) : '—') + '</td>' +
+        '<td>' + b.desc + '</td></tr>';
+    }).join('');
+
+  document.getElementById('rodTable').innerHTML =
+    '<tr><th>鱼竿</th><th class="num">价格</th><th class="num">稀有权重</th><th class="num">收线效率</th><th>说明</th></tr>' +
+    G.RODS.map(function (r) {
+      return '<tr><td>' + r.icon + ' <b>' + r.name + '</b></td><td class="num">' +
+        (r.price ? U.num(r.price) : '免费') + '</td><td class="num">×' + r.rareMul.toFixed(2) +
+        '</td><td class="num">×' + r.reel.toFixed(2) + '</td><td>' + r.desc + '</td></tr>';
+    }).join('');
+
+  document.getElementById('lineTable').innerHTML =
+    '<tr><th>鱼线</th><th class="num">价格</th><th class="num">张力上限</th><th>说明</th></tr>' +
+    G.LINES.map(function (r) {
+      return '<tr><td>' + r.icon + ' <b>' + r.name + '</b></td><td class="num">' +
+        (r.price ? U.num(r.price) : '免费') + '</td><td class="num">' + r.tensionMax +
+        '</td><td>' + r.desc + '</td></tr>';
+    }).join('');
+
+  document.getElementById('decorTable').innerHTML =
+    '<tr><th>装饰</th><th class="num">价格</th><th>说明</th></tr>' +
+    G.DECORS.map(function (r) {
+      return '<tr><td>' + r.icon + ' <b>' + r.name + '</b></td><td class="num">' +
+        U.num(r.price) + '</td><td>' + r.desc + '</td></tr>';
+    }).join('');
+
+  document.getElementById('incomeTable').innerHTML =
+    '<tr><th>钓场</th><th class="num">每小时金币</th><th class="num">对比 D 钓场</th><th>能买什么</th></tr>' +
+    [['D',1309,'1×','玻璃钢竿 900'],['C',2180,'1.7×','碳素矶竿 5,200'],
+     ['B',2717,'2.1×','碳素矶竿 5,200'],['A',5723,'4.4×','深海船竿 32,000'],
+     ['S',6649,'5.1×','深海船竿 32,000'],['SS',15119,'11.6×','传说·星陨竿 210,000'],
+     ['SSS',23438,'17.9×','传说·星陨竿 210,000']]
+    .map(function (r) {
+      return '<tr><td><b>' + r[0] + '</b></td><td class="num">' + U.num(r[1]) +
+        '</td><td class="num">' + r[2] + '</td><td>' + r[3] + '</td></tr>';
+    }).join('');
+
+  /* ---------------- 付费 ---------------- */
+  document.getElementById('paidTable').innerHTML =
+    '<tr><th>#</th><th>付费点</th><th>数值实现</th><th>状态</th></tr>' +
+    [['①','鱼竿：稀有鱼概率 +20%','鱼竿的 rareMul（×1.00 ~ ×1.45）','道具可买，付费入口未开放'],
+     ['②','月卡：挂机自动上鱼，稀有概率 −5%','<code>idle.rareWeightMul = 0.95</code>','<b style="color:#3fbf7f">当前免费开放</b>'],
+     ['③','分享得鱼竿，稀有概率 +10%','<code>shareRodBoost = 0.10</code>','仅预留接口'],
+     ['④','做视频发布领兑换码','<code>videoCode = true</code>','仅预留接口'],
+     ['⑤','看广告得小时挂机券','<code>adIdleTicket = true</code>','仅预留接口']]
+    .map(function (r) {
+      return '<tr><td>' + r[0] + '</td><td><b>' + r[1] + '</b></td><td>' + r[2] + '</td><td>' + r[3] + '</td></tr>';
+    }).join('');
+
+  /* ---------------- 颜色收集极限 ---------------- */
+  document.getElementById('faq').innerHTML = [
+    ['为什么挂机时看不到钓到的鱼？',
+     '之前挂机为了不打断操作，只播报史诗和传说。现在已经改成<b>所有渔获都会滚进画面右侧的「渔获播报」</b>，' +
+     '每一条都有鱼名、重量、颜色和金币，最多保留 9 条。'],
+    ['图鉴里为什么看不到鱼的颜色？',
+     '两个原因，都已修好：①以前每条鱼只显示第一次钓到的那个颜色，现在显示<b>你收集到的最稀有颜色</b>；' +
+     '②现在每条鱼下方有 <b>6 个小圆点</b>，标出 6 种颜色各自的收集状态，页首还有「颜色 X / 672」的总进度。'],
+    ['银锁条件要看颜色吗？',
+     '<b>不看。</b>解锁只统计「品种」，颜色、重量都不参与任何解锁判定。'],
+    ['把所有颜色也集齐要多久？',
+     '7 个钓场一共 112 种 × 6 色 = <b>672 个组合</b>。用精确公式算下来，全收齐约需 <b>113 年</b>。' +
+     '这是刻意做成「理论极限」而不是设计目标的 —— 颜色的定位是彩蛋，不是门槛。' +
+     '如果只追求「某一条鱼的 6 种颜色」，那大约是几天到几十天量级。'],
+    ['为什么 D、C 钓场没有传说鱼？',
+     '为了让「D 钓场 1 小时收满」成立。6 种鱼里塞一条传说，期望耗时立刻从 1 小时涨到 1.8 小时以上。' +
+     '传说档从 B 钓场开始引入。'],
+    ['为什么 SS 星陨之渊要 600 小时？',
+     '因为「SSS 在累计 700 小时解锁」这个目标，减去前面五场（约 100 小时）之后全压在 SS 身上。' +
+     '数学上，一个场要撑 600 小时，必然意味着「绝大多数渔获是普通鱼 + 有一条极其稀有的毕业鱼」。' +
+     '如果你更想要「分布均匀、稀有鱼常见」的手感，把 <code>tools/solve-drop.js</code> 里的 ' +
+     'SS 目标从 600 改回 200 再重跑，整套掉率会自动重算。'],
+    ['改数值要改哪里？',
+     '所有平衡数值集中在 <code>src/data/config.js</code>；节奏表在 <code>tools/solve-drop.js</code> 的 FIELD_HOURS。' +
+     '改完跑 <code>node tools/solve-drop.js</code> 反推掉率，再跑 <code>node tools/balance.js</code> 复核。']
+  ].map(function (q) {
+    return '<h3>' + q[0] + '</h3><p>' + q[1] + '</p>';
+  }).join('');
+
+  document.getElementById('k1').textContent = G.FISH.length;
+  document.getElementById('k2').textContent = G.FIELDS.length;
+})();
+</script>
+</body>
+</html>

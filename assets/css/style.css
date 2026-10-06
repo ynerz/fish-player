@@ -562,3 +562,51 @@ input[type=range]{ width:130px; accent-color:var(--c-primary); }
   .modal{ padding:12px; }
   .book-grid{ grid-template-columns:repeat(auto-fill,minmax(104px,1fr)); }
 }
+
+
+/* ================= 渔获播报 ================= */
+.catch-log{
+  position:absolute; right:14px; top:56px; z-index:12;
+  width:216px; max-height:60%;
+  display:flex; flex-direction:column; gap:5px;
+  pointer-events:none; overflow:hidden;
+}
+.cl-row{
+  display:flex; align-items:center; gap:6px;
+  padding:5px 9px; border-radius:9px;
+  background:rgba(255,255,255,.90);
+  backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  border-left:3px solid var(--r0);
+  box-shadow:0 1px 4px rgba(29,52,70,.14);
+  font-size:11.5px; color:var(--c-text);
+  animation:clIn .28s cubic-bezier(.2,.9,.3,1.25);
+  white-space:nowrap;
+}
+.cl-row.r1{ border-left-color:var(--r1); }
+.cl-row.r2{ border-left-color:var(--r2); }
+.cl-row.r3{ border-left-color:var(--r3); background:rgba(255,250,236,.95); }
+@keyframes clIn{ from{ opacity:0; transform:translateX(16px); } to{ opacity:1; transform:none; } }
+.cl-row > i{
+  width:9px; height:9px; border-radius:50%; flex:0 0 auto;
+  border:1px solid rgba(0,0,0,.18);
+}
+.cl-row > b{ flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; font-weight:700; }
+.cl-kg{ color:var(--c-text-2); font-variant-numeric:tabular-nums; }
+.cl-coin{ color:var(--c-gold); font-weight:700; font-variant-numeric:tabular-nums; }
+.cl-row > em{
+  font-style:normal; font-size:9px; font-weight:700; color:#fff;
+  background:var(--c-green); border-radius:6px; padding:0 4px;
+}
+
+/* ================= 图鉴颜色点 ================= */
+.bi-colors{ display:flex; justify-content:center; gap:3px; margin-top:4px; }
+.bi-colors > i{
+  width:9px; height:9px; border-radius:50%; display:block;
+  border:1px solid rgba(0,0,0,.16); opacity:.22;
+}
+.bi-colors > i.on{ opacity:1; box-shadow:0 0 0 1px rgba(255,255,255,.9) inset; }
+.book-sum{
+  display:flex; gap:16px; flex-wrap:wrap; margin-top:8px;
+  font-size:12px; color:var(--c-text-2);
+}
+.book-sum b{ color:var(--c-text); font-size:14px; }

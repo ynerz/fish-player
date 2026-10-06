@@ -29,7 +29,7 @@ G.FIELDS = [
     requires: null,
     requireFull: false,
     /* 稀有度权重（普通 / 稀有 / 史诗 / 传说），合计 100 */
-    rarity: [93.316, 5.885, 0.799, 0],
+    rarity: [93.238, 5.953, 0.809, 0],
     /* 每个稀有度内部的鱼种权重在 fish.js 里定义 */
     theme: {
       sky: ['#a8dcff', '#e6f6ff'],
@@ -64,7 +64,7 @@ G.FIELDS = [
     collectionPct: 0.8,
     requires: 'D',
     requireFull: false,
-    rarity: [83.276, 10.248, 3.776, 2.701],
+    rarity: [88.182, 6.96, 3.816, 1.042],
     theme: {
       sky: ['#cfeaff', '#fdf6e4'],
       sun: { x: 0.20, y: 0.14, r: 40, color: '#fff8d8', glow: 'rgba(255,240,190,.65)' },
@@ -99,7 +99,7 @@ G.FIELDS = [
     collectionPct: 0.8,
     requires: 'C',
     requireFull: false,
-    rarity: [87.629, 7.889, 4.319, 0.163],
+    rarity: [87.734, 7.931, 4.172, 0.162],
     theme: {
       sky: ['#7fb2e0', '#ffd9a8'],
       sun: { x: 0.68, y: 0.34, r: 52, color: '#ffd27a', glow: 'rgba(255,180,90,.55)' },
@@ -122,8 +122,8 @@ G.FIELDS = [
 
   {
     id: 'A',
-    estUnlockHours: 10.0,   // 解锁本钓场需累计多少小时（实测期望值）
-    estOwnHours: 19.6,      // 本钓场 100% 收满需多少小时
+    estUnlockHours: 9.9,   // 解锁本钓场需累计多少小时（实测期望值）
+    estOwnHours: 19.8,      // 本钓场 100% 收满需多少小时
     rank: 'A',
     name: '深海断崖',
     sub: '近海钓场',
@@ -133,7 +133,7 @@ G.FIELDS = [
     collectionPct: 0.8,
     requires: 'B',
     requireFull: false,
-    rarity: [72.022, 18.942, 8.518, 0.518],
+    rarity: [83.298, 13.112, 3.229, 0.36],
     theme: {
       sky: ['#4fa8e8', '#bfe8ff'],
       sun: { x: 0.5, y: 0.10, r: 40, color: '#ffffff', glow: 'rgba(255,255,255,.7)' },
@@ -156,8 +156,8 @@ G.FIELDS = [
 
   {
     id: 'S',
-    estUnlockHours: 29.6,   // 解锁本钓场需累计多少小时（实测期望值）
-    estOwnHours: 70.1,      // 本钓场 100% 收满需多少小时
+    estUnlockHours: 29.8,   // 解锁本钓场需累计多少小时（实测期望值）
+    estOwnHours: 69.4,      // 本钓场 100% 收满需多少小时
     rank: 'S',
     name: '幽蓝海沟',
     sub: '深海钓场',
@@ -167,7 +167,7 @@ G.FIELDS = [
     collectionPct: 0.8,
     requires: 'A',
     requireFull: false,
-    rarity: [76.869, 14.848, 8.152, 0.131],
+    rarity: [81.308, 12.814, 5.764, 0.114],
     theme: {
       sky: ['#2a3f5c', '#4a6b85'],
       sun: null,
@@ -191,8 +191,8 @@ G.FIELDS = [
 
   {
     id: 'SS',
-    estUnlockHours: 99.7,   // 解锁本钓场需累计多少小时（实测期望值）
-    estOwnHours: 200.0,      // 本钓场 100% 收满需多少小时
+    estUnlockHours: 99.2,   // 解锁本钓场需累计多少小时（实测期望值）
+    estOwnHours: 586.9,      // 本钓场 100% 收满需多少小时
     rank: 'SS',
     name: '星陨之渊',
     sub: '隐藏钓场',
@@ -203,7 +203,7 @@ G.FIELDS = [
     requires: ['D', 'C', 'B', 'A', 'S'],
     requireFull: true,
     hidden: true,
-    rarity: [76.426, 15.177, 8.296, 0.101],
+    rarity: [97.218, 2.378, 0.388, 0.016],
     theme: {
       sky: ['#080d24', '#1b2450'],
       sun: null,
@@ -230,8 +230,8 @@ G.FIELDS = [
 
   {
     id: 'SSS',
-    estUnlockHours: 299.7,   // 解锁本钓场需累计多少小时（实测期望值）
-    estOwnHours: 403.5,      // 本钓场 100% 收满需多少小时
+    estUnlockHours: 686.1,   // 解锁本钓场需累计多少小时（实测期望值）
+    estOwnHours: 296.6,      // 本钓场 100% 收满需多少小时
     rank: 'SSS',
     name: '时之尽头',
     sub: '終極隐藏钓场',
@@ -242,7 +242,7 @@ G.FIELDS = [
     requires: ['D', 'C', 'B', 'A', 'S', 'SS'],
     requireFull: true,
     hidden: true,
-    rarity: [79.825, 12.987, 7.127, 0.061],
+    rarity: [89.091, 7.13, 3.717, 0.062],
     theme: {
       sky: ['#120a2e', '#2e1a4d'],
       sun: null,

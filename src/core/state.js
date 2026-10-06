@@ -285,6 +285,21 @@ G.State = (function () {
   /* ---------------- 挂机开关 ---------------- */
   function setIdle(v) { S.settings.idle = !!v; scheduleSave(); emit('idle', !!v); }
 
+  /* ---------------- 颜色收集进度（纯收集度，不影响解锁） ---------------- */
+  var _colorTotal = null;
+  function colorProgress() {
+    if (_colorTotal == null) _colorTotal = G.FISH.length * CFG.colorMorphs.length;
+    var got = 0;
+    for (var i = 0; i < G.FISH.length; i++) {
+      var e = S.book[G.FISH[i].id];
+      if (!e || !e.colors) continue;
+      for (var c = 0; c < CFG.colorMorphs.length; c++) {
+        if (e.colors[CFG.colorMorphs[c].key]) got++;
+      }
+    }
+    return { got: got, total: _colorTotal, pct: _colorTotal ? got / _colorTotal : 0 };
+  }
+
   /* ---------------- 各钓场图鉴进度统计 ---------------- */
   function globalProgress() {
     var got = 0;
@@ -303,7 +318,7 @@ G.State = (function () {
     setField: setField, tick: tick, consumeBait: consumeBait,
     buyBait: buyBait, buyRod: buyRod, buyLine: buyLine, buyDecor: buyDecor,
     selectBait: selectBait, selectRod: selectRod, selectLine: selectLine,
-    setIdle: setIdle, globalProgress: globalProgress,
+    setIdle: setIdle, globalProgress: globalProgress, colorProgress: colorProgress,
     needCount: needCount,
   };
 })();

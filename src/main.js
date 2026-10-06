@@ -82,6 +82,7 @@
             var r = F.offlineCatchUp(away, avgCycle());
             if (r) {
               Hud.toast({ text: '挂机期间又上了 ' + r.count + ' 条鱼，入账 ' + U.coin(r.coin) + ' 金', kind: 'good' });
+              if (r.recent) r.recent.forEach(function (x) { Hud.pushCatch(x); });
               Hud.syncAll();
               if (r.unlocks && r.unlocks.length) onUnlock(r.unlocks);
             }
@@ -159,9 +160,11 @@
   /* ---------------- 渔获 ---------------- */
   function onCatch(info) {
     Hud.syncAll();
+    /* 每一竿的收获都进播报栏 —— 挂机时也能看到钓到了什么 */
+    Hud.pushCatch(info);
 
     if (G.Fishing.isIdleMode()) {
-      // 挂机模式不弹卡片，只播报值得看的
+      // 挂机不打断操作，只在值得看的时候补一条醒目提示
       if (info.isNew) {
         Hud.toast({ text: '🆕 图鉴新增：' + info.fish.name + '（' + G.CONFIG.rarity[info.rar].name + '）', kind: 'good' });
       } else if (info.rar >= 2) {

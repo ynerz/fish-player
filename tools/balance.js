@@ -236,6 +236,43 @@ for (const field of G.FIELDS) {
     `${h80.toFixed(2).padStart(10)} h  ${m100.toFixed(2).padStart(9)} h  ${h100.toFixed(2).padStart(9)} h  ${cum100.toFixed(1).padStart(12)} h`
   );
 }
+/* ---------------- ④ 全颜色 × 全品类收集（完美主义目标） ---------------- */
+function fmtLong(h) {
+  if (h < 1) return (h * 60).toFixed(0) + ' 分钟';
+  if (h < 48) return h.toFixed(1) + ' 小时';
+  if (h < 24 * 90) return (h / 24).toFixed(1) + ' 天';
+  if (h < 24 * 365 * 3) return (h / 24 / 365).toFixed(2) + ' 年';
+  return (h / 24 / 365).toFixed(0) + ' 年';
+}
+
+console.log('\n=== ④ 全颜色 × 全品类收集耗时（完美目标，非解锁条件） ===');
+console.log('说明：解锁只看「品种」，颜色完全不参与解锁判定。下面是纯粹的理论极限。');
+console.log('钓场   组合数   收集全部组合均值   其中：集齐1条鱼6色的均值');
+
+let totalCombos = 0, totalHours = 0;
+for (const field of G.FIELDS) {
+  const probs = realProbs(field, {});
+  const cyc = cycleOf(field);
+  /* 每条鱼的每种颜色都是一个独立目标 */
+  const expanded = [];
+  probs.forEach(x => {
+    CFG.colorMorphs.forEach(cm => expanded.push(x.p * cm.prob));
+  });
+  const casts = expectedAll(expanded);
+  const hours = casts * cyc / 3600;
+  /* 集齐「某一条鱼」的 6 种颜色：用最稀有的那条鱼的摄食频率做基准 */
+  const rarest = probs.reduce((a, b) => (b.p < a.p ? b : a));
+  const colorOnly = expectedAll(CFG.colorMorphs.map(c => c.prob)) / rarest.p;
+  totalCombos += expanded.length;
+  totalHours += hours;
+  console.log(
+    `${field.rank.padEnd(5)} ${String(expanded.length).padStart(6)}   ` +
+    `${fmtLong(hours).padStart(14)}   ${fmtLong(colorOnly * cyc / 3600).padStart(16)}`
+  );
+}
+console.log(`\n全部 7 个钓场共 ${totalCombos} 个「品种×颜色」组合，收齐约需 ${fmtLong(totalHours)}`);
+console.log('（这就是为什么解锁只看品种 —— 颜色当彩蛋，不当门槛）');
+
 console.log('\n累计解锁节奏（达到该钓场图鉴 100% 时的总时长）：');
 let c = 0;
 G.FIELDS.forEach((f, i) => {

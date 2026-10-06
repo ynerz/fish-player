@@ -138,8 +138,15 @@ G.Panels = (function () {
       var g = St.globalProgress();
 
       var head = U.el('div', 'book-head');
+      var colStat = St.colorProgress();
       head.innerHTML = '<div><b style="font-size:15px">全图鉴收集进度</b>' +
-        '<div class="hint-text">已收集 ' + g.got + ' / ' + g.total + ' 种（' + (g.pct * 100).toFixed(1) + '%）</div></div>';
+        '<div class="book-sum">' +
+          '<span>品种 <b>' + g.got + '</b> / ' + g.total + '　(' + (g.pct * 100).toFixed(1) + '%)</span>' +
+          '<span>颜色 <b>' + colStat.got + '</b> / ' + colStat.total + '　(' + (colStat.pct * 100).toFixed(1) + '%)</span>' +
+        '</div>' +
+        '<div class="hint-text" style="margin-top:4px">' +
+          '⚠️ <b>解锁只看「品种」</b>，颜色只是收藏彩蛋，不参与任何解锁判定。' +
+        '</div></div>';
 
       var filters = U.el('div', 'book-filters');
 
@@ -183,6 +190,17 @@ G.Panels = (function () {
         item.appendChild(sub);
         var tag = U.el('div', 'bi-tag rar' + f.rar, e ? CFG.rarity[f.rar].name : '未发现');
         item.appendChild(tag);
+        var colorsRow = U.el('div', 'bi-colors');
+        CFG.colorMorphs.forEach(function (cm, ci) {
+          var has = !!(e && e.colors && e.colors[cm.key]);
+          var dot = U.el('i', has ? 'on' : '');
+          dot.style.background = cm.tint || '#8b98a5';
+          dot.title = cm.name + (has ? ' ✓ 已收集' : ' ✗ 未收集');
+          colorsRow.appendChild(dot);
+        });
+        item.appendChild(colorsRow);
+        item.title = f.name + '　颜色 ' +
+          (e ? CFG.colorMorphs.filter(function (c) { return e.colors && e.colors[c.key]; }).length : 0) + '/' + CFG.colorMorphs.length;
         if (e) {
           var rec = U.el('div', 'bi-record', '最大 ' + U.kg(e.maxKg) + ' · ' + e.n + ' 条');
           item.appendChild(rec);
@@ -199,10 +217,12 @@ G.Panels = (function () {
           cv.width = 260 * dpr; cv.height = 112 * dpr;
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
           if (e) {
-            var morphKeys = Object.keys(e.colors || {});
-            var morph = morphKeys.length ? G.Loot.colorByKey(morphKeys[0]) : null;
+            /* 显示已收集到的「最稀有颜色」，比只显示原色更有收集感 */
+            var best = null;
+            CFG.colorMorphs.forEach(function (cm) { if (e.colors && e.colors[cm.key]) best = cm; });
+            var amt = best && best.tint ? (best.key === 'dark' ? 0.6 : 0.75) : 0;
             G.FishArt.draw(ctx, f, 130, 56, 168, {
-              tint: morph && morph.tint, tintAmt: 0.45, t: 0.6,
+              tint: best && best.tint, tintAmt: amt, t: 0.6,
             });
           } else {
             G.FishArt.drawSilhouette(ctx, f, 130, 56, 168);
@@ -225,9 +245,14 @@ G.Panels = (function () {
       });
       CFG.colorMorphs.forEach(function (c) {
         lg.innerHTML += '<span class="lg"><i style="background:' + (c.tint || '#8b98a5') + '"></i>' + c.name +
-                        ' ' + (c.prob * 100).toFixed(1) + '%</span>';
+                        ' ' + (c.prob * 100).toFixed(1) + '%　售价 ×' + c.valueMul.toFixed(2) + '</span>';
       });
       root.appendChild(lg);
+      var ctip = U.el('div', 'hint-text');
+      ctip.style.marginTop = '8px';
+      ctip.innerHTML = '每种鱼最多可能有 6 种颜色。图鉴里显示的图案是<b>你收集到的最稀有颜色</b>，' +
+                       '下面 6 个小圆点代表该颜色的收集状态。颜色只影响外观和售价，<b>不影响解锁</b>。';
+      root.appendChild(ctip);
     },
   };
 

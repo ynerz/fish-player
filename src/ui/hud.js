@@ -30,6 +30,7 @@ G.Hud = (function () {
     el.badgeName = U.$('.fb-name');
     el.badgeSub  = U.$('.fb-sub');
     el.idleChip  = U.$('#idleChip');
+    el.catchLog  = U.$('#catchLog');
 
     /* 顶栏按钮 */
     U.$$('.tab').forEach(function (b) {
@@ -156,6 +157,26 @@ G.Hud = (function () {
     else el.fightTip.innerHTML = '按住 <kbd>空格</kbd> 或 <kbd>鼠标左键</kbd> 收线，松开放线';
   }
 
+  /* ---------------- 渔获播报 ----------------
+     挂机时不再只弹史诗/传说，所有渔获都进这条流，
+     玩家随时能看到钓到了什么。 */
+  function pushCatch(info) {
+    if (!el.catchLog) return;
+    var row = U.el('div', 'cl-row r' + info.rar);
+    var dot = info.color && info.color.tint ? info.color.tint : '#8b98a5';
+    row.innerHTML =
+      '<i style="background:' + dot + '"></i>' +
+      '<b>' + info.fish.name + '</b>' +
+      '<span class="cl-kg">' + U.kg(info.kg) + '</span>' +
+      '<span class="cl-coin">+' + U.coin(info.price) + '</span>' +
+      (info.isNew ? '<em>新</em>' : (info.isRecord ? '<em style="background:#e8a020">纪录</em>' : ''));
+    row.title = info.fish.name + ' · ' + info.color.name + ' · ' + U.kg(info.kg) + ' · +' + info.price + ' 金';
+    el.catchLog.insertBefore(row, el.catchLog.firstChild);
+    while (el.catchLog.children.length > 9) el.catchLog.removeChild(el.catchLog.lastChild);
+  }
+
+  function clearCatchLog() { if (el.catchLog) el.catchLog.innerHTML = ''; }
+
   /* ---------------- 提示 ---------------- */
   function toast(o) {
     var t = U.el('div', 'toast ' + (o.kind || ''), o.text);
@@ -169,6 +190,7 @@ G.Hud = (function () {
     init: init, syncAll: syncAll, syncCoin: syncCoin, syncStats: syncStats, syncDeck: syncDeck,
     setAction: setAction, showBite: showBite, showFight: showFight, updateFight: updateFight,
     toast: toast, setField: setField,
+    pushCatch: pushCatch, clearCatchLog: clearCatchLog,
     el: el,
   };
 })();

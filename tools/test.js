@@ -312,6 +312,124 @@ ok(G.FIELDS[0].biteMul === 1, '起始钓场 biteMul = 1');
 ok(U.clamp(5, 0, 10) === 5 && U.clamp(-1, 0, 10) === 0, 'U.clamp 边界正确');
 
 /* =========================================================
+   6b. 放生生态值 / 水族箱被动收益 / 装饰货币（v0.5.2）
+   ========================================================= */
+const midKg = f => (f.minKg + f.maxKg) / 2;
+const cCommon = G.FISH.filter(f => f.rar === 0)[0];
+const cLegend = G.FISH.filter(f => f.rar === 3)[0];
+const cEpic   = G.FISH.filter(f => f.rar === 2)[0];
+
+G_('State · 放生生态值');
+St.reset();
+const ecoBase = St.ecoValue({ f: cCommon.id, kg: midKg(cCommon), c: 'normal' });
+ok(ecoBase >= 1 && isFinite(ecoBase), `放生一条普通原色鱼 = ${ecoBase} 生态值`);
+ok(St.ecoValue({ f: cCommon.id, kg: midKg(cCommon), c: 'shiny' }) > ecoBase, '闪光鱼放生给得更多');
+ok(St.ecoValue({ f: cLegend.id, kg: midKg(cLegend), c: 'normal' }) > ecoBase, '传说鱼放生给得更多');
+ok(St.ecoValue({ f: cCommon.id, kg: midKg(cCommon) * 2, c: 'normal' }) > ecoBase, '同种鱼更重给得更多');
+ok(St.ecoValue({ f: 'NOT_A_FISH', kg: 1, c: 'normal' }) === 0, '失效鱼种返回 0，不崩');
+
+St.reset();
+St.toNet(cCommon, midKg(cCommon), 'normal');
+const ecoBefore = St.get().eco || 0;
+const rel = St.releaseNetAt(0);
+ok(rel.ok === true && rel.eco > 0, `放生返回生态值 +${rel.eco}`);
+ok(St.get().eco === ecoBefore + rel.eco, '生态值累加进存档');
+ok(St.netCount() === 0 && St.get().coin === CFG.economy.startCoin, '放生不给金币，鱼从鱼护移除');
+ok(St.get().stats.released === 1, '累计放生数 +1');
+ok(St.releaseNetAt(99).ok === false, '越界放生返回 ok=false，不崩');
+
+G_('State · 水族箱被动收益');
+St.reset();
+ok(St.tankYieldPerHour() === 0, '空水族箱产出 0');
+St.toNet(cEpic, midKg(cEpic), 'normal');
+St.toNet(cEpic, midKg(cEpic), 'shiny');
+St.moveToTank(0); St.moveToTank(0);
+ok(St.tankCount() === 2 && St.netCount() === 0, '两条鱼都进了水族箱');
+const wN = G.Loot.tankYield(St.netPrice({ f: cEpic.id, kg: midKg(cEpic), c: 'normal' }));
+const wS = G.Loot.tankYield(St.netPrice({ f: cEpic.id, kg: midKg(cEpic), c: 'shiny' }));
+near(St.tankYieldPerHour(), wN + wS, 0.01, '产出 = 各条之和，且与 Loot.tankYield 同源');
+ok(wS > wN, '闪光鱼产得更多（售价系数进了公式）');
+/* 开平方压缩：身价 ×100 倍，产出只涨 10 倍（防止顶级鱼躺着赚超过主动钓） */
+near(G.Loot.tankYield(20000) / G.Loot.tankYield(200), 10, 0.01, '产出随身价开平方增长（×100 身价 → ×10 产出）');
+
+let tst = St.get();
+tst.coin = 0; tst.tankSec = 0; tst.tankFrac = 0;
+ok(St.tankTick(5) === 0, '不满一个结算周期不给钱');
+let hourSum = 0;
+for (let i = 0; i < 120; i++) hourSum += St.tankTick(CFG.storage.tankYieldTick);
+near(hourSum, St.tankYieldPerHour(), Math.max(1, St.tankYieldPerHour() * 0.02),
+     '累计结算满 1 小时 ≈ 每小时产出（分次结算不丢余量）');
+ok(tst.coin === hourSum, '金币到账且与结算返回值一致');
+ok(tst.stats.totalValue === 0, '被动收益不计入 stats.totalValue（成就要用「卖鱼收入」）');
+
+/* 便宜的鱼：半小时产出不足 1 金，也必须能攒出来（零头不能被取整吃掉） */
+St.reset();
+St.toNet(cCommon, cCommon.minKg, 'normal');
+St.moveToTank(0);
+const cheapPer = St.tankYieldPerHour();
+ok(cheapPer > 0 && cheapPer < 6, `一条小鱼每小时只产 ${cheapPer.toFixed(2)} 金`);
+tst = St.get(); tst.coin = 0; tst.tankSec = 0; tst.tankFrac = 0;
+let cheapGot = 0;
+for (let i = 0; i < 360; i++) cheapGot += St.tankTick(CFG.storage.tankYieldTick);   // 3 小时
+const expect3h = cheapPer * 3;
+ok(cheapGot >= Math.floor(expect3h) && cheapGot <= Math.ceil(expect3h) + 1,
+   `小鱼 3 小时拿到 ${cheapGot} 金（期望 ≈ ${expect3h.toFixed(2)}）—— ` +
+   `单次取整会把它抹成 0，靠 tankFrac 零头累积才对`);
+
+G_('State · 水族箱离线补算');
+St.reset();
+ok(St.tankCatchUp(36000).coin === 0, '空水族箱离线结算为 0');
+St.toNet(cEpic, midKg(cEpic), 'normal');
+St.moveToTank(0);
+const per4 = St.tankYieldPerHour();
+tst = St.get(); tst.coin = 0; tst.tankSec = 0; tst.tankFrac = 0;
+ok(St.tankCatchUp(30).coin === 0, '离线不足 60 秒不结算');
+const off1 = St.tankCatchUp(600);
+ok(off1.coin > 0 && off1.seconds === 600 && off1.capped === false, `离线 10 分钟结算 ${off1.coin} 金`);
+tst.tankFrac = 0;
+const off2 = St.tankCatchUp(100 * 3600);
+ok(off2.seconds === CFG.idle.maxCatchUp && off2.capped === true,
+   `超长离线按 config.idle.maxCatchUp = ${CFG.idle.maxCatchUp}s 封顶`);
+ok(off2.coin <= Math.ceil(per4 * CFG.idle.maxCatchUp / 3600), '封顶后不会多给');
+
+G_('State · 装饰的三种货币');
+St.reset();
+const dGold = G.DECORS.filter(d => St.decorCur(d) === 'coin');
+const dEco  = G.DECORS.filter(d => St.decorCur(d) === 'eco');
+const dMed  = G.DECORS.filter(d => St.decorCur(d) === 'medal');
+ok(G.DECORS.length >= 10, `装饰总数 ${G.DECORS.length} 件（≥10）`);
+ok(dGold.length >= 8, `金币装饰 ${dGold.length} 件`);
+ok(dEco.length >= 3 && dMed.length >= 2, `限定装饰：生态值 ${dEco.length} 件 / 纪念币 ${dMed.length} 件`);
+ok(G.DECORS.every(d => d.draw), '每件装饰都有 draw 实现（不然玩家买了看不见）');
+ok(G.DECORS.every(d => d.price > 0), '每件装饰都有正价格');
+ok(Math.max.apply(null, dGold.map(d => d.price)) >= 1000000,
+   `金币装饰最高价 ${Math.max.apply(null, dGold.map(d => d.price))}（通关后的金币沉淀）`);
+let dupD = 0, seenD = {};
+G.DECORS.forEach(d => { if (seenD[d.id]) dupD++; seenD[d.id] = 1; });
+ok(dupD === 0, '装饰 id 无重复');
+
+/* 金币买不到限定装饰 —— 这是「收集货币」和「数值货币」的分界线 */
+St.get().coin = 1e9;
+const badBuy = St.buyDecor(dEco[0].id);
+ok(badBuy.ok === false && badBuy.msg.indexOf('生态值') >= 0, '金币再多也买不到生态值限定装饰');
+ok(St.get().decors.indexOf(dEco[0].id) < 0, '失败的购买不会把装饰塞进存档');
+St.get().coin = 0;
+St.get().eco = dEco[0].price;
+const ecoBuy = St.buyDecor(dEco[0].id);
+ok(ecoBuy.ok === true && St.get().eco === 0, '生态值足够时能买，并扣掉生态值');
+ok(St.buyDecor(dEco[0].id).ok === false, '同一件装饰不能买两次');
+ok(St.buyDecor('NOT_A_DECOR').ok === false, '不存在的装饰被拒绝');
+St.get().medals = 0;
+ok(St.buyDecor(dMed[0].id).msg.indexOf('纪念币') >= 0, '纪念币不足时提示正确');
+St.get().medals = dMed[0].price;
+ok(St.buyDecor(dMed[0].id).ok === true && St.get().medals === 0, '纪念币足够时能买，并扣掉纪念币');
+/* 买完之后金币不会被误扣 */
+St.get().coin = 500;
+St.get().eco = dEco[1].price;
+St.buyDecor(dEco[1].id);
+ok(St.get().coin === 500, '用生态值买装饰不会动金币');
+
+/* =========================================================
    7. Goals —— 每日任务 / 成就 / 称号（B5）
    ========================================================= */
 G_('Goals · 每日任务生成');

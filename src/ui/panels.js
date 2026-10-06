@@ -18,6 +18,14 @@ G.Panels = (function () {
     return (Math.round(h / 24 * 10) / 10) + ' 天';
   }
 
+  /* 水族箱产出可能是个位数，「四舍五入」会把 0.7 显示成 1、把 0 也显示成整数，
+     玩家看不出这个系统到底在不在工作。小于 100 时保留一位小数。 */
+  function fmtYield(v) {
+    if (!(v > 0)) return '0';
+    if (v >= 100) return U.coin(v);
+    return (Math.round(v * 10) / 10).toFixed(1);
+  }
+
   function init() {
     modal = U.$('#modal');
     titleEl = U.$('#modalTitle');
@@ -598,6 +606,26 @@ G.Panels = (function () {
   function renderNet(root) {
     var s = St.get();
     var netN = St.netCount(), tankN = St.tankCount();
+    var yieldPerHour = St.tankYieldPerHour();
+
+    /* ---- 顶部：两种收集货币 + 水族箱产出 ---- */
+    var top = U.el('div', 'stat-grid');
+    top.innerHTML =
+      '<div class="stat-box"><div class="sb-label">生态值</div><div class="sb-value">' +
+        U.num(s.eco || 0) + '</div></div>' +
+      '<div class="stat-box"><div class="sb-label">纪念币</div><div class="sb-value">' +
+        U.num(s.medals || 0) + '<small>枚</small></div></div>' +
+      '<div class="stat-box"><div class="sb-label">水族箱产出</div><div class="sb-value">' +
+        fmtYield(yieldPerHour) + '<small>金/时</small></div></div>' +
+      '<div class="stat-box"><div class="sb-label">累计放生</div><div class="sb-value">' +
+        U.num(s.stats.released || 0) + '<small>条</small></div></div>';
+    root.appendChild(top);
+
+    var ecoTip = U.el('div', 'hint-text');
+    ecoTip.style.margin = '8px 0 4px';
+    ecoTip.innerHTML = '放生鱼护里的鱼能得到 <b>生态值</b>，它只能换<b>限定装饰</b>（纯外观），' +
+      '换不到金币 / 鱼饵 / 装备。鱼越稀有、越鲜艳、越重，给得越多。';
+    root.appendChild(ecoTip);
 
     /* ---- 鱼护 ---- */
     var head = U.el('div', 'net-head');
@@ -674,10 +702,11 @@ G.Panels = (function () {
           G.State.emit('toast', { text: '卖出 ' + fish.name + '，+' + U.coin(p) + ' 金', kind: 'good' });
           refresh();
         });
-        mkBtn('放生', 'ghost', function () {
-          St.releaseNetAt(i);
+        mkBtn('放生 +' + St.ecoValue(entry), 'ghost', function () {
+          var r = St.releaseNetAt(i);
+          if (!r.ok) return;
           G.Audio.splash();
-          G.State.emit('toast', { text: '放生了 ' + fish.name, kind: '' });
+          G.State.emit('toast', { text: '放生了 ' + fish.name + '　生态值 +' + U.num(r.eco), kind: 'good' });
           refresh();
         });
         mkBtn('进水族箱', 'ghost', function () {
@@ -704,7 +733,9 @@ G.Panels = (function () {
     var tcost = St.tankExpandCost();
     th.innerHTML =
       '<div><b style="font-size:15px">水族箱</b>' +
-        '<div class="net-sub">挑几条最喜欢的鱼养在这里，它们会一直在水里游</div></div>' +
+        '<div class="net-sub">挑几条最喜欢的鱼养在这里 —— 它们会一直在水里游，' +
+          '而且按身价每小时产出金币（离线最多补算 ' +
+          Math.round(CFG.idle.maxCatchUp / 3600) + ' 小时）</div></div>' +
       '<div class="net-cap"><b>' + tankN + '</b> / ' + s.tankCap + '</div>';
     root.appendChild(th);
 
@@ -932,24 +963,54 @@ G.Panels = (function () {
       }
 
       if (shopTab === 'decor') {
-        G.DECORS.forEach(function (r) {
-          var owned = s.decors.indexOf(r.id) >= 0;
-          var right = owned ? '<button class="sh-buy equipped">已拥有</button>'
-            : '<button class="sh-buy"' + (s.coin < r.price ? ' disabled' : '') + '>购买</button>' +
-              '<div class="sh-price" style="text-align:center;margin-top:4px">' + U.coin(r.price) + ' 金</div>';
-          shopRow(r.icon, r.name, r.desc, right, function () {
-            if (owned) return;
-            var res = St.buyDecor(r.id);
-            if (!res.ok) { G.Audio.deny(); G.State.emit('toast', { text: res.msg, kind: 'bad' }); return; }
-            G.Audio.coin();
-            G.State.emit('toast', { text: '获得装饰：' + r.name, kind: 'good' });
-            G.Scene.setDecor(s.decors);
-            refresh();
-          }, owned ? 'owned' : '');
+        /* 当前两种收集货币的余额先亮出来，玩家才知道差多少（商店里要能直接看到） */
+        var bal = U.el('div', 'hint-text');
+        bal.style.margin = '0 0 6px';
+        bal.innerHTML = St.curLabel('coin') + ' <b>' + U.coin(s.coin) + '</b>　·　' +
+          St.curLabel('eco') + ' <b>' + U.num(s.eco || 0) + '</b>　·　' +
+          St.curLabel('medal') + ' <b>' + U.num(s.medals || 0) + '</b>';
+        root.appendChild(bal);
+
+        var groups = [['coin', '金币装饰'], ['eco', '限定装饰 · 生态值'], ['medal', '限定装饰 · 纪念币']];
+        groups.forEach(function (grp) {
+          var items = G.DECORS.filter(function (x) { return St.decorCur(x) === grp[0]; });
+          if (!items.length) return;
+          var gh = U.el('div', 'section-title', grp[1] + '（' + items.length + '）');
+          gh.style.marginTop = '16px';
+          root.appendChild(gh);
+          var gl = U.el('div', 'shop-list');
+          items.forEach(function (r) {
+            var owned = s.decors.indexOf(r.id) >= 0;
+            var cur = St.decorCur(r);
+            var have = St.curHave(cur);
+            var priceTxt = cur === 'coin' ? (U.coin(r.price) + ' 金') : (r.price + ' ' + St.curLabel(cur));
+            var right = owned ? '<button class="sh-buy equipped">已拥有</button>'
+              : '<button class="sh-buy"' + (have < r.price ? ' disabled' : '') + '>购买</button>' +
+                '<div class="sh-price" style="text-align:center;margin-top:4px">' + priceTxt + '</div>';
+            var row = U.el('div', 'shop-item' + (owned ? ' owned' : ''));
+            row.innerHTML = '<div class="sh-ico">' + r.icon + '</div>' +
+              '<div class="sh-main"><div class="sh-name">' + r.name +
+                (cur === 'coin' ? '' : '<em class="goal-tag">限定</em>') + '</div>' +
+              '<div class="sh-desc">' + r.desc + '</div></div>';
+            var bw = U.el('div', '', right);
+            row.appendChild(bw);
+            gl.appendChild(row);
+            var btn = bw.querySelector('button');
+            if (btn && !owned) U.on(btn, 'click', function () {
+              var res = St.buyDecor(r.id);
+              if (!res.ok) { G.Audio.deny(); G.State.emit('toast', { text: res.msg, kind: 'bad' }); return; }
+              G.Audio.coin();
+              G.State.emit('toast', { text: '获得装饰：' + r.name, kind: 'good' });
+              G.Scene.setDecor(s.decors);
+              refresh();
+            });
+          });
+          root.appendChild(gl);
         });
         var tip = U.el('div', 'hint-text');
         tip.style.marginTop = '12px';
-        tip.textContent = '装饰纯外观，购买后会真实出现在钓场里。';
+        tip.innerHTML = '装饰纯外观，购买后会<b>真实出现在钓场里</b>。<br>' +
+          '「限定」装饰用金币买不到 —— 生态值靠<b>放生</b>攒，纪念币靠<b>每日任务</b>攒。';
         root.appendChild(tip);
       }
 

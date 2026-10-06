@@ -125,15 +125,51 @@ G.LINES = [
     desc:'据说原料来自某条沉船的骨架。断线这个词与它无关。' },
 ];
 
+/* =========================================================
+   装饰（v0.5.2 从 5 件扩到 14 件）
+   =========================================================
+   三种货币（`cur` 字段，默认 coin）：
+     coin  金币   —— 常规装饰，做通关后的金币沉淀（600 → 260 万）
+     eco   生态值 —— 限定装饰，**只能靠放生换**，金币买不到
+     medal 纪念币 —— 限定装饰，**只能靠每日任务换**，金币买不到
+
+   ⚠️ 限定装饰是纯外观奖励，`price` 是「生态值 / 纪念币」的数量，
+      不是金币。别在商店里给它标「金」。
+   ⚠️ 每件都必须有真实绘制实现（src/render/scene.js 的 drawDecors），
+      否则玩家花了钱却什么都看不到。
+   ========================================================= */
 G.DECORS = [
-  { id:'hat',     name:'渔夫帽',    price:600,     icon:'👒',
-    desc:'防晒。佩戴在钓手头上。', draw:'hat' },
-  { id:'cooler',  name:'保温箱',    price:4000,    icon:'🧊',
-    desc:'放在码头边的蓝色箱子。', draw:'cooler' },
-  { id:'cat',     name:'钓场猫',    price:20000,   icon:'🐈',
-    desc:'会一直蹲在你旁边。偶尔看一眼水面。', draw:'cat' },
-  { id:'light',   name:'串灯',      price:80000,   icon:'🏮',
-    desc:'沿码头挂一排暖光小灯，夜里尤其好看。', draw:'light' },
-  { id:'boatdeco',name:'小木船',    price:600000,  icon:'🛶',
-    desc:'停在你钓鱼的位置旁边，随浪轻轻晃。', draw:'boat' },
+  /* ---- 金币装饰：价格一路铺到百万级 ---- */
+  { id:'hat',     name:'渔夫帽',    price:600,     icon:'👒', cur:'coin', draw:'hat',
+    desc:'防晒。佩戴在钓手头上。' },
+  { id:'cooler',  name:'保温箱',    price:4000,    icon:'🧊', cur:'coin', draw:'cooler',
+    desc:'放在码头边的蓝色箱子。' },
+  { id:'cat',     name:'钓场猫',    price:20000,   icon:'🐈', cur:'coin', draw:'cat',
+    desc:'会一直蹲在你旁边。偶尔看一眼水面。' },
+  { id:'light',   name:'串灯',      price:80000,   icon:'🏮', cur:'coin', draw:'light',
+    desc:'沿码头挂一排暖光小灯，夜里尤其好看。' },
+  { id:'tent',    name:'露营帐篷',  price:180000,  icon:'⛺', cur:'coin', draw:'tent',
+    desc:'夜里在码头上支一顶。你钓到几点，它就陪你到几点。' },
+  { id:'boatdeco',name:'小木船',    price:600000,  icon:'🛶', cur:'coin', draw:'boat',
+    desc:'停在你钓鱼的位置旁边，随浪轻轻晃。' },
+  { id:'fire',    name:'篝火',      price:900000,  icon:'🔥', cur:'coin', draw:'fire',
+    desc:'火苗一直在跳。深海夜里最亮的一处光。' },
+  { id:'balloon', name:'热气球',    price:2600000, icon:'🎈', cur:'coin', draw:'balloon',
+    desc:'慢慢飘在钓场上方。据说上面的人也在钓鱼。' },
+
+  /* ---- 限定装饰 · 生态值（放生换） ---- */
+  { id:'reed',    name:'芦苇丛',    price:30,   icon:'🌾', cur:'eco', draw:'reed',
+    desc:'你放生的鱼回到了水里，岸边就长出了芦苇。' },
+  { id:'lily',    name:'睡莲',      price:120,  icon:'🪷', cur:'eco', draw:'lily',
+    desc:'浮在水面的一小片圆叶，白天开花。' },
+  { id:'heron',   name:'白鹭',      price:400,  icon:'🕊', cur:'eco', draw:'heron',
+    desc:'它只来水质好的地方。站着不动，比你还耐心。' },
+  { id:'reef',    name:'珊瑚礁',    price:1000, icon:'🪸', cur:'eco', draw:'reef',
+    desc:'水下的礁石上重新长满了珊瑚。生态值越高的钓场越像样。' },
+
+  /* ---- 限定装饰 · 纪念币（每日任务换） ---- */
+  { id:'plaque',  name:'荣誉奖牌',  price:25,   icon:'🏅', cur:'medal', draw:'plaque',
+    desc:'立在码头边的一块小奖牌。记录你每天都来过。' },
+  { id:'arch',    name:'荣誉拱门',  price:80,   icon:'⛩', cur:'medal', draw:'arch',
+    desc:'钓场的入口。走回来的时候会看到它。' },
 ];

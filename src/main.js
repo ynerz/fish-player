@@ -59,6 +59,9 @@
     St.on('shop', function () { Hud.syncDeck(); });
     St.on('idle', function () { Hud.syncDeck(); });
     St.on('net', function () { if (P.current() === 'net') P.refresh(); });
+    /* 水族箱被动收益：只静默更新数字，不闪（钱是躺着来的，闪会让人以为出错） */
+    St.on('tankyield', function () { Hud.syncCoin(false); });
+    St.on('eco', function () { if (P.current() === 'net') P.refresh(); });
     St.on('reset', function () { location.reload(); });
     St.on('goals', function () {
       Hud.setTitle(G.Goals.equipped());
@@ -97,6 +100,14 @@
         St.save(true);
       } else {
         last = performance.now();
+        /* 页面重新可见：先结算水族箱的被动收益（与挂机开关无关） */
+        if (hiddenAt) {
+          var t2 = St.tankCatchUp((Date.now() - hiddenAt) / 1000);
+          if (t2.coin > 0) {
+            Hud.toast({ text: '🐠 水族箱产出 ' + U.coin(t2.coin) + ' 金', kind: 'good' });
+            Hud.syncAll();
+          }
+        }
         if (hiddenAt && St.get().settings.idle) {
           var away = (Date.now() - hiddenAt) / 1000;
           if (away > 90) {
@@ -120,6 +131,21 @@
     /* ---------- 关闭前保存 ---------- */
     U.on(window, 'beforeunload', function () { St.save(true); });
     setInterval(function () { St.save(false); }, G.CONFIG.misc.autoSaveInterval * 1000);
+
+    /* ---------- 水族箱离线收益 ----------
+       ⚠️ 刻意不看 settings.idle：那条开关管的是「挂机钓鱼」，
+          水族箱是被动收益，没开挂机也该产。上限沿用 idle.maxCatchUp。 */
+    var awaySec = (Date.now() - (s.lastSeen || Date.now())) / 1000;
+    var ty = St.tankCatchUp(awaySec);
+    if (ty.coin > 0) {
+      setTimeout(function () {
+        Hud.toast({
+          text: '🐠 水族箱在你不在的时候产出 ' + U.coin(ty.coin) + ' 金' +
+                (ty.capped ? '（已按 ' + Math.round(G.CONFIG.idle.maxCatchUp / 3600) + ' 小时上限结算）' : ''),
+          kind: 'good',
+        });
+      }, 1200);
+    }
 
     /* ---------- 离线挂机补算 ---------- */
     var away = (Date.now() - (s.lastSeen || Date.now())) / 1000;
@@ -287,6 +313,7 @@
     var focused = document.visibilityState === 'visible' && !blurred;
     if (focused) {
       St.tick(dt);
+      St.tankTick(dt);         // 水族箱被动收益（内部每 30 秒结算一次）
       G.Weather.update(dt);
       G.Goals.tick(dt);        // 跨天自动重掷每日任务（内部按 3 秒节流）
     }

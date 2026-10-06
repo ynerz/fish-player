@@ -131,8 +131,13 @@ for (let rar = 0; rar < 4; rar++) {
 console.log('\n=== ② 各钓场节奏（每竿：等待 + 拉扯）===');
 console.log('钓场    平均等待   平均拉扯   单竿合计   每小时竿数  平均鱼价   每小时金币');
 const rodFor = (fid) => G.RODS[0];
+/* ②的结果要留给 ⑤（水族箱产出复核）用，所以顺手存下来 */
+const activeIncome = {};   // fid -> 金/小时
+const avgPriceOf = {};     // fid -> 平均鱼价
+const samplePrices = {};   // fid -> 该场鱼价样本（用于算「顶配水族箱」上界）
 for (const field of G.FIELDS) {
   let sumWait = 0, sumFight = 0, sumValue = 0, n = ROUNDS;
+  const prices = [];
   for (let i = 0; i < n; i++) {
     const { fish } = rollFish(field, G.BAITS[0], 1.0, false);
     const kg = rollKg(fish);
@@ -141,18 +146,64 @@ for (const field of G.FIELDS) {
     sumFight += r.result === 'success' ? r.time : r.time * 0.6;
     /* 用游戏真实的售价函数：鱼种基础价 × 重量系数 × 颜色系数
        （此前只乘了重量，漏了颜色，收益被低估约 15~50%） */
-    sumValue += G.Loot.price(fish, kg, G.Loot.rollColor(fish.rar), false);
+    const pv = G.Loot.price(fish, kg, G.Loot.rollColor(fish.rar), false);
+    sumValue += pv;
+    prices.push(pv);
   }
   const avgWait = sumWait / n, avgFight = sumFight / n;
   const perFish = avgWait + avgFight;
   const perHour = 3600 / perFish;
   const avgVal = sumValue / n;
+  activeIncome[field.id] = perHour * avgVal;
+  avgPriceOf[field.id] = avgVal;
+  samplePrices[field.id] = prices;
   console.log(
     `${field.rank.padEnd(5)}  ${avgWait.toFixed(1).padStart(7)}s  ` +
     `${avgFight.toFixed(1).padStart(7)}s  ${perFish.toFixed(1).padStart(8)}s  ` +
     `${perHour.toFixed(0).padStart(9)}  ${avgVal.toFixed(1).padStart(8)}  ${(perHour * avgVal).toFixed(0).padStart(10)}`
   );
 }
+
+/* ---------------- ⑤ 水族箱被动收益复核 ----------------
+   水族箱是「长线收集」的回报：养着的鱼按身价的固定比例每小时产金币。
+   复核两件事：
+     ① 平均情况 —— 用该场平均鱼塞满，产出应该只是「一点零花」（≤10% 主动收益）
+     ② 上界     —— 把该场最贵的 24 条（水族箱扩容到顶的格数）塞进去，
+                   产出不能超过该场主动收益（否则躺着比钓鱼赚，玩法就废了）
+   ⚠️ 被动收益**故意不进**第 ⑧ 节「各场每小时金币单调递增」的断言：
+      它不该改变主动玩法（钓鱼）的收益曲线，只是额外的一小笔。
+   ⚠️ 改 config.storage.tankYieldRate 必须重跑本文件。 */
+/* 单条产出走 G.Loot.tankYield（与游戏本体共用一份公式） */
+const ty = (price) => G.Loot.tankYield(price);
+const TANK_SLOTS_MAX = CFG.storage.tankCap + CFG.storage.tankStep * CFG.storage.tankCosts.length;
+console.log(`\n=== ⑤ 水族箱被动收益（满格 ${TANK_SLOTS_MAX} 格，单条 = ` +
+            `${CFG.storage.tankYieldBase} × √(身价 / ${CFG.storage.tankYieldRef}) 金/时）===`);
+console.log('钓场   满格平均产出   占主动收益   顶配产出(最贵24条)   占主动收益   结论');
+
+let tankBad = 0;
+for (const field of G.FIELDS) {
+  const act = activeIncome[field.id];
+  const avg = ty(avgPriceOf[field.id]) * TANK_SLOTS_MAX;
+  const top = samplePrices[field.id].slice().sort((a, b) => b - a).slice(0, TANK_SLOTS_MAX)
+    .reduce((a, b) => a + ty(b), 0);
+  const rAvg = avg / act, rTop = top / act;
+  const bad = rAvg > 0.10 || rTop > 1.0;
+  if (bad) tankBad++;
+  console.log(
+    `${field.rank.padEnd(5)} ${avg.toFixed(0).padStart(11)}   ` +
+    `${(rAvg * 100).toFixed(1).padStart(8)}%   ${top.toFixed(0).padStart(16)}   ` +
+    `${(rTop * 100).toFixed(1).padStart(8)}%   ${bad ? '✖ 失控' : '✔ 合理'}`
+  );
+}
+if (tankBad) {
+  console.log(`\n✖ 水族箱被动收益失控：${tankBad} 个钓场越界。` +
+              `把 config.storage.tankYieldRate（当前 ${TANK_RATE}）调小。`);
+  process.exitCode = 1;
+} else {
+  console.log('  ✔ 全部钓场：平均满格 ≤ 主动收益 10%，顶配满格 ≤ 主动收益 100%');
+}
+console.log('  （顶配 = 该场最贵的 24 条鱼；它们本身价值极高，' +
+            '而且养起来就卖不掉了 —— 机会成本由玩家自己权衡）');
 
 /* ---------------- ③ 图鉴收集耗时（用游戏真实抽卡逻辑蒙特卡洛） ---------------- */
 const FIGHT_EXP = CFG.misc.fightExpect;   // 每竿期望耗时（含失败重来），秒

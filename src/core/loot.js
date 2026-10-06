@@ -140,6 +140,17 @@ G.Loot = (function () {
     return Math.max(1, Math.round(p));
   }
 
+  /* ---------------- 水族箱被动收益（单条，金/小时） ----------------
+     产出 = tankYieldBase × √(售价 / tankYieldRef)
+     开平方是刻意的：线性比例下几条百万级的顶级鱼就能让「躺着赚」
+     超过主动钓鱼（实测 SS 场上界 118%），玩法会废掉。
+     ⚠️ 游戏本体（state.js）和 tools/balance.js 都必须调这一个函数，
+        不要各自写一遍公式 —— A1 那次「balance 漏乘 biteMul」就是这么来的。 */
+  function tankYield(price) {
+    if (!(price > 0)) return 0;
+    return CFG.storage.tankYieldBase * Math.sqrt(price / CFG.storage.tankYieldRef);
+  }
+
   /* ---------------- 完整一次「钓上来」的生成 ---------------- */
   function generate(field, opts) {
     var pick = rollFish(field, opts);
@@ -153,6 +164,6 @@ G.Loot = (function () {
     envWeight: envWeight, pickInBucket: pickInBucket,
     colorProb: colorProb, colorProbTotal: colorProbTotal,
     rarityWeights: rarityWeights, rollFish: rollFish,
-    biteTime: biteTime, price: price, generate: generate,
+    biteTime: biteTime, price: price, generate: generate, tankYield: tankYield,
   };
 })();

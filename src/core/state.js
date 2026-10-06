@@ -49,7 +49,10 @@ G.State = (function () {
       locked: [],                      // 隐藏钓场被「发现」时记录，用于解锁提示
       /* ---- 长线目标（v3）---- */
       daily: null,                     // 当日任务（由 G.Goals 生成，跨天自动重掷）
-      medals: 0,                       // 纪念币：只统计，没有消费出口
+      medals: 0,                       // 纪念币：只能换限定装饰（纯外观）
+      eco: 0,                          // 生态值：放生得到的收集货币，只能换限定装饰
+      tankSec: 0,                      // 水族箱被动收益的「未结算秒数」余量
+      tankFrac: 0,                     // 水族箱被动收益的「不足 1 金的零头」
       medalSeen: {},                   // 已播报过的纪念币里程碑
       titleSel: '',                    // 佩戴中的称号 id
       achSeen: [],                     // 已播报过的成就 id（成就是纯派生的，不存状态）
@@ -64,6 +67,7 @@ G.State = (function () {
         byWx: {},                      // 各天气下钓获条数
         byTm: {},                      // 各时段钓获条数
         netKept: 0,                    // 收进鱼护的累计条数
+        released: 0,                   // 放生累计条数
         netMax: 0, tankMax: 0,         // 鱼护 / 水族箱的**历史最大占用**（成就用）
         streak: 0, maxStreak: 0,       // 当前 / 历史最长「连续成功」竿数
       },
@@ -108,6 +112,9 @@ G.State = (function () {
     if (!d.medalSeen || typeof d.medalSeen !== 'object') d.medalSeen = {};
     if (typeof d.titleSel !== 'string') d.titleSel = '';
     d.medals = Math.max(0, Math.round(safeNum(d.medals, 0)));
+    d.eco = Math.max(0, Math.round(safeNum(d.eco, 0)));
+    d.tankSec = Math.max(0, safeNum(d.tankSec, 0));
+    d.tankFrac = Math.min(0.999, Math.max(0, safeNum(d.tankFrac, 0)));
     if (d.daily && (typeof d.daily !== 'object' || !Array.isArray(d.daily.q))) d.daily = null;
     if (!Array.isArray(d.stats.byRar) || d.stats.byRar.length !== 4) d.stats.byRar = [0, 0, 0, 0];
     d.stats.byRar = d.stats.byRar.map(function (v) { return Math.max(0, Math.round(safeNum(v, 0))); });
@@ -118,6 +125,7 @@ G.State = (function () {
       d.stats[k] = clean;
     });
     d.stats.netKept = Math.max(0, Math.round(safeNum(d.stats.netKept, 0)));
+    d.stats.released = Math.max(0, Math.round(safeNum(d.stats.released, 0)));
     /* netMax / tankMax：历史最大占用。没有这个字段的老档用「当前条数」起步，
        至少保证不会因为缺字段而被判成 0 之后又永远追不上。 */
     d.stats.netMax = Math.max(0, Math.round(safeNum(d.stats.netMax, (d.net || []).length)));
@@ -293,11 +301,83 @@ G.State = (function () {
     save(); emit('coin'); emit('net');
     return p;
   }
+  /* ---------------- 放生 → 生态值 ----------------
+     放生不再只是「删掉一条鱼」。得到的生态值是**收集货币**，
+     只能换限定装饰（纯外观），换不到任何影响玩法/收益的东西。
+     口径：稀有度基础值 × 体重系数 × 颜色系数，见 config.eco。 */
+  function ecoValue(entry) {
+    var fish = G.FISH_ID[entry.f];
+    if (!fish) return 0;
+    var mid = Math.max(1e-6, (fish.minKg + fish.maxKg) / 2);
+    var kgMul = U.clamp(entry.kg / mid, CFG.eco.kgMin, CFG.eco.kgMax);
+    var cm = G.Loot.colorByKey(entry.c);
+    var cmMul = CFG.eco.colorBase + CFG.eco.colorSpan * (cm ? cm.valueMul : 1);
+    var base = CFG.eco.base[fish.rar] != null ? CFG.eco.base[fish.rar] : CFG.eco.base[0];
+    return Math.max(1, Math.round(base * kgMul * cmMul));
+  }
+
   function releaseNetAt(i) {
-    if (i < 0 || i >= S.net.length) return false;
+    if (i < 0 || i >= S.net.length) return { ok: false, eco: 0 };
+    var eco = ecoValue(S.net[i]);
     S.net.splice(i, 1);
-    save(); emit('net');
-    return true;
+    S.eco = (S.eco || 0) + eco;
+    S.stats.released = (S.stats.released || 0) + 1;
+    save(); emit('net'); emit('eco');
+    return { ok: true, eco: eco };
+  }
+
+  /* ---------------- 水族箱被动收益 ----------------
+     养着的鱼每小时产出金币。产出与「这条鱼现在能卖多少钱」成正比，
+     所以稀有度 / 颜色 / 重量全都自然计入，不需要额外三套系数。
+     ⚠️ 不是售价本身：约 1/rate 小时才回本（默认 5% → 20 小时），
+        而且养在水族箱里的鱼是卖不掉的（机会成本由玩家自己权衡）。 */
+  function tankYieldPerHour() {
+    var per = 0;
+    /* 公式在 loot.js 里（与 tools/balance.js 共用一份），别在这里再写一遍 */
+    S.tank.forEach(function (e) { per += G.Loot.tankYield(netPrice(e)); });
+    return per;
+  }
+
+  /* 只加钱，不走 addCoin 的 emit（主循环里调用，避免金币数字每 30 秒闪一次没必要）
+     ⚠️ 必须留「不足 1 金的零头」（S.tankFrac），否则便宜的鱼永远产不出东西：
+        一条池塘鲫鱼每小时才 ~4 金，30 秒是 0.03 金，取整就是 0，
+        余量再被清零的话这个系统对早期玩家等于不存在。 */
+  function tankAward(seconds) {
+    var per = tankYieldPerHour();
+    if (per <= 0 || seconds <= 0) return 0;
+    S.tankFrac = safeNum(S.tankFrac, 0) + per * seconds / 3600;
+    var coin = Math.floor(S.tankFrac);
+    if (coin <= 0) return 0;
+    S.tankFrac -= coin;
+    S.coin = Math.max(0, safeNum(S.coin, 0) + coin);
+    /* 被动收益**不计入** stats.totalValue —— 那个字段的口径是「累计卖鱼收入」，
+       成就要用它，混进来会失真。 */
+    scheduleSave();
+    /* 单独的 'tankyield' 事件：不要复用 'coin'。
+       'coin' 的订阅方会闪一下金币数字，而这笔钱是躺着来的，
+       每 30 秒凭空闪一次会让玩家以为出了问题。 */
+    emit('tankyield', coin);
+    return coin;
+  }
+
+  /* 在线：每 tankYieldTick 秒结算一次，余量存在 tankSec 里不丢 */
+  function tankTick(dt) {
+    if (!S.tank.length) { S.tankSec = 0; S.tankFrac = 0; return 0; }
+    S.tankSec += dt;
+    if (S.tankSec < CFG.storage.tankYieldTick) return 0;
+    var secs = S.tankSec;
+    S.tankSec = 0;
+    return tankAward(secs);
+  }
+
+  /* 离线：页面关闭期间也在产出，上限沿用 idle.maxCatchUp（默认 8 小时）。
+     ⚠️ 刻意**不**看 settings.idle —— 那条开关管的是「挂机钓鱼」，
+        水族箱是被动收益，玩家没开挂机也该产。 */
+  function tankCatchUp(seconds) {
+    seconds = Math.min(Math.max(0, safeNum(seconds, 0)), CFG.idle.maxCatchUp);
+    if (seconds < 60 || !S.tank.length) return { coin: 0, seconds: 0, capped: false };
+    var coin = tankAward(seconds);
+    return { coin: coin, seconds: seconds, capped: seconds >= CFG.idle.maxCatchUp };
   }
 
   function moveToTank(i) {
@@ -542,15 +622,35 @@ G.State = (function () {
     return { ok: true };
   }
 
+  /* 装饰有三种货币（见 items.js 的 cur 字段）：
+       coin  金币     —— 常规装饰，通关后的金币沉淀
+       eco   生态值   —— 放生换来的限定装饰
+       medal 纪念币   —— 每日任务换来的限定装饰
+     限定装饰**只换外观**，不带任何数值。 */
+  function decor(id) {
+    for (var i = 0; i < G.DECORS.length; i++) if (G.DECORS[i].id === id) return G.DECORS[i];
+    return null;
+  }
+  function decorCur(d) { return (d && d.cur) || 'coin'; }
+  function curLabel(cur) {
+    return cur === 'eco' ? '生态值' : (cur === 'medal' ? '纪念币' : '金币');
+  }
+  function curHave(cur) {
+    return cur === 'eco' ? (S.eco || 0) : (cur === 'medal' ? (S.medals || 0) : safeNum(S.coin, 0));
+  }
+
   function buyDecor(id) {
     if (S.decors.indexOf(id) >= 0) return { ok: false, msg: '已拥有' };
-    var d = null;
-    for (var i = 0; i < G.DECORS.length; i++) if (G.DECORS[i].id === id) d = G.DECORS[i];
+    var d = decor(id);
     if (!d) return { ok: false, msg: '不存在' };
-    if (S.coin < d.price) return { ok: false, msg: '金币不足' };
-    S.coin -= d.price; S.decors.push(id);
-    save(); emit('coin'); emit('shop');
-    return { ok: true };
+    var cur = decorCur(d);
+    if (curHave(cur) < d.price) return { ok: false, msg: curLabel(cur) + '不足' };
+    if (cur === 'coin') { S.coin -= d.price; emit('coin'); }
+    else if (cur === 'eco') { S.eco -= d.price; emit('eco'); }
+    else { S.medals -= d.price; emit('goals'); }
+    S.decors.push(id);
+    save(); emit('shop');
+    return { ok: true, cur: cur, price: d.price };
   }
 
   function selectBait(id) { S.baitSel = id; scheduleSave(); emit('bait'); }
@@ -608,6 +708,9 @@ G.State = (function () {
     netCount: netCount, tankCount: tankCount, netFull: netFull, tankFull: tankFull,
     toNet: toNet, netPrice: netPrice, netValue: netValue,
     sellNetAt: sellNetAt, sellAllNet: sellAllNet, releaseNetAt: releaseNetAt,
+    ecoValue: ecoValue,
+    tankYieldPerHour: tankYieldPerHour, tankTick: tankTick, tankCatchUp: tankCatchUp,
+    decor: decor, decorCur: decorCur, curLabel: curLabel, curHave: curHave,
     moveToTank: moveToTank, takeFromTank: takeFromTank, sellTankAt: sellTankAt,
     netExpandCost: netExpandCost, tankExpandCost: tankExpandCost,
     expandNet: expandNet, expandTank: expandTank,

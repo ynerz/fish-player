@@ -649,7 +649,18 @@ G.Scene = (function () {
 
     ctx.restore();
 
-    // 装饰：保温箱 / 猫 / 串灯 / 小船
+    drawDecors(th);
+  }
+
+  /* ---------------- 装饰（14 件，全部程序化绘制） ----------------
+     位置一律锚在 dockY() / surfaceY() / horizonY() 上，换分辨率不跑位。
+     加新装饰的两步：① items.js 的 G.DECORS 加一条；② 这里补一段绘制。
+     ⚠️ 用 flat 画风：只用纯色 + 简单几何，不新建渐变
+        （D1 就是「每帧新建渐变」的性能问题，别再堆回去）。 */
+  function drawDecors(th) {
+    var dy = dockY();
+
+    /* ---- 保温箱 ---- */
     if (S.decor.cooler) {
       ctx.save();
       ctx.fillStyle = '#3f8fd6';
@@ -721,6 +732,267 @@ G.Scene = (function () {
       ctx.beginPath(); ctx.moveTo(bx - 6, by - 10); ctx.lineTo(bx - 6, by - 44); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(bx - 4, by - 42); ctx.lineTo(bx + 16, by - 12); ctx.lineTo(bx - 4, by - 12); ctx.closePath();
       ctx.fillStyle = '#e8e2d4'; ctx.fill();
+      ctx.restore();
+    }
+
+    /* ================= v0.5.2 新增 ================= */
+
+    /* ---- 露营帐篷（金币 18 万） ---- */
+    if (S.decor.tent) {
+      ctx.save();
+      var tx = W * 0.300, ty = dy - 13;
+      ctx.fillStyle = 'rgba(0,0,0,.18)';
+      ctx.beginPath(); ctx.ellipse(tx, ty + 1, 24, 4, 0, 0, 6.3); ctx.fill();
+      ctx.fillStyle = '#c9591f';
+      ctx.beginPath();
+      ctx.moveTo(tx, ty - 40); ctx.lineTo(tx + 23, ty); ctx.lineTo(tx - 23, ty);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#e2703a';
+      ctx.beginPath();
+      ctx.moveTo(tx, ty - 40); ctx.lineTo(tx + 23, ty); ctx.lineTo(tx - 2, ty);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#4a2a18';
+      ctx.beginPath();
+      ctx.moveTo(tx, ty - 23); ctx.lineTo(tx + 9, ty); ctx.lineTo(tx - 9, ty);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#8a6a45'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(tx, ty - 40); ctx.lineTo(tx, ty - 48); ctx.stroke();
+      ctx.fillStyle = '#ffd977';
+      ctx.beginPath();
+      ctx.moveTo(tx, ty - 48); ctx.lineTo(tx + 10, ty - 44.5); ctx.lineTo(tx, ty - 41);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+
+    /* ---- 荣誉奖牌（纪念币 25 枚） ---- */
+    if (S.decor.plaque) {
+      ctx.save();
+      var px = W * 0.243, py = dy - 13;
+      ctx.fillStyle = '#8a6a45';
+      ctx.fillRect(px - 1.6, py - 20, 3.2, 20);
+      ctx.fillStyle = '#f2f4f6';
+      ctx.beginPath();
+      ctx.moveTo(px - 9, py - 34); ctx.lineTo(px + 9, py - 34);
+      ctx.lineTo(px + 9, py - 22); ctx.lineTo(px - 9, py - 22);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#b9c4cc'; ctx.lineWidth = 1; ctx.stroke();
+      ctx.fillStyle = '#e8b23c';
+      ctx.beginPath(); ctx.arc(px, py - 29, 4.6, 0, 6.3); ctx.fill();
+      ctx.fillStyle = '#fff6d8';
+      ctx.beginPath(); ctx.arc(px, py - 29, 2.1, 0, 6.3); ctx.fill();
+      ctx.fillStyle = '#3f8fd6';
+      ctx.beginPath();
+      ctx.moveTo(px - 4, py - 25); ctx.lineTo(px + 4, py - 25);
+      ctx.lineTo(px + 2.4, py - 19.5); ctx.lineTo(px - 2.4, py - 19.5);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+
+    /* ---- 篝火（金币 90 万） ---- */
+    if (S.decor.fire) {
+      ctx.save();
+      var fx = W * 0.366, fy = dy - 13;
+      ctx.fillStyle = '#9aa4ab';
+      for (var fi = 0; fi < 6; fi++) {
+        var fa = fi / 6 * 6.28;
+        ctx.beginPath();
+        ctx.ellipse(fx + Math.cos(fa) * 11, fy - 1 + Math.sin(fa) * 3.2, 4, 3, 0, 0, 6.3);
+        ctx.fill();
+      }
+      ctx.strokeStyle = '#6d5236'; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(fx - 7, fy - 1); ctx.lineTo(fx + 7, fy - 6); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(fx + 7, fy - 1); ctx.lineTo(fx - 7, fy - 6); ctx.stroke();
+
+      var fw = 0.72 + 0.28 * Math.sin(time * 7.3);
+      var fh = 17 + Math.sin(time * 9.1) * 3;
+      /* 光晕：用两层半透明实心圆代替径向渐变（每帧新建渐变会踩 D1 的坑） */
+      ctx.globalAlpha = 0.16 * fw; ctx.fillStyle = '#ff9b2f';
+      ctx.beginPath(); ctx.arc(fx, fy - 11, 23, 0, 6.3); ctx.fill();
+      ctx.globalAlpha = 0.22 * fw;
+      ctx.beginPath(); ctx.arc(fx, fy - 11, 13, 0, 6.3); ctx.fill();
+      ctx.globalAlpha = 1;
+
+      ctx.fillStyle = '#ff9b2f';
+      ctx.beginPath();
+      ctx.moveTo(fx, fy - 4 - fh);
+      ctx.quadraticCurveTo(fx + 7.5, fy - 8, fx + 4, fy - 2);
+      ctx.quadraticCurveTo(fx, fy + 1, fx - 4, fy - 2);
+      ctx.quadraticCurveTo(fx - 7.5, fy - 8, fx, fy - 4 - fh);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#ffe07a';
+      ctx.beginPath();
+      ctx.moveTo(fx, fy - 4 - fh * 0.6);
+      ctx.quadraticCurveTo(fx + 4, fy - 6, fx + 2, fy - 2.5);
+      ctx.quadraticCurveTo(fx, fy - 0.5, fx - 2, fy - 2.5);
+      ctx.quadraticCurveTo(fx - 4, fy - 6, fx, fy - 4 - fh * 0.6);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+
+    /* ---- 热气球（金币 260 万） ---- */
+    if (S.decor.balloon) {
+      ctx.save();
+      var bx0 = W * 0.800 + Math.sin(time * 0.13) * 20;
+      var by0 = horizonY() * 0.34 + Math.sin(time * 0.21) * 6;
+      var br = Math.min(W, H) * 0.030 + 12;
+      var bcols = ['#e8595c', '#f2f4f6', '#ffd977', '#f2f4f6', '#3f8fd6'];
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(bx0, by0, br, br * 0.94, 0, 0, 6.3);
+      ctx.clip();
+      for (var bi = 0; bi < bcols.length; bi++) {
+        ctx.fillStyle = bcols[bi];
+        ctx.fillRect(bx0 - br + (2 * br / bcols.length) * bi, by0 - br,
+                     2 * br / bcols.length + 1, 2 * br);
+      }
+      ctx.fillStyle = '#c9d2d8';
+      ctx.beginPath();
+      ctx.ellipse(bx0, by0 + br * 0.88, br * 0.36, br * 0.20, 0, 0, 6.3);
+      ctx.fill();
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(70,60,50,.7)'; ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(bx0 - br * 0.34, by0 + br * 0.9); ctx.lineTo(bx0 - br * 0.16, by0 + br * 1.45);
+      ctx.moveTo(bx0 + br * 0.34, by0 + br * 0.9); ctx.lineTo(bx0 + br * 0.16, by0 + br * 1.45);
+      ctx.stroke();
+      ctx.fillStyle = '#a97a4a';
+      ctx.fillRect(bx0 - br * 0.18, by0 + br * 1.45, br * 0.36, br * 0.26);
+      ctx.restore();
+    }
+
+    /* ---- 芦苇丛（生态值 30） ---- */
+    if (S.decor.reed) {
+      ctx.save();
+      var rx = W * 0.470, rbase = surfaceY() + 9;
+      ctx.lineCap = 'round';
+      for (var ri = 0; ri < 7; ri++) {
+        var rxx = rx + (ri - 3) * 5.6;
+        var rh = 28 + ((ri * 37) % 24);
+        var rsw = Math.sin(time * 1.5 + ri) * 4;
+        ctx.strokeStyle = ri % 2 ? '#7f9a4e' : '#8fae5a';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        ctx.moveTo(rxx, rbase);
+        ctx.quadraticCurveTo(rxx + rsw * 0.4, rbase - rh * 0.6, rxx + rsw, rbase - rh);
+        ctx.stroke();
+        ctx.fillStyle = ri % 2 ? '#c9a86a' : '#a8bd72';
+        ctx.beginPath();
+        ctx.ellipse(rxx + rsw, rbase - rh - 3, 2.3, 5.5, rsw * 0.03, 0, 6.3);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    /* ---- 睡莲（生态值 120） ---- */
+    if (S.decor.lily) {
+      ctx.save();
+      var lx = W * 0.640, ly = surfaceY() + 6;
+      for (var li = 0; li < 5; li++) {
+        var lxx = lx + Math.cos(li * 1.9) * (10 + li * 7);
+        var lyy = ly + Math.sin(li * 2.6) * 5;
+        var lr = 8 + (li % 3) * 3;
+        ctx.fillStyle = li % 2 ? '#4f9e5e' : '#5fb46c';
+        ctx.beginPath();
+        ctx.ellipse(lxx, lyy, lr, lr * 0.55, 0, 0.5, 6.0);
+        ctx.fill();
+      }
+      for (var pi = 0; pi < 5; pi++) {
+        var pa = pi / 5 * 6.283 + time * 0.12;
+        ctx.fillStyle = '#f7d3e0';
+        ctx.beginPath();
+        ctx.ellipse(lx + Math.cos(pa) * 3.2, ly - 5 + Math.sin(pa) * 2, 3.2, 5.6, pa, 0, 6.3);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#ffe07a';
+      ctx.beginPath(); ctx.arc(lx, ly - 5, 2.2, 0, 6.3); ctx.fill();
+      ctx.restore();
+    }
+
+    /* ---- 白鹭（生态值 400） ---- */
+    if (S.decor.heron) {
+      ctx.save();
+      var hx = W * 0.700, hy = surfaceY() + 11;
+      var bob = Math.sin(time * 0.9) * 1.6;
+      ctx.globalAlpha = 0.16; ctx.fillStyle = '#f4f7f9';
+      ctx.beginPath(); ctx.ellipse(hx, hy + 3, 11, 3.4, 0, 0, 6.3); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = '#5a6772'; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(hx - 3, hy - 22); ctx.lineTo(hx - 4.5, hy);
+      ctx.moveTo(hx + 3, hy - 22); ctx.lineTo(hx + 4.5, hy);
+      ctx.stroke();
+      ctx.fillStyle = '#f4f7f9';
+      ctx.beginPath(); ctx.ellipse(hx, hy - 27 + bob, 11, 8, -0.12, 0, 6.3); ctx.fill();
+      ctx.strokeStyle = '#f4f7f9'; ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(hx + 6, hy - 30 + bob);
+      ctx.quadraticCurveTo(hx + 14, hy - 40 + bob, hx + 12, hy - 50 + bob);
+      ctx.stroke();
+      ctx.beginPath(); ctx.arc(hx + 12, hy - 51 + bob, 3.6, 0, 6.3); ctx.fill();
+      ctx.strokeStyle = '#e8b23c'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(hx + 14, hy - 51 + bob); ctx.lineTo(hx + 22, hy - 49 + bob);
+      ctx.stroke();
+      ctx.fillStyle = '#2a2a2a';
+      ctx.beginPath(); ctx.arc(hx + 13.4, hy - 52 + bob, 1, 0, 6.3); ctx.fill();
+      ctx.restore();
+    }
+
+    /* ---- 珊瑚礁（生态值 1000） ---- */
+    if (S.decor.reef) {
+      ctx.save();
+      var rx2 = W * 0.880, ry2 = surfaceY() + 13;
+      ctx.fillStyle = '#6f7b84';
+      ctx.beginPath();
+      ctx.moveTo(rx2 - 26, ry2 + 8);
+      ctx.quadraticCurveTo(rx2 - 16, ry2 - 12, rx2 - 2, ry2 - 8);
+      ctx.quadraticCurveTo(rx2 + 12, ry2 - 18, rx2 + 22, ry2 + 4);
+      ctx.quadraticCurveTo(rx2, ry2 + 14, rx2 - 26, ry2 + 8);
+      ctx.closePath(); ctx.fill();
+      var ccol = ['#e8737f', '#f0a24a', '#c98fe0'];
+      ctx.lineCap = 'round'; ctx.lineWidth = 3.2;
+      for (var ci = 0; ci < 3; ci++) {
+        var cx2 = rx2 - 12 + ci * 12;
+        var chh = 10 + ci * 5;
+        ctx.strokeStyle = ccol[ci];
+        ctx.beginPath();
+        ctx.moveTo(cx2, ry2 - 6); ctx.lineTo(cx2 - 3, ry2 - 6 - chh);
+        ctx.moveTo(cx2, ry2 - 6 - chh * 0.5); ctx.lineTo(cx2 + 5, ry2 - 6 - chh * 0.88);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = 'rgba(255,255,255,.30)'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.ellipse(rx2, ry2 + 9, 30, 5, 0, 0, 6.3); ctx.stroke();
+      ctx.restore();
+    }
+
+    /* ---- 荣誉拱门（纪念币 80 枚） ---- */
+    if (S.decor.arch) {
+      ctx.save();
+      var ax = W * 0.200, ay = dy - 13;
+      var aw = W * 0.115, ahh = Math.min(H * 0.20, 104);
+      ctx.strokeStyle = '#c9a86a'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(ax - aw, ay);
+      ctx.lineTo(ax - aw, ay - ahh * 0.62);
+      ctx.quadraticCurveTo(ax, ay - ahh * 1.16, ax + aw, ay - ahh * 0.62);
+      ctx.lineTo(ax + aw, ay);
+      ctx.stroke();
+      ctx.fillStyle = '#ffd977';
+      ctx.beginPath(); ctx.arc(ax, ay - ahh * 0.88, 3.6, 0, 6.3); ctx.fill();
+      ctx.globalAlpha = 0.30 * (0.7 + 0.3 * Math.sin(time * 2.2));
+      ctx.beginPath(); ctx.arc(ax, ay - ahh * 0.88, 9, 0, 6.3); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#e8595c';
+      ctx.beginPath();
+      ctx.moveTo(ax - aw, ay - ahh * 0.70);
+      ctx.lineTo(ax - aw - 12, ay - ahh * 0.70 + 4);
+      ctx.lineTo(ax - aw, ay - ahh * 0.70 + 8);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(ax + aw, ay - ahh * 0.70);
+      ctx.lineTo(ax + aw + 12, ay - ahh * 0.70 + 4);
+      ctx.lineTo(ax + aw, ay - ahh * 0.70 + 8);
+      ctx.closePath(); ctx.fill();
       ctx.restore();
     }
   }

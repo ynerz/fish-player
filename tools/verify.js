@@ -200,6 +200,32 @@ for (let i = 0; i < income.length; i++) {
   else ok(`${label}（较 ${prev.rank} ×${ratio.toFixed(2)}）`);
 }
 
+/* ---------------- 9. 装饰都能画出来 ----------------
+   踩过的坑：装饰是「花钱买一个 id」，如果 scene.js 里没有对应的绘制分支，
+   玩家花几十万买回来什么都看不见，而且不报任何错。
+   所以这里做一次「数据 ↔ 绘制」的对应检查。 */
+console.log('\n[9] 每件装饰都在 scene.js 里有绘制分支');
+const sceneSrc = fs.readFileSync(path.join(ROOT, 'src/render/scene.js'), 'utf8');
+let noDraw = 0;
+G.DECORS.forEach(d => {
+  const has = new RegExp('S\\.decor\\.' + d.id + '\\b').test(sceneSrc);
+  if (!has) { err(`${d.id} 「${d.name}」在 scene.js 里没有绘制实现（买了会看不见）`); noDraw++; }
+});
+if (!noDraw) ok(`${G.DECORS.length} 件装饰全部有绘制实现`);
+
+const CURS = ['coin', 'eco', 'medal'];
+const badCur = G.DECORS.filter(d => d.cur && CURS.indexOf(d.cur) < 0);
+if (badCur.length) err(`装饰货币字段非法：${badCur.map(d => d.id + '=' + d.cur).join('、')}`);
+else ok('装饰货币字段合法（coin / eco / medal）');
+
+const freeLunch = G.DECORS.filter(d => (d.cur === 'eco' || d.cur === 'medal') && d.price > 5000);
+if (freeLunch.length) err(`限定装饰的「价格」应是生态值/纪念币数量，看着像金币：${freeLunch.map(d => d.id).join('、')}`);
+else ok('限定装饰的价格都在收集货币的合理量级内');
+
+const noPrice = G.DECORS.filter(d => !(d.price > 0));
+if (noPrice.length) err(`装饰缺价格：${noPrice.map(d => d.id).join('、')}`);
+else ok('装饰都有正价格');
+
 /* ---------------- 汇总 ---------------- */
 console.log('\n' + '='.repeat(52));
 if (errors) {

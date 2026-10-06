@@ -101,6 +101,22 @@ G.Cheat = (function () {
     return '每日任务已标记完成';
   }
 
+  /* 解锁全部装饰（含限定装饰）——用来给文档出「满装饰钓场」截图 */
+  function allDecors() {
+    G.DECORS.forEach(function (d) {
+      if (St.get().decors.indexOf(d.id) < 0) St.get().decors.push(d.id);
+    });
+    St.save(true);
+    G.Scene.setDecor(St.get().decors);
+    return '装饰已解锁 ' + St.get().decors.length + ' / ' + G.DECORS.length + ' 件';
+  }
+
+  function addEco(n) {
+    St.get().eco = Math.max(0, (St.get().eco || 0) + (n || 100));
+    St.save(true);
+    return '生态值 = ' + St.get().eco;
+  }
+
   function addMedals(n) {
     St.get().medals = Math.max(0, (St.get().medals || 0) + (n || 10));
     St.save(true);
@@ -118,6 +134,8 @@ G.Cheat = (function () {
     ['时长 +1000h', function () { return setPlayTime(1000); }],
     ['完成每日任务', function () { return finishQuests(); }],
     ['+10 纪念币', function () { return addMedals(10); }],
+    ['+100 生态值', function () { return addEco(100); }],
+    ['解锁全部装饰', function () { return allDecors(); }],
     ['清档重开', function () { clearSave(); return 'reloading'; }],
   ];
 
@@ -158,6 +176,7 @@ G.Cheat = (function () {
   return {
     unlockAll: unlockAll, fillBook: fillBook, fillColors: fillColors,
     addCoin: addCoin, setPlayTime: setPlayTime, clearSave: clearSave,
+    finishQuests: finishQuests, addMedals: addMedals, addEco: addEco, allDecors: allDecors,
     mount: mount,
   };
 })();

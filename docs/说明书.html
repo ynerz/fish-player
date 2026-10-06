@@ -647,7 +647,7 @@
   /* ---------------- 装备 ---------------- */
   document.getElementById('baitTable').innerHTML =
     '<tr><th>鱼饵</th><th class="num">一包价格</th><th class="num">单价/竿</th>' +
-    '<th class="num">上鱼速度</th><th class="num">稀有权重</th><th class="num">传说权重</th><th>说明</th></tr>' +
+    '<th class="num">咬口时间<br><span style="font-weight:400;opacity:.7">越小越快</span></th><th class="num">稀有权重</th><th class="num">传说权重</th><th>说明</th></tr>' +
     G.BAITS.map(function (b) {
       return '<tr><td><span style="display:inline-block;width:11px;height:11px;border-radius:50%;background:' +
         b.color + ';vertical-align:-1px"></span> <b>' + b.name + '</b></td>' +

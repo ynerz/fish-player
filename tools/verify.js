@@ -1069,6 +1069,39 @@ else {
 if (!statsBad) ok('统计面板的理论时长会随「已收满」改口，且没有只算不用的局部变量');
 
 
+/* ---------------- 28. 鱼饵 speed 的文案方向 ----------------
+   `items.js` 里鱼饵的 `speed` 是**等待时间的倍率**（`Loot.biteTime` 里 `t *= bait.speed`），
+   越小咬口越快。商店却把它写成「上鱼速度 ×0.56」—— 方向正好说反：
+   看着像砍掉 44% 速度，实际是快了 79%。玩家按字面理解就会觉得好饵是坑。
+   现在统一叫「咬口时间」。 */
+console.log('\n[28] 鱼饵 speed 只能叫「咬口时间」（不许叫「上鱼速度」）');
+let baitWordBad = 0;
+const wordMods = [];
+(function walkSrc(dir) {
+  fs.readdirSync(path.join(ROOT, dir)).forEach(name => {
+    const rel = dir + '/' + name;
+    if (fs.statSync(path.join(ROOT, rel)).isDirectory()) walkSrc(rel);
+    else if (/\.js$/.test(name)) wordMods.push(rel);
+  });
+})('src');
+wordMods.forEach(m => {
+  const code = fs.readFileSync(path.join(ROOT, m), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  if (code.indexOf('上鱼速度') >= 0) {
+    err(`${m} 里又把鱼饵 speed 写成「上鱼速度」了 —— 它乘的是咬口时间，越小越快，方向会说反`);
+    baitWordBad++;
+  }
+});
+if (panelsSrc.indexOf('咬口时间 ×') < 0) {
+  err('商店的鱼饵卡片没有标「咬口时间 ×」'); baitWordBad++;
+}
+['docs/GDD.md', 'docs/说明书.html'].forEach(f => {
+  const t = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  if (t.indexOf('上鱼速度') >= 0) { err(`${f} 的鱼饵表还写着「上鱼速度」`); baitWordBad++; }
+});
+if (!baitWordBad) ok('商店 / GDD / 说明书都按「咬口时间」表述（越小越快），方向不再说反');
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

@@ -938,7 +938,9 @@ G.Panels = (function () {
                               '<div class="sh-price" style="text-align:center;margin-top:4px">无限</div>';
           else right = '<button class="sh-buy">买 ' + b.pack + ' 个</button>' +
                        '<div class="sh-price" style="text-align:center;margin-top:4px">' + U.coin(b.price * b.pack) + ' 金</div>';
-          var desc = b.desc + ' ｜ 上鱼速度 ×' + b.speed.toFixed(2) +
+          /* ⚠️ 叫「咬口时间」不叫「上鱼速度」：speed 乘的是**等待时间**（越小越快），
+             写成「速度 ×0.56」方向正好说反（看着像砍了 44% 速度，实际是快了 79%）。 */
+          var desc = b.desc + ' ｜ 咬口时间 ×' + b.speed.toFixed(2) +
                      ' ｜ 稀有权重 ×' + b.rareMul.toFixed(2) +
                      (b.legendMul > 1 ? ' ｜ 传说 ×' + b.legendMul.toFixed(2) : '') +
                      ' ｜ 持有 ' + (b.free ? '∞' : have);

@@ -82,16 +82,53 @@ G.Scene = (function () {
   }
 
   /* ---------------- 渐变缓存 ----------------
-     场景里 8 处渐变只跟「画布尺寸 / 钓场主题」有关，跟时间无关，
-     但原来是每帧重建 —— 60fps 下每秒新建 480 个 CanvasGradient 对象，
-     低端机 GC 压力明显。这里缓存起来，在 resize / setField 时失效。 */
+     场景里的渐变只跟「画布尺寸 / 钓场主题」有关，跟时间无关，
+     但原来是每帧重建 —— 60fps 下每秒新建几百个 CanvasGradient 对象，
+     低端机 GC 压力明显。这里缓存起来，在 resize / setField 时失效。
+     ⚠️ 新增渐变一律走 grad()，不要直接调 ctx.createXxxGradient：
+        少数「颜色随时间呼吸」的（如灯笼光晕）改成预渲染离线图 +
+        globalAlpha，也不要每帧重建渐变。
+        tools/verify.js 第 ⑰ 节会扫源码断言这件事。 */
   var gradCache = {};
   function grad(key, make) {
     var g = gradCache[key];
     if (!g) g = gradCache[key] = make();
     return g;
   }
-  function clearGradCache() { gradCache = {}; }
+  function clearGradCache() { gradCache = {}; glowSprite = null; }
+
+  /* 极光带：4 条渐变只跟画布高度有关（i 决定位置与色相），同样缓存。
+     ⚠️ 单独抽成具名函数，让 i 走参数而不是循环变量 —— 闭包捕获 var 循环变量
+        在「缓存未命中时才求值」的写法下很危险。 */
+  function auroraGrad(i) {
+    return grad('aurora' + i, function () {
+      var yy = horizonY() * (0.20 + i * 0.14);
+      var gg = ctx.createLinearGradient(0, yy - 60, 0, yy + 70);
+      var hue = ['rgba(120,255,210,', 'rgba(160,180,255,', 'rgba(220,150,255,', 'rgba(140,255,235,'][i];
+      gg.addColorStop(0, hue + '0)');
+      gg.addColorStop(0.5, hue + (0.16 - i * 0.025) + ')');
+      gg.addColorStop(1, hue + '0)');
+      return gg;
+    });
+  }
+
+  /* 灯笼光晕：预渲染一张离屏小图，再用 globalAlpha 做呼吸。
+     原来是每帧 9 个 createRadialGradient + 9 个 arc（纯白烧 GC）。 */
+  var glowSprite = null;
+  function lanternGlow(r) {
+    if (glowSprite) return glowSprite;
+    var d = Math.max(4, Math.round(r * 2 * dpr));
+    var c = G.Platform.canvas.create(d, d);
+    var c2 = c.getContext('2d');
+    var cx = d / 2;
+    var g = c2.createRadialGradient(cx, cx, 0, cx, cx, cx);
+    g.addColorStop(0, 'rgba(255,215,140,1)');
+    g.addColorStop(1, 'rgba(255,215,140,0)');
+    c2.fillStyle = g;
+    c2.beginPath(); c2.arc(cx, cx, cx, 0, 6.3); c2.fill();
+    glowSprite = c;
+    return c;
+  }
 
   function horizonY() { return H * 0.46; }
   function surfaceY() { return horizonY() + Math.min(70, H * 0.10); }
@@ -704,11 +741,10 @@ G.Scene = (function () {
         var lx = -10 + (W * 0.40 + 10) * (l / 8);
         var ly = dy - 40 + Math.sin(Math.PI * (l / 8)) * 14;
         var gl = 0.6 + 0.4 * Math.sin(time * 2.4 + l);
-        var rg = ctx.createRadialGradient(lx, ly, 0, lx, ly, 13);
-        rg.addColorStop(0, 'rgba(255,215,140,' + (0.75 * gl) + ')');
-        rg.addColorStop(1, 'rgba(255,215,140,0)');
-        ctx.fillStyle = rg;
-        ctx.beginPath(); ctx.arc(lx, ly, 13, 0, 6.3); ctx.fill();
+        /* 光晕用预渲染离线图 + globalAlpha，不再每帧建渐变 */
+        ctx.globalAlpha = 0.75 * gl;
+        ctx.drawImage(lanternGlow(13), lx - 13, ly - 13, 26, 26);
+        ctx.globalAlpha = 1;
         ctx.fillStyle = '#ffdf9a';
         ctx.beginPath(); ctx.arc(lx, ly, 1.8, 0, 6.3); ctx.fill();
       }
@@ -1264,11 +1300,7 @@ G.Scene = (function () {
       ctx.globalCompositeOperation = 'lighter';
       for (var i = 0; i < 4; i++) {
         var y0 = horizonY() * (0.20 + i * 0.14);
-        var g = ctx.createLinearGradient(0, y0 - 60, 0, y0 + 70);
-        var hue = ['rgba(120,255,210,', 'rgba(160,180,255,', 'rgba(220,150,255,', 'rgba(140,255,235,'][i];
-        g.addColorStop(0, hue + '0)');
-        g.addColorStop(0.5, hue + (0.16 - i * 0.025) + ')');
-        g.addColorStop(1, hue + '0)');
+        var g = auroraGrad(i);
         ctx.fillStyle = g;
         ctx.beginPath();
         ctx.moveTo(0, y0);

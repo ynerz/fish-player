@@ -616,6 +616,39 @@ if (!goalBad) {
 }
 
 
+/* ---------------- 17. 渲染路径里不许每帧新建渐变 ----------------
+   D1 修过一次，但只修了「跟尺寸/主题有关」的那些：灯笼光晕（9 个/帧）
+   与极光带（4 个/帧）因为颜色随时间呼吸，被漏在外面 —— 技术债 #16 就是这么来的。
+   现在两者都收口了（光晕改成预渲染离线图 + globalAlpha）。
+   这里做一条源码级断言防复发：场景里每个 `ctx.createXxxGradient` 都必须
+   紧跟在 `grad('key', function () {` 工厂里（工厂只在缓存未命中时求值）。 */
+console.log('\n[17] scene.js 的渐变全部走缓存工厂（不得每帧新建）');
+let gradBad = 0;
+const sceneLines = sceneSrc.split('\n');
+sceneLines.forEach((ln, i) => {
+  if (!/ctx\.create(?:Linear|Radial)Gradient\s*\(/.test(ln)) return;
+  const before = sceneLines.slice(Math.max(0, i - 3), i).join('\n');
+  if (!/grad\('/.test(before)) {
+    err(`scene.js:${i + 1} 直接建了渐变，但前 3 行里没有 grad('key', ...) 工厂 —— 每帧新建会造成 GC 压力`);
+    gradBad++;
+  }
+});
+if (!gradBad) {
+  const n = (sceneSrc.match(/ctx\.create(?:Linear|Radial)Gradient\s*\(/g) || []).length;
+  ok(`${n} 处 ctx 渐变全部在 grad() 缓存工厂里`);
+}
+/* 灯笼光晕走预渲染离线图：缓存必须跟着 resize 失效（dpr 可能变） */
+if (!/function clearGradCache\s*\(\)\s*\{[\s\S]{0,120}?glowSprite\s*=\s*null/.test(sceneSrc)) {
+  err('clearGradCache() 没有一起清掉灯笼光晕的离线图 —— dpr 变化后会用到旧精度的图'); gradBad++;
+}
+if (!/function lanternGlow\s*\(/.test(sceneSrc)) {
+  err('scene.js 里没有 lanternGlow()（灯笼光晕没有做成预渲染离线图）'); gradBad++;
+} else {
+  ok('灯笼光晕是预渲染离线图 + globalAlpha（不再每帧建 9 个径向渐变）');
+}
+if (!gradBad) ok('渐变缓存是「按 resize / setField 失效」的唯一入口');
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

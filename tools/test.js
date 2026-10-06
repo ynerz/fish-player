@@ -294,7 +294,7 @@ const good = JSON.stringify({
 const imp = St.importSave(good);
 ok(imp.ok === true, '导入合法存档成功');
 ok(St.get().coin === 12345, '导入后金币 = 12345（v1 老存档被正确迁移）');
-ok(St.get().v === 4, '老存档版本号被升到 4（当前 SAVE_V）');
+ok(St.get().v === St.SAVE_V, `老存档版本号被升到 ${St.SAVE_V}（当前 SAVE_V，不写死）`);
 ok(Array.isArray(St.get().net) && Array.isArray(St.get().tank), 'v1 → v2 迁移补齐了鱼护字段');
 ok(St.bookEntry(nf.id).n === 3, '导入后图鉴数据保留');
 
@@ -553,7 +553,7 @@ const legacy2 = {
 store[CFG.saveKey] = JSON.stringify(legacy2);
 St.load();
 const sv = St.get();
-ok(sv.v === 4, '老存档版本号被升到 4');
+ok(sv.v === St.SAVE_V, `老存档版本号被升到 ${St.SAVE_V}（不写死数字）`);
 ok(Array.isArray(sv.stats.byRar) && sv.stats.byRar.length === 4, 'byRar 被补成 4 档');
 ok(sv.stats.byRar.every(x => x === 0), 'byRar 初始全 0');
 ok(sv.stats.byField && typeof sv.stats.byField === 'object' && !Array.isArray(sv.stats.byField), 'byField 被补成对象');
@@ -596,6 +596,134 @@ ok(G.QUEST_TPL.every(t => typeof t.text(1, '', St.get()) === 'string'), '任务�
 ok(G.QUEST_PER_DAY >= 1 && G.QUEST_PER_DAY <= G.QUEST_TPL.length, '每日条数不超过模板总数');
 const titled = G.ACHIEVEMENTS.filter(a => a.title).length + G.MEDAL_TITLES.length;
 ok(titled >= 10, `称号数量 ≥10（成就 ${G.ACHIEVEMENTS.filter(a => a.title).length} + 纪念币 ${G.MEDAL_TITLES.length}）`);
+
+/* =========================================================
+   7b. Goals · 周常挑战（v0.5.6 的中周期目标）
+   ========================================================= */
+G_('Goals · 周常挑战生成');
+St.reset();
+G.Goals.init();
+const wk1 = G.Goals.week();
+ok(/^\d{4}-W\d{2}$/.test(wk1), `周键是 ISO 周格式（${wk1}）`);
+const wq1 = G.Goals.weekly();
+ok(wq1.length === G.WEEKLY_PER_WEEK, `每周生成 ${G.WEEKLY_PER_WEEK} 条周常挑战`);
+ok(wq1.every(q => q.need > 0 && isFinite(q.cur) && q.pct >= 0 && q.pct <= 1), '周常的目标与进度都是有限数，进度在 0~1');
+ok(wq1.every(q => q.text && q.text.length > 3), '每条周常都有可读文案');
+ok(new Set(wq1.map(q => q.t.id)).size === wq1.length, '同一周的挑战类型不重复');
+const wSnap = JSON.stringify(G.Goals.weekBoard().q);
+G.Goals.ensureWeek(true);
+ok(JSON.stringify(G.Goals.weekBoard().q) === wSnap, '同一周重复 ensureWeek 不会重掷挑战');
+ok(G.Goals.weekBoard().week === wk1, '周常 board 上记着归属的周键');
+ok(typeof G.Goals.weekBoard().base[wq1[0].t.metric] === 'number',
+   `周常基准值已记录（${wq1[0].t.metric} = ${G.Goals.weekBoard().base[wq1[0].t.metric]}）`);
+/* 基准高于当前累计时必须 clamp 到 0（否则会显示负数进度） */
+G.Goals.weekBoard().base[wq1[0].t.metric] += 5;
+ok(G.Goals.weekly()[0].cur === 0, '周常进度不会算成负数（clamp 到 0）');
+
+/* 周常和每日是两条独立的时间轴：改日期不该动到本周挑战 */
+const beforeWeek = JSON.stringify(G.Goals.weekBoard().q);
+St.get().daily.day = '1999-01-01';
+G.Goals.ensureDay(true);
+ok(JSON.stringify(G.Goals.weekBoard().q) === beforeWeek, '跨天重掷每日任务不会连带重掷周常挑战');
+/* 反过来：把周键改旧 → 才重掷 */
+St.get().weekly.week = '1999-W01';
+G.Goals.ensureWeek(true);
+ok(St.get().weekly.week === wk1, '跨周后旧挑战被重掷');
+
+G_('Goals · 周常领取与奖励');
+St.reset();
+G.Goals.init();
+const wb = St.get().weekly;
+wb.q[0] = { tpl: 'wcatch', need: 3, key: '', seen: false };
+wb.base = { catch: St.get().stats.catches };
+wb.claimed = wb.q.map(() => false);
+ok(G.Goals.weekly()[0].cur === 0, '重写挑战后进度从 0 开始');
+St.get().stats.catches += 3;
+ok(G.Goals.weekly()[0].done === true, '统计推进 3 条 → 周常达成');
+const wMedals0 = G.Goals.medals();
+const wc = G.Goals.claimWeekly(0);
+const wantW = (CFG.goals && CFG.goals.weeklyMedals) || 1;
+ok(wc.ok === true && G.Goals.medals() === wMedals0 + wantW,
+   `领取周常 +${wantW} 纪念币（${wMedals0} → ${G.Goals.medals()}，数值来自 config.goals.weeklyMedals）`);
+ok(G.Goals.claimWeekly(0).ok === false, '同一条周常不能重复领取');
+ok(G.Goals.claimWeekly(99).ok === false, '周常越界下标不会崩');
+
+/* 徽标数要同时算上每日与周常，否则挂机时周常的奖励永远不提醒 */
+St.reset();
+G.Goals.init();
+ok(G.Goals.medalClaimable() === 0, '全新存档没有可领取的奖励');
+St.get().daily.q.forEach((q, i) => { St.get().daily.claimed[i] = false; });
+St.get().daily.q[0] = { tpl: 'catch', need: 0, key: '', seen: true };
+const dailyReady = G.Goals.quests().filter(q => q.done && !q.claimed).length;
+St.get().weekly.q[0] = { tpl: 'wcatch', need: 0, key: '', seen: true };
+const weekReady = G.Goals.weekly().filter(q => q.done && !q.claimed).length;
+ok(G.Goals.medalClaimable() === dailyReady + weekReady,
+   `徽标数 = 每日 ${dailyReady} + 周常 ${weekReady}（两边都算进去）`);
+
+G_('Goals · 周常：maxKg 与成就的联动');
+St.reset();
+G.Goals.init();
+St.get().daily.q[0] = { tpl: 'big', need: 99, key: '', seen: false };
+St.get().weekly.q[0] = { tpl: 'wbig', need: 99, key: '', seen: false };
+St.get().daily.base = { maxKg: 0 };
+St.get().weekly.base = { maxKg: 0 };
+St.get().daily.meta.maxKg = 0;
+St.get().weekly.meta.maxKg = 0;
+G.Goals.check({ kg: 4.2, rar: 1, fish: G.FISH[0] });
+ok(St.get().daily.meta.maxKg === 4.2, '每日 board 的当日最大重量被更新');
+ok(St.get().weekly.meta.maxKg === 4.2, '周常 board 的最大重量也被更新（只喂一边会让周常那条永远不动）');
+ok(G.Goals.weekly()[0].cur === 4.2, '周常「钓到 N kg 以上」的进度跟着走');
+G.Goals.check({ kg: 1.1, rar: 0, fish: G.FISH[0] });
+ok(St.get().weekly.meta.maxKg === 4.2, '更小的鱼不会把最大重量顶回去');
+
+G_('Goals · 周常模板数据完整性');
+const wIds = new Set(); let wDup = 0;
+G.WEEKLY_TPL.forEach(t => { if (wIds.has(t.id)) wDup++; wIds.add(t.id); });
+ok(wDup === 0, `周常模板 id 无重复（${G.WEEKLY_TPL.length} 条）`);
+ok(G.WEEKLY_TPL.every(t => G.Goals.metrics[t.metric] && typeof t.text === 'function' && (t.pool || t.poolFn)),
+   '每个周常模板字段完整（metric / text / pool）');
+ok(G.WEEKLY_TPL.every(t => !t.pool || t.pool.every(n => n > 0)), '周常目标值都是正数');
+ok(G.WEEKLY_TPL.every(t => typeof t.text(t.pool ? t.pool[0] : 1, '', St.get()) === 'string'),
+   '周常文案函数都能正常产出字符串');
+ok(G.WEEKLY_PER_WEEK >= 1 && G.WEEKLY_PER_WEEK <= G.WEEKLY_TPL.length, '每周条数不超过模板总数');
+/* base 是按 metric 记的 —— 同表两条共用一个 metric 会互相覆盖基准，进度永远算不对 */
+const wMetrics = G.WEEKLY_TPL.map(t => t.metric);
+ok(new Set(wMetrics).size === wMetrics.length, '周常模板的 metric 互不重复（进度基准按 metric 记）');
+const dMetrics = G.QUEST_TPL.map(t => t.metric);
+ok(new Set(dMetrics).size === dMetrics.length, '每日模板的 metric 也互不重复');
+/* tplById 要能同时找到两张表里的模板，否则周常在面板上会显示成「已下架的任务」 */
+const allTplIds = G.QUEST_TPL.map(t => t.id).concat(G.WEEKLY_TPL.map(t => t.id));
+ok(new Set(allTplIds).size === allTplIds.length, '每日与周常的模板 id 不冲突（tplById 同时在两张表里找）');
+ok(G.Goals.weekly().every(q => q.text.indexOf('已下架') < 0), '周常条目都能解析到模板文案');
+
+G_('Goals · ISO 周键（周数算法很容易写错，定点验）');
+const wkOf = (y, m, d) => G.Goals.weekOf(new Date(y, m - 1, d));
+ok(wkOf(2026, 10, 7) === '2026-W41', `2026-10-07 属于 2026-W41（实得 ${wkOf(2026, 10, 7)}）`);
+/* 2026-01-01 是周四 → ISO 第 1 周是 2025-12-29（周一）~ 2026-01-04（周日） */
+ok(wkOf(2025, 12, 29) === '2026-W01', `跨年：2025-12-29 属于 2026-W01（实得 ${wkOf(2025, 12, 29)}）`);
+ok(wkOf(2026, 1, 1) === '2026-W01', `2026-01-01 与本年第 1 周同属（实得 ${wkOf(2026, 1, 1)}）`);
+ok(wkOf(2025, 12, 28) === '2025-W52', `2025-12-28 仍属 2025-W52（实得 ${wkOf(2025, 12, 28)}）`);
+ok(wkOf(2026, 1, 5) === '2026-W02', `2026-01-05 进入第 2 周（实得 ${wkOf(2026, 1, 5)}）`);
+/* 同一周的周一到周日必须给出同一个键（否则一周里会重掷好几次） */
+const wk7 = [];
+for (let i = 0; i < 7; i++) wk7.push(G.Goals.weekOf(new Date(2026, 9, 5 + i)));   // 2026-10-05（周一）起 7 天
+ok(new Set(wk7).size === 1 && wk7[0] === '2026-W41', '同一周的 7 天给出同一个周键');
+ok(G.Goals.weekOf(new Date(2026, 9, 12)) !== wk7[0], '下一周（周一）给出新的周键');
+
+G_('Goals · 周常存档字段（SAVE_V 5）');
+St.reset();
+ok(St.get().weekly === null, '全新存档的 weekly 是 null，由 Goals.init() 现生成');
+ok(St.SAVE_V === 5, `SAVE_V = ${St.SAVE_V}（v5 新增周常挑战）`);
+St.get().weekly = 'garbage';
+const legacyW = JSON.parse(JSON.stringify(St.get()));
+legacyW.v = 4; legacyW.weekly = 'garbage';
+store[CFG.saveKey] = JSON.stringify(legacyW);
+St.load();
+ok(St.get().weekly === null, 'v4 老存档里的脏 weekly 被清成 null');
+ok(St.get().v === St.SAVE_V, '迁移后写回当前 SAVE_V');
+G.Goals.init();
+ok(Array.isArray(St.get().weekly.q) && St.get().weekly.q.length === G.WEEKLY_PER_WEEK,
+   '老存档接入后能正常拿到当周挑战');
 
 /* =========================================================
    8. Tutorial —— 新手引导（B6 / v0.5.3）
@@ -676,7 +804,7 @@ G_('Tutorial · 老存档迁移与脏数据');
 const legacy3 = JSON.parse(JSON.stringify(legacy2));
 store[CFG.saveKey] = JSON.stringify(legacy3);
 St.load();
-ok(St.get().v === 4, '老存档版本号被升到 4（当前 SAVE_V）');
+ok(St.get().v === St.SAVE_V, `老存档版本号被升到 ${St.SAVE_V}（当前 SAVE_V，不写死）`);
 ok(St.get().tut && St.get().tut.done === true, '老存档（v<4）默认「已看过」，不往老玩家脸上糊教学');
 ok(T.active() === false, '所以老存档不会弹教学气泡');
 const dirtyT = JSON.parse(JSON.stringify(legacy2));

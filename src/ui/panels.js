@@ -1128,6 +1128,51 @@ G.Panels = (function () {
           esc(Gl.equipped().name) + '</div></div>';
       root.appendChild(head);
 
+      /* --- 任务行渲染（每日 / 周常共用，避免两套 markup 漂移） --- */
+      function questRows(list, claimFn, gain) {
+        var box = U.el('div', 'goal-list');
+        list.forEach(function (q) {
+          var row = U.el('div', 'goal-row' + (q.claimed ? ' claimed' : (q.done ? ' done' : '')));
+          row.innerHTML =
+            '<div class="goal-main">' +
+              '<div class="goal-top"><span class="goal-name">' + esc(q.text) + '</span>' +
+              '<span class="goal-num">' + esc(Gl.fmtVal(q.t, q.cur)) + ' / ' + esc(Gl.fmtVal(q.t, q.need)) + '</span></div>' +
+              '<div class="goal-bar"><i style="width:' + (q.pct * 100).toFixed(1) + '%"></i></div>' +
+            '</div>';
+          var btn = U.el('button', 'sh-buy' + (q.claimed ? '' : (q.done ? '' : ' plain')),
+            q.claimed ? '已领取' : (q.done ? '领 取' : '进行中'));
+          btn.disabled = q.claimed || !q.done;
+          if (q.done && !q.claimed) btn.classList.add('ready');
+          U.on(btn, 'click', function () {
+            var r = claimFn(q.i);
+            if (!r.ok) { G.Audio.deny(); St.emit('toast', { text: r.msg, kind: 'warn' }); return; }
+            G.Audio.unlock();
+            St.emit('toast', { text: '任务完成　+' + (r.gain || gain) + ' 纪念币（共 ' + r.medals + ' 枚）', kind: 'good' });
+            if (G.Hud) G.Hud.syncGoalBadge();
+            refresh();
+          });
+          row.appendChild(U.el('div', 'goal-act')).appendChild(btn);
+          box.appendChild(row);
+        });
+        return box;
+      }
+      function claimAllBtn(n, fn) {
+        var all = U.el('button', 'btn-ghost');
+        all.style.marginTop = '10px';
+        all.textContent = '全部领取（' + n + ' 条）';
+        U.on(all, 'click', function () {
+          var got = fn();
+          G.Audio.unlock();
+          St.emit('toast', { text: '领取了 ' + got + ' 条奖励', kind: 'good' });
+          if (G.Hud) G.Hud.syncGoalBadge();
+          refresh();
+        });
+        return all;
+      }
+      var GOAL_CFG = (G.CONFIG.goals || {});
+      var dGain = GOAL_CFG.dailyMedals || 1;
+      var wGain = GOAL_CFG.weeklyMedals || 1;
+
       /* --- 每日任务 --- */
       var claimable = 0;
       list.forEach(function (q) { if (q.done && !q.claimed) claimable++; });
@@ -1138,48 +1183,29 @@ G.Panels = (function () {
       var tip = U.el('div', 'hint-text');
       tip.style.marginBottom = '10px';
       tip.innerHTML = '每天 <b>' + list.length + '</b> 条，按日期自动生成（不联网）。' +
-        '完成一条得 <b>1 枚纪念币</b>，每天 0 点刷新，<b>未领取的任务会作废</b>。';
+        '完成一条得 <b>' + dGain + ' 枚纪念币</b>，每天 0 点刷新，<b>未领取的任务会作废</b>。';
       root.appendChild(tip);
 
-      var qList = U.el('div', 'goal-list');
-      list.forEach(function (q) {
-        var row = U.el('div', 'goal-row' + (q.claimed ? ' claimed' : (q.done ? ' done' : '')));
-        row.innerHTML =
-          '<div class="goal-main">' +
-            '<div class="goal-top"><span class="goal-name">' + esc(q.text) + '</span>' +
-            '<span class="goal-num">' + esc(Gl.fmtVal(q.t, q.cur)) + ' / ' + esc(Gl.fmtVal(q.t, q.need)) + '</span></div>' +
-            '<div class="goal-bar"><i style="width:' + (q.pct * 100).toFixed(1) + '%"></i></div>' +
-          '</div>';
-        var btn = U.el('button', 'sh-buy' + (q.claimed ? '' : (q.done ? '' : ' plain')),
-          q.claimed ? '已领取' : (q.done ? '领 取' : '进行中'));
-        btn.disabled = q.claimed || !q.done;
-        if (q.done && !q.claimed) btn.classList.add('ready');
-        U.on(btn, 'click', function () {
-          var r = Gl.claim(q.i);
-          if (!r.ok) { G.Audio.deny(); St.emit('toast', { text: r.msg, kind: 'warn' }); return; }
-          G.Audio.unlock();
-          St.emit('toast', { text: '任务完成　+1 纪念币（共 ' + r.medals + ' 枚）', kind: 'good' });
-          if (G.Hud) G.Hud.syncGoalBadge();
-          refresh();
-        });
-        row.appendChild(U.el('div', 'goal-act')).appendChild(btn);
-        qList.appendChild(row);
-      });
-      root.appendChild(qList);
+      root.appendChild(questRows(list, Gl.claim, dGain));
+      if (claimable > 1) root.appendChild(claimAllBtn(claimable, Gl.claimAll));
 
-      if (claimable > 1) {
-        var all = U.el('button', 'btn-ghost');
-        all.style.marginTop = '10px';
-        all.textContent = '全部领取（' + claimable + ' 条）';
-        U.on(all, 'click', function () {
-          var n = Gl.claimAll();
-          G.Audio.unlock();
-          St.emit('toast', { text: '领取了 ' + n + ' 条任务奖励', kind: 'good' });
-          if (G.Hud) G.Hud.syncGoalBadge();
-          refresh();
-        });
-        root.appendChild(all);
-      }
+      /* --- 周常挑战（v0.5.6）---
+         先取 wlist：它内部会 ensureWeek()，s.weekly 才会就位 */
+      var wlist = Gl.weekly();
+      var wClaimable = 0;
+      wlist.forEach(function (q) { if (q.done && !q.claimed) wClaimable++; });
+      root.appendChild(U.el('div', 'section-title', '周常挑战 · 本周 ' + s.weekly.week +
+        (wClaimable ? '　<span style="color:#e8a020">' + wClaimable + ' 条可领取</span>' : '')));
+
+      var wTip = U.el('div', 'hint-text');
+      wTip.style.marginBottom = '10px';
+      wTip.innerHTML = '每周 <b>' + wlist.length + '</b> 条，按 ISO 周自动生成（不联网）。' +
+        '目标比每日任务重，完成一条得 <b>' + wGain + ' 枚纪念币</b>；' +
+        '<b>每周一 0 点刷新，未领取的会作废</b>。';
+      root.appendChild(wTip);
+
+      root.appendChild(questRows(wlist, Gl.claimWeekly, wGain));
+      if (wClaimable > 1) root.appendChild(claimAllBtn(wClaimable, Gl.claimAllWeekly));
 
       /* --- 称号 --- */
       var titles = Gl.titles();

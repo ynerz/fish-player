@@ -32,6 +32,7 @@ global.window = global;
 const H = { G: {} };
 Object.defineProperty(global, 'G', { get() { return H.G; }, set(v) { H.G = v; }, configurable: true });
 ['src/data/config.js', 'src/data/fields.js', 'src/data/fish.js', 'src/data/items.js',
+ 'src/data/goals.js',
  'src/core/util.js', 'src/core/loot.js', 'src/core/fight.js']
   .forEach(r => (new Function(fs.readFileSync(path.join(ROOT, r), 'utf8'))).call(global));
 const G = global.G, CFG = G.CONFIG, L = G.Loot;
@@ -180,8 +181,7 @@ const N = 40000;
 /* ---------------- 8. 经济曲线单调 ----------------
    用「游戏真实售价函数」估算平均鱼价：基础价 × 重量系数 × 颜色系数。
    这里刻意不断言具体数值（那是 balance.js 的活儿），
-   只断言「曲线不许倒退」这个设计不变量。 */
-console.log('\n[8] 各场每小时金币应单调递增');
+   只断言「曲线不许倒退」这个设计不变量。 */console.log('\n[8] 各场每小时金币应单调递增');
 const income = [];
 G.FIELDS.forEach(field => {
   const tot = field.rarity.reduce((a, b) => a + b, 0);
@@ -526,6 +526,94 @@ if (!/function safeBoot\s*\(/.test(mainSrc)) {
   err('main.js 没有把 boot 包起来 —— 启动期抛异常就只剩白屏，拿不到任何线索'); trackBad++;
 }
 if (!trackBad) ok(`config.track 参数齐全（缓冲 ${tkCfg.buffer} 条）；track.js 不碰存储 / 不联网；main.js 已挂采集`);
+
+
+/* ---------------- 16. 周常挑战（中周期目标）的跨文件一致性 ----------------
+   和第 ⑨ / ⑩ 节同一类：规则散在几处（模板表 / 核心层取数口径 / 面板渲染 / 存档字段），
+   任何一处漏掉都是「不报错的静默失败」：
+     · 模板的 metric 在核心层没有实现   → 进度算成 NaN，任务永远完不成
+     · 同表两条模板共用 metric          → 进度基准被互相覆盖，同样永远完不成
+     · 面板没有渲染 weekly              → 玩家看得到完成提示却领不了奖
+     · 存档没有 weekly 字段             → 每次刷新都重掷，进度原地踏步 */
+console.log('\n[16] 周常挑战：模板 ↔ 取数口径 ↔ 面板 ↔ 存档 一致');
+let goalBad = 0;
+
+const goalCfg = CFG.goals;
+if (!goalCfg) { err('config.js 里没有 goals 段（奖励数值必须集中在 config）'); goalBad++; }
+else {
+  if (!(goalCfg.dailyMedals >= 1)) { err('goals.dailyMedals 必须是 ≥1 的数（每日任务只发纪念币）'); goalBad++; }
+  if (!(goalCfg.weeklyMedals >= 1)) { err('goals.weeklyMedals 必须是 ≥1 的数'); goalBad++; }
+}
+
+const coreGoalsSrc = fs.readFileSync(path.join(ROOT, 'src/core/goals.js'), 'utf8');
+const stateSrc     = fs.readFileSync(path.join(ROOT, 'src/core/state.js'), 'utf8');
+const panelsSrc    = fs.readFileSync(path.join(ROOT, 'src/ui/panels.js'), 'utf8');
+
+/* 取数口径：从核心层的 METRICS 表里把 key 抠出来（只看代码，不看注释） */
+const metricBody = (coreGoalsSrc.match(/var METRICS\s*=\s*\{([\s\S]*?)\n  \};/) || [, ''])[1];
+const metricKeys = (metricBody.match(/(^|\n)\s*(\w+)\s*:\s*function/g) || [])
+  .map(s => s.trim().split(/\s*:\s*/)[0]);
+
+const weekTpls = G.WEEKLY_TPL || [];
+if (!weekTpls.length) { err('data/goals.js 里没有 G.WEEKLY_TPL（周常挑战没有模板）'); goalBad++; }
+if (!(G.WEEKLY_PER_WEEK >= 1)) { err('G.WEEKLY_PER_WEEK 必须是 ≥1 的数'); goalBad++; }
+else if (G.WEEKLY_PER_WEEK > weekTpls.length) {
+  err(`G.WEEKLY_PER_WEEK(${G.WEEKLY_PER_WEEK}) 超过模板总数(${weekTpls.length})，会有周期只生成半张表`); goalBad++;
+}
+
+[['每日', G.QUEST_TPL], ['周常', weekTpls]].forEach(([label, list]) => {
+  const ids = new Set(); let dup = 0, noMetric = 0;
+  list.forEach(t => {
+    if (ids.has(t.id)) dup++;
+    ids.add(t.id);
+    if (!metricKeys.includes(t.metric)) { noMetric++; err(`${label}模板「${t.id}」的 metric「${t.metric}」在 core/goals.js 的 METRICS 里没有实现`); }
+    if (typeof t.text !== 'function') { err(`${label}模板「${t.id}」缺 text 文案函数`); goalBad++; }
+    if (!t.pool && !t.poolFn) { err(`${label}模板「${t.id}」既没有 pool 也没有 poolFn`); goalBad++; }
+  });
+  if (dup) { err(`${label}模板 id 重复 ${dup} 个（tplById 只会命中第一个）`); goalBad++; }
+  if (noMetric) goalBad++;
+  /* 进度基准 base 是按 metric 记的 → 同表两条共用一个 metric 会互相覆盖 */
+  const ms = list.map(t => t.metric);
+  const dupM = ms.filter((m, i) => ms.indexOf(m) !== i);
+  if (dupM.length) {
+    err(`${label}模板里有 ${dupM.length} 个重复 metric（${[...new Set(dupM)].join('、')}）—— 进度基准按 metric 记，会互相覆盖`);
+    goalBad++;
+  }
+});
+/* 两张表的 id 不能撞车：tplById 是同时在两张表里找的 */
+const allIds = (G.QUEST_TPL || []).map(t => t.id).concat(weekTpls.map(t => t.id));
+if (new Set(allIds).size !== allIds.length) { err('每日与周常模板的 id 有冲突（tplById 会取错模板）'); goalBad++; }
+
+/* 奖励数值不许在核心层写死：必须读 CFG.goals */
+if (!/CFG\.goals/.test(coreGoalsSrc)) { err('core/goals.js 没有读 CFG.goals —— 纪念币数量可能被写死在逻辑里'); goalBad++; }
+if (!/function ensureWeek\s*\(/.test(coreGoalsSrc)) { err('core/goals.js 里没有 ensureWeek()（周常不会跨周刷新）'); goalBad++; }
+if (!/function weekOf\s*\(/.test(coreGoalsSrc)) { err('core/goals.js 里没有纯函数 weekOf(date)（周数算法没法定点测）'); goalBad++; }
+if (coreGoalsSrc.indexOf('S.weekly') < 0) { err('core/goals.js 里没有用 S.weekly 这个存档字段'); goalBad++; }
+if (!/weeklyMedals\s*\(/.test(coreGoalsSrc) || !/dailyMedals\s*\(/.test(coreGoalsSrc)) {
+  err('core/goals.js 没有从 config 读每日 / 周常的纪念币数'); goalBad++;
+}
+
+/* 存档：blank() 必须有 weekly 字段，migrate() 必须有类型纠正，SAVE_V 要 >= 5 */
+if (!/weekly:\s*null/.test(stateSrc)) { err('state.js 的 blank() 里没有 weekly: null（存档缺字段）'); goalBad++; }
+if (!/d\.weekly\s*=/.test(stateSrc)) { err('state.js 的 migrate() 没有纠正 weekly 的类型（脏数据会漏进运行期）'); goalBad++; }
+const saveVM = stateSrc.match(/var SAVE_V\s*=\s*(\d+)/);
+if (!saveVM) { err('state.js 里找不到 SAVE_V'); goalBad++; }
+else if (Number(saveVM[1]) < 5) { err(`SAVE_V = ${saveVM[1]}，但 v5 才开始有周常挑战字段`); goalBad++; }
+if (!/function weekKey\s*\(/.test(coreGoalsSrc)) { err('core/goals.js 里没有 weekKey()（周常没有周期种子）'); goalBad++; }
+
+/* 面板：必须真的渲染并给出领取入口 */
+if (panelsSrc.indexOf('Gl.weekly(') < 0) { err('panels.js 的「目标」面板没有渲染周常挑战（完成了却看不到）'); goalBad++; }
+if (panelsSrc.indexOf('claimWeekly') < 0) { err('panels.js 里没有领取周常的入口（claimWeekly）'); goalBad++; }
+/* 徽标要同时算上周常，否则周常完成的提醒永远不会出现 */
+if (!/function medalClaimable[\s\S]{0,400}weekly\(\)/.test(coreGoalsSrc)) {
+  err('medalClaimable() 没有把周常算进徽标数（周常完成不会提醒）'); goalBad++;
+}
+
+if (!goalBad) {
+  ok(`config.goals 奖励齐全（每日 ${goalCfg.dailyMedals} / 周常 ${goalCfg.weeklyMedals} 枚纪念币）`);
+  ok(`周常 ${weekTpls.length} 个模板，metric 全部有实现且不重复；每周取 ${G.WEEKLY_PER_WEEK} 条`);
+  ok('存档有 weekly 字段 + 类型纠正，SAVE_V 已升档；面板有渲染与领取入口，徽标把周常算进去');
+}
 
 
 console.log('\n' + '='.repeat(52));

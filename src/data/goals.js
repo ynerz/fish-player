@@ -1,14 +1,16 @@
 /* =========================================================
-   goals.js  —  每日任务模板 / 成就表 / 称号（B5）
+   goals.js  —  每日任务 / 周常挑战 / 成就 / 称号（B5 + v0.5.6）
    =========================================================
    ⚠️ 奖励口径（设计约束，不要破坏）：
-     每日任务与成就**只给「称号」和纯外观**，绝不给金币、鱼饵、装备
-     或任何影响收益/掉率的数值 —— 否则经济曲线会被长线系统带跑。
+     每日任务、周常挑战与成就**只给「称号」和纯外观**，绝不给金币、鱼饵、
+     装备或任何影响收益/掉率的数值 —— 否则经济曲线会被长线系统带跑。
      纪念币（medals）只是一个「收集计数」，没有消费出口，买不到任何
      影响玩法的东西。
    ---------------------------------------------------------
    · 每日任务：按**本地日期 + 当前进度阶段**做种子，确定性生成 3 条，
      不连服务器、不需要后端。当天生成后写进存档，跨天自动重掷。
+   · 周常挑战（v0.5.6）：同一套引擎，种子换成 **ISO 周键**（`2026-W41`），
+     每周 2 条、目标值大一号；这是长线留存里原来缺的「中层」。
    · 成就：**纯派生**（由存档现有数据直接算出来），不占存档字段，
      所以以后改成就条件不需要写存档迁移。
    ---------------------------------------------------------
@@ -23,6 +25,7 @@
      avail     额外可用性判断，签名 (S) -> boolean
      text      文案，签名 (need, key, S) -> string
      fmt       进度数值格式化，默认取整
+   ⚠️ 同一张模板表里不要出现两条相同 metric 的模板（进度基准按 metric 记）。
    ========================================================= */
 window.G = window.G || {};
 
@@ -99,6 +102,65 @@ G.QUEST_TPL = [
   },
 ];
 
+/* ---------------- 周常挑战模板池（v0.5.6） ----------------
+   和每日任务共用同一套引擎（metric / ctx / pool / text），只是目标值大一号、
+   按「ISO 周」刷新一次。它补的是长线留存的**中层**：每日管当天、成就管全程，
+   中间那段（一周）原来什么都没有。
+   ⚠️ 奖励口径不变：只给纪念币与称号，绝不给金币 / 鱼饵 / 装备 / 掉率
+      （每条几枚由 config.goals.weeklyMedals 决定，不要写死在这里）。
+   ⚠️ **同一张表里不许两条模板用同一个 metric**：进度基准 base 是按 metric
+      记的（见核心层 genBoard），撞车会让其中一条的基准被覆盖、进度永远算不对。
+      tools/verify.js 第 ⑯ 节会静态断言这件事。 */
+G.WEEKLY_TPL = [
+  {
+    id: 'wcatch', metric: 'catch', pool: [60, 90, 140, 200], minStage: 1,
+    text: function (n) { return '本周钓到 ' + n + ' 条鱼'; },
+  },
+  {
+    id: 'wcast', metric: 'cast', pool: [120, 180, 260, 350], minStage: 1,
+    text: function (n) { return '本周抛竿 ' + n + ' 次'; },
+  },
+  {
+    id: 'wvalue', metric: 'value', pool: [20000, 45000, 90000, 160000], minStage: 1,
+    fmt: function (v) { return G.U.coin(v) + ' 金'; },
+    text: function (n) { return '本周累计卖出 ' + G.U.coin(n) + ' 金币的鱼'; },
+  },
+  {
+    id: 'wrare', metric: 'rareUp', pool: [12, 20, 30, 45], minStage: 1,
+    text: function (n) { return '本周钓到 ' + n + ' 条「稀有」及以上的鱼'; },
+  },
+  {
+    id: 'wepic', metric: 'epicUp', pool: [4, 7, 11, 16], minStage: 1,
+    text: function (n) { return '本周钓到 ' + n + ' 条「史诗」及以上的鱼'; },
+  },
+  {
+    id: 'wkeep', metric: 'netKept', pool: [20, 35, 55, 80], minStage: 1,
+    text: function (n) { return '本周把 ' + n + ' 条鱼收进鱼护'; },
+  },
+  {
+    id: 'wfield', metric: 'field', ctx: 'field', pool: [40, 60, 90, 130], minStage: 1,
+    text: function (n, key) {
+      var f = G.FIELD_MAP[key];
+      return '本周在「' + (f ? f.name : key) + '」钓到 ' + n + ' 条鱼';
+    },
+  },
+  {
+    id: 'wbig', metric: 'maxKg', minStage: 1,
+    /* 和每日的 big 同一套口径，只是门槛整体抬一档（周常比日常重） */
+    poolFn: function (S) {
+      var mx = 0;
+      G.FIELDS.forEach(function (f) {
+        if (!S.unlocked[f.id]) return;
+        (G.FISH_BY_FIELD[f.id] || []).forEach(function (x) { if (x.maxKg > mx) mx = x.maxKg; });
+      });
+      var opts = [2, 3, 5, 8, 12, 20].filter(function (k) { return k <= mx * 0.9; });
+      return opts.length ? opts : [1];
+    },
+    fmt: function (v) { return v.toFixed(1) + ' kg'; },
+    text: function (n) { return '本周钓到 1 条 ' + n + ' kg 以上的鱼'; },
+  },
+];
+
 /* ---------------- 成就表 ----------------
    cat: book 图鉴类 / record 纪录类 / skill 操作类
    有 title 字段的成就，达成后会**同时解锁一个称号**。 */
@@ -156,5 +218,8 @@ G.MEDAL_TITLES = [
   { id: 'm120', name: '纪念收藏家', need: 120, desc: '累计获得 120 枚纪念币' },
 ];
 
-/* 每日任务每天几条（写死在这里是为了让 core/goals.js 不用再定义常量） */
+/* 每日任务每天几条 / 周常挑战每周几条。
+   写死在这里是为了让 core/goals.js 不用再定义常量；
+   **奖励数值**（每条几枚纪念币）在 config.goals 里，不要放这儿。 */
 G.QUEST_PER_DAY = 3;
+G.WEEKLY_PER_WEEK = 2;

@@ -14,8 +14,10 @@ G.State = (function () {
      版本 2：新增 net / tank / netCap / tankCap / netEx / tankEx
      版本 3：新增每日任务 / 纪念币 / 称号，以及 stats 的分维计数
              （byRar / byField / byBait / byWx / byTm / streak / maxStreak）
-     版本 4：新增新手引导进度 tut（老存档直接视为「已看过」，不刷教学气泡） */
-  var SAVE_V = 4;
+     版本 4：新增新手引导进度 tut（老存档直接视为「已看过」，不刷教学气泡）
+     版本 5：新增周常挑战 weekly（与每日任务同一套派生逻辑；
+             老存档留 null，由 G.Goals.init() 按 ISO 周键自动生成，无需迁移数据） */
+  var SAVE_V = 5;
 
   /* 数字兜底：任何来自存档或计算的数值都要过一遍，
      否则 NaN 会被 JSON.stringify 写成 null，静默污染整个存档。 */
@@ -53,8 +55,9 @@ G.State = (function () {
       netEx: 0,                        // 已扩容次数（用于取价格）
       tankEx: 0,
       locked: [],                      // 隐藏钓场被「发现」时记录，用于解锁提示
-      /* ---- 长线目标（v3）---- */
+      /* ---- 长线目标（v3 / v5）---- */
       daily: null,                     // 当日任务（由 G.Goals 生成，跨天自动重掷）
+      weekly: null,                    // 本周挑战（v5，由 G.Goals 按 ISO 周键生成）
       medals: 0,                       // 纪念币：只能换限定装饰（纯外观）
       eco: 0,                          // 生态值：放生得到的收集货币，只能换限定装饰
       tankSec: 0,                      // 水族箱被动收益的「未结算秒数」余量
@@ -126,6 +129,8 @@ G.State = (function () {
     d.tankSec = Math.max(0, safeNum(d.tankSec, 0));
     d.tankFrac = Math.min(0.999, Math.max(0, safeNum(d.tankFrac, 0)));
     if (d.daily && (typeof d.daily !== 'object' || !Array.isArray(d.daily.q))) d.daily = null;
+    /* v5：周常挑战。字段类型不对就当没有 —— init() 会自动补一份新的 */
+    if (d.weekly && (typeof d.weekly !== 'object' || !Array.isArray(d.weekly.q))) d.weekly = null;
     if (!Array.isArray(d.stats.byRar) || d.stats.byRar.length !== 4) d.stats.byRar = [0, 0, 0, 0];
     d.stats.byRar = d.stats.byRar.map(function (v) { return Math.max(0, Math.round(safeNum(v, 0))); });
     ['byField', 'byBait', 'byWx', 'byTm'].forEach(function (k) {
@@ -168,6 +173,11 @@ G.State = (function () {
       // 全部走上面的兜底逻辑，这里只标记「成就还没补登记」，
       // 由 G.Goals.init() 静默登记已满足的成就，避免老档一进来刷屏。
       d.achInit = false;
+    }
+    if (from < 5) {
+      // v4 → v5：周常挑战。没有历史数据要换算 —— weekly 留 null，
+      // 由 G.Goals.init() 按当前 ISO 周键生成一份，老档不会缺当周挑战。
+      d.weekly = null;
     }
     d.v = SAVE_V;
 
@@ -717,6 +727,7 @@ G.State = (function () {
   }
 
   return {
+    SAVE_V: SAVE_V,          // 暴露给测试与调试用（断言「升档后写回的就是它」）
     load: load, save: save, scheduleSave: scheduleSave, reset: reset,
     importSave: importSave,
     get: get, on: on, emit: emit,

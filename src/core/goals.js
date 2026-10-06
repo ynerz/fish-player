@@ -1,19 +1,24 @@
 /* =========================================================
-   goals.js  —  每日任务 / 成就 / 称号（B5 长线目标系统）
+   goals.js  —  每日任务 / 周常挑战 / 成就 / 称号（B5 长线目标系统）
    =========================================================
    设计口径
    · 每日任务：**本地日期 + 当前进度阶段**做种子，确定性生成 3 条，
      不需要服务器、不需要联网。当天生成结果写进存档，跨天自动重掷。
      （单机游戏允许玩家改系统时间刷任务，这不算问题。
        所以「不做服务器校验」是刻意的，不是漏做。）
+   · 周常挑战（v0.5.6）：同一套引擎，种子换成 **ISO 周键**（如 `2026-W41`），
+     每周 2 条、目标值大一号。补的是长线留存里原来缺的**中层**
+     —— 每日管当天、成就管全程，中间「这一周」原来没有任何东西。
    · 成就：**纯派生**。不给存档加任何成就字段，全部由现有数据算出来，
      所以以后改条件/加成就都不需要写存档迁移。
    · 奖励：只给「称号」与纪念币（纪念币没有消费出口）。
      绝不给金币 / 鱼饵 / 装备 / 掉率加成 —— 见 data/goals.js 顶部说明。
    ---------------------------------------------------------
-   ⚠️ 每日任务的进度 = 当前累计值 − 当天开始时的基准值（见 daily.base）。
+   ⚠️ 每日任务 / 周常挑战的进度 = 当前累计值 − 该周期的基准值（见每个 board 的 base）。
       新增任务类型时，必须同时在这里的 METRICS 里加一条取数口径，
-      否则 quests() 会算成 NaN。
+      否则 quests() / weekly() 会算成 NaN。
+   ⚠️ base 是**按 metric 记**的，所以同一张模板表里两条模板不能共用 metric
+      （撞车会互相覆盖基准，进度永远算不对）。verify 第 ⑯ 节静态断言这件事。
    ========================================================= */
 window.G = window.G || {};
 
@@ -22,13 +27,26 @@ G.Goals = (function () {
   var St = null;
   var dayTick = 0;
 
-  /* ---------------- 日期种子 ---------------- */
+  /* ---------------- 日期 / 周 种子 ---------------- */
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
   function todayKey() {
     /* 用系统本地日期（单机游戏，不需要服务端时间） */
     var d = new Date();
     return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
   }
+  /* ISO 周键：`2026-W41`。周一为一周之始，用「本周四」所在年份定归属
+     （这样跨年那一周不会算成两个不同的周）。全部走 UTC，避免时区把日期推偏。
+     纯函数形式（weekOf）导出给测试用 —— 周数算法很容易写错，要能定点验。 */
+  function weekOf(date) {
+    var now = date || new Date();
+    var t = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+    t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7) + 3);   // 本周四
+    var first = new Date(Date.UTC(t.getUTCFullYear(), 0, 4));
+    first.setUTCDate(first.getUTCDate() - ((first.getUTCDay() + 6) % 7) + 3);
+    var wk = 1 + Math.round((t - first) / 604800000);
+    return t.getUTCFullYear() + '-W' + pad2(wk);
+  }
+  function weekKey() { return weekOf(new Date()); }
   function hash32(str) {
     var h = 2166136261;
     for (var i = 0; i < str.length; i++) {
@@ -37,7 +55,7 @@ G.Goals = (function () {
     }
     return h >>> 0;
   }
-  /* 确定性伪随机：同一天、同一进度阶段 → 同样的三条任务 */
+  /* 确定性伪随机：同一周期、同一进度阶段 → 同样的任务 */
   function mkRand(seed) {
     var s = seed || 1;
     return function () {
@@ -99,7 +117,8 @@ G.Goals = (function () {
     return n;
   }
   function tplById(id) {
-    for (var i = 0; i < G.QUEST_TPL.length; i++) if (G.QUEST_TPL[i].id === id) return G.QUEST_TPL[i];
+    var all = G.QUEST_TPL.concat(G.WEEKLY_TPL || []);
+    for (var i = 0; i < all.length; i++) if (all[i].id === id) return all[i];
     return null;
   }
 
@@ -148,15 +167,20 @@ G.Goals = (function () {
     return q;
   }
 
-  function genDaily(dayKey) {
+  /* ---------------- 任务板生成（每日 / 周常共用） ----------------
+     tpls  = 模板表（G.QUEST_TPL 或 G.WEEKLY_TPL）
+     want  = 这一期要几条
+     seed  = 周期种子（+ 当前进度阶段，保证「解锁了新钓场」后任务会跟着变）
+     返回：{ q, base, meta, claimed } —— 周期键（day / week）由调用方补上 */
+  function genBoard(tpls, want, seed) {
     var S = St.get();
     var stage = fieldsOpen(S);
-    var rnd = mkRand(hash32(dayKey + '|' + stage));
-    var pool = G.QUEST_TPL.filter(function (t) { return isTplAvailable(t, S, stage); });
-    if (!pool.length) pool = [G.QUEST_TPL[0]];
+    var rnd = mkRand(hash32(seed + '|' + stage));
+    var pool = tpls.filter(function (t) { return isTplAvailable(t, S, stage); });
+    if (!pool.length) pool = [tpls[0]];
 
     var picked = [], used = {}, guard = 0;
-    var want = Math.min(G.QUEST_PER_DAY, pool.length);
+    want = Math.min(want, pool.length);
     while (picked.length < want && guard++ < 300) {
       var t = pool[Math.floor(rnd() * pool.length)];
       if (!t || used[t.id]) continue;
@@ -164,22 +188,33 @@ G.Goals = (function () {
       picked.push(makeQuest(t, rnd, S, stage));
     }
 
-    var d = {
-      day: dayKey,
+    var b = {
       q: picked,
       base: {},
       meta: { maxKg: 0 },
       claimed: picked.map(function () { return false; }),
     };
-    /* 基准值必须在 meta 就位之后再取（maxKg 依赖 meta） */
+    /* 基准值必须在 meta 就位之后再取（maxKg 依赖 meta）。
+       ⚠️ base 按 metric 记 —— 同表两条模板共用 metric 会互相覆盖，进度永远算不对。 */
     picked.forEach(function (q) {
       var t = tplById(q.tpl);
-      if (t) d.base[t.metric] = METRICS[t.metric](S, q.key, d);
+      if (t) b.base[t.metric] = METRICS[t.metric](S, q.key, b);
     });
-    return d;
+    return b;
   }
 
-  /* ---------------- 跨天刷新 ---------------- */
+  function genDaily(dayKey) {
+    var b = genBoard(G.QUEST_TPL, G.QUEST_PER_DAY, dayKey);
+    b.day = dayKey;
+    return b;
+  }
+  function genWeekly(wkKey) {
+    var b = genBoard(G.WEEKLY_TPL, G.WEEKLY_PER_WEEK, 'W' + wkKey);
+    b.week = wkKey;
+    return b;
+  }
+
+  /* ---------------- 跨天 / 跨周 刷新 ---------------- */
   function ensureDay(quiet) {
     var S = St.get();
     if (!S) return false;
@@ -190,6 +225,20 @@ G.Goals = (function () {
     emit('goals');
     if (!quiet && G.Hud && G.Hud.toast) {
       G.Hud.toast({ text: '🌅 新的一天，每日任务已刷新', kind: 'good' });
+    }
+    return true;
+  }
+
+  function ensureWeek(quiet) {
+    var S = St.get();
+    if (!S) return false;
+    var key = weekKey();
+    if (S.weekly && S.weekly.week === key && Array.isArray(S.weekly.q)) return false;
+    S.weekly = genWeekly(key);
+    St.scheduleSave();
+    emit('goals');
+    if (!quiet && G.Hud && G.Hud.toast) {
+      G.Hud.toast({ text: '🗓 新的周常挑战已刷新（本周 ' + S.weekly.q.length + ' 条）', kind: 'good' });
     }
     return true;
   }
@@ -221,28 +270,51 @@ G.Goals = (function () {
     return out;
   }
 
+  /* 周常挑战：结构与每日任务完全一致，只是 board 换成 S.weekly */
+  function weekly() {
+    var S = St.get();
+    if (!S) return [];
+    ensureWeek(true);
+    var out = [];
+    for (var i = 0; i < S.weekly.q.length; i++) out.push(questState(S.weekly, i));
+    return out;
+  }
+
   function fmtVal(t, v) {
     if (t && typeof t.fmt === 'function') return t.fmt(v);
     return U.num(Math.floor(v * 10) / 10);
   }
 
-  /* ---------------- 领取 ---------------- */
-  function claim(i) {
+  /* ---------------- 领取（每日 / 周常共用） ---------------- */
+  function claimFrom(d, i, gain, noun) {
     var S = St.get();
-    ensureDay(true);
-    var d = S.daily;
-    if (i < 0 || i >= d.q.length) return { ok: false, msg: '没有这条任务' };
+    if (!d || i < 0 || i >= d.q.length || !d.claimed) return { ok: false, msg: '没有这条' + noun };
     var st = questState(d, i);
     if (st.claimed) return { ok: false, msg: '已经领过了' };
     if (!st.done) return { ok: false, msg: '还没完成' };
+    gain = Math.max(1, Math.round(gain));
     d.claimed[i] = true;
     d.q[i].seen = true;
-    S.medals = Math.max(0, Math.round((S.medals || 0) + 1));
+    S.medals = Math.max(0, Math.round((S.medals || 0) + gain));
     St.save();
     emit('goals');
     checkMedalTitles(S);
-    return { ok: true, text: st.text, medals: S.medals };
+    return { ok: true, text: st.text, medals: S.medals, gain: gain };
   }
+
+  function claim(i) {
+    ensureDay(true);
+    return claimFrom(St.get().daily, i, dailyMedals(), '任务');
+  }
+
+  function claimWeekly(i) {
+    ensureWeek(true);
+    return claimFrom(St.get().weekly, i, weeklyMedals(), '挑战');
+  }
+
+  /* 奖励数值来自 config（不许散落在逻辑代码里） */
+  function dailyMedals() { return (CFG.goals && CFG.goals.dailyMedals) || 1; }
+  function weeklyMedals() { return (CFG.goals && CFG.goals.weeklyMedals) || 1; }
 
   function claimAll() {
     var got = 0;
@@ -252,9 +324,19 @@ G.Goals = (function () {
     return got;
   }
 
+  function claimAllWeekly() {
+    var got = 0;
+    ensureWeek(true);
+    var n = St.get().weekly.q.length;
+    for (var i = 0; i < n; i++) if (claimWeekly(i).ok) got++;
+    return got;
+  }
+
+  /* 徽标数 = 所有「已完成但没领」的条目（每日 + 周常） */
   function medalClaimable() {
     var n = 0;
     quests().forEach(function (q) { if (q.done && !q.claimed) n++; });
+    weekly().forEach(function (q) { if (q.done && !q.claimed) n++; });
     return n;
   }
 
@@ -332,9 +414,14 @@ G.Goals = (function () {
     var S = St.get();
     if (!S) return;
     ensureDay(true);
+    ensureWeek(true);
 
-    /* 当天最大重量（给「钓到 N kg 以上」这条任务用） */
-    if (info && info.kg > (S.daily.meta.maxKg || 0)) S.daily.meta.maxKg = info.kg;
+    /* 当天 / 本周最大重量（给「钓到 N kg 以上」这类任务用）。
+       ⚠️ 两个 board 的 meta 都要更新 —— 只喂 daily 会让周常那条永远不动。 */
+    if (info && info.kg > 0) {
+      if (S.daily.meta && info.kg > (S.daily.meta.maxKg || 0)) S.daily.meta.maxKg = info.kg;
+      if (S.weekly.meta && info.kg > (S.weekly.meta.maxKg || 0)) S.weekly.meta.maxKg = info.kg;
+    }
 
     var news = [];
 
@@ -344,6 +431,15 @@ G.Goals = (function () {
       if (st.done && !st.claimed && !q.seen) {
         q.seen = true;
         news.push({ text: '✅ 每日任务完成：' + st.text + '（去「目标」领取）', kind: 'good' });
+      }
+    });
+
+    /* 周常挑战：同上，文案区分开，别让玩家以为是每日任务 */
+    S.weekly.q.forEach(function (q, i) {
+      var st = questState(S.weekly, i);
+      if (st.done && !st.claimed && !q.seen) {
+        q.seen = true;
+        news.push({ text: '🎯 周常挑战完成：' + st.text + '（去「目标」领取）', kind: 'good' });
       }
     });
 
@@ -368,9 +464,8 @@ G.Goals = (function () {
     dayTick += dt;
     if (dayTick < 3) return;
     dayTick = 0;
-    if (ensureDay(false)) {
-      if (G.Panels && G.Panels.current() === 'goals') G.Panels.refresh();
-    }
+    var d = ensureDay(false), w = ensureWeek(false);
+    if ((d || w) && G.Panels && G.Panels.current() === 'goals') G.Panels.refresh();
   }
 
   function init() {
@@ -388,17 +483,22 @@ G.Goals = (function () {
       S.achSeen = [];
     }
     var rolled = ensureDay(true);
+    ensureWeek(true);
     checkMedalTitles(S);
     void rolled;
     emit('goals');
   }
 
   return {
-    init: init, tick: tick, today: todayKey, day: function () { return St.get().daily; },
-    quests: quests, claim: claim, claimAll: claimAll, medalClaimable: medalClaimable,
+    init: init, tick: tick, today: todayKey, week: weekKey, weekOf: weekOf,
+    day: function () { return St.get().daily; },
+    weekBoard: function () { return St.get().weekly; },
+    quests: quests, claim: claim, claimAll: claimAll,
+    weekly: weekly, claimWeekly: claimWeekly, claimAllWeekly: claimAllWeekly,
+    medalClaimable: medalClaimable,
     fmtVal: fmtVal, metrics: METRICS,
     achievements: achievements, achProgress: achProgress, achDone: achDone,
     titles: titles, equipped: equipped, equip: equip, medals: medals,
-    check: check, ensureDay: ensureDay,
+    check: check, ensureDay: ensureDay, ensureWeek: ensureWeek,
   };
 })();

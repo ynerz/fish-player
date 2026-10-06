@@ -1220,7 +1220,19 @@ if (panelsSrc.indexOf('maxCatchUp') < 0) {
     copyNumBad++;
   }
 })();
-if (!copyNumBad) ok('挂机倍率 / 离线补算上限 / 解锁门槛 / 颜色基准概率的文案都现算自数据，钓场配色表只有一份');
+/* 顶栏天气芯片的「好时机」高亮阈值同理：原来写死 `sn.rareMul >= 1.2`，
+   config.weather 里没有对应项 —— 调完天气倍率这个 1.2 就失去意义了。 */
+(function () {
+  const hudCode = fs.readFileSync(path.join(ROOT, 'src/ui/hud.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  if (/rareMul\s*[<>]=?\s*[\d.]/.test(hudCode)) {
+    err('hud.js 里把天气高亮阈值写死了 —— 应读 CFG.weather.goodMul'); copyNumBad++;
+  }
+  if (hudCode.indexOf('weather.goodMul') < 0) {
+    err('hud.js 没有消费 CFG.weather.goodMul（天气高亮阈值会与 config 分家）'); copyNumBad++;
+  }
+})();
+if (!copyNumBad) ok('挂机倍率 / 离线补算上限 / 解锁门槛 / 颜色基准概率 / 天气高亮阈值的文案都现算自数据，钓场配色表只有一份');
 
 
 /* ---------------- 30. 读档兜底的接线 ----------------

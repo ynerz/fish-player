@@ -4,7 +4,7 @@
 window.G = window.G || {};
 
 G.Hud = (function () {
-  var U = G.U, St = G.State;
+  var U = G.U, St = G.State, CFG = G.CONFIG;
   var el = {};
   var handlers = {};
   var fightVisible = false;
@@ -187,8 +187,9 @@ G.Hud = (function () {
     if (!sn || !el.wxText) return;
     el.wxIcon.textContent = sn.wx.icon + sn.tm.icon;
     el.wxText.textContent = sn.wx.name + ' · ' + sn.tm.name + ' ' + sn.clock;
-    /* 稀有加成明显时给个高亮，让玩家看得出「现在是好时机」 */
-    var good = sn.rareMul >= 1.2;
+    /* 稀有加成明显时给个高亮，让玩家看得出「现在是好时机」。
+       阈值读 config（原来写死 1.2，改了天气倍率它就失去意义了） */
+    var good = sn.rareMul >= CFG.weather.goodMul;
     el.wxChip.classList.toggle('good', good);
     el.wxChip.title = sn.wx.name + '（' + sn.wx.tips + '）／' + sn.tm.name + '（' + sn.tm.tip + '）' +
       '\n稀有档权重 ×' + sn.rareMul.toFixed(2) + '　稀有颜色 ×' + sn.colorBoost.toFixed(2) +

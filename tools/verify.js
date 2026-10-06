@@ -1184,7 +1184,22 @@ if (panelsSrc.indexOf('maxCatchUp') < 0) {
     err('docs/说明书.html 的钓场表又把「图鉴 80%」写死了 —— 应读 f.collectionPct'); copyNumBad++;
   }
 })();
-if (!copyNumBad) ok('挂机倍率 / 离线补算上限 / 解锁门槛的文案现算自数据，钓场配色表只有一份');
+/* 图鉴详情页说明里的「普通鱼基准：闪光 1%、黄金 3%」同理 ——
+   那两个数就是 colorMorphs 的普通档概率，而同一页每一行已经在用
+   `fmtPct(Loot.colorProb(cm, ...))` 现算了，只有这句说明留了第二份真相。 */
+(function () {
+  const code = panelsSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  if (/闪光\s*[\d.]+\s*%|黄金\s*[\d.]+\s*%/.test(code)) {
+    err('panels.js 里把颜色基准概率写死了（「闪光 1% / 黄金 3%」）—— 应走 Loot.colorProb() 现算');
+    copyNumBad++;
+  }
+  const plainHits = (code.match(/pctPlain/g) || []).length;
+  if (plainHits < 2) {
+    err(`pctPlain() 出现 ${plainHits} 次（定义 1 次 + 至少 1 处调用）—— 颜色基准说明会与 config 分家`);
+    copyNumBad++;
+  }
+})();
+if (!copyNumBad) ok('挂机倍率 / 离线补算上限 / 解锁门槛 / 颜色基准概率的文案都现算自数据，钓场配色表只有一份');
 
 
 console.log('\n' + '='.repeat(52));

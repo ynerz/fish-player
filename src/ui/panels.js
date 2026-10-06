@@ -248,6 +248,13 @@ G.Panels = (function () {
     return v.toExponential(2) + '%';
   }
 
+  /* 概率文案的「短版」：嵌在中文句子里用（0.01 → 1%、0.065 → 6.5%）。
+     fmtPct() 是给列表单元格用的（会把 1% 补成 1.00%），嵌进句子太吵。 */
+  function pctPlain(p) {
+    if (!(p > 0)) return '0%';
+    return (Math.round(p * 10000) / 100) + '%';
+  }
+
   /* 图鉴里每个钓场一行的双进度（品种 / 品种×颜色）。配色走模块顶部的 rankColor()。 */
   function fkRow(f) {
     var p = St.fieldProgress(f.id);
@@ -429,8 +436,14 @@ G.Panels = (function () {
 
     var tip = U.el('div', 'hint-text');
     tip.style.marginTop = '10px';
+    /* ⚠️ 「闪光 1%、黄金 3%」是 colorMorphs 里普通档的真实概率，不能写死 ——
+       同一页的每一行已经在用 fmtPct() 显示从 config 现算的概率了，
+       只有这句说明里留了第二份真相（改概率时它一定会漂）。 */
+    var cmShiny = G.Loot.colorByKey('shiny'), cmGolden = G.Loot.colorByKey('golden');
     tip.innerHTML = '概率是这条鱼<b>所属稀有度档位（' + CFG.rarity[f.rar].name + '）</b>的数值 —— ' +
-                    '<b>鱼越稀有，出稀有颜色的概率越高</b>（普通鱼基准：闪光 1%、黄金 3%）。<br>' +
+                    '<b>鱼越稀有，出稀有颜色的概率越高</b>（普通鱼基准：' +
+                    cmShiny.name + ' ' + pctPlain(G.Loot.colorProb(cmShiny, 0)) + '、' +
+                    cmGolden.name + ' ' + pctPlain(G.Loot.colorProb(cmGolden, 0)) + '）。<br>' +
                     '期望竿数按<b>基础掉率</b>计算，未计入鱼饵 / 鱼竿的稀有权重加成，实际会更快。' +
                     '颜色只影响外观与售价，<b>不参与钓场解锁</b>。';
     root.appendChild(tip);

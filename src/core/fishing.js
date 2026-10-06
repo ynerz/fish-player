@@ -23,6 +23,8 @@ G.Fishing = (function () {
   var autoHold = true;
   var autoHoldTimer = 0;
   var catchCount = 0;      // 挂机累计（用于合并播报）
+  var castBait = null;     // 本竿实际生效的鱼饵（提前收杆时要退回）
+  var castPrevSel = null;  // 本竿把最后一枚用掉、自动切回蚯蚓之前的选饵（一并还原）
   var cb = {};
 
   function init(callbacks) {
@@ -40,6 +42,7 @@ G.Fishing = (function () {
     state = 'idle';
     timer = 0; pending = null;
     waitLeft = 0; biteLeft = 0; holding = false;
+    castBait = null; castPrevSel = null;
     catchCount = 0;   // 挂机累计播报重新计数，避免跨场/跨状态乱触发
     G.Fight.end();
     G.Scene.endFight();
@@ -60,7 +63,12 @@ G.Fishing = (function () {
     /* ⚠️ 先消耗、并**用它的返回值**决定这一竿的鱼饵。
        不要再写「consumeBait() 之后读 curBait()」——
        用掉最后一枚时 baitSel 已经切回蚯蚓，那一枚鱼饵会白花（见 state.js 的注释）。 */
+    var selBefore = s.baitSel;
     var usedBait = St.consumeBait();
+    castBait = usedBait;
+    /* 用掉最后一枚会顺带把选饵切回蚯蚓。若后来提前收杆把饵退了回来，
+       这处副作用也要一起还原，否则「饵回到背包里、但选中的还是蚯蚓」。 */
+    castPrevSel = (s.baitSel !== selBefore) ? selBefore : null;
 
     // 决定这一竿的渔获
     pending = Loot.generate(field, {
@@ -79,12 +87,20 @@ G.Fishing = (function () {
     return true;
   }
 
-  /* ---------------- 提前收杆 ---------------- */
+  /* ---------------- 提前收杆 ----------------
+     鱼还没咬钩就收线 → **这一竿不消耗鱼饵**（用户口径）：
+     把 cast 时扣掉的那枚退回来；若那一枚正好是背包里的最后一枚
+     （consumeBait 顺带把选饵切成了蚯蚓），选饵也一并还原。 */
   function giveUp() {
     if (state !== 'waiting') return false;
+    var refunded = castBait ? St.refundBait(castBait.id) : false;
+    if (refunded && castPrevSel && St.get().baitSel === 'worm') St.selectBait(castPrevSel);
     hardReset();
     G.Audio.click();
-    if (cb.onToast) cb.onToast({ text: '收杆了，这一竿放弃', kind: '' });
+    if (cb.onToast) cb.onToast({
+      text: refunded ? '收杆了，这一竿的鱼饵已退回' : '收杆了，这一竿放弃',
+      kind: '',
+    });
     if (cb.onState) cb.onState(state);
     return true;
   }
@@ -185,6 +201,9 @@ G.Fishing = (function () {
     state = 'idle';
     timer = 0;
     autoHold = true;
+    /* 这一竿到此为止：鱼已经咬过钩（钓上 / 脱钩 / 断线 / 错过咬口），
+       饵就是花掉了，不许再被后续的 giveUp 退回来 */
+    castBait = null; castPrevSel = null;
     St.scheduleSave();
     /* 每日任务 / 成就的完成判定与播报统一走 Goals，
        这里只负责「这一竿结束了」这个时机 */

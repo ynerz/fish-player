@@ -305,11 +305,13 @@
   <!-- ================= 7 ================= -->
   <h2 id="s7">⑦ 装备与经济</h2>
 
-  <h3>鱼饵（消耗品，每抛一竿消耗 1 个）</h3>
+  <h3>鱼饵（消耗品）</h3>
   <div class="card">
     <table id="baitTable"></table>
     <div class="note">
-      <b>蚯蚓永久免费且无限</b> —— 保证游戏在任何情况下都不会因为「没饵了」而卡住。
+      <b>蚯蚓永久免费且无限</b> —— 保证游戏在任何情况下都不会因为「没饵了」而卡住。<br>
+      <b>抛竿时扣 1 个；但「提前收杆」会把这一竿的鱼饵退回</b>（鱼还没咬钩就收线，等于这一竿没发生）。
+      鱼一旦咬过钩 —— 钓上来、脱钩、断线、错过咬口 —— 饵就花掉了，不退。
     </div>
   </div>
 
@@ -451,7 +453,7 @@
   <div class="card" id="faq"></div>
 
   <footer>
-    钓鱼人生 v0.5.6 ｜ 全部数值由 <code>tools/solve-drop.js</code> 反推、<code>tools/balance.js</code> 复核<br>
+    钓鱼人生 v0.5.7 ｜ 全部数值由 <code>tools/solve-drop.js</code> 反推、<code>tools/balance.js</code> 复核<br>
     <code>balance.js</code> 已固定随机种子 —— 本页与 GDD 里的数字每次跑都一致。<br>
     本页所有鱼类图案都是打开页面时实时绘制的，没有使用任何图片素材
   </footer>

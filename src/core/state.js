@@ -624,6 +624,19 @@ G.State = (function () {
     return b;
   }
 
+  /* 退还鱼饵 —— 「提前收杆」用：鱼还没咬钩就收线，这一竿的饵不该收钱。
+     · 免费饵（蚯蚓）没有库存概念，直接返回 false
+     · 返回是否真的退了东西（调用方据此决定文案） */
+  function refundBait(baitId, n) {
+    var b = bait(baitId);
+    if (!b || b.free) return false;
+    n = Math.max(1, Math.round(safeNum(n, 1)));
+    S.baits[b.id] = Math.max(0, (S.baits[b.id] || 0) + n);
+    scheduleSave();
+    emit('bait');
+    return true;
+  }
+
   /* ---------------- 购买 ---------------- */
   function buyBait(baitId, packs) {
     packs = packs || 1;
@@ -751,7 +764,7 @@ G.State = (function () {
     netExpandCost: netExpandCost, tankExpandCost: tankExpandCost,
     expandNet: expandNet, expandTank: expandTank,
     fieldProgress: fieldProgress, fieldState: fieldState, checkUnlocks: checkUnlocks,
-    setField: setField, tick: tick, consumeBait: consumeBait,
+    setField: setField, tick: tick, consumeBait: consumeBait, refundBait: refundBait,
     buyBait: buyBait, buyRod: buyRod, buyLine: buyLine, buyDecor: buyDecor,
     selectBait: selectBait, selectRod: selectRod, selectLine: selectLine,
     setIdle: setIdle, globalProgress: globalProgress, colorProgress: colorProgress,

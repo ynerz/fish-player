@@ -277,6 +277,91 @@ ok(seenOpts && seenOpts.bait && seenOpts.bait.id === paid.id,
    `传给 Loot.generate 的 bait = ${seenOpts && seenOpts.bait && seenOpts.bait.id}`);
 
 /* =========================================================
+   5a-2. 提前收杆不消耗鱼饵（用户口径，v0.5.7）
+   ========================================================= */
+G_('Fishing · 提前收杆不消耗鱼饵');
+const sceneStub = {
+  cast() {}, beginWait() {}, bite() {}, endFight() {}, beginFight() {},
+  floatNudge() {}, setRodBend() {}, splash() {}, sparkle() {},
+};
+let toastSeen = [];
+/* fishing.js 收杆时会调 G.Audio.click()；Node 里没有音频层，也给个空壳 */
+const origAudio = G.Audio;
+G.Audio = { click() {}, snap() {}, escape() {}, bite() {}, hint() {}, success() {}, newRecord() {}, unlock() {} };
+function newFishing() {
+  toastSeen = [];
+  G.Scene = sceneStub;
+  G.Fishing.init({ onToast: o => toastSeen.push(o) });
+  return G.Fishing;
+}
+
+/* ① 付费饵：抛竿扣 1 → 进入 waiting → 提前收杆 → 退回 1 */
+St.reset();
+G.Goals.init();   // resolve() 会调 G.Goals.check()，先让它就位
+St.get().baits[paid.id] = 5;
+St.selectBait(paid.id);
+let Fh = newFishing();
+Fh.cast();
+ok(St.get().baits[paid.id] === 4, '抛竿照常扣 1 枚');
+Fh.update(1.0);                       // flying → waiting
+ok(Fh.getState() === 'waiting', `抛竿动画走完进入等待（${Fh.getState()}）`);
+ok(Fh.giveUp() === true, '等待中可以提前收杆');
+ok(St.get().baits[paid.id] === 5, '🔴 提前收杆后鱼饵退回来了（这一竿不消耗饵料）');
+ok(Fh.getState() === 'idle', '收杆后回到 idle');
+ok(toastSeen.length && /退回/.test(toastSeen[0].text), `给了「已退回」的提示（${toastSeen[0] && toastSeen[0].text}）`);
+
+/* ② 用掉最后一枚 → consumeBait 会把选饵切回蚯蚓；收杆后要一并还原 */
+St.reset();
+St.get().baits[paid.id] = 1;
+St.selectBait(paid.id);
+Fh = newFishing();
+Fh.cast();
+ok(St.get().baits[paid.id] === 0 && St.get().baitSel === 'worm', '用掉最后一枚时自动切回蚯蚓');
+Fh.update(1.0);
+Fh.giveUp();
+ok(St.get().baits[paid.id] === 1, '饵退回来了');
+ok(St.get().baitSel === paid.id, '顺带把选饵也还原成那枚付费饵（不然背包里有饵、选中的还是蚯蚓）');
+
+/* ③ 免费饵（蚯蚓）：无限，不涉及库存，也不该报错 */
+St.reset();
+Fh = newFishing();
+Fh.cast();
+Fh.update(1.0);
+const wormBefore = St.get().baits.worm;
+Fh.giveUp();
+ok(St.get().baits.worm === wormBefore, '免费饵的库存不受影响（-1 = 无限）');
+ok(toastSeen.length === 1 && /放弃/.test(toastSeen[0].text), '免费饵收杆只提示「放弃」，不编一句假退款');
+
+/* ④ 鱼已经咬过钩就不退：错过咬口 / 钓上来之后都不能再退 */
+St.reset();
+St.get().baits[paid.id] = 5;
+St.selectBait(paid.id);
+Fh = newFishing();
+Fh.cast();
+Fh.update(1.0);
+const pendWait = Fh.getPending().wait;
+Fh.update(pendWait + 0.001);           // 进入 bite
+ok(Fh.getState() === 'bite', '等待结束进入咬钩窗口');
+Fh.update(99);                         // 不操作 → 错过咬口
+ok(Fh.getState() === 'idle', '错过咬口后回到 idle');
+ok(St.get().baits[paid.id] === 4, '错过咬口不退饵（鱼已经咬过钩了）');
+ok(Fh.giveUp() === false, '不在 waiting 状态时收杆是空操作');
+
+/* ⑤ 一次抛竿只能退一次（防止反复调用刷饵） */
+St.reset();
+St.get().baits[paid.id] = 3;
+St.selectBait(paid.id);
+Fh = newFishing();
+Fh.cast();
+Fh.update(1.0);
+Fh.giveUp();
+Fh.giveUp();
+Fh.giveUp();
+ok(St.get().baits[paid.id] === 3, '连调三次 giveUp 也只退回一枚');
+G.Scene = origScene;
+G.Audio = origAudio;
+
+/* =========================================================
    5b. 鱼护 / 水族箱
    ========================================================= */
 G_('State · 鱼护与水族箱');

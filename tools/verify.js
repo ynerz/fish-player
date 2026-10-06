@@ -1042,6 +1042,33 @@ docPages.forEach(rel => {
 if (docPages.length === 0) { err('没有扫到任何文档页/工具页（路径写错了？）'); docBad++; }
 
 
+/* ---------------- 27. 统计面板：理论时长不能和「已收满」打架 ----------------
+   `estOwnHours` / `estUnlockHours` 是「从零收满要多久」的**理论值**，不随进度变化。
+   原来两格直接把它当「预计收满」显示 —— 满图鉴的玩家会看到「当前钓场预计收满 2 小时」
+   这种自相矛盾的数（与 ㉓ 节「体重占比 155% 上限」同一类：文案与数据对不上）。
+   顺带盯住本段里的「只算不用」局部变量（这处曾有一个查完不用的 `maxFish`）。 */
+console.log('\n[27] 统计面板：理论时长必须标注「已收满」，且不留只算不用的局部变量');
+let statsBad = 0;
+const statsBody = (panelsSrc.match(/root\.appendChild\(U\.el\('div', 'section-title', '总览'\)\);[\s\S]*?root\.appendChild\(g1\);/) || [''])[0];
+if (!statsBody) { err('panels.js 里找不到统计面板的「总览」块'); statsBad++; }
+else {
+  if (statsBody.indexOf('estOwnHours') >= 0 || statsBody.indexOf('estUnlockHours') >= 0) {
+    if (!/pct\s*>=\s*1/.test(statsBody) || statsBody.indexOf('已收满') < 0) {
+      err('统计面板把理论时长当「预计收满」显示，却没有在 100% 时改口成「已收满」');
+      statsBad++;
+    }
+  }
+  const decls = (statsBody.match(/var\s+([A-Za-z_$][\w$]*)\s*=/g) || [])
+    .map(s => s.replace(/var\s+/, '').replace(/\s*=$/, ''));
+  const deadLocals = decls.filter(nm => (statsBody.match(new RegExp('\\b' + escRe(nm) + '\\b', 'g')) || []).length < 2);
+  if (deadLocals.length) {
+    err(`统计面板里这些局部变量只赋值、没有任何使用：${deadLocals.join('、')}`);
+    statsBad++;
+  }
+}
+if (!statsBad) ok('统计面板的理论时长会随「已收满」改口，且没有只算不用的局部变量');
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

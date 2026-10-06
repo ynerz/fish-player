@@ -1101,6 +1101,10 @@ G.Panels = (function () {
         return '<div class="stat-box"><div class="sb-label">' + label + '</div>' +
                '<div class="sb-value">' + value + (unit ? '<small>' + unit + '</small>' : '') + '</div></div>';
       }
+      var curF = G.FIELD_MAP[s.field] || {};
+      var curP = St.fieldProgress(s.field);
+      var wholeH = G.FIELDS[G.FIELDS.length - 1].estUnlockHours +
+                   G.FIELDS[G.FIELDS.length - 1].estOwnHours;
       g1.innerHTML =
         box('累计游玩时长', U.clock(s.playTime)) +
         box('游玩的第几天', (s.stats.days || 0) + 1, '天') +
@@ -1109,13 +1113,16 @@ G.Panels = (function () {
         box('总钓获', U.num(st.catches)) +
         box('图鉴收集', gp.got + ' / ' + gp.total) +
         box('图鉴完成度', (gp.pct * 100).toFixed(1), '%') +
-        box('当前钓场预计收满', fmtH((G.FIELD_MAP[s.field] || {}).estOwnHours || 0)) +
-        box('全部收满预计', fmtH(G.FIELDS[G.FIELDS.length - 1].estUnlockHours + G.FIELDS[G.FIELDS.length - 1].estOwnHours));
+        /* ⚠️ 这两格是**理论时长**（estOwnHours / estUnlockHours 的含义是「从零收满要多久」），
+           不随进度变化。所以已经 100% 时必须显式写「已收满」——
+           否则满图鉴的玩家会看到「当前钓场预计收满 2 小时」这种自相矛盾的数
+           （和 ㉓ 节那处「体重占比 155% 上限」是同一类：文案与数据对不上）。 */
+        box('当前钓场收满约需', curP.pct >= 1 ? '已收满' : fmtH(curF.estOwnHours || 0)) +
+        box('全图鉴收满约需', gp.pct >= 1 ? '已收满' : fmtH(wholeH));
       root.appendChild(g1);
 
       root.appendChild(U.el('div', 'section-title', '记录'));
       var g2 = U.el('div', 'stat-grid');
-      var maxFish = st.maxKgFish ? (G.FISH_ID[Object.keys(G.FISH_ID).find(function (k) { return G.FISH_ID[k].name === st.maxKgFish; })] || {}).name : '';
       g2.innerHTML =
         box('最大重量', U.kg(st.maxKg)) +
         box('该记录鱼种', (st.maxKgFish || '—')) +

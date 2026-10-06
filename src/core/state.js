@@ -54,7 +54,6 @@ G.State = (function () {
       tankCap: CFG.storage.tankCap,
       netEx: 0,                        // 已扩容次数（用于取价格）
       tankEx: 0,
-      locked: [],                      // 隐藏钓场被「发现」时记录，用于解锁提示
       /* ---- 长线目标（v3 / v5）---- */
       daily: null,                     // 当日任务（由 G.Goals 生成，跨天自动重掷）
       weekly: null,                    // 本周挑战（v5，由 G.Goals 按 ISO 周键生成）
@@ -157,9 +156,14 @@ G.State = (function () {
     ['stats', 'settings', 'baits', 'unlocked', 'book', 'medalSeen'].forEach(function (k) {
       if (!d[k] || typeof d[k] !== 'object' || Array.isArray(d[k])) d[k] = {};
     });
-    ['net', 'tank', 'rods', 'lines', 'decors', 'locked', 'achSeen'].forEach(function (k) {
+    ['net', 'tank', 'rods', 'lines', 'decors', 'achSeen'].forEach(function (k) {
       if (!Array.isArray(d[k])) d[k] = [];
     });
+
+    /* 历史遗留字段：`locked` 从第一天起就没人读过（「隐藏钓场被发现」这个功能没做），
+       却每档都写进去 —— 留着只会让人读代码时误以为它已经实现了。
+       老档里残留的那份也一并清掉（不再是 blank() 的一部分）。 */
+    delete d.locked;
 
     // 浅合并，保证新增字段有默认值
     Object.keys(b).forEach(function (k) { if (d[k] === undefined) d[k] = b[k]; });

@@ -604,6 +604,14 @@ ok(St.get().v === St.SAVE_V, `老存档版本号被升到 ${St.SAVE_V}（当前 
 ok(Array.isArray(St.get().net) && Array.isArray(St.get().tank), 'v1 → v2 迁移补齐了鱼护字段');
 ok(St.bookEntry(nf.id).n === 3, '导入后图鉴数据保留');
 
+/* `locked` 是零消费的历史遗留字段（每档都写、全项目没人读）——
+   现在新档不再写它，老档里残留的那份也在迁移时删掉 */
+ok(St.get().locked === undefined, '新档 / 迁移结果里不再有 locked 字段');
+const legacyLocked = JSON.parse(good);
+legacyLocked.locked = ['X'];
+ok(St.importSave(JSON.stringify(legacyLocked)).ok === true && St.get().locked === undefined,
+   '带 locked 的老存档导入后该字段被清掉');
+
 /* 脏数据：鱼护里塞了不存在的鱼种 */
 const dirty = JSON.parse(good);
 dirty.net = [{ f: 'NOT_A_FISH', kg: 1, c: 'normal' }, { f: nf.id, kg: 1, c: 'normal' }];

@@ -28,7 +28,7 @@ global.localStorage = {
   removeItem: k => { delete store[k]; },
 };
 ['src/data/config.js', 'src/data/fields.js', 'src/data/fish.js', 'src/data/items.js',
- 'src/core/util.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js']
+ 'src/core/util.js', 'src/core/platform.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js']
   .forEach(r => (new Function(fs.readFileSync(path.join(ROOT, r), 'utf8'))).call(global));
 
 const G = global.G, CFG = G.CONFIG, L = G.Loot, F = G.Fight, St = G.State, U = G.U;

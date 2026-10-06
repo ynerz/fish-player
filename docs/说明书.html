@@ -239,12 +239,14 @@
     </div>
   </div>
 
-  <h3>颜色变异（5 档）</h3>
+  <h3>颜色变异（5 档 · 概率随鱼的稀有度提高）</h3>
   <div class="card">
     <p>同一条鱼（鲫鱼）的 5 种颜色：</p>
     <div class="morphs" id="morphBox"></div>
     <table id="morphTable"></table>
     <div class="note">
+      <b>鱼越稀有，出稀有颜色的概率越高</b> —— 普通鱼闪光是 1%，传说鱼闪光有 5%。
+      每档位内部始终是「原色 &gt; 亮色 &ge; 白化 &gt; 黄金 &gt; 闪光」，所以<b>闪光在所有档位都是最稀有的颜色</b>。<br>
       <b>颜色不参与解锁。</b>解锁只看「品种」，颜色纯粹是收集彩蛋与售价加成。
       图鉴里每条鱼下方有 5 个小圆点，代表该颜色的收集状态；<b>点开任意一条鱼还能看到它每种颜色收集了几条、出现概率多少、平均多少竿能钓到一条</b>。
     </div>
@@ -355,6 +357,7 @@
 <script src="../src/data/fish.js"></script>
 <script src="../src/data/items.js"></script>
 <script src="../src/core/util.js"></script>
+<script src="../src/core/loot.js"></script>
 <script src="../src/render/fishart.js"></script>
 <script>
 (function () {
@@ -482,7 +485,7 @@
     d.className = 'morph';
     var cv = document.createElement('canvas');
     d.innerHTML = '<div class="mn">' + cm.name + '</div>' +
-                  '<div class="mp">出现概率 ' + (cm.prob * 100).toFixed(1) + '%</div>' +
+                  '<div class="mp">概率 ' + [0,1,2,3].map(function(t){return (G.Loot.colorProb(cm,t)*100).toFixed(0)+'%';}).join(' / ') + '</div>' +
                   '<div class="mv">售价 ×' + cm.valueMul.toFixed(2) + '</div>';
     d.insertBefore(cv, d.firstChild);
     mb.appendChild(d);
@@ -490,14 +493,15 @@
   });
 
   document.getElementById('morphTable').innerHTML =
-    '<tr><th>颜色</th><th class="num">概率</th><th class="num">售价系数</th><th>说明</th></tr>' +
+    '<tr><th>颜色</th><th class="num">售价系数</th><th class="num">普通</th><th class="num">稀有</th><th class="num">史诗</th><th class="num">传说</th><th>说明</th></tr>' +
     CFG.colorMorphs.map(function (cm) {
       var note = { normal:'最常见', bright:'好卖', albino:'稀有外观',
                    golden:'较稀有', shiny:'最稀有 · 也最贵' }[cm.key] || '';
       return '<tr><td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;' +
         'background:' + (cm.tint || '#8b98a5') + ';border:1px solid rgba(0,0,0,.18);vertical-align:-1px"></span> ' +
-        cm.name + '</td><td class="num">' + (cm.prob * 100).toFixed(1) + '%</td>' +
-        '<td class="num">×' + cm.valueMul.toFixed(2) + '</td><td>' + note + '</td></tr>';
+        cm.name + '</td><td class="num">×' + cm.valueMul.toFixed(2) + '</td>' +
+        [0,1,2,3].map(function(t){ return '<td class="num">' + (G.Loot.colorProb(cm,t)*100).toFixed(1) + '%</td>'; }).join('') +
+        '<td>' + note + '</td></tr>';
     }).join('');
 
   /* ---------------- 时间表 ---------------- */
@@ -605,7 +609,7 @@
     ['解锁条件要看颜色吗？',
      '<b>不看。</b>解锁只统计「品种」，颜色、重量都不参与任何解锁判定。'],
     ['把所有颜色也集齐要多久？',
-     '7 个钓场一共 362 种 × 5 色 = <b>1810 个组合</b>。用精确公式算下来，全收齐约需 <b>10 年左右</b>。' +
+     '7 个钓场一共 362 种 × 5 色 = <b>1810 个组合</b>。用精确公式算下来，全收齐约需 <b>2 年左右</b>。' +
      '这是刻意做成「理论极限」而不是设计目标的 —— 颜色的定位是彩蛋，不是门槛。'],
     ['为什么后期钓场的鱼要等那么久才咬钩？',
      '每个钓场有一个<b>咬口倍率</b>：村口池塘 8~22 秒就咬，时之尽头要等 28~77 秒。<br>' +

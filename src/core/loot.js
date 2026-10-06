@@ -20,13 +20,25 @@ G.Loot = (function () {
     return kg;
   }
 
-  /* ---------------- 颜色变异 ---------------- */
-  function rollColor() {
-    var total = 0, i;
-    for (i = 0; i < CFG.colorMorphs.length; i++) total += CFG.colorMorphs[i].prob;
-    var r = Math.random() * total;
+  /* ---------------- 颜色变异 ----------------
+     概率按鱼的稀有度分档：cm.probs[rarIdx]（0=普通 … 3=传说）
+     rarIdx 缺失 / 越界时退回普通档 probs[0]。 */
+  function colorProb(cm, rarIdx) {
+    var a = cm.probs || cm.prob || 0;
+    if (typeof a === 'number') return a;               // 兼容单值写法
+    var v = a[rarIdx];
+    return v == null ? a[0] : v;
+  }
+  function colorProbTotal(rarIdx) {
+    var t = 0;
+    for (var i = 0; i < CFG.colorMorphs.length; i++) t += colorProb(CFG.colorMorphs[i], rarIdx);
+    return t;
+  }
+  function rollColor(rarIdx) {
+    rarIdx = rarIdx || 0;
+    var total = colorProbTotal(rarIdx), i, r = Math.random() * total;
     for (i = 0; i < CFG.colorMorphs.length; i++) {
-      r -= CFG.colorMorphs[i].prob;
+      r -= colorProb(CFG.colorMorphs[i], rarIdx);
       if (r <= 0) return CFG.colorMorphs[i];
     }
     return CFG.colorMorphs[0];
@@ -97,12 +109,13 @@ G.Loot = (function () {
   function generate(field, opts) {
     var pick = rollFish(field, opts);
     var kg = rollKg(pick.fish);
-    var color = rollColor();
+    var color = rollColor(pick.rar);
     return { fish: pick.fish, rar: pick.rar, kg: kg, color: color, wait: biteTime(pick.rar, opts) };
   }
 
   return {
     rollKg: rollKg, rollColor: rollColor, colorByKey: colorByKey,
+    colorProb: colorProb, colorProbTotal: colorProbTotal,
     rarityWeights: rarityWeights, rollFish: rollFish,
     biteTime: biteTime, price: price, generate: generate,
   };

@@ -162,10 +162,9 @@ G.Panels = (function () {
     return (fld.rarity[f.rar] / tot) * ((f.w || 0) / bw);
   }
 
-  /* 颜色概率总和（用于归一化，避免百分比写错时算出负数概率） */
-  function colorProbTotal() {
-    var t = 0;
-    CFG.colorMorphs.forEach(function (c) { t += c.prob; });
+  /* 某条鱼的颜色概率总和（按它自己的稀有度取，避免归一化算出负数概率） */
+  function colorTotalOf(rar) {
+    var t = G.Loot.colorProbTotal(rar);
     return t > 0 ? t : 1;
   }
 
@@ -198,7 +197,7 @@ G.Panels = (function () {
     var e = St.bookEntry(fid);
     var fld = G.FIELD_MAP[f.field] || {};
     var pFish = baseFishProb(f);
-    var cTotal = colorProbTotal();
+    var cTotal = colorTotalOf(f.rar);
     var gotColors = 0;
     if (e && e.colors) {
       CFG.colorMorphs.forEach(function (cm) { if (e.colors[cm.key]) gotColors++; });
@@ -225,7 +224,8 @@ G.Panels = (function () {
     var best = null;
     CFG.colorMorphs.forEach(function (cm) {
       if (!(e && e.colors && e.colors[cm.key])) return;
-      if (!best || cm.prob < best.prob) best = cm;
+      /* colorMorphs 按「常见 → 稀有」排列，下标越大越稀有，所以取下标最大的那个 */
+      if (!best || CFG.colorMorphs.indexOf(cm) > CFG.colorMorphs.indexOf(best)) best = cm;
     });
 
     (function () {
@@ -286,7 +286,7 @@ G.Panels = (function () {
     CFG.colorMorphs.forEach(function (cm) {
       var cnt = (e && e.colors && e.colors[cm.key]) || 0;
       var has = cnt > 0;
-      var p = cm.prob / cTotal;
+      var p = G.Loot.colorProb(cm, f.rar) / cTotal;
       var row = U.el('div', 'fd-color-row' + (has ? ' on' : ''));
 
       var sw = U.el('i', 'fd-swatch');
@@ -308,7 +308,9 @@ G.Panels = (function () {
 
     var tip = U.el('div', 'hint-text');
     tip.style.marginTop = '10px';
-    tip.innerHTML = '期望竿数按<b>基础掉率</b>计算（未计入鱼饵 / 鱼竿的稀有权重加成，实际会更快）。' +
+    tip.innerHTML = '概率是这条鱼<b>所属稀有度档位（' + CFG.rarity[f.rar].name + '）</b>的数值 —— ' +
+                    '<b>鱼越稀有，出稀有颜色的概率越高</b>（普通鱼基准：闪光 1%、黄金 3%）。<br>' +
+                    '期望竿数按<b>基础掉率</b>计算，未计入鱼饵 / 鱼竿的稀有权重加成，实际会更快。' +
                     '颜色只影响外观与售价，<b>不参与钓场解锁</b>。';
     root.appendChild(tip);
   }
@@ -416,7 +418,8 @@ G.Panels = (function () {
             var best = null;
             CFG.colorMorphs.forEach(function (cm) {
               if (!(e.colors && e.colors[cm.key])) return;
-              if (!best || cm.prob < best.prob) best = cm;
+              /* colorMorphs 按「常见 → 稀有」排列，下标越大越稀有，所以取下标最大的那个 */
+      if (!best || CFG.colorMorphs.indexOf(cm) > CFG.colorMorphs.indexOf(best)) best = cm;
             });
             var amt = best && best.tint ? 0.75 : 0;
             G.FishArt.draw(ctx, f, 130, 56, 168, {
@@ -443,14 +446,16 @@ G.Panels = (function () {
       });
       CFG.colorMorphs.forEach(function (c) {
         lg.innerHTML += '<span class="lg"><i style="background:' + (c.tint || '#8b98a5') + '"></i>' + c.name +
-                        ' ' + fmtPct(c.prob / colorProbTotal()) + '　售价 ×' + c.valueMul.toFixed(2) + '</span>';
+                        ' ' + fmtPct(G.Loot.colorProb(c, 0)) + '　售价 ×' + c.valueMul.toFixed(2) + '</span>';
       });
       root.appendChild(lg);
       var ctip = U.el('div', 'hint-text');
       ctip.style.marginTop = '8px';
-      ctip.innerHTML = '每种鱼最多可能有 6 种颜色。图鉴里显示的图案是<b>你收集到的最稀有颜色</b>，' +
-                       '下面 6 个小圆点代表该颜色的收集状态。<b>点任意一条鱼可以查看它的颜色收集详情</b>。' +
-                       '颜色只影响外观和售价，<b>不影响解锁</b>。';
+      ctip.innerHTML = '每种鱼最多可能有 ' + CFG.colorMorphs.length +
+                       ' 种颜色。图鉴里显示的图案是<b>你收集到的最稀有颜色</b>，下面 ' + CFG.colorMorphs.length +
+                       ' 个小圆点代表该颜色的收集状态。<b>点任意一条鱼可以查看它的颜色收集详情</b>。<br>' +
+                       '<b>颜色概率随鱼的稀有度提高</b> —— 下面的概率是<b>普通鱼</b>的基准值，' +
+                       '稀有 / 史诗 / 传说的鱼出闪光、黄金的概率更高。颜色只影响外观和售价，<b>不影响解锁</b>。';
       root.appendChild(ctip);
     },
   };

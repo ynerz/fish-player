@@ -29,7 +29,7 @@ G.Cheat = (function () {
     G.FISH.forEach(function (f) {
       if (s.book[f.id]) return;
       var kg = G.Loot.rollKg(f);
-      St.recordCatch(f, kg, G.Loot.rollColor().key);
+      St.recordCatch(f, kg, G.Loot.rollColor(f.rar).key);
     });
     St.save(true);
     checkUnlocksQuiet();

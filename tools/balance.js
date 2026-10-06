@@ -259,13 +259,13 @@ for (const field of G.FIELDS) {
   /* 每条鱼的每种颜色都是一个独立目标 */
   const expanded = [];
   probs.forEach(x => {
-    CFG.colorMorphs.forEach(cm => expanded.push(x.p * cm.prob));
+    CFG.colorMorphs.forEach(cm => expanded.push(x.p * G.Loot.colorProb(cm, x.fish.rar)));
   });
   const casts = expectedAll(expanded);
   const hours = casts * cyc / 3600;
   /* 集齐「某一条鱼」的全部颜色：用最稀有的那条鱼的摄食频率做基准 */
   const rarest = probs.reduce((a, b) => (b.p < a.p ? b : a));
-  const colorOnly = expectedAll(CFG.colorMorphs.map(c => c.prob)) / rarest.p;
+  const colorOnly = expectedAll(CFG.colorMorphs.map(c => G.Loot.colorProb(c, rarest.fish.rar))) / rarest.p;
   totalCombos += expanded.length;
   totalHours += hours;
   console.log(

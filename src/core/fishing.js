@@ -294,7 +294,7 @@ G.Fishing = (function () {
       var c = Math.max(1, Math.round(gained[id] * scale));
       var fish = G.FISH_ID[id];
       for (var k = 0; k < c; k++) {
-        St.recordCatch(fish, G.Loot.rollKg(fish), G.Loot.rollColor().key);
+        St.recordCatch(fish, G.Loot.rollKg(fish), G.Loot.rollColor(fish.rar).key);
       }
     });
 

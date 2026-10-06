@@ -103,13 +103,13 @@ G.FIELDS.forEach(field => {
   const eAll = expectedAll(rows.map(r => r.p));
   /* 品种 × 颜色 全收 */
   const expanded = [];
-  rows.forEach(r => CFG.colorMorphs.forEach(cm => expanded.push(r.p * cm.prob)));
+  rows.forEach(r => CFG.colorMorphs.forEach(cm => expanded.push(r.p * G.Loot.colorProb(cm, r.f.rar))));
   const eColor = expectedAll(expanded);
 
   /* 各颜色在该场的综合出现概率与期望等待 */
   const colorStat = CFG.colorMorphs.map(cm => {
     let pc = 0;
-    rows.forEach(r => { pc += r.p * cm.prob; });
+    rows.forEach(r => { pc += r.p * G.Loot.colorProb(cm, r.f.rar); });
     return { cm, p: pc, casts: 1 / pc, hours: (1 / pc) * cyc / 3600 };
   });
 
@@ -205,7 +205,7 @@ const html = `<!DOCTYPE html>
       <code>E[T] = ∫₀^∞ [1 − Π(1 − e^(−p·t))] dt</code>，
       它比「Σ(1/p)」小得多 —— Σ(1/p) 是「某一条鱼」的期望，不是「收齐所有鱼」的期望。</p>
     <p><b>把颜色也算进去</b>就是同一个公式，但目标集合扩成「品种 × 颜色」。
-      最稀有的颜色（${C_RARE.name} ${(C_RARE.prob * 100).toFixed(0)}%）比原色低 ${Math.round(CFG.colorMorphs[0].prob / C_RARE.prob)} 倍，它要求「每一条鱼都要出一次最稀有色」，所以这一列的数字会很长 —— 那是刻意的。</p>
+      颜色概率<b>随鱼的稀有度提高</b>（普通 1% &rarr; 传说 5%），它要求「每一条鱼都要出一次最稀有色」，所以这一列的数字会明显长于只收品种 —— 那是刻意的。</p>
   </div>
 
   <h2>一、总览</h2>
@@ -247,12 +247,12 @@ const html = `<!DOCTYPE html>
   <div class="card">
     <p>每条鱼上钩时会额外掷一次颜色。颜色<b>不影响任何解锁判定</b>，只影响外观与售价系数。</p>
     <table>
-      <tr><th>颜色</th><th class="num">概率</th><th class="num">售价系数</th><th>说明</th></tr>
+      <tr><th>颜色</th><th class="num">售价系数</th>${RAR_NAME.map(n => `<th class="num">${n}</th>`).join('')}<th>说明</th></tr>
       ${CFG.colorMorphs.map(cm => `<tr>
         <td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${cm.tint || '#8b98a5'};border:1px solid rgba(0,0,0,.18);vertical-align:-1px"></span> <b>${cm.name}</b></td>
-        <td class="num">${(cm.prob * 100).toFixed(1)}%</td>
-        <td class="num">×${cm.valueMul.toFixed(2)}</td>
-        <td>${cm.key === C_RARE.key ? '<b style="color:#e8595c">全场最稀有 · 最贵</b>' : (cm.key === C_NEXT.key ? '第二稀有' : '')}</td>
+        <td class="num">&times;${cm.valueMul.toFixed(2)}</td>
+        ${[0,1,2,3].map(t => `<td class="num">${(G.Loot.colorProb(cm, t) * 100).toFixed(1)}%</td>`).join('')}
+        <td>${cm.key === C_RARE.key ? '<b style="color:#e8595c">最稀有 · 最贵</b>' : (cm.key === C_NEXT.key ? '第二稀有' : '')}</td>
       </tr>`).join('')}
     </table>
     <div class="note">
@@ -275,7 +275,7 @@ const html = `<!DOCTYPE html>
     </table>
     <p style="font-size:12.5px;color:var(--ink2)">
       含义：在该钓场随便下竿，平均要等这么久才会碰到一条「这种颜色」的鱼（不论品种）。
-      闪光的间隔是黄金的 7 倍。
+      颜色概率随稀有度提高，所以这里比按普通档算出来的要短一些。
     </p>
   </div>
 
@@ -297,10 +297,10 @@ ${fieldData.map(d => `
       <tr>
         <th>#</th><th>鱼名</th><th>稀有度</th><th>体型</th>
         <th class="num">单竿概率</th><th class="num">期望竿数</th><th class="num">期望时间</th>
-        <th class="num">该鱼${C_RARE.name}<br>(${(C_RARE.prob * 100).toFixed(0)}%)</th><th class="num">该鱼${C_NEXT.name}<br>(${(C_NEXT.prob * 100).toFixed(0)}%)</th>
+        <th class="num">该鱼${C_RARE.name}<br><span style="font-weight:400">按档位</span></th><th class="num">该鱼${C_NEXT.name}<br><span style="font-weight:400">按档位</span></th>
       </tr>
       ${d.rows.map((r, i) => {
-        const th = (cm) => (1 / (r.p * cm.prob)) * d.cyc / 3600;
+        const th = (cm) => (1 / (r.p * G.Loot.colorProb(cm, r.f.rar))) * d.cyc / 3600;
         return `<tr>
           <td class="num" style="color:var(--ink3)">${i + 1}</td>
           <td><b>${r.f.name}</b></td>
@@ -323,7 +323,7 @@ ${fieldData.map(d => `
     <ul>
       <li><b>收齐全部品种</b>：${fmtHour(totalAllHours)}（7 个钓场累计）</li>
       <li><b>连颜色一起收齐</b>：${fmtHour(totalColorHours)}，共 ${totalCombos} 个组合</li>
-      <li>放大倍数约 <b>${Math.round(totalColorHours / totalAllHours)} 倍</b> —— 原因就是${C_RARE.name}只有 ${(C_RARE.prob * 100).toFixed(0)}%，
+      <li>放大倍数约 <b>${Math.round(totalColorHours / totalAllHours)} 倍</b> —— 原因就是${C_RARE.name}在普通鱼上只有 ${(G.Loot.colorProb(C_RARE, 0) * 100).toFixed(0)}%，
           而它要求「每一条鱼都要闪一次」</li>
       <li>所以颜色只能当收藏彩蛋，<b>绝不能写进解锁条件</b></li>
     </ul>

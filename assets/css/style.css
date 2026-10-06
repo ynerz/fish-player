@@ -611,6 +611,69 @@ input[type=range]{ width:130px; accent-color:var(--c-primary); }
 }
 .book-sum b{ color:var(--c-text); font-size:14px; }
 
+/* -------- 图鉴 · 两条收集进度条 -------- */
+.bk-bar-row{ margin-top:11px; }
+.bk-bar-top{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.bk-bar-label{ font-size:12.5px; font-weight:700; color:var(--c-text); }
+.bk-bar-num{ font-size:12px; color:var(--c-text-2); font-variant-numeric:tabular-nums; }
+.bk-bar-num b{ color:var(--c-text); font-size:14px; }
+.bk-bar-num em{ font-style:normal; color:var(--c-primary); margin-left:7px; font-weight:700; }
+.bk-bar{
+  height:8px; border-radius:5px; overflow:hidden; margin-top:5px;
+  background:var(--c-panel-2); border:1px solid var(--c-line);
+}
+.bk-bar > i{ display:block; height:100%; border-radius:4px; transition:width .25s; }
+.bk-bar-note{ font-size:10.5px; color:var(--c-text-3); margin-top:3px; }
+
+/* -------- 图鉴 · 搜索与筛选 -------- */
+.book-tools{ display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap; }
+.bk-search{
+  flex:1 1 200px; min-width:150px; height:32px; padding:0 12px;
+  border:1px solid var(--c-line); border-radius:16px; font-family:inherit;
+  font-size:12.5px; color:var(--c-text); background:var(--c-panel-2); outline:none;
+}
+.bk-search:focus{ border-color:var(--c-primary); background:var(--c-panel); }
+.bk-count{ font-size:11.5px; color:var(--c-text-3); margin-left:auto; }
+
+/* ================= 鱼护 / 水族箱 ================= */
+.net-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:12px; }
+.net-sub{ font-size:11.5px; color:var(--c-text-3); margin-top:3px; }
+.net-cap{ font-size:12px; color:var(--c-text-2); white-space:nowrap; }
+.net-cap b{ font-size:18px; color:var(--c-text); }
+.net-actions{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+
+.net-list{ display:flex; flex-direction:column; gap:7px; margin-top:12px; }
+.net-row{
+  display:flex; align-items:center; gap:10px;
+  padding:7px 10px; border-radius:10px;
+  border:1px solid var(--c-line); background:var(--c-panel-2);
+}
+.net-row canvas{ flex:0 0 auto; }
+.net-info{ flex:1 1 auto; min-width:0; }
+.net-name{ font-size:12.5px; font-weight:700; display:flex; align-items:center; gap:6px; }
+.net-meta{ font-size:11px; color:var(--c-text-3); margin-top:2px; }
+.net-price{ color:var(--c-gold); font-weight:700; }
+.net-ops{ display:flex; gap:5px; flex-wrap:wrap; justify-content:flex-end; }
+.mini-btn{
+  font-family:inherit; font-size:11px; padding:4px 10px; border-radius:8px; cursor:pointer;
+  border:1px solid var(--c-primary); background:var(--c-primary); color:#fff;
+}
+.mini-btn.ghost{ background:var(--c-panel); color:var(--c-text-2); border-color:var(--c-line); }
+.mini-btn:disabled{ opacity:.4; cursor:not-allowed; }
+
+.tank-wrap{
+  position:relative; margin-top:12px; border-radius:14px; overflow:hidden;
+  border:1px solid var(--c-line-2); background:#dff1fb;
+}
+.tank-canvas{ display:block; width:100%; height:180px; }
+.tank-empty{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-size:12.5px; color:#5b7488; text-align:center; padding:0 20px;
+}
+
+/* -------- 移动端：不要把页面的滚动手势让给浏览器 -------- */
+#app, #stage, #scene{ touch-action:none; overscroll-behavior:none; }
+
 /* ================= 图鉴 · 鱼种详情页 ================= */
 .book-item{ cursor:pointer; transition:border-color .12s, transform .12s, box-shadow .12s; }
 .book-item:hover{ border-color:var(--c-primary); transform:translateY(-1px); box-shadow:var(--shadow-s); }

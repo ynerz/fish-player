@@ -32,6 +32,7 @@ G.Panels = (function () {
   }
 
   function isOpen() { return !modal.classList.contains('hidden'); }
+  function currentView() { return current; }
 
   /* 只重绘当前弹层，不重置任何筛选状态（refresh 用） */
   function renderCurrent(arg) {
@@ -50,6 +51,8 @@ G.Panels = (function () {
     if (name === 'book') {
       bookFilter.field = St.get().field || 'ALL';
       bookFilter.sel = null;
+      bookFilter.q = '';
+      bookFilter.onlyNew = false;
     }
     renderCurrent(arg);
     modal.classList.remove('hidden');
@@ -57,6 +60,7 @@ G.Panels = (function () {
   }
 
   function close() {
+    if (tankRAF && cancelAnimationFrame) { cancelAnimationFrame(tankRAF); tankRAF = 0; }
     modal.classList.add('hidden');
     bodyEl.innerHTML = '';
     current = null;
@@ -145,7 +149,7 @@ G.Panels = (function () {
   /* 图鉴筛选状态
      field:  null = 打开时自动定位到「当前钓场」（见 open()）
      sel:    当前展开的鱼种 id（鱼种详情页），null = 列表页 */
-  var bookFilter = { field: null, rarity: -1, sel: null };
+  var bookFilter = { field: null, rarity: -1, sel: null, q: '', onlyNew: false };
 
   /* 某鱼种「单竿钓到」的基础概率（不含鱼饵/鱼竿加成）
      = 该档位在场内的权重占比 × 该鱼在本档鱼种池里的权重占比 */
@@ -187,6 +191,48 @@ G.Panels = (function () {
     if (v >= 0.01) return v.toFixed(3) + '%';
     if (v >= 0.0001) return v.toFixed(5) + '%';
     return v.toExponential(2) + '%';
+  }
+
+  /* 图鉴顶部的一条进度条（品种 / 品种×颜色 各一条） */
+  function bkBar(label, note, got, total, color) {
+    var pct = total ? got / total : 0;
+    return '<div class="bk-bar-row">' +
+      '<div class="bk-bar-top">' +
+        '<span class="bk-bar-label">' + label + '</span>' +
+        '<span class="bk-bar-num"><b>' + got + '</b> / ' + total +
+          '<em>' + (pct * 100).toFixed(1) + '%</em></span>' +
+      '</div>' +
+      '<div class="bk-bar"><i style="width:' + (pct * 100).toFixed(2) + '%;background:' + color + '"></i></div>' +
+      '<div class="bk-bar-note">' + note + '</div>' +
+    '</div>';
+  }
+
+  /* 画图鉴网格里的一条鱼（拆出来是为了能按需懒绘制） */
+  function paintBookItem(cv, f, e) {
+    cv.setAttribute('data-drawn', '1');   // 供自测脚本确认懒绘制是否触发
+    var ctx = cv.getContext('2d');
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = 260 * dpr; cv.height = 112 * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (e) {
+      /* 显示「最稀有已收集颜色」：colorMorphs 按常见→稀有排列，取下标最大的 */
+      var best = null;
+      CFG.colorMorphs.forEach(function (cm) {
+        if (!(e.colors && e.colors[cm.key])) return;
+        if (!best || CFG.colorMorphs.indexOf(cm) > CFG.colorMorphs.indexOf(best)) best = cm;
+      });
+      var amt = best && best.tint ? 0.75 : 0;
+      G.FishArt.draw(ctx, f, 130, 56, 168, {
+        tint: best && best.tint, tintAmt: amt, t: 0.6,
+      });
+    } else {
+      G.FishArt.drawSilhouette(ctx, f, 130, 56, 168);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(91,116,136,.75)';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('?', 130, 64);
+    }
   }
 
   /* ---------------- 鱼种详情页：看这一条鱼各种颜色的收集情况 ---------------- */
@@ -324,17 +370,15 @@ G.Panels = (function () {
       if (bookFilter.sel) { renderFishDetail(root, bookFilter.sel); return; }
 
       var g = St.globalProgress();
+      var colStat = St.colorProgress();
 
       var head = U.el('div', 'book-head');
-      var colStat = St.colorProgress();
-      head.innerHTML = '<div><b style="font-size:15px">全图鉴收集进度</b>' +
-        '<div class="book-sum">' +
-          '<span>品种 <b>' + g.got + '</b> / ' + g.total + '　(' + (g.pct * 100).toFixed(1) + '%)</span>' +
-          '<span>颜色 <b>' + colStat.got + '</b> / ' + colStat.total + '　(' + (colStat.pct * 100).toFixed(1) + '%)</span>' +
-        '</div>' +
-        '<div class="hint-text" style="margin-top:4px">' +
-          '⚠️ <b>解锁只看「品种」</b>，颜色只是收藏彩蛋，不参与任何解锁判定。' +
-        '</div></div>';
+      head.innerHTML =
+        '<div style="flex:1 1 340px;min-width:280px">' +
+          '<b style="font-size:15px">全图鉴收集进度</b>' +
+          bkBar('品种', '钓场解锁只看这一条', g.got, g.total, '#1f8fd6') +
+          bkBar('品种 × 颜色', '含颜色的完整收集（纯粹彩蛋）', colStat.got, colStat.total, '#8b5cf6') +
+        '</div>';
 
       var filters = U.el('div', 'book-filters');
 
@@ -362,82 +406,119 @@ G.Panels = (function () {
       root.appendChild(head);
       root.appendChild(rarRow);
 
-      var list = G.FISH.filter(function (f) {
-        if (bookFilter.field !== 'ALL' && f.field !== bookFilter.field) return false;
-        if (bookFilter.rarity >= 0 && f.rar !== bookFilter.rarity) return false;
-        return true;
+      /* ---- 搜索 + 只看未收集 ---- */
+      var tools = U.el('div', 'book-tools');
+      var inp = document.createElement('input');
+      inp.type = 'search';
+      inp.className = 'bk-search';
+      inp.placeholder = '搜索鱼名…';
+      inp.value = bookFilter.q || '';
+      /* 只重绘列表，不重绘整个面板 —— 否则输入框会失焦 */
+      U.on(inp, 'input', function () { bookFilter.q = inp.value.trim(); paint(); });
+
+      var onlyBtn = U.el('button', 'chip' + (bookFilter.onlyNew ? ' active' : ''), '只看未收集');
+      U.on(onlyBtn, 'click', function () {
+        bookFilter.onlyNew = !bookFilter.onlyNew;
+        G.Audio.click();
+        refresh();
       });
 
-      var grid = U.el('div', 'book-grid');
-      grid.style.marginTop = '14px';
+      var cnt = U.el('span', 'bk-count');
+      tools.appendChild(inp);
+      tools.appendChild(onlyBtn);
+      tools.appendChild(cnt);
+      root.appendChild(tools);
 
-      list.forEach(function (f) {
-        var e = St.bookEntry(f.id);
-        var item = U.el('div', 'book-item' + (e ? '' : ' unknown'));
-        /* 点进详情：看这一条鱼各种颜色的收集情况 */
-        U.on(item, 'click', function () {
-          bookFilter.sel = f.id;
-          G.Audio.click();
-          refresh();
+      var wrap = U.el('div', 'bk-list-wrap');
+      root.appendChild(wrap);
+
+      /* ---- 列表：懒绘制（362 个 canvas 一次性画会明显卡顿） ---- */
+      var io = null;
+
+      function paint() {
+        var list = G.FISH.filter(function (f) {
+          if (bookFilter.field !== 'ALL' && f.field !== bookFilter.field) return false;
+          if (bookFilter.rarity >= 0 && f.rar !== bookFilter.rarity) return false;
+          if (bookFilter.q && f.name.indexOf(bookFilter.q) < 0) return false;
+          if (bookFilter.onlyNew && St.isCaught(f.id)) return false;
+          return true;
         });
-        var cv = document.createElement('canvas');
-        cv.width = 260; cv.height = 112;
-        item.appendChild(cv);
-        var sub = U.el('div', 'bi-name', e ? f.name : '？？？');
-        item.appendChild(sub);
-        var tag = U.el('div', 'bi-tag rar' + f.rar, e ? CFG.rarity[f.rar].name : '未发现');
-        item.appendChild(tag);
-        var colorsRow = U.el('div', 'bi-colors');
-        CFG.colorMorphs.forEach(function (cm, ci) {
-          var has = !!(e && e.colors && e.colors[cm.key]);
-          var dot = U.el('i', has ? 'on' : '');
-          dot.style.background = cm.tint || '#a9c7da';
-          dot.title = cm.name + (has ? ' ✓ 已收集' : ' ✗ 未收集');
-          colorsRow.appendChild(dot);
-        });
-        item.appendChild(colorsRow);
-        item.title = f.name + '　颜色 ' +
-          (e ? CFG.colorMorphs.filter(function (c) { return e.colors && e.colors[c.key]; }).length : 0) + '/' + CFG.colorMorphs.length;
-        if (e) {
-          var rec = U.el('div', 'bi-record', '最大 ' + U.kg(e.maxKg) + ' · ' + e.n + ' 条');
-          item.appendChild(rec);
-        } else {
-          var c0 = U.el('div', 'bi-sub', '体重 ' + U.kg(f.minKg) + '~' + U.kg(f.maxKg));
-          item.appendChild(c0);
+
+        if (io) { io.disconnect(); io = null; }
+        wrap.innerHTML = '';
+        cnt.textContent = '共 ' + list.length + ' 条';
+
+        if (!list.length) {
+          wrap.appendChild(U.el('div', 'empty-tip', '没有符合条件的鱼'));
+          return;
         }
-        grid.appendChild(item);
 
-        // 延迟绘制，避免一次性卡顿
-        setTimeout(function () {
-          var ctx = cv.getContext('2d');
-          var dpr = Math.min(window.devicePixelRatio || 1, 2);
-          cv.width = 260 * dpr; cv.height = 112 * dpr;
-          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        if ('IntersectionObserver' in window) {
+          io = new IntersectionObserver(function (entries) {
+            entries.forEach(function (en) {
+              if (!en.isIntersecting) return;
+              io.unobserve(en.target);
+              if (en.target._paint) en.target._paint();
+            });
+          }, { root: bodyEl, rootMargin: '260px' });
+        }
+
+        var grid = U.el('div', 'book-grid');
+        grid.style.marginTop = '14px';
+
+        list.forEach(function (f) {
+          var e = St.bookEntry(f.id);
+          var item = U.el('div', 'book-item' + (e ? '' : ' unknown'));
+          /* 点进详情：看这一条鱼各种颜色的收集情况 */
+          U.on(item, 'click', function () {
+            bookFilter.sel = f.id;
+            G.Audio.click();
+            refresh();
+          });
+
+          var cv = document.createElement('canvas');
+          cv.width = 260; cv.height = 112;
+          cv.className = 'bi-canvas';
+          item.appendChild(cv);
+
+          var sub = U.el('div', 'bi-name', e ? f.name : '？？？');
+          item.appendChild(sub);
+          var tag = U.el('div', 'bi-tag rar' + f.rar, e ? CFG.rarity[f.rar].name : '未发现');
+          item.appendChild(tag);
+
+          var colorsRow = U.el('div', 'bi-colors');
+          CFG.colorMorphs.forEach(function (cm) {
+            var has = !!(e && e.colors && e.colors[cm.key]);
+            var dot = U.el('i', has ? 'on' : '');
+            dot.style.background = cm.tint || '#a9c7da';
+            dot.title = cm.name + (has ? ' ✓ 已收集' : ' ✗ 未收集');
+            colorsRow.appendChild(dot);
+          });
+          item.appendChild(colorsRow);
+
+          var gotColors = e ? CFG.colorMorphs.filter(function (c) {
+            return e.colors && e.colors[c.key];
+          }).length : 0;
+          item.title = f.name + '　颜色 ' + gotColors + '/' + CFG.colorMorphs.length;
+
           if (e) {
-            /* 显示已收集到的「最稀有颜色」（按概率取最小，不依赖数组顺序） */
-            var best = null;
-            CFG.colorMorphs.forEach(function (cm) {
-              if (!(e.colors && e.colors[cm.key])) return;
-              /* colorMorphs 按「常见 → 稀有」排列，下标越大越稀有，所以取下标最大的那个 */
-      if (!best || CFG.colorMorphs.indexOf(cm) > CFG.colorMorphs.indexOf(best)) best = cm;
-            });
-            var amt = best && best.tint ? 0.75 : 0;
-            G.FishArt.draw(ctx, f, 130, 56, 168, {
-              tint: best && best.tint, tintAmt: amt, t: 0.6,
-            });
+            var rec = U.el('div', 'bi-record', '最大 ' + U.kg(e.maxKg) + ' · ' + e.n + ' 条');
+            item.appendChild(rec);
           } else {
-            G.FishArt.drawSilhouette(ctx, f, 130, 56, 168);
-            ctx.globalAlpha = 1;
-            ctx.fillStyle = 'rgba(91,116,136,.75)';
-            ctx.font = 'bold 22px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('?', 130, 64);
+            var c0 = U.el('div', 'bi-sub', '体重 ' + U.kg(f.minKg) + '~' + U.kg(f.maxKg));
+            item.appendChild(c0);
           }
-        }, 0);
-      });
 
-      if (!list.length) root.appendChild(U.el('div', 'empty-tip', '没有符合条件的鱼'));
-      else root.appendChild(grid);
+          item._paint = function () { paintBookItem(cv, f, e); };
+          if (io) io.observe(item); else item._paint();
+
+          grid.appendChild(item);
+        });
+
+        wrap.appendChild(grid);
+      }
+
+      paint();
 
       var lg = U.el('div', 'legend-list');
       lg.style.marginTop = '14px';
@@ -459,6 +540,269 @@ G.Panels = (function () {
       root.appendChild(ctip);
     },
   };
+
+  /* =========================================================
+     鱼护 / 水族箱
+     ========================================================= */
+  var tankRAF = 0;
+
+  /* 画一条鱼的小图标（列表用） */
+  function miniFish(cv, entry) {
+    var fish = G.FISH_ID[entry.f];
+    if (!fish) return;
+    var cm = G.Loot.colorByKey(entry.c);
+    var ctx = cv.getContext('2d');
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var w = 96, h = 52;
+    cv.width = w * dpr; cv.height = h * dpr;
+    cv.style.width = w + 'px'; cv.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    G.FishArt.draw(ctx, fish, w / 2, h / 2, w * 0.9, {
+      tint: cm && cm.tint, tintAmt: cm && cm.tint ? 0.75 : 0, t: 0.6,
+    });
+  }
+
+  function renderNet(root) {
+    var s = St.get();
+    var netN = St.netCount(), tankN = St.tankCount();
+
+    /* ---- 鱼护 ---- */
+    var head = U.el('div', 'net-head');
+    var cost = St.netExpandCost();
+    head.innerHTML =
+      '<div><b style="font-size:15px">鱼护</b>' +
+        '<div class="net-sub">钓到的鱼可以留在这里，随时卖出、放生，或移进水族箱</div></div>' +
+      '<div class="net-cap"><b>' + netN + '</b> / ' + s.netCap + '</div>';
+    root.appendChild(head);
+
+    var bar = U.el('div', 'bk-bar');
+    bar.style.marginTop = '6px';
+    bar.innerHTML = '<i style="width:' + (s.netCap ? netN / s.netCap * 100 : 0) +
+                    '%;background:#1f8fd6"></i>';
+    root.appendChild(bar);
+
+    var acts = U.el('div', 'net-actions');
+    var allVal = St.netValue();
+    var btnAll = U.el('button', 'btn-ghost', '全部卖出　+' + U.coin(allVal) + ' 金');
+    btnAll.disabled = netN === 0;
+    U.on(btnAll, 'click', function () {
+      var got = St.sellAllNet();
+      G.Audio.coin();
+      if (got) G.State.emit('toast', { text: '鱼护清空，入账 ' + U.coin(got) + ' 金', kind: 'good' });
+      refresh();
+    });
+    var btnEx = U.el('button', 'btn-ghost',
+      cost == null ? '鱼护已扩到最大' : '扩容 +' + CFG.storage.netStep + ' 格　' + U.coin(cost) + ' 金');
+    btnEx.disabled = cost == null;
+    U.on(btnEx, 'click', function () {
+      var r = St.expandNet();
+      if (!r.ok) { G.Audio.deny(); G.State.emit('toast', { text: r.msg, kind: 'bad' }); return; }
+      G.Audio.coin();
+      G.State.emit('toast', { text: '鱼护扩容到 ' + r.cap + ' 格', kind: 'good' });
+      refresh();
+    });
+    acts.appendChild(btnAll);
+    acts.appendChild(btnEx);
+    root.appendChild(acts);
+
+    if (!netN) {
+      root.appendChild(U.el('div', 'empty-tip', '鱼护是空的。钓到鱼时选「收进鱼护」就会放进来'));
+    } else {
+      var list = U.el('div', 'net-list');
+      /* 新的排前面 */
+      var idxs = s.net.map(function (_, i) { return i; }).reverse();
+      idxs.forEach(function (i) {
+        var entry = s.net[i];
+        var fish = G.FISH_ID[entry.f];
+        if (!fish) return;
+        var cm = G.Loot.colorByKey(entry.c);
+        var row = U.el('div', 'net-row');
+
+        var cv = document.createElement('canvas');
+        row.appendChild(cv);
+
+        var info = U.el('div', 'net-info');
+        info.innerHTML =
+          '<div class="net-name">' + fish.name +
+            '<span class="cc-tag rar' + fish.rar + '">' + CFG.rarity[fish.rar].name + '</span></div>' +
+          '<div class="net-meta">' + (cm ? cm.name : '原色') + '　·　' + U.kg(entry.kg) +
+            '　·　<span class="net-price">' + U.coin(St.netPrice(entry)) + ' 金</span></div>';
+        row.appendChild(info);
+
+        var ops = U.el('div', 'net-ops');
+        function mkBtn(label, cls, fn) {
+          var b = U.el('button', 'mini-btn' + (cls ? ' ' + cls : ''), label);
+          U.on(b, 'click', fn);
+          ops.appendChild(b);
+        }
+        mkBtn('卖出', '', function () {
+          var p = St.sellNetAt(i);
+          G.Audio.coin();
+          G.State.emit('toast', { text: '卖出 ' + fish.name + '，+' + U.coin(p) + ' 金', kind: 'good' });
+          refresh();
+        });
+        mkBtn('放生', 'ghost', function () {
+          St.releaseNetAt(i);
+          G.Audio.splash();
+          G.State.emit('toast', { text: '放生了 ' + fish.name, kind: '' });
+          refresh();
+        });
+        mkBtn('进水族箱', 'ghost', function () {
+          if (!St.moveToTank(i)) {
+            G.Audio.deny();
+            G.State.emit('toast', { text: '水族箱满了，先扩容或取出几条', kind: 'warn' });
+            return;
+          }
+          G.Audio.click();
+          refresh();
+        });
+        if (St.tankFull()) ops.lastChild.disabled = true;
+
+        row.appendChild(ops);
+        list.appendChild(row);
+        setTimeout(function () { miniFish(cv, entry); }, 0);
+      });
+      root.appendChild(list);
+    }
+
+    /* ---- 水族箱 ---- */
+    var th = U.el('div', 'net-head');
+    th.style.marginTop = '22px';
+    var tcost = St.tankExpandCost();
+    th.innerHTML =
+      '<div><b style="font-size:15px">水族箱</b>' +
+        '<div class="net-sub">挑几条最喜欢的鱼养在这里，它们会一直在水里游</div></div>' +
+      '<div class="net-cap"><b>' + tankN + '</b> / ' + s.tankCap + '</div>';
+    root.appendChild(th);
+
+    var tbar = U.el('div', 'bk-bar');
+    tbar.style.marginTop = '6px';
+    tbar.innerHTML = '<i style="width:' + (s.tankCap ? tankN / s.tankCap * 100 : 0) +
+                     '%;background:#8b5cf6"></i>';
+    root.appendChild(tbar);
+
+    var tacts = U.el('div', 'net-actions');
+    var btnTex = U.el('button', 'btn-ghost',
+      tcost == null ? '水族箱已扩到最大' : '扩容 +' + CFG.storage.tankStep + ' 格　' + U.coin(tcost) + ' 金');
+    btnTex.disabled = tcost == null;
+    U.on(btnTex, 'click', function () {
+      var r = St.expandTank();
+      if (!r.ok) { G.Audio.deny(); G.State.emit('toast', { text: r.msg, kind: 'bad' }); return; }
+      G.Audio.coin();
+      G.State.emit('toast', { text: '水族箱扩容到 ' + r.cap + ' 格', kind: 'good' });
+      refresh();
+    });
+    tacts.appendChild(btnTex);
+    root.appendChild(tacts);
+
+    var wrap = U.el('div', 'tank-wrap');
+    var box = document.createElement('canvas');
+    box.className = 'tank-canvas';
+    wrap.appendChild(box);
+    if (!tankN) {
+      var empty = U.el('div', 'tank-empty', '空的。把鱼护里的鱼「进水族箱」就会出现在这里');
+      wrap.appendChild(empty);
+    }
+    root.appendChild(wrap);
+
+    /* 水族箱动画：面板打开时跑，关闭自动停 */
+    if (cancelAnimationFrame) cancelAnimationFrame(tankRAF);
+    var items = s.tank.map(function (e) {
+      return { e: e, ph: Math.random() * 6.28, sp: 0.35 + Math.random() * 0.5, y: 0.25 + Math.random() * 0.5 };
+    });
+    var t0 = performance.now();
+    function drawTank(now) {
+      if (!isOpen() || current !== 'net') { tankRAF = 0; return; }
+      tankRAF = requestAnimationFrame(drawTank);
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      var Wp = box.clientWidth || 320, Hp = box.clientHeight || 170;
+      if (box.width !== Wp * dpr || box.height !== Hp * dpr) {
+        box.width = Wp * dpr; box.height = Hp * dpr;
+      }
+      var ctx = box.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      var tt = (now - t0) / 1000;
+
+      /* 水与沙 */
+      var g = ctx.createLinearGradient(0, 0, 0, Hp);
+      g.addColorStop(0, '#dff1fb'); g.addColorStop(1, '#8fc7e6');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, Wp, Hp);
+      ctx.fillStyle = 'rgba(255,244,200,.45)';
+      ctx.beginPath();
+      for (var x = 0; x <= Wp; x += 8) {
+        var y = 16 + Math.sin(x * 0.035 + tt * 1.2) * 5;
+        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.lineTo(Wp, 0); ctx.lineTo(0, 0); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#eadcc0';
+      ctx.beginPath(); ctx.ellipse(Wp * 0.5, Hp + 4, Wp * 0.62, 26, 0, 0, 6.3); ctx.fill();
+
+      items.forEach(function (it, i) {
+        var fish = G.FISH_ID[it.e.f];
+        if (!fish) return;
+        var cm = G.Loot.colorByKey(it.e.c);
+        var span = Wp - 90;
+        var px = 45 + ((tt * it.sp * 46 + i * 137) % span);
+        var py = Hp * it.y + Math.sin(tt * 1.7 + it.ph) * 7;
+        var L = Math.min(74, 26 + Math.log(1 + it.e.kg) * 11);
+        var dir = Math.cos(tt * it.sp * 1.1 + it.ph) >= 0 ? 1 : -1;
+        ctx.save();
+        ctx.translate(px, py);
+        if (dir < 0) ctx.scale(-1, 1);
+        G.FishArt.draw(ctx, fish, 0, 0, L, {
+          tint: cm && cm.tint, tintAmt: cm && cm.tint ? 0.75 : 0, t: 0.8,
+        });
+        ctx.restore();
+      });
+    }
+    tankRAF = requestAnimationFrame(drawTank);
+
+    /* 水族箱里的鱼：取出 / 直接卖 */
+    if (tankN) {
+      var tlist = U.el('div', 'net-list');
+      s.tank.forEach(function (entry, i) {
+        var fish = G.FISH_ID[entry.f];
+        if (!fish) return;
+        var cm = G.Loot.colorByKey(entry.c);
+        var row = U.el('div', 'net-row');
+        var cv2 = document.createElement('canvas');
+        row.appendChild(cv2);
+        var info2 = U.el('div', 'net-info');
+        info2.innerHTML =
+          '<div class="net-name">' + fish.name +
+            '<span class="cc-tag rar' + fish.rar + '">' + CFG.rarity[fish.rar].name + '</span></div>' +
+          '<div class="net-meta">' + (cm ? cm.name : '原色') + '　·　' + U.kg(entry.kg) +
+            '　·　<span class="net-price">' + U.coin(St.netPrice(entry)) + ' 金</span></div>';
+        row.appendChild(info2);
+        var ops2 = U.el('div', 'net-ops');
+        var bOut = U.el('button', 'mini-btn ghost', '取出');
+        U.on(bOut, 'click', function () {
+          if (!St.takeFromTank(i)) {
+            G.Audio.deny();
+            G.State.emit('toast', { text: '鱼护满了，先卖几条', kind: 'warn' });
+            return;
+          }
+          G.Audio.click(); refresh();
+        });
+        bOut.disabled = St.netFull();
+        var bSell = U.el('button', 'mini-btn', '卖出');
+        U.on(bSell, 'click', function () {
+          var p = St.sellTankAt(i);
+          G.Audio.coin();
+          G.State.emit('toast', { text: '卖出 ' + fish.name + '，+' + U.coin(p) + ' 金', kind: 'good' });
+          refresh();
+        });
+        ops2.appendChild(bOut); ops2.appendChild(bSell);
+        row.appendChild(ops2);
+        tlist.appendChild(row);
+        setTimeout(function () { miniFish(cv2, entry); }, 0);
+      });
+      root.appendChild(tlist);
+    }
+  }
+
+  VIEWS.net = { title: '鱼护 · 水族箱', render: renderNet };
 
   /* =========================================================
      商店
@@ -623,6 +967,7 @@ G.Panels = (function () {
       }
       g1.innerHTML =
         box('累计游玩时长', U.clock(s.playTime)) +
+        box('游玩的第几天', (s.stats.days || 0) + 1, '天') +
         box('金币', U.num(Math.round(s.coin))) +
         box('总抛竿数', U.num(st.casts)) +
         box('总钓获', U.num(st.catches)) +
@@ -641,7 +986,9 @@ G.Panels = (function () {
         box('累计卖鱼收入', U.coin(st.totalValue)) +
         box('断线次数', U.num(st.snaps)) +
         box('脱钩次数', U.num(st.escapes)) +
-        box('挂机钓获', U.num(st.idleCatches));
+        box('挂机钓获', U.num(st.idleCatches)) +
+        box('鱼护 / 容量', St.netCount() + ' / ' + s.netCap) +
+        box('水族箱 / 容量', St.tankCount() + ' / ' + s.tankCap);
       root.appendChild(g2);
 
       root.appendChild(U.el('div', 'section-title', '各钓场进度'));
@@ -743,6 +1090,19 @@ G.Panels = (function () {
           var txt = JSON.stringify(St.get());
           if (navigator.clipboard) navigator.clipboard.writeText(txt);
           G.State.emit('toast', { text: '存档已复制到剪贴板', kind: 'good' });
+        });
+      });
+
+      row('导入存档', '粘贴之前导出的 JSON。会覆盖当前进度，导入前请先导出备份。',
+        '<button class="btn-ghost" id="setImport">导入</button>', function (c) {
+        U.on(c.querySelector('#setImport'), 'click', function () {
+          var txt = window.prompt('把导出的存档 JSON 粘贴到这里：');
+          if (!txt) return;
+          var r = St.importSave(txt);
+          if (!r.ok) { G.Audio.deny(); G.State.emit('toast', { text: r.msg, kind: 'bad' }); return; }
+          G.Audio.unlock();
+          G.State.emit('toast', { text: '导入成功，正在重载…', kind: 'good' });
+          setTimeout(function () { location.reload(); }, 700);
         });
       });
     },
@@ -880,8 +1240,17 @@ G.Panels = (function () {
       '<div class="cc-row"><span>卖出价</span><span>' + U.coin(info.price) + ' 金' + (info.isNew ? '（图鉴奖励 ×' + CFG.economy.firstCatchBonus + '）' : '') + '</span></div>' +
       '<div class="cc-row"><span>图鉴累计</span><span>' + (St.bookEntry(info.fish.id).n) + ' 条</span></div>';
 
-    U.$('#ccSell').textContent = '收下 ' + U.coin(info.price) + ' 金';
-    U.$('#ccKeep').classList.add('hidden');
+    /* 结算卡是两个真选项：卖出拿钱 / 收进鱼护留着。
+       （挂机时没有玩家点，走自动卖出，见 fishing.js） */
+    U.$('#ccSell').textContent = '卖出 ' + U.coin(info.price) + ' 金';
+    var keepBtn = U.$('#ccKeep');
+    var netN = St.netCount(), netCap = St.get().netCap;
+    if (St.netFull()) {
+      keepBtn.classList.add('hidden');
+    } else {
+      keepBtn.classList.remove('hidden');
+      keepBtn.textContent = '收进鱼护 ' + netN + '/' + netCap;
+    }
 
     // 绘制
     var cv = catchCanvas;
@@ -918,18 +1287,35 @@ G.Panels = (function () {
   function isCatchOpen() { return !catchCard.classList.contains('hidden'); }
 
   function initCatchButtons(onDone) {
-    U.on(U.$('#ccSell'), 'click', function () {
-      G.Audio.coin();
+    /* info 必须在 hideCatch() 之前取，否则 pendingCatch 已经被清空 */
+    function fire(action) {
+      var info = pendingCatch;
+      if (action === 'sell') G.Audio.coin(); else G.Audio.click();
       hideCatch();
-      if (onDone) onDone();
-    });
+      if (onDone) onDone(action, info);
+    }
+    U.on(U.$('#ccSell'), 'click', function () { fire('sell'); });
+    U.on(U.$('#ccKeep'), 'click', function () { fire('keep'); });
   }
+
+  /* 空格 / 点画面把结算卡收掉时，默认按「卖出」处理，
+     否则玩家会莫名其妙少一笔钱 */
+  function dismissCatch(onDone) {
+    var info = pendingCatch;
+    if (!info) return;
+    G.Audio.coin();
+    hideCatch();
+    if (onDone) onDone('sell', info);
+  }
+  function getPendingCatch() { return pendingCatch; }
 
   return {
     init: init, open: open, close: close, refresh: refresh, isOpen: isOpen,
+    current: currentView,
     setOnClose: setOnClose,
     showCatch: showCatch, hideCatch: hideCatch, isCatchOpen: isCatchOpen,
-    initCatchButtons: initCatchButtons,
+    initCatchButtons: initCatchButtons, dismissCatch: dismissCatch,
+    getPendingCatch: getPendingCatch,
     VIEWS: VIEWS,
   };
 })();

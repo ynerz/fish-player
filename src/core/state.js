@@ -10,11 +10,22 @@ G.State = (function () {
   var saveTimer = null;
   var listeners = [];
 
+  /* 存档结构版本。改动存档字段时把它 +1，并在 migrate() 里补一条分支。
+     版本 2：新增 net / tank / netCap / tankCap / netEx / tankEx */
+  var SAVE_V = 2;
+
+  /* 数字兜底：任何来自存档或计算的数值都要过一遍，
+     否则 NaN 会被 JSON.stringify 写成 null，静默污染整个存档。 */
+  function safeNum(v, dft) {
+    v = Number(v);
+    return isFinite(v) ? v : (dft || 0);
+  }
+
   function blank() {
     var baits = {};
     G.BAITS.forEach(function (b) { baits[b.id] = b.free ? -1 : 0; });
     return {
-      v: 1,
+      v: SAVE_V,
       coin: CFG.economy.startCoin,
       playTime: 0,
       field: 'D',
@@ -27,6 +38,12 @@ G.State = (function () {
       lines: ['n2'],
       lineSel: 'n2',
       decors: [],
+      net: [],                         // 鱼护：[{f:鱼种id, kg, c:颜色key}]
+      tank: [],                        // 水族箱：同上，从鱼护转移进来
+      netCap: CFG.storage.netCap,
+      tankCap: CFG.storage.tankCap,
+      netEx: 0,                        // 已扩容次数（用于取价格）
+      tankEx: 0,
       locked: [],                      // 隐藏钓场被「发现」时记录，用于解锁提示
       stats: {
         casts: 0, catches: 0, escapes: 0, snaps: 0, idleCatches: 0,
@@ -53,13 +70,69 @@ G.State = (function () {
 
   function migrate(d) {
     var b = blank();
+    var from = safeNum(d.v, 1);
+
     // 浅合并，保证新增字段有默认值
     Object.keys(b).forEach(function (k) { if (d[k] === undefined) d[k] = b[k]; });
     Object.keys(b.settings).forEach(function (k) { if (!d.settings || d.settings[k] === undefined) d.settings[k] = b.settings[k]; });
     Object.keys(b.stats).forEach(function (k) { if (!d.stats || d.stats[k] === undefined) d.stats[k] = b.stats[k]; });
     G.BAITS.forEach(function (x) { if (d.baits[x.id] === undefined) d.baits[x.id] = x.free ? -1 : 0; });
+    if (!Array.isArray(d.net)) d.net = [];
+    if (!Array.isArray(d.tank)) d.tank = [];
+    if (d.netCap == null) d.netCap = CFG.storage.netCap;
+    if (d.tankCap == null) d.tankCap = CFG.storage.tankCap;
+    if (d.netEx == null) d.netEx = 0;
+    if (d.tankEx == null) d.tankEx = 0;
     if (!d.unlocked || !d.unlocked.D) d.unlocked = Object.assign({ D: true }, d.unlocked || {});
+
+    /* ---- 按版本号迁移 ---- */
+    if (from < 2) {
+      // v1 → v2：新增鱼护 / 水族箱
+      if (!Array.isArray(d.net)) d.net = [];
+      if (!Array.isArray(d.tank)) d.tank = [];
+      d.netCap = safeNum(d.netCap, CFG.storage.netCap);
+      d.tankCap = safeNum(d.tankCap, CFG.storage.tankCap);
+      d.netEx = safeNum(d.netEx, 0);
+      d.tankEx = safeNum(d.tankEx, 0);
+    }
+    d.v = SAVE_V;
+
+    /* ---- 数值兜底：任何一条脏数据都不该毁掉整个存档 ---- */
+    d.coin = Math.max(0, safeNum(d.coin, CFG.economy.startCoin));
+    d.playTime = Math.max(0, safeNum(d.playTime, 0));
+    d.stats.maxKg = Math.max(0, safeNum(d.stats.maxKg, 0));
+    d.stats.totalValue = Math.max(0, safeNum(d.stats.totalValue, 0));
+    ['casts', 'catches', 'escapes', 'snaps', 'idleCatches', 'days'].forEach(function (k) {
+      d.stats[k] = Math.max(0, Math.round(safeNum(d.stats[k], 0)));
+    });
+    if (!G.FIELD_MAP[d.field] || !d.unlocked[d.field]) d.field = 'D';
+    // 清掉失效的鱼种 id（比如以后删过鱼）
+    d.net = (d.net || []).filter(function (e) {
+      return e && G.FISH_ID[e.f] && isFinite(Number(e.kg)) && Number(e.kg) > 0;
+    }).slice(0, d.netCap);
+    d.tank = (d.tank || []).filter(function (e) {
+      return e && G.FISH_ID[e.f] && isFinite(Number(e.kg)) && Number(e.kg) > 0;
+    }).slice(0, d.tankCap);
+
     return d;
+  }
+
+  /* 存档导入：先校验再落地，避免一段烂 JSON 直接毁档 */
+  function importSave(text) {
+    var d;
+    try { d = JSON.parse(text); } catch (e) { return { ok: false, msg: '不是合法的 JSON' }; }
+    if (!d || typeof d !== 'object' || Array.isArray(d)) return { ok: false, msg: '存档格式不对' };
+    if (typeof d.coin !== 'number' && typeof d.playTime !== 'number') {
+      return { ok: false, msg: '这看起来不是本游戏的存档' };
+    }
+    try {
+      S = migrate(d);
+      save(true);
+      emit('import');
+      return { ok: true, coin: S.coin, book: Object.keys(S.book).length };
+    } catch (e) {
+      return { ok: false, msg: '导入失败：' + e.message };
+    }
   }
 
   function save(now) {
@@ -101,14 +174,124 @@ G.State = (function () {
 
   /* ---------------- 金币 ---------------- */
   function addCoin(n) {
-    S.coin = Math.max(0, S.coin + n);
+    /* n 可能是 NaN（价格算错、存档被改），这里兜住不让它污染存档 */
+    n = safeNum(n, 0);
+    S.coin = Math.max(0, safeNum(S.coin, 0) + n);
     scheduleSave();
     emit('coin', S.coin);
     return S.coin;
   }
   function spend(n) {
-    if (S.coin < n) return false;
-    S.coin -= n; scheduleSave(); emit('coin', S.coin); return true;
+    n = safeNum(n, 0);
+    if (safeNum(S.coin, 0) < n) return false;
+    S.coin = safeNum(S.coin, 0) - n;
+    scheduleSave(); emit('coin', S.coin); return true;
+  }
+
+  /* ---------------- 鱼护 / 水族箱 ----------------
+     鱼护和「图鉴」是两件事：
+       · 图鉴 = 永久记录，钓到就登记，跟卖不卖无关
+       · 鱼护 = 你真的把这条鱼留下了，可以再卖、放生、或移进水族箱
+     --------------------------------------------------------- */
+  function netCount()  { return S.net.length; }
+  function tankCount() { return S.tank.length; }
+  function netFull()   { return S.net.length >= S.netCap; }
+  function tankFull()  { return S.tank.length >= S.tankCap; }
+
+  function toNet(fish, kg, colorKey) {
+    if (netFull()) return false;
+    S.net.push({ f: fish.id, kg: kg, c: colorKey });
+    scheduleSave();
+    emit('net');
+    return true;
+  }
+
+  function netPrice(entry) {
+    var fish = G.FISH_ID[entry.f];
+    if (!fish) return 0;
+    return G.Loot.price(fish, entry.kg, G.Loot.colorByKey(entry.c), false);
+  }
+  function netValue() {
+    var sum = 0;
+    S.net.forEach(function (e) { sum += netPrice(e); });
+    return sum;
+  }
+
+  function sellNetAt(i) {
+    if (i < 0 || i >= S.net.length) return 0;
+    var p = netPrice(S.net[i]);
+    S.net.splice(i, 1);
+    S.coin += p;
+    S.stats.totalValue += p;
+    save(); emit('coin'); emit('net');
+    return p;
+  }
+  function sellAllNet() {
+    var p = netValue();
+    if (!S.net.length) return 0;
+    S.net.length = 0;
+    S.coin += p;
+    S.stats.totalValue += p;
+    save(); emit('coin'); emit('net');
+    return p;
+  }
+  function releaseNetAt(i) {
+    if (i < 0 || i >= S.net.length) return false;
+    S.net.splice(i, 1);
+    save(); emit('net');
+    return true;
+  }
+
+  function moveToTank(i) {
+    if (tankFull() || i < 0 || i >= S.net.length) return false;
+    S.tank.push(S.net.splice(i, 1)[0]);
+    scheduleSave(); emit('net');
+    return true;
+  }
+  function takeFromTank(i) {
+    if (netFull() || i < 0 || i >= S.tank.length) return false;
+    S.net.push(S.tank.splice(i, 1)[0]);
+    scheduleSave(); emit('net');
+    return true;
+  }
+  function sellTankAt(i) {
+    if (i < 0 || i >= S.tank.length) return 0;
+    var p = netPrice(S.tank[i]);
+    S.tank.splice(i, 1);
+    S.coin += p;
+    S.stats.totalValue += p;
+    save(); emit('coin'); emit('net');
+    return p;
+  }
+
+  /* 扩容：价格表走 config.storage.*Costs，用完就到底 */
+  function netExpandCost() {
+    var c = CFG.storage.netCosts;
+    return S.netEx < c.length ? c[S.netEx] : null;
+  }
+  function tankExpandCost() {
+    var c = CFG.storage.tankCosts;
+    return S.tankEx < c.length ? c[S.tankEx] : null;
+  }
+  function expandNet() {
+    var cost = netExpandCost();
+    if (cost == null) return { ok: false, msg: '鱼护已经扩到最大了' };
+    if (S.coin < cost) return { ok: false, msg: '金币不足' };
+    S.coin -= cost;
+    S.netCap += CFG.storage.netStep;
+    S.netEx++;
+    save(); emit('coin'); emit('net');
+    return { ok: true, cost: cost, cap: S.netCap };
+  }
+  function expandTank() {
+    var cost = tankExpandCost();
+    if (cost == null) return { ok: false, msg: '水族箱已经扩到最大了' };
+    if (S.coin < cost) return { ok: false, msg: '金币不足' };
+    S.coin -= cost;
+    S.tankCap += CFG.storage.tankStep;
+    S.tankEx++;
+    save(); emit('coin'); emit('net');
+    return { ok: true, cost: cost, cap: S.tankCap };
   }
 
   /* ---------------- 图鉴 ---------------- */
@@ -116,6 +299,8 @@ G.State = (function () {
   function isCaught(id) { return !!S.book[id]; }
 
   function recordCatch(fish, kg, colorKey) {
+    if (!fish) return { isNew: false, isRecord: false };
+    kg = Math.max(0, safeNum(kg, 0));
     var e = S.book[fish.id];
     var isNew = !e;
     if (!e) {
@@ -309,11 +494,18 @@ G.State = (function () {
 
   return {
     load: load, save: save, scheduleSave: scheduleSave, reset: reset,
+    importSave: importSave,
     get: get, on: on, emit: emit,
     curBait: curBait, curRod: curRod, curLine: curLine,
     bait: bait, rod: rod, line: line, baitCount: baitCount,
     addCoin: addCoin, spend: spend,
     bookEntry: bookEntry, isCaught: isCaught, recordCatch: recordCatch,
+    netCount: netCount, tankCount: tankCount, netFull: netFull, tankFull: tankFull,
+    toNet: toNet, netPrice: netPrice, netValue: netValue,
+    sellNetAt: sellNetAt, sellAllNet: sellAllNet, releaseNetAt: releaseNetAt,
+    moveToTank: moveToTank, takeFromTank: takeFromTank, sellTankAt: sellTankAt,
+    netExpandCost: netExpandCost, tankExpandCost: tankExpandCost,
+    expandNet: expandNet, expandTank: expandTank,
     fieldProgress: fieldProgress, fieldState: fieldState, checkUnlocks: checkUnlocks,
     setField: setField, tick: tick, consumeBait: consumeBait,
     buyBait: buyBait, buyRod: buyRod, buyLine: buyLine, buyDecor: buyDecor,

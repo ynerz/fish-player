@@ -40,6 +40,7 @@ G.Fishing = (function () {
     state = 'idle';
     timer = 0; pending = null;
     waitLeft = 0; biteLeft = 0; holding = false;
+    catchCount = 0;   // 挂机累计播报重新计数，避免跨场/跨状态乱触发
     G.Fight.end();
     G.Scene.endFight();
   }
@@ -114,11 +115,21 @@ G.Fishing = (function () {
     if (result === 'success') {
       var rec = St.recordCatch(fish, kg, color.key);
       var price = Loot.price(fish, kg, color, rec.isNew);
-      St.addCoin(price);
       var s = St.get();
       s.stats.catches++;
-      s.stats.totalValue += price;
-      if (isIdleMode()) s.stats.idleCatches++;
+      /* ⚠️ 这里**不**直接加钱。
+         手动钓上来的鱼由结算卡决定「卖出 / 收进鱼护」；
+         挂机时没有玩家点卡片，统一自动卖出（见 config.storage.idleAutoSell）。 */
+      if (isIdleMode()) {
+        s.stats.idleCatches++;
+        if (CFG.storage.idleAutoSell) {
+          St.addCoin(price);
+          s.stats.totalValue += price;
+        } else if (!St.toNet(fish, kg, color.key)) {
+          St.addCoin(price);
+          s.stats.totalValue += price;
+        }
+      }
 
       G.Scene.sparkle(rec.isNew ? 34 : (fish.rar >= 2 ? 26 : 12), fish.rar);
       G.Scene.splash(fish.rar >= 2 ? 1.6 : 1);
@@ -215,11 +226,7 @@ G.Fishing = (function () {
       case 'bite':
         biteLeft -= dt;
         if (idleOn && biteLeft <= 0) { startFight(); break; }
-        if (biteLeft <= 0) {
-          // 错过咬钩
-          pending._missed = true;
-          resolve('miss');
-        }
+        if (biteLeft <= 0) resolve('miss');   // 错过咬钩
         break;
 
       case 'fight':

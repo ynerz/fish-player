@@ -22,7 +22,7 @@
 
     /* ---------- UI ---------- */
     P.init();
-    P.initCatchButtons(function () { onCatchCardClosed(); });
+    P.initCatchButtons(catchDone);
 
     Hud.init({
       onPress: handlePress,
@@ -50,6 +50,7 @@
     St.on('bait', function () { Hud.syncDeck(); });
     St.on('shop', function () { Hud.syncDeck(); });
     St.on('idle', function () { Hud.syncDeck(); });
+    St.on('net', function () { if (P.current() === 'net') P.refresh(); });
     St.on('reset', function () { location.reload(); });
 
     /* ---------- 首次交互激活音频 ---------- */
@@ -158,7 +159,7 @@
 
   function handlePress() {
     if (P.isOpen()) return;
-    if (P.isCatchOpen()) { P.hideCatch(); onCatchCardClosed(); return; }
+    if (P.isCatchOpen()) { P.dismissCatch(catchDone); return; }
     var st = F.getState();
     if (st === 'fight') { F.press(); return; }
     if (st === 'bite') { F.press(); return; }
@@ -188,6 +189,28 @@
   function onCatchCardClosed() {
     syncAction();
     Hud.syncAll();
+  }
+
+  /* 结算卡的两个出口：卖出（默认）/ 收进鱼护 */
+  function catchDone(action, info) {
+    if (info) {
+      if (action === 'keep' && G.State.toNet(info.fish, info.kg, info.color.key)) {
+        var ns = G.State.get();
+        Hud.toast({ text: '收进鱼护　' + G.State.netCount() + '/' + ns.netCap, kind: 'good' });
+        onCatchCardClosed();
+        if (P.isOpen()) P.refresh();
+        return;
+      }
+      if (action === 'keep') {
+        Hud.toast({ text: '鱼护满了，先卖几条或扩容', kind: 'warn' });
+      }
+      /* 卖出（含鱼护满时的兜底） */
+      G.State.addCoin(info.price);
+      G.State.get().stats.totalValue += info.price;
+      Hud.syncCoin(true);
+    }
+    onCatchCardClosed();
+    if (P.isOpen()) P.refresh();
   }
 
   function onMiss(result, pending, fee) {
@@ -222,11 +245,21 @@
   }
 
   /* ---------------- 主循环 ---------------- */
+  var frameAcc = 0;
+  var FRAME_MIN = 1000 / 60;   // 逻辑与渲染都锁在 60fps，高刷屏不再空转
+
   function loop(now) {
     var dt = (now - last) / 1000;
     last = now;
     if (!isFinite(dt) || dt < 0) dt = 0;
     dt = Math.min(dt, 0.05);
+
+    /* 帧率上限：144Hz 屏幕上原本会跑满 144 帧，白白耗电发热 */
+    frameAcc += dt * 1000;
+    if (frameAcc < FRAME_MIN) { requestAnimationFrame(loop); return; }
+    var step = Math.min(frameAcc / 1000, 0.05);
+    frameAcc = 0;
+    dt = step;
 
     /* 只有「结算卡」会打断钓鱼 —— 玩家正在看渔获。
        浏览图鉴 / 商店 / 统计时挂机继续跑，否则挂机游戏的核心预期就废了。 */

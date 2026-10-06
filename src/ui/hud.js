@@ -170,7 +170,7 @@ G.Hud = (function () {
   function pushCatch(info) {
     if (!el.catchLog) return;
     var row = U.el('div', 'cl-row r' + info.rar);
-    var dot = info.color && info.color.tint ? info.color.tint : '#8b98a5';
+    var dot = info.color && info.color.tint ? info.color.tint : '#a9c7da';
     row.innerHTML =
       '<i style="background:' + dot + '"></i>' +
       '<b>' + info.fish.name + '</b>' +

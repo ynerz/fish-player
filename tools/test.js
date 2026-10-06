@@ -211,6 +211,83 @@ ok(sm.baitSel === 'worm', '缺失的 baitSel 补成 worm');
 ok(!!sm.baits.worm, '缺失的鱼饵库存被补全');
 
 /* =========================================================
+   5b. 鱼护 / 水族箱
+   ========================================================= */
+G_('State · 鱼护与水族箱');
+St.reset();
+const nf = G.FISH_BY_FIELD.D[1];
+ok(St.netCount() === 0 && St.tankCount() === 0, '初始鱼护与水族箱都是空的');
+ok(St.toNet(nf, 0.4, 'normal') === true, 'toNet 能把鱼放进鱼护');
+ok(St.netCount() === 1, '鱼护数量 +1');
+const nv = St.netValue();
+ok(nv === St.netPrice(St.get().net[0]) && nv > 0, `鱼护估值 = ${nv} 金`);
+ok(St.moveToTank(0) === true && St.netCount() === 0 && St.tankCount() === 1, '进水族箱后从鱼护移出');
+ok(St.takeFromTank(0) === true && St.netCount() === 1 && St.tankCount() === 0, '取出后回到鱼护');
+
+/* 容量上限 */
+const cap = St.get().netCap;
+for (let i = 0; i < cap + 5; i++) St.toNet(nf, 0.4, 'normal');
+ok(St.netCount() === cap, `鱼护不会超过容量上限（${cap}）`);
+ok(St.netFull() === true && St.toNet(nf, 0.4, 'normal') === false, '满了之后 toNet 返回 false');
+ok(St.moveToTank(0) === false || St.tankCount() <= St.get().tankCap, '水族箱同样受容量约束');
+
+/* 卖出 / 放生 */
+St.get().coin = 0;
+const idx = 0;
+const one = St.netPrice(St.get().net[idx]);
+const got = St.sellNetAt(idx);
+ok(got === one && St.get().coin === one, `单条卖出入账 ${one} 金`);
+const before = St.netCount();
+St.releaseNetAt(0);
+ok(St.netCount() === before - 1 && St.get().coin === one, '放生不产生金币');
+
+/* 扩容 */
+St.get().coin = 1e9;
+const c0 = St.get().netCap;
+const ex = St.expandNet();
+ok(ex.ok === true && St.get().netCap === c0 + CFG.storage.netStep, `扩容后容量 ${c0} → ${St.get().netCap}`);
+const t0c = St.get().tankCap;
+const tex = St.expandTank();
+ok(tex.ok === true && St.get().tankCap === t0c + CFG.storage.tankStep, '水族箱扩容量正确');
+/* 扩到顶之后不能再扩 */
+for (let i = 0; i < 10; i++) St.expandNet();
+for (let i = 0; i < 10; i++) St.expandTank();
+ok(St.netExpandCost() === null && St.expandNet().ok === false, '鱼护扩到上限后拒绝继续扩');
+ok(St.tankExpandCost() === null && St.expandTank().ok === false, '水族箱扩到上限后拒绝继续扩');
+
+/* =========================================================
+   5c. 存档导入与数值兜底
+   ========================================================= */
+G_('State · 存档导入与 NaN 兜底');
+St.reset();
+St.addCoin(NaN);
+ok(isFinite(St.get().coin), `addCoin(NaN) 不会污染金币（当前 ${St.get().coin}）`);
+St.spend(NaN);
+ok(isFinite(St.get().coin), 'spend(NaN) 不会污染金币');
+St.recordCatch(nf, NaN, 'normal');
+ok(isFinite(St.bookEntry(nf.id).maxKg), '重量 NaN 被兜成有限值');
+
+ok(St.importSave('不是 json').ok === false, '导入非 JSON 被拒绝');
+ok(St.importSave('[1,2,3]').ok === false, '导入数组被拒绝');
+ok(St.importSave('{"foo":"bar"}').ok === false, '导入无关对象被拒绝');
+const good = JSON.stringify({
+  v: 1, coin: 12345, playTime: 3600, field: 'D', unlocked: { D: true },
+  book: { [nf.id]: { n: 3, maxKg: 0.5, colors: { normal: 3 }, first: 1 } },
+  baits: { worm: -1 }, rods: ['bamboo'], lines: ['n2'], decors: [],
+});
+const imp = St.importSave(good);
+ok(imp.ok === true, '导入合法存档成功');
+ok(St.get().coin === 12345, '导入后金币 = 12345（v1 老存档被正确迁移）');
+ok(St.get().v === 2, '老存档版本号被升到 2');
+ok(Array.isArray(St.get().net) && Array.isArray(St.get().tank), 'v1 → v2 迁移补齐了鱼护字段');
+ok(St.bookEntry(nf.id).n === 3, '导入后图鉴数据保留');
+
+/* 脏数据：鱼护里塞了不存在的鱼种 */
+const dirty = JSON.parse(good);
+dirty.net = [{ f: 'NOT_A_FISH', kg: 1, c: 'normal' }, { f: nf.id, kg: 1, c: 'normal' }];
+ok(St.importSave(JSON.stringify(dirty)).ok === true && St.netCount() === 1, '导入时会剔掉失效的鱼种条目');
+
+/* =========================================================
    6. 数据一致性（轻量版，完整版见 tools/verify.js）
    ========================================================= */
 G_('数据一致性');

@@ -8,7 +8,7 @@ window.G = window.G || {};
 
 G.CONFIG = {
 
-  version   : '0.1.0',
+  version   : '0.3.2',
   saveKey   : 'fishplayer.save.v1',
   saveKeyBak: 'fishplayer.save.v1.bak',
 
@@ -90,20 +90,21 @@ G.CONFIG = {
      颜色变异（鱼的第三维状态：品种 / 颜色 / 重量）
      ---------------------------------------------------------
      每次钓上来的鱼会随机一个「颜色」，
-     颜色只影响收藏外观与少量售价。
-     ⚠️ 闪光(0.1%) 比黄金(0.7%) 更稀有 —— 按需求把两者的概率对调了。
-        但售价系数暂未跟着换（黄金仍是最高 4.0×）。如需一并互换，见 GDD。
+     颜色只影响收藏外观与少量售价，不参与钓场解锁。
      ---------------------------------------------------------
-     ⚠️ 数组按「概率从高到低」排列，最后一项即全场最稀有的颜色。
-        当前最稀有 = 闪光 0.1%（按需求把闪光与黄金的概率对调了）。
+     共 5 档，数组按「概率从高到低」排列，最后一项 = 全场最稀有的颜色。
+       原色 76%  天然色，无 tint
+       亮色 10%  偏黄的暖色调
+       白化 10%  通体发白
+       黄金  3%  金色，售价 ×2.30
+       闪光  1%  最稀有，售价 ×4.00（最稀有也最贵）
      --------------------------------------------------------- */
   colorMorphs: [
-    { key:'normal',  name:'原色',   tint:null,      prob:0.760, valueMul:1.00 },
-    { key:'bright',  name:'亮色',   tint:'#ffe08a', prob:0.150, valueMul:1.15 },
-    { key:'dark',    name:'暗色',   tint:'#4a5a6b', prob:0.060, valueMul:1.15 },
-    { key:'albino',  name:'白化',   tint:'#ffffff', prob:0.022, valueMul:1.60 },
-    { key:'golden',  name:'黄金',   tint:'#ffc93c', prob:0.007, valueMul:4.00 },
-    { key:'shiny',   name:'闪光',   tint:'#9be7ff', prob:0.001, valueMul:2.30 },
+    { key:'normal',  name:'原色',   tint:null,      prob:0.76, valueMul:1.00 },
+    { key:'bright',  name:'亮色',   tint:'#ffe08a', prob:0.10, valueMul:1.15 },
+    { key:'albino',  name:'白化',   tint:'#ffffff', prob:0.10, valueMul:1.60 },
+    { key:'golden',  name:'黄金',   tint:'#ffc93c', prob:0.03, valueMul:2.30 },
+    { key:'shiny',   name:'闪光',   tint:'#9be7ff', prob:0.01, valueMul:4.00 },
   ],
 
   /* ---------------------------------------------------------

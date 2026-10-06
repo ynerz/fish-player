@@ -64,17 +64,17 @@
       <code>E[T] = ∫₀^∞ [1 − Π(1 − e^(−p·t))] dt</code>，
       它比「Σ(1/p)」小得多 —— Σ(1/p) 是「某一条鱼」的期望，不是「收齐所有鱼」的期望。</p>
     <p><b>把颜色也算进去</b>就是同一个公式，但目标集合扩成「品种 × 颜色」。
-      因为最稀有的颜色（闪光 0.1%）会把时间放大 1000 倍，这一列的数字会非常夸张 —— 那是刻意的。</p>
+      最稀有的颜色（闪光 1%）比原色低 76 倍，它要求「每一条鱼都要出一次最稀有色」，所以这一列的数字会很长 —— 那是刻意的。</p>
   </div>
 
   <h2>一、总览</h2>
   <div class="kpis">
     <div class="kpi"><b>362</b><span>鱼种总数</span></div>
     <div class="kpi"><b>7</b><span>钓场</span></div>
-    <div class="kpi"><b>6</b><span>颜色变异</span></div>
-    <div class="kpi"><b>2172</b><span>品种×颜色 组合</span></div>
+    <div class="kpi"><b>5</b><span>颜色变异</span></div>
+    <div class="kpi"><b>1810</b><span>品种×颜色 组合</span></div>
     <div class="kpi"><b>34.5 天</b><span>收齐全部品种</span></div>
-    <div class="kpi"><b>95 年</b><span>收齐全部品种×颜色</span></div>
+    <div class="kpi"><b>10 年</b><span>收齐全部品种×颜色</span></div>
   </div>
 
   <table>
@@ -90,8 +90,8 @@
       <td class="num">47.5 s</td>
       <td class="num"><b>2.0 小时</b></td>
       <td class="num">2.0 小时</td>
-      <td class="num" style="color:#e8595c">0.23 年</td>
-      <td class="num">96</td>
+      <td class="num" style="color:#e8595c">8.4 天</td>
+      <td class="num">80</td>
       <td>老塘草鱼 <span style="color:var(--ink3)">（1.3 小时）</span></td>
     </tr><tr>
       <td><span class="rk" style="background:#5aa9d6">C</span> 溪流浅滩</td>
@@ -99,8 +99,8 @@
       <td class="num">48.4 s</td>
       <td class="num"><b>4.0 小时</b></td>
       <td class="num">6.0 小时</td>
-      <td class="num" style="color:#e8595c">0.45 年</td>
-      <td class="num">144</td>
+      <td class="num" style="color:#e8595c">17.0 天</td>
+      <td class="num">120</td>
       <td>溪灵·金线鲃 <span style="color:var(--ink3)">（3.2 小时）</span></td>
     </tr><tr>
       <td><span class="rk" style="background:#3f8f5f">B</span> 湖心半岛</td>
@@ -108,8 +108,8 @@
       <td class="num">64.2 s</td>
       <td class="num"><b>15.9 小时</b></td>
       <td class="num">21.8 小时</td>
-      <td class="num" style="color:#e8595c">1.82 年</td>
-      <td class="num">204</td>
+      <td class="num" style="color:#e8595c">0.19 年</td>
+      <td class="num">170</td>
       <td>百斤鳡王 <span style="color:var(--ink3)">（14.9 小时）</span></td>
     </tr><tr>
       <td><span class="rk" style="background:#2b6fc4">A</span> 深海断崖</td>
@@ -117,8 +117,8 @@
       <td class="num">96.5 s</td>
       <td class="num"><b>44.7 小时</b></td>
       <td class="num">2.8 天</td>
-      <td class="num" style="color:#e8595c">5 年</td>
-      <td class="num">276</td>
+      <td class="num" style="color:#e8595c">0.53 年</td>
+      <td class="num">230</td>
       <td>白浪之神·大青针 <span style="color:var(--ink3)">（38.1 小时）</span></td>
     </tr><tr>
       <td><span class="rk" style="background:#3b4a8f">S</span> 幽蓝海沟</td>
@@ -126,8 +126,8 @@
       <td class="num">114.9 s</td>
       <td class="num"><b>4.1 天</b></td>
       <td class="num">6.9 天</td>
-      <td class="num" style="color:#e8595c">11 年</td>
-      <td class="num">372</td>
+      <td class="num" style="color:#e8595c">1.16 年</td>
+      <td class="num">310</td>
       <td>海沟终焉·原始巨口鲨 <span style="color:var(--ink3)">（3.0 天）</span></td>
     </tr><tr>
       <td><span class="rk" style="background:#5b3fa8">SS</span> 星陨之渊</td>
@@ -135,8 +135,8 @@
       <td class="num">110.8 s</td>
       <td class="num"><b>5.5 天</b></td>
       <td class="num">12.4 天</td>
-      <td class="num" style="color:#e8595c">15 年</td>
-      <td class="num">480</td>
+      <td class="num" style="color:#e8595c">1.54 年</td>
+      <td class="num">400</td>
       <td>永夜之主·虚空鲸 <span style="color:var(--ink3)">（3.6 天）</span></td>
     </tr><tr>
       <td><span class="rk" style="background:#a87a1f">SSS</span> 时之尽头</td>
@@ -144,8 +144,8 @@
       <td class="num">117.5 s</td>
       <td class="num"><b>22.1 天</b></td>
       <td class="num">34.5 天</td>
-      <td class="num" style="color:#e8595c">60 年</td>
-      <td class="num">600</td>
+      <td class="num" style="color:#e8595c">6 年</td>
+      <td class="num">500</td>
       <td>终焉之影·忘川 <span style="color:var(--ink3)">（12.5 天）</span></td>
     </tr>
   </table>
@@ -168,65 +168,60 @@
         <td></td>
       </tr><tr>
         <td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#ffe08a;border:1px solid rgba(0,0,0,.18);vertical-align:-1px"></span> <b>亮色</b></td>
-        <td class="num">15.0%</td>
-        <td class="num">×1.15</td>
-        <td></td>
-      </tr><tr>
-        <td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#4a5a6b;border:1px solid rgba(0,0,0,.18);vertical-align:-1px"></span> <b>暗色</b></td>
-        <td class="num">6.0%</td>
+        <td class="num">10.0%</td>
         <td class="num">×1.15</td>
         <td></td>
       </tr><tr>
         <td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#ffffff;border:1px solid rgba(0,0,0,.18);vertical-align:-1px"></span> <b>白化</b></td>
-        <td class="num">2.2%</td>
+        <td class="num">10.0%</td>
         <td class="num">×1.60</td>
         <td></td>
       </tr><tr>
         <td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#ffc93c;border:1px solid rgba(0,0,0,.18);vertical-align:-1px"></span> <b>黄金</b></td>
-        <td class="num">0.7%</td>
-        <td class="num">×4.00</td>
+        <td class="num">3.0%</td>
+        <td class="num">×2.30</td>
         <td>第二稀有</td>
       </tr><tr>
         <td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#9be7ff;border:1px solid rgba(0,0,0,.18);vertical-align:-1px"></span> <b>闪光</b></td>
-        <td class="num">0.1%</td>
-        <td class="num">×2.30</td>
-        <td><b style="color:#e8595c">全场最稀有</b></td>
+        <td class="num">1.0%</td>
+        <td class="num">×4.00</td>
+        <td><b style="color:#e8595c">全场最稀有 · 最贵</b></td>
       </tr>
     </table>
-    <div class="note warn">
-      ⚠️ <b>闪光与黄金的概率已按需求对调</b>：闪光从 0.7% 降到 <b>0.1%（最稀有）</b>，
-      黄金从 0.1% 升到 <b>0.7%</b>。<br>
-      但<b>售价系数没有跟着换</b> —— 黄金仍是最高 4.0×，闪光 2.3×。
-      也就是说现在「最稀有的颜色卖得比第二稀有的便宜」，如果要把售价也一起对调，说一声即可。
+    <div class="note">
+      ✅ <b>颜色档位已重构为 5 档</b>（原「暗色」已移除）：原色 76% / 亮色 10% / 白化 10% /
+      黄金 3% / <b>闪光 1%</b>。<br>
+      <b>售价系数同步对调</b>：<b>闪光 ×4.00 最高</b>、黄金 ×2.30 —— 现在「越稀有越值钱」。
+      最稀有（闪光 1%）也最贵，收藏动力最强。
     </div>
 
     <h3>每个钓场里，各颜色的期望出现间隔</h3>
     <table>
       <tr>
         <th>钓场</th>
-        <th class="num">原色</th><th class="num">亮色</th><th class="num">暗色</th><th class="num">白化</th><th class="num">黄金</th><th class="num">闪光</th>
+        <th class="num">原色</th><th class="num">亮色</th><th class="num">白化</th><th class="num">黄金</th><th class="num">闪光</th>
       </tr>
       <tr>
         <td><span class="rk" style="background:#8b98a5">D</span> 村口小池塘</td>
-        <td class="num">1 分钟</td><td class="num">5 分钟</td><td class="num">13 分钟</td><td class="num">36 分钟</td><td class="num">1.9 小时</td><td class="num">13.2 小时</td>
+        <td class="num">1 分钟</td><td class="num">8 分钟</td><td class="num">8 分钟</td><td class="num">26 分钟</td><td class="num">1.3 小时</td>
       </tr><tr>
         <td><span class="rk" style="background:#5aa9d6">C</span> 溪流浅滩</td>
-        <td class="num">1 分钟</td><td class="num">5 分钟</td><td class="num">13 分钟</td><td class="num">37 分钟</td><td class="num">1.9 小时</td><td class="num">13.4 小时</td>
+        <td class="num">1 分钟</td><td class="num">8 分钟</td><td class="num">8 分钟</td><td class="num">27 分钟</td><td class="num">1.3 小时</td>
       </tr><tr>
         <td><span class="rk" style="background:#3f8f5f">B</span> 湖心半岛</td>
-        <td class="num">1 分钟</td><td class="num">7 分钟</td><td class="num">18 分钟</td><td class="num">49 分钟</td><td class="num">2.5 小时</td><td class="num">17.8 小时</td>
+        <td class="num">1 分钟</td><td class="num">11 分钟</td><td class="num">11 分钟</td><td class="num">36 分钟</td><td class="num">1.8 小时</td>
       </tr><tr>
         <td><span class="rk" style="background:#2b6fc4">A</span> 深海断崖</td>
-        <td class="num">2 分钟</td><td class="num">11 分钟</td><td class="num">27 分钟</td><td class="num">1.2 小时</td><td class="num">3.8 小时</td><td class="num">26.8 小时</td>
+        <td class="num">2 分钟</td><td class="num">16 分钟</td><td class="num">16 分钟</td><td class="num">54 分钟</td><td class="num">2.7 小时</td>
       </tr><tr>
         <td><span class="rk" style="background:#3b4a8f">S</span> 幽蓝海沟</td>
-        <td class="num">3 分钟</td><td class="num">13 分钟</td><td class="num">32 分钟</td><td class="num">1.5 小时</td><td class="num">4.6 小时</td><td class="num">31.9 小时</td>
+        <td class="num">3 分钟</td><td class="num">19 分钟</td><td class="num">19 分钟</td><td class="num">1.1 小时</td><td class="num">3.2 小时</td>
       </tr><tr>
         <td><span class="rk" style="background:#5b3fa8">SS</span> 星陨之渊</td>
-        <td class="num">2 分钟</td><td class="num">12 分钟</td><td class="num">31 分钟</td><td class="num">1.4 小时</td><td class="num">4.4 小时</td><td class="num">30.8 小时</td>
+        <td class="num">2 分钟</td><td class="num">18 分钟</td><td class="num">18 分钟</td><td class="num">1.0 小时</td><td class="num">3.1 小时</td>
       </tr><tr>
         <td><span class="rk" style="background:#a87a1f">SSS</span> 时之尽头</td>
-        <td class="num">3 分钟</td><td class="num">13 分钟</td><td class="num">33 分钟</td><td class="num">1.5 小时</td><td class="num">4.7 小时</td><td class="num">32.7 小时</td>
+        <td class="num">3 分钟</td><td class="num">20 分钟</td><td class="num">20 分钟</td><td class="num">1.1 小时</td><td class="num">3.3 小时</td>
       </tr>
     </table>
     <p style="font-size:12.5px;color:var(--ink2)">
@@ -245,15 +240,15 @@
   <div class="card">
     <div class="kpis">
       <div class="kpi"><b>2.0 小时</b><span>收齐全部品种（16 种）</span></div>
-      <div class="kpi"><b style="color:#e8595c">0.23 年</b><span>连颜色一起收齐（96 组合）</span></div>
-      <div class="kpi"><b>41.7 天</b><span>颜色带来的放大倍数</span></div>
+      <div class="kpi"><b style="color:#e8595c">8.4 天</b><span>连颜色一起收齐（80 组合）</span></div>
+      <div class="kpi"><b>×101.4</b><span>颜色带来的放大倍数</span></div>
     </div>
     <div class="scroll">
     <table>
       <tr>
         <th>#</th><th>鱼名</th><th>稀有度</th><th>体型</th>
         <th class="num">单竿概率</th><th class="num">期望竿数</th><th class="num">期望时间</th>
-        <th class="num">该鱼闪光<br>(0.1%)</th><th class="num">该鱼黄金<br>(0.7%)</th>
+        <th class="num">该鱼闪光<br>(1%)</th><th class="num">该鱼黄金<br>(3%)</th>
       </tr>
       <tr>
           <td class="num" style="color:var(--ink3)">1</td>
@@ -263,8 +258,8 @@
           <td class="num">11.537%</td>
           <td class="num">8.7</td>
           <td class="num"><b>7 分钟</b></td>
-          <td class="num" style="color:#e8595c">4.8 天</td>
-          <td class="num">16.3 小时</td>
+          <td class="num" style="color:#e8595c">11.4 小时</td>
+          <td class="num">3.8 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">2</td>
           <td><b>白条</b></td>
@@ -273,8 +268,8 @@
           <td class="num">10.960%</td>
           <td class="num">9.1</td>
           <td class="num"><b>7 分钟</b></td>
-          <td class="num" style="color:#e8595c">5.0 天</td>
-          <td class="num">17.2 小时</td>
+          <td class="num" style="color:#e8595c">12.0 小时</td>
+          <td class="num">4.0 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">3</td>
           <td><b>鲫鱼</b></td>
@@ -283,8 +278,8 @@
           <td class="num">10.383%</td>
           <td class="num">9.6</td>
           <td class="num"><b>8 分钟</b></td>
-          <td class="num" style="color:#e8595c">5.3 天</td>
-          <td class="num">18.2 小时</td>
+          <td class="num" style="color:#e8595c">12.7 小时</td>
+          <td class="num">4.2 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">4</td>
           <td><b>泥鳅</b></td>
@@ -293,8 +288,8 @@
           <td class="num">9.806%</td>
           <td class="num">10.2</td>
           <td class="num"><b>8 分钟</b></td>
-          <td class="num" style="color:#e8595c">5.6 天</td>
-          <td class="num">19.2 小时</td>
+          <td class="num" style="color:#e8595c">13.5 小时</td>
+          <td class="num">4.5 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">5</td>
           <td><b>鳑鲏</b></td>
@@ -303,8 +298,8 @@
           <td class="num">9.229%</td>
           <td class="num">10.8</td>
           <td class="num"><b>9 分钟</b></td>
-          <td class="num" style="color:#e8595c">6.0 天</td>
-          <td class="num">20.4 小时</td>
+          <td class="num" style="color:#e8595c">14.3 小时</td>
+          <td class="num">4.8 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">6</td>
           <td><b>食蚊鱼</b></td>
@@ -313,8 +308,8 @@
           <td class="num">8.768%</td>
           <td class="num">11.4</td>
           <td class="num"><b>9 分钟</b></td>
-          <td class="num" style="color:#e8595c">6.3 天</td>
-          <td class="num">21.5 小时</td>
+          <td class="num" style="color:#e8595c">15.0 小时</td>
+          <td class="num">5.0 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">7</td>
           <td><b>塘鳢</b></td>
@@ -323,8 +318,8 @@
           <td class="num">8.306%</td>
           <td class="num">12.0</td>
           <td class="num"><b>10 分钟</b></td>
-          <td class="num" style="color:#e8595c">6.6 天</td>
-          <td class="num">22.7 小时</td>
+          <td class="num" style="color:#e8595c">15.9 小时</td>
+          <td class="num">5.3 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">8</td>
           <td><b>小龙虾</b></td>
@@ -333,8 +328,8 @@
           <td class="num">7.845%</td>
           <td class="num">12.7</td>
           <td class="num"><b>10 分钟</b></td>
-          <td class="num" style="color:#e8595c">7.0 天</td>
-          <td class="num">24.0 小时</td>
+          <td class="num" style="color:#e8595c">16.8 小时</td>
+          <td class="num">5.6 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">9</td>
           <td><b>黄颡鱼</b></td>
@@ -343,8 +338,8 @@
           <td class="num">3.453%</td>
           <td class="num">29.0</td>
           <td class="num"><b>23 分钟</b></td>
-          <td class="num" style="color:#e8595c">15.9 天</td>
-          <td class="num">2.3 天</td>
+          <td class="num" style="color:#e8595c">38.2 小时</td>
+          <td class="num">12.7 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">10</td>
           <td><b>小鲤鱼</b></td>
@@ -353,8 +348,8 @@
           <td class="num">2.694%</td>
           <td class="num">37.1</td>
           <td class="num"><b>29 分钟</b></td>
-          <td class="num" style="color:#e8595c">20.4 天</td>
-          <td class="num">2.9 天</td>
+          <td class="num" style="color:#e8595c">2.0 天</td>
+          <td class="num">16.3 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">11</td>
           <td><b>黄鳝</b></td>
@@ -363,8 +358,8 @@
           <td class="num">2.107%</td>
           <td class="num">47.5</td>
           <td class="num"><b>38 分钟</b></td>
-          <td class="num" style="color:#e8595c">26.1 天</td>
-          <td class="num">3.7 天</td>
+          <td class="num" style="color:#e8595c">2.6 天</td>
+          <td class="num">20.9 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">12</td>
           <td><b>青虾虎</b></td>
@@ -373,8 +368,8 @@
           <td class="num">1.658%</td>
           <td class="num">60.3</td>
           <td class="num"><b>48 分钟</b></td>
-          <td class="num" style="color:#e8595c">33.2 天</td>
-          <td class="num">4.7 天</td>
+          <td class="num" style="color:#e8595c">3.3 天</td>
+          <td class="num">26.5 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">13</td>
           <td><b>金鲫</b></td>
@@ -383,8 +378,8 @@
           <td class="num">3.166%</td>
           <td class="num">31.6</td>
           <td class="num"><b>25 分钟</b></td>
-          <td class="num" style="color:#e8595c">17.4 天</td>
-          <td class="num">2.5 天</td>
+          <td class="num" style="color:#e8595c">41.7 小时</td>
+          <td class="num">13.9 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">14</td>
           <td><b>老塘草鱼</b></td>
@@ -393,8 +388,8 @@
           <td class="num">1.045%</td>
           <td class="num">95.7</td>
           <td class="num"><b>1.3 小时</b></td>
-          <td class="num" style="color:#e8595c">52.6 天</td>
-          <td class="num">7.5 天</td>
+          <td class="num" style="color:#e8595c">5.3 天</td>
+          <td class="num">42.1 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">15</td>
           <td><b>圆尾斗鱼</b></td>
@@ -403,8 +398,8 @@
           <td class="num">7.499%</td>
           <td class="num">13.3</td>
           <td class="num"><b>11 分钟</b></td>
-          <td class="num" style="color:#e8595c">7.3 天</td>
-          <td class="num">25.1 小时</td>
+          <td class="num" style="color:#e8595c">17.6 小时</td>
+          <td class="num">5.9 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">16</td>
           <td><b>塘主的大青鱼</b></td>
@@ -413,8 +408,8 @@
           <td class="num">1.544%</td>
           <td class="num">64.8</td>
           <td class="num"><b>51 分钟</b></td>
-          <td class="num" style="color:#e8595c">35.6 天</td>
-          <td class="num">5.1 天</td>
+          <td class="num" style="color:#e8595c">3.6 天</td>
+          <td class="num">28.5 小时</td>
         </tr>
     </table>
     </div>
@@ -428,15 +423,15 @@
   <div class="card">
     <div class="kpis">
       <div class="kpi"><b>4.0 小时</b><span>收齐全部品种（24 种）</span></div>
-      <div class="kpi"><b style="color:#e8595c">0.45 年</b><span>连颜色一起收齐（144 组合）</span></div>
-      <div class="kpi"><b>41.7 天</b><span>颜色带来的放大倍数</span></div>
+      <div class="kpi"><b style="color:#e8595c">17.0 天</b><span>连颜色一起收齐（120 组合）</span></div>
+      <div class="kpi"><b>×102.9</b><span>颜色带来的放大倍数</span></div>
     </div>
     <div class="scroll">
     <table>
       <tr>
         <th>#</th><th>鱼名</th><th>稀有度</th><th>体型</th>
         <th class="num">单竿概率</th><th class="num">期望竿数</th><th class="num">期望时间</th>
-        <th class="num">该鱼闪光<br>(0.1%)</th><th class="num">该鱼黄金<br>(0.7%)</th>
+        <th class="num">该鱼闪光<br>(1%)</th><th class="num">该鱼黄金<br>(3%)</th>
       </tr>
       <tr>
           <td class="num" style="color:var(--ink3)">1</td>
@@ -446,8 +441,8 @@
           <td class="num">6.812%</td>
           <td class="num">14.7</td>
           <td class="num"><b>12 分钟</b></td>
-          <td class="num" style="color:#e8595c">8.2 天</td>
-          <td class="num">28.2 小时</td>
+          <td class="num" style="color:#e8595c">19.7 小时</td>
+          <td class="num">6.6 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">2</td>
           <td><b>马口鱼</b></td>
@@ -456,8 +451,8 @@
           <td class="num">6.607%</td>
           <td class="num">15.1</td>
           <td class="num"><b>12 分钟</b></td>
-          <td class="num" style="color:#e8595c">8.5 天</td>
-          <td class="num">29.1 小时</td>
+          <td class="num" style="color:#e8595c">20.3 小时</td>
+          <td class="num">6.8 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">3</td>
           <td><b>宽鳍鱲</b></td>
@@ -466,8 +461,8 @@
           <td class="num">6.335%</td>
           <td class="num">15.8</td>
           <td class="num"><b>13 分钟</b></td>
-          <td class="num" style="color:#e8595c">8.8 天</td>
-          <td class="num">30.3 小时</td>
+          <td class="num" style="color:#e8595c">21.2 小时</td>
+          <td class="num">7.1 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">4</td>
           <td><b>拉氏鱥</b></td>
@@ -476,8 +471,8 @@
           <td class="num">6.131%</td>
           <td class="num">16.3</td>
           <td class="num"><b>13 分钟</b></td>
-          <td class="num" style="color:#e8595c">9.1 天</td>
-          <td class="num">31.3 小时</td>
+          <td class="num" style="color:#e8595c">21.9 小时</td>
+          <td class="num">7.3 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">5</td>
           <td><b>中华鳑鲏</b></td>
@@ -486,8 +481,8 @@
           <td class="num">5.926%</td>
           <td class="num">16.9</td>
           <td class="num"><b>14 分钟</b></td>
-          <td class="num" style="color:#e8595c">9.5 天</td>
-          <td class="num">32.4 小时</td>
+          <td class="num" style="color:#e8595c">22.7 小时</td>
+          <td class="num">7.6 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">6</td>
           <td><b>小鳈</b></td>
@@ -496,8 +491,8 @@
           <td class="num">5.722%</td>
           <td class="num">17.5</td>
           <td class="num"><b>14 分钟</b></td>
-          <td class="num" style="color:#e8595c">9.8 天</td>
-          <td class="num">33.6 小时</td>
+          <td class="num" style="color:#e8595c">23.5 小时</td>
+          <td class="num">7.8 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">7</td>
           <td><b>黑鳍鳈</b></td>
@@ -506,8 +501,8 @@
           <td class="num">5.586%</td>
           <td class="num">17.9</td>
           <td class="num"><b>14 分钟</b></td>
-          <td class="num" style="color:#e8595c">10.0 天</td>
-          <td class="num">34.4 小时</td>
+          <td class="num" style="color:#e8595c">24.1 小时</td>
+          <td class="num">8.0 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">8</td>
           <td><b>棒花鱼</b></td>
@@ -516,8 +511,8 @@
           <td class="num">5.381%</td>
           <td class="num">18.6</td>
           <td class="num"><b>15 分钟</b></td>
-          <td class="num" style="color:#e8595c">10.4 天</td>
-          <td class="num">35.7 小时</td>
+          <td class="num" style="color:#e8595c">25.0 小时</td>
+          <td class="num">8.3 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">9</td>
           <td><b>似鮈</b></td>
@@ -526,8 +521,8 @@
           <td class="num">5.177%</td>
           <td class="num">19.3</td>
           <td class="num"><b>16 分钟</b></td>
-          <td class="num" style="color:#e8595c">10.8 天</td>
-          <td class="num">37.1 小时</td>
+          <td class="num" style="color:#e8595c">26.0 小时</td>
+          <td class="num">8.7 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">10</td>
           <td><b>间下鱵</b></td>
@@ -536,8 +531,8 @@
           <td class="num">5.041%</td>
           <td class="num">19.8</td>
           <td class="num"><b>16 分钟</b></td>
-          <td class="num" style="color:#e8595c">11.1 天</td>
-          <td class="num">38.1 小时</td>
+          <td class="num" style="color:#e8595c">26.7 小时</td>
+          <td class="num">8.9 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">11</td>
           <td><b>光唇鱼</b></td>
@@ -546,8 +541,8 @@
           <td class="num">4.836%</td>
           <td class="num">20.7</td>
           <td class="num"><b>17 分钟</b></td>
-          <td class="num" style="color:#e8595c">11.6 天</td>
-          <td class="num">39.7 小时</td>
+          <td class="num" style="color:#e8595c">27.8 小时</td>
+          <td class="num">9.3 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">12</td>
           <td><b>缨口鳅</b></td>
@@ -556,8 +551,8 @@
           <td class="num">4.700%</td>
           <td class="num">21.3</td>
           <td class="num"><b>17 分钟</b></td>
-          <td class="num" style="color:#e8595c">11.9 天</td>
-          <td class="num">40.9 小时</td>
+          <td class="num" style="color:#e8595c">28.6 小时</td>
+          <td class="num">9.5 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">13</td>
           <td><b>花䱻</b></td>
@@ -566,8 +561,8 @@
           <td class="num">4.101%</td>
           <td class="num">24.4</td>
           <td class="num"><b>20 分钟</b></td>
-          <td class="num" style="color:#e8595c">13.7 天</td>
-          <td class="num">46.8 小时</td>
+          <td class="num" style="color:#e8595c">32.8 小时</td>
+          <td class="num">10.9 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">14</td>
           <td><b>虹鳟</b></td>
@@ -576,8 +571,8 @@
           <td class="num">3.527%</td>
           <td class="num">28.4</td>
           <td class="num"><b>23 分钟</b></td>
-          <td class="num" style="color:#e8595c">15.9 天</td>
-          <td class="num">2.3 天</td>
+          <td class="num" style="color:#e8595c">38.1 小时</td>
+          <td class="num">12.7 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">15</td>
           <td><b>褐鳟</b></td>
@@ -586,8 +581,8 @@
           <td class="num">3.035%</td>
           <td class="num">33.0</td>
           <td class="num"><b>27 分钟</b></td>
-          <td class="num" style="color:#e8595c">18.5 天</td>
-          <td class="num">2.6 天</td>
+          <td class="num" style="color:#e8595c">44.3 小时</td>
+          <td class="num">14.8 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">16</td>
           <td><b>溪石斑</b></td>
@@ -596,8 +591,8 @@
           <td class="num">2.625%</td>
           <td class="num">38.1</td>
           <td class="num"><b>31 分钟</b></td>
-          <td class="num" style="color:#e8595c">21.3 天</td>
-          <td class="num">3.0 天</td>
+          <td class="num" style="color:#e8595c">2.1 天</td>
+          <td class="num">17.1 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">17</td>
           <td><b>唇䱻</b></td>
@@ -606,8 +601,8 @@
           <td class="num">2.256%</td>
           <td class="num">44.3</td>
           <td class="num"><b>36 分钟</b></td>
-          <td class="num" style="color:#e8595c">24.8 天</td>
-          <td class="num">3.5 天</td>
+          <td class="num" style="color:#e8595c">2.5 天</td>
+          <td class="num">19.9 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">18</td>
           <td><b>吻鰕虎</b></td>
@@ -616,8 +611,8 @@
           <td class="num">1.968%</td>
           <td class="num">50.8</td>
           <td class="num"><b>41 分钟</b></td>
-          <td class="num" style="color:#e8595c">28.5 天</td>
-          <td class="num">4.1 天</td>
+          <td class="num" style="color:#e8595c">2.8 天</td>
+          <td class="num">22.8 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">19</td>
           <td><b>白甲鱼</b></td>
@@ -626,8 +621,8 @@
           <td class="num">2.525%</td>
           <td class="num">39.6</td>
           <td class="num"><b>32 分钟</b></td>
-          <td class="num" style="color:#e8595c">22.2 天</td>
-          <td class="num">3.2 天</td>
+          <td class="num" style="color:#e8595c">2.2 天</td>
+          <td class="num">17.7 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">20</td>
           <td><b>山女鳟</b></td>
@@ -636,8 +631,8 @@
           <td class="num">1.465%</td>
           <td class="num">68.3</td>
           <td class="num"><b>55 分钟</b></td>
-          <td class="num" style="color:#e8595c">38.3 天</td>
-          <td class="num">5.5 天</td>
+          <td class="num" style="color:#e8595c">3.8 天</td>
+          <td class="num">30.6 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">21</td>
           <td><b>台湾铲颌鱼</b></td>
@@ -646,8 +641,8 @@
           <td class="num">0.833%</td>
           <td class="num">120</td>
           <td class="num"><b>1.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.18 年</td>
-          <td class="num">9.6 天</td>
+          <td class="num" style="color:#e8595c">6.7 天</td>
+          <td class="num">2.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">22</td>
           <td><b>中华刺鳅</b></td>
@@ -656,8 +651,8 @@
           <td class="num">4.564%</td>
           <td class="num">21.9</td>
           <td class="num"><b>18 分钟</b></td>
-          <td class="num" style="color:#e8595c">12.3 天</td>
-          <td class="num">42.1 小时</td>
+          <td class="num" style="color:#e8595c">29.5 小时</td>
+          <td class="num">9.8 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">23</td>
           <td><b>福建小鳔鮈</b></td>
@@ -666,8 +661,8 @@
           <td class="num">4.428%</td>
           <td class="num">22.6</td>
           <td class="num"><b>18 分钟</b></td>
-          <td class="num" style="color:#e8595c">12.7 天</td>
-          <td class="num">43.4 小时</td>
+          <td class="num" style="color:#e8595c">30.4 小时</td>
+          <td class="num">10.1 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">24</td>
           <td><b>溪灵·金线鲃</b></td>
@@ -676,8 +671,8 @@
           <td class="num">0.420%</td>
           <td class="num">238</td>
           <td class="num"><b>3.2 小时</b></td>
-          <td class="num" style="color:#e8595c">0.37 年</td>
-          <td class="num">19.1 天</td>
+          <td class="num" style="color:#e8595c">13.3 天</td>
+          <td class="num">4.4 天</td>
         </tr>
     </table>
     </div>
@@ -691,15 +686,15 @@
   <div class="card">
     <div class="kpis">
       <div class="kpi"><b>15.9 小时</b><span>收齐全部品种（34 种）</span></div>
-      <div class="kpi"><b style="color:#e8595c">1.82 年</b><span>连颜色一起收齐（204 组合）</span></div>
-      <div class="kpi"><b>41.9 天</b><span>颜色带来的放大倍数</span></div>
+      <div class="kpi"><b style="color:#e8595c">0.19 年</b><span>连颜色一起收齐（170 组合）</span></div>
+      <div class="kpi"><b>×105.5</b><span>颜色带来的放大倍数</span></div>
     </div>
     <div class="scroll">
     <table>
       <tr>
         <th>#</th><th>鱼名</th><th>稀有度</th><th>体型</th>
         <th class="num">单竿概率</th><th class="num">期望竿数</th><th class="num">期望时间</th>
-        <th class="num">该鱼闪光<br>(0.1%)</th><th class="num">该鱼黄金<br>(0.7%)</th>
+        <th class="num">该鱼闪光<br>(1%)</th><th class="num">该鱼黄金<br>(3%)</th>
       </tr>
       <tr>
           <td class="num" style="color:var(--ink3)">1</td>
@@ -709,8 +704,8 @@
           <td class="num">5.424%</td>
           <td class="num">18.4</td>
           <td class="num"><b>20 分钟</b></td>
-          <td class="num" style="color:#e8595c">13.7 天</td>
-          <td class="num">47.0 小时</td>
+          <td class="num" style="color:#e8595c">32.9 小时</td>
+          <td class="num">11.0 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">2</td>
           <td><b>鳙鱼</b></td>
@@ -719,8 +714,8 @@
           <td class="num">5.262%</td>
           <td class="num">19.0</td>
           <td class="num"><b>20 分钟</b></td>
-          <td class="num" style="color:#e8595c">14.1 天</td>
-          <td class="num">2.0 天</td>
+          <td class="num" style="color:#e8595c">33.9 小时</td>
+          <td class="num">11.3 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">3</td>
           <td><b>草鱼</b></td>
@@ -729,8 +724,8 @@
           <td class="num">5.153%</td>
           <td class="num">19.4</td>
           <td class="num"><b>21 分钟</b></td>
-          <td class="num" style="color:#e8595c">14.4 天</td>
-          <td class="num">2.1 天</td>
+          <td class="num" style="color:#e8595c">34.6 小时</td>
+          <td class="num">11.5 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">4</td>
           <td><b>鲮鱼</b></td>
@@ -739,8 +734,8 @@
           <td class="num">4.990%</td>
           <td class="num">20.0</td>
           <td class="num"><b>21 分钟</b></td>
-          <td class="num" style="color:#e8595c">14.9 天</td>
-          <td class="num">2.1 天</td>
+          <td class="num" style="color:#e8595c">35.7 小时</td>
+          <td class="num">11.9 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">5</td>
           <td><b>罗非鱼</b></td>
@@ -749,8 +744,8 @@
           <td class="num">4.882%</td>
           <td class="num">20.5</td>
           <td class="num"><b>22 分钟</b></td>
-          <td class="num" style="color:#e8595c">15.2 天</td>
-          <td class="num">2.2 天</td>
+          <td class="num" style="color:#e8595c">36.5 小时</td>
+          <td class="num">12.2 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">6</td>
           <td><b>鳊鱼</b></td>
@@ -759,8 +754,8 @@
           <td class="num">4.719%</td>
           <td class="num">21.2</td>
           <td class="num"><b>23 分钟</b></td>
-          <td class="num" style="color:#e8595c">15.7 天</td>
-          <td class="num">2.2 天</td>
+          <td class="num" style="color:#e8595c">37.8 小时</td>
+          <td class="num">12.6 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">7</td>
           <td><b>鲂鱼</b></td>
@@ -769,8 +764,8 @@
           <td class="num">4.611%</td>
           <td class="num">21.7</td>
           <td class="num"><b>23 分钟</b></td>
-          <td class="num" style="color:#e8595c">16.1 天</td>
-          <td class="num">2.3 天</td>
+          <td class="num" style="color:#e8595c">38.7 小时</td>
+          <td class="num">12.9 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">8</td>
           <td><b>银鲴</b></td>
@@ -779,8 +774,8 @@
           <td class="num">4.502%</td>
           <td class="num">22.2</td>
           <td class="num"><b>24 分钟</b></td>
-          <td class="num" style="color:#e8595c">16.5 天</td>
-          <td class="num">2.4 天</td>
+          <td class="num" style="color:#e8595c">39.6 小时</td>
+          <td class="num">13.2 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">9</td>
           <td><b>黄尾鲴</b></td>
@@ -789,8 +784,8 @@
           <td class="num">4.339%</td>
           <td class="num">23.0</td>
           <td class="num"><b>25 分钟</b></td>
-          <td class="num" style="color:#e8595c">17.1 天</td>
-          <td class="num">2.4 天</td>
+          <td class="num" style="color:#e8595c">41.1 小时</td>
+          <td class="num">13.7 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">10</td>
           <td><b>赤眼鳟</b></td>
@@ -799,8 +794,8 @@
           <td class="num">4.231%</td>
           <td class="num">23.6</td>
           <td class="num"><b>25 分钟</b></td>
-          <td class="num" style="color:#e8595c">17.6 天</td>
-          <td class="num">2.5 天</td>
+          <td class="num" style="color:#e8595c">42.2 小时</td>
+          <td class="num">14.1 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">11</td>
           <td><b>大眼华鳊</b></td>
@@ -809,8 +804,8 @@
           <td class="num">4.122%</td>
           <td class="num">24.3</td>
           <td class="num"><b>26 分钟</b></td>
-          <td class="num" style="color:#e8595c">18.0 天</td>
-          <td class="num">2.6 天</td>
+          <td class="num" style="color:#e8595c">43.3 小时</td>
+          <td class="num">14.4 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">12</td>
           <td><b>似鳊</b></td>
@@ -819,8 +814,8 @@
           <td class="num">4.014%</td>
           <td class="num">24.9</td>
           <td class="num"><b>27 分钟</b></td>
-          <td class="num" style="color:#e8595c">18.5 天</td>
-          <td class="num">2.6 天</td>
+          <td class="num" style="color:#e8595c">44.4 小时</td>
+          <td class="num">14.8 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">13</td>
           <td><b>中华细鲫</b></td>
@@ -829,8 +824,8 @@
           <td class="num">3.905%</td>
           <td class="num">25.6</td>
           <td class="num"><b>27 分钟</b></td>
-          <td class="num" style="color:#e8595c">19.0 天</td>
-          <td class="num">2.7 天</td>
+          <td class="num" style="color:#e8595c">45.7 小时</td>
+          <td class="num">15.2 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">14</td>
           <td><b>麦鲮</b></td>
@@ -839,8 +834,8 @@
           <td class="num">3.797%</td>
           <td class="num">26.3</td>
           <td class="num"><b>28 分钟</b></td>
-          <td class="num" style="color:#e8595c">19.6 天</td>
-          <td class="num">2.8 天</td>
+          <td class="num" style="color:#e8595c">47.0 小时</td>
+          <td class="num">15.7 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">15</td>
           <td><b>鲈鲤</b></td>
@@ -849,8 +844,8 @@
           <td class="num">3.688%</td>
           <td class="num">27.1</td>
           <td class="num"><b>29 分钟</b></td>
-          <td class="num" style="color:#e8595c">20.2 天</td>
-          <td class="num">2.9 天</td>
+          <td class="num" style="color:#e8595c">2.0 天</td>
+          <td class="num">16.1 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">16</td>
           <td><b>鲤鱼</b></td>
@@ -859,8 +854,8 @@
           <td class="num">2.329%</td>
           <td class="num">42.9</td>
           <td class="num"><b>46 分钟</b></td>
-          <td class="num" style="color:#e8595c">31.9 天</td>
-          <td class="num">4.6 天</td>
+          <td class="num" style="color:#e8595c">3.2 天</td>
+          <td class="num">25.5 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">17</td>
           <td><b>鲈鱼</b></td>
@@ -869,8 +864,8 @@
           <td class="num">2.119%</td>
           <td class="num">47.2</td>
           <td class="num"><b>51 分钟</b></td>
-          <td class="num" style="color:#e8595c">35.1 天</td>
-          <td class="num">5.0 天</td>
+          <td class="num" style="color:#e8595c">3.5 天</td>
+          <td class="num">28.1 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">18</td>
           <td><b>翘嘴鲌</b></td>
@@ -879,8 +874,8 @@
           <td class="num">1.933%</td>
           <td class="num">51.7</td>
           <td class="num"><b>55 分钟</b></td>
-          <td class="num" style="color:#e8595c">38.5 天</td>
-          <td class="num">5.5 天</td>
+          <td class="num" style="color:#e8595c">3.8 天</td>
+          <td class="num">30.8 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">19</td>
           <td><b>蒙古鲌</b></td>
@@ -889,8 +884,8 @@
           <td class="num">1.770%</td>
           <td class="num">56.5</td>
           <td class="num"><b>1.0 小时</b></td>
-          <td class="num" style="color:#e8595c">42.0 天</td>
-          <td class="num">6.0 天</td>
+          <td class="num" style="color:#e8595c">4.2 天</td>
+          <td class="num">33.6 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">20</td>
           <td><b>黑鱼</b></td>
@@ -899,8 +894,8 @@
           <td class="num">1.607%</td>
           <td class="num">62.2</td>
           <td class="num"><b>1.1 小时</b></td>
-          <td class="num" style="color:#e8595c">46.3 天</td>
-          <td class="num">6.6 天</td>
+          <td class="num" style="color:#e8595c">4.6 天</td>
+          <td class="num">37.0 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">21</td>
           <td><b>鳡鱼</b></td>
@@ -909,8 +904,8 @@
           <td class="num">1.467%</td>
           <td class="num">68.2</td>
           <td class="num"><b>1.2 小时</b></td>
-          <td class="num" style="color:#e8595c">50.7 天</td>
-          <td class="num">7.2 天</td>
+          <td class="num" style="color:#e8595c">5.1 天</td>
+          <td class="num">40.5 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">22</td>
           <td><b>鲶鱼</b></td>
@@ -919,8 +914,8 @@
           <td class="num">1.327%</td>
           <td class="num">75.3</td>
           <td class="num"><b>1.3 小时</b></td>
-          <td class="num" style="color:#e8595c">56.0 天</td>
-          <td class="num">8.0 天</td>
+          <td class="num" style="color:#e8595c">5.6 天</td>
+          <td class="num">44.8 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">23</td>
           <td><b>青鱼</b></td>
@@ -929,8 +924,8 @@
           <td class="num">1.211%</td>
           <td class="num">82.6</td>
           <td class="num"><b>1.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.17 年</td>
-          <td class="num">8.8 天</td>
+          <td class="num" style="color:#e8595c">6.1 天</td>
+          <td class="num">2.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">24</td>
           <td><b>刺鲃</b></td>
@@ -939,8 +934,8 @@
           <td class="num">1.118%</td>
           <td class="num">89.5</td>
           <td class="num"><b>1.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.18 年</td>
-          <td class="num">9.5 天</td>
+          <td class="num" style="color:#e8595c">6.6 天</td>
+          <td class="num">2.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">25</td>
           <td><b>大口鲶</b></td>
@@ -949,8 +944,8 @@
           <td class="num">2.617%</td>
           <td class="num">38.2</td>
           <td class="num"><b>41 分钟</b></td>
-          <td class="num" style="color:#e8595c">28.4 天</td>
-          <td class="num">4.1 天</td>
+          <td class="num" style="color:#e8595c">2.8 天</td>
+          <td class="num">22.7 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">26</td>
           <td><b>鳜鱼</b></td>
@@ -959,8 +954,8 @@
           <td class="num">2.093%</td>
           <td class="num">47.8</td>
           <td class="num"><b>51 分钟</b></td>
-          <td class="num" style="color:#e8595c">35.5 天</td>
-          <td class="num">5.1 天</td>
+          <td class="num" style="color:#e8595c">3.6 天</td>
+          <td class="num">28.4 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">27</td>
           <td><b>大眼鳜</b></td>
@@ -969,8 +964,8 @@
           <td class="num">1.675%</td>
           <td class="num">59.7</td>
           <td class="num"><b>1.1 小时</b></td>
-          <td class="num" style="color:#e8595c">44.4 天</td>
-          <td class="num">6.3 天</td>
+          <td class="num" style="color:#e8595c">4.4 天</td>
+          <td class="num">35.5 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">28</td>
           <td><b>长吻鮠</b></td>
@@ -979,8 +974,8 @@
           <td class="num">1.361%</td>
           <td class="num">73.5</td>
           <td class="num"><b>1.3 小时</b></td>
-          <td class="num" style="color:#e8595c">54.6 天</td>
-          <td class="num">7.8 天</td>
+          <td class="num" style="color:#e8595c">5.5 天</td>
+          <td class="num">43.7 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">29</td>
           <td><b>中华倒刺鲃</b></td>
@@ -989,8 +984,8 @@
           <td class="num">1.099%</td>
           <td class="num">91.0</td>
           <td class="num"><b>1.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.19 年</td>
-          <td class="num">9.7 天</td>
+          <td class="num" style="color:#e8595c">6.8 天</td>
+          <td class="num">2.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">30</td>
           <td><b>胭脂鱼</b></td>
@@ -999,8 +994,8 @@
           <td class="num">0.864%</td>
           <td class="num">116</td>
           <td class="num"><b>2.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.24 年</td>
-          <td class="num">12.3 天</td>
+          <td class="num" style="color:#e8595c">8.6 天</td>
+          <td class="num">2.9 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">31</td>
           <td><b>银鮈</b></td>
@@ -1009,8 +1004,8 @@
           <td class="num">3.580%</td>
           <td class="num">27.9</td>
           <td class="num"><b>30 分钟</b></td>
-          <td class="num" style="color:#e8595c">20.8 天</td>
-          <td class="num">3.0 天</td>
+          <td class="num" style="color:#e8595c">2.1 天</td>
+          <td class="num">16.6 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">32</td>
           <td><b>短颌鲚</b></td>
@@ -1019,8 +1014,8 @@
           <td class="num">3.526%</td>
           <td class="num">28.4</td>
           <td class="num"><b>30 分钟</b></td>
-          <td class="num" style="color:#e8595c">21.1 天</td>
-          <td class="num">3.0 天</td>
+          <td class="num" style="color:#e8595c">2.1 天</td>
+          <td class="num">16.9 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">33</td>
           <td><b>湖心巨鲤</b></td>
@@ -1029,8 +1024,8 @@
           <td class="num">0.546%</td>
           <td class="num">183</td>
           <td class="num"><b>3.3 小时</b></td>
-          <td class="num" style="color:#e8595c">0.37 年</td>
-          <td class="num">19.4 天</td>
+          <td class="num" style="color:#e8595c">13.6 天</td>
+          <td class="num">4.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">34</td>
           <td><b>百斤鳡王</b></td>
@@ -1039,8 +1034,8 @@
           <td class="num">0.120%</td>
           <td class="num">833</td>
           <td class="num"><b>14.9 小时</b></td>
-          <td class="num" style="color:#e8595c">1.70 年</td>
-          <td class="num">0.24 年</td>
+          <td class="num" style="color:#e8595c">0.17 年</td>
+          <td class="num">20.6 天</td>
         </tr>
     </table>
     </div>
@@ -1054,15 +1049,15 @@
   <div class="card">
     <div class="kpis">
       <div class="kpi"><b>44.7 小时</b><span>收齐全部品种（46 种）</span></div>
-      <div class="kpi"><b style="color:#e8595c">5 年</b><span>连颜色一起收齐（276 组合）</span></div>
-      <div class="kpi"><b>41.8 天</b><span>颜色带来的放大倍数</span></div>
+      <div class="kpi"><b style="color:#e8595c">0.53 年</b><span>连颜色一起收齐（230 组合）</span></div>
+      <div class="kpi"><b>×104.3</b><span>颜色带来的放大倍数</span></div>
     </div>
     <div class="scroll">
     <table>
       <tr>
         <th>#</th><th>鱼名</th><th>稀有度</th><th>体型</th>
         <th class="num">单竿概率</th><th class="num">期望竿数</th><th class="num">期望时间</th>
-        <th class="num">该鱼闪光<br>(0.1%)</th><th class="num">该鱼黄金<br>(0.7%)</th>
+        <th class="num">该鱼闪光<br>(1%)</th><th class="num">该鱼黄金<br>(3%)</th>
       </tr>
       <tr>
           <td class="num" style="color:var(--ink3)">1</td>
@@ -1072,8 +1067,8 @@
           <td class="num">3.109%</td>
           <td class="num">32.2</td>
           <td class="num"><b>52 分钟</b></td>
-          <td class="num" style="color:#e8595c">35.9 天</td>
-          <td class="num">5.1 天</td>
+          <td class="num" style="color:#e8595c">3.6 天</td>
+          <td class="num">28.8 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">2</td>
           <td><b>竹荚鱼</b></td>
@@ -1082,8 +1077,8 @@
           <td class="num">3.047%</td>
           <td class="num">32.8</td>
           <td class="num"><b>53 分钟</b></td>
-          <td class="num" style="color:#e8595c">36.7 天</td>
-          <td class="num">5.2 天</td>
+          <td class="num" style="color:#e8595c">3.7 天</td>
+          <td class="num">29.3 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">3</td>
           <td><b>黑鲷</b></td>
@@ -1092,8 +1087,8 @@
           <td class="num">2.984%</td>
           <td class="num">33.5</td>
           <td class="num"><b>54 分钟</b></td>
-          <td class="num" style="color:#e8595c">37.4 天</td>
-          <td class="num">5.3 天</td>
+          <td class="num" style="color:#e8595c">3.7 天</td>
+          <td class="num">29.9 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">4</td>
           <td><b>黄鳍鲷</b></td>
@@ -1102,8 +1097,8 @@
           <td class="num">2.922%</td>
           <td class="num">34.2</td>
           <td class="num"><b>55 分钟</b></td>
-          <td class="num" style="color:#e8595c">38.2 天</td>
-          <td class="num">5.5 天</td>
+          <td class="num" style="color:#e8595c">3.8 天</td>
+          <td class="num">30.6 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">5</td>
           <td><b>鲻鱼</b></td>
@@ -1112,8 +1107,8 @@
           <td class="num">2.860%</td>
           <td class="num">35.0</td>
           <td class="num"><b>56 分钟</b></td>
-          <td class="num" style="color:#e8595c">39.1 天</td>
-          <td class="num">5.6 天</td>
+          <td class="num" style="color:#e8595c">3.9 天</td>
+          <td class="num">31.3 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">6</td>
           <td><b>石斑鱼</b></td>
@@ -1122,8 +1117,8 @@
           <td class="num">2.798%</td>
           <td class="num">35.7</td>
           <td class="num"><b>58 分钟</b></td>
-          <td class="num" style="color:#e8595c">39.9 天</td>
-          <td class="num">5.7 天</td>
+          <td class="num" style="color:#e8595c">4.0 天</td>
+          <td class="num">31.9 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">7</td>
           <td><b>银鲳</b></td>
@@ -1132,8 +1127,8 @@
           <td class="num">2.736%</td>
           <td class="num">36.6</td>
           <td class="num"><b>59 分钟</b></td>
-          <td class="num" style="color:#e8595c">40.8 天</td>
-          <td class="num">5.8 天</td>
+          <td class="num" style="color:#e8595c">4.1 天</td>
+          <td class="num">32.7 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">8</td>
           <td><b>刺鲳</b></td>
@@ -1142,8 +1137,8 @@
           <td class="num">2.674%</td>
           <td class="num">37.4</td>
           <td class="num"><b>1.0 小时</b></td>
-          <td class="num" style="color:#e8595c">41.8 天</td>
-          <td class="num">6.0 天</td>
+          <td class="num" style="color:#e8595c">4.2 天</td>
+          <td class="num">33.4 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">9</td>
           <td><b>鳀鱼</b></td>
@@ -1152,8 +1147,8 @@
           <td class="num">2.642%</td>
           <td class="num">37.8</td>
           <td class="num"><b>1.0 小时</b></td>
-          <td class="num" style="color:#e8595c">42.3 天</td>
-          <td class="num">6.0 天</td>
+          <td class="num" style="color:#e8595c">4.2 天</td>
+          <td class="num">33.8 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">10</td>
           <td><b>小黄鱼</b></td>
@@ -1162,8 +1157,8 @@
           <td class="num">2.580%</td>
           <td class="num">38.8</td>
           <td class="num"><b>1.0 小时</b></td>
-          <td class="num" style="color:#e8595c">43.3 天</td>
-          <td class="num">6.2 天</td>
+          <td class="num" style="color:#e8595c">4.3 天</td>
+          <td class="num">34.6 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">11</td>
           <td><b>梅童鱼</b></td>
@@ -1172,8 +1167,8 @@
           <td class="num">2.518%</td>
           <td class="num">39.7</td>
           <td class="num"><b>1.1 小时</b></td>
-          <td class="num" style="color:#e8595c">44.4 天</td>
-          <td class="num">6.3 天</td>
+          <td class="num" style="color:#e8595c">4.4 天</td>
+          <td class="num">35.5 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">12</td>
           <td><b>黄姑鱼</b></td>
@@ -1182,8 +1177,8 @@
           <td class="num">2.456%</td>
           <td class="num">40.7</td>
           <td class="num"><b>1.1 小时</b></td>
-          <td class="num" style="color:#e8595c">45.5 天</td>
-          <td class="num">6.5 天</td>
+          <td class="num" style="color:#e8595c">4.5 天</td>
+          <td class="num">36.4 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">13</td>
           <td><b>白姑鱼</b></td>
@@ -1192,8 +1187,8 @@
           <td class="num">2.425%</td>
           <td class="num">41.2</td>
           <td class="num"><b>1.1 小时</b></td>
-          <td class="num" style="color:#e8595c">46.1 天</td>
-          <td class="num">6.6 天</td>
+          <td class="num" style="color:#e8595c">4.6 天</td>
+          <td class="num">36.9 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">14</td>
           <td><b>海鳗</b></td>
@@ -1202,8 +1197,8 @@
           <td class="num">2.363%</td>
           <td class="num">42.3</td>
           <td class="num"><b>1.1 小时</b></td>
-          <td class="num" style="color:#e8595c">47.3 天</td>
-          <td class="num">6.8 天</td>
+          <td class="num" style="color:#e8595c">4.7 天</td>
+          <td class="num">37.8 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">15</td>
           <td><b>星鳗</b></td>
@@ -1212,8 +1207,8 @@
           <td class="num">2.332%</td>
           <td class="num">42.9</td>
           <td class="num"><b>1.2 小时</b></td>
-          <td class="num" style="color:#e8595c">47.9 天</td>
-          <td class="num">6.8 天</td>
+          <td class="num" style="color:#e8595c">4.8 天</td>
+          <td class="num">38.3 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">16</td>
           <td><b>鲽鱼</b></td>
@@ -1222,8 +1217,8 @@
           <td class="num">2.269%</td>
           <td class="num">44.1</td>
           <td class="num"><b>1.2 小时</b></td>
-          <td class="num" style="color:#e8595c">49.2 天</td>
-          <td class="num">7.0 天</td>
+          <td class="num" style="color:#e8595c">4.9 天</td>
+          <td class="num">39.4 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">17</td>
           <td><b>舌鳎</b></td>
@@ -1232,8 +1227,8 @@
           <td class="num">2.238%</td>
           <td class="num">44.7</td>
           <td class="num"><b>1.2 小时</b></td>
-          <td class="num" style="color:#e8595c">49.9 天</td>
-          <td class="num">7.1 天</td>
+          <td class="num" style="color:#e8595c">5.0 天</td>
+          <td class="num">39.9 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">18</td>
           <td><b>六线鱼</b></td>
@@ -1242,8 +1237,8 @@
           <td class="num">2.176%</td>
           <td class="num">46.0</td>
           <td class="num"><b>1.2 小时</b></td>
-          <td class="num" style="color:#e8595c">51.3 天</td>
-          <td class="num">7.3 天</td>
+          <td class="num" style="color:#e8595c">5.1 天</td>
+          <td class="num">41.1 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">19</td>
           <td><b>黑鲪</b></td>
@@ -1252,8 +1247,8 @@
           <td class="num">2.145%</td>
           <td class="num">46.6</td>
           <td class="num"><b>1.3 小时</b></td>
-          <td class="num" style="color:#e8595c">52.1 天</td>
-          <td class="num">7.4 天</td>
+          <td class="num" style="color:#e8595c">5.2 天</td>
+          <td class="num">41.7 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">20</td>
           <td><b>赤点石斑</b></td>
@@ -1262,8 +1257,8 @@
           <td class="num">2.083%</td>
           <td class="num">48.0</td>
           <td class="num"><b>1.3 小时</b></td>
-          <td class="num" style="color:#e8595c">53.6 天</td>
-          <td class="num">7.7 天</td>
+          <td class="num" style="color:#e8595c">5.4 天</td>
+          <td class="num">42.9 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">21</td>
           <td><b>真鲷</b></td>
@@ -1272,8 +1267,8 @@
           <td class="num">3.352%</td>
           <td class="num">29.8</td>
           <td class="num"><b>48 分钟</b></td>
-          <td class="num" style="color:#e8595c">33.3 天</td>
-          <td class="num">4.8 天</td>
+          <td class="num" style="color:#e8595c">3.3 天</td>
+          <td class="num">26.7 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">22</td>
           <td><b>海鲈</b></td>
@@ -1282,8 +1277,8 @@
           <td class="num">3.151%</td>
           <td class="num">31.7</td>
           <td class="num"><b>51 分钟</b></td>
-          <td class="num" style="color:#e8595c">35.5 天</td>
-          <td class="num">5.1 天</td>
+          <td class="num" style="color:#e8595c">3.5 天</td>
+          <td class="num">28.4 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">23</td>
           <td><b>鲯鳅</b></td>
@@ -1292,8 +1287,8 @@
           <td class="num">2.950%</td>
           <td class="num">33.9</td>
           <td class="num"><b>55 分钟</b></td>
-          <td class="num" style="color:#e8595c">37.9 天</td>
-          <td class="num">5.4 天</td>
+          <td class="num" style="color:#e8595c">3.8 天</td>
+          <td class="num">30.3 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">24</td>
           <td><b>章鱼</b></td>
@@ -1302,8 +1297,8 @@
           <td class="num">2.782%</td>
           <td class="num">35.9</td>
           <td class="num"><b>58 分钟</b></td>
-          <td class="num" style="color:#e8595c">40.2 天</td>
-          <td class="num">5.7 天</td>
+          <td class="num" style="color:#e8595c">4.0 天</td>
+          <td class="num">32.1 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">25</td>
           <td><b>马鲛</b></td>
@@ -1312,8 +1307,8 @@
           <td class="num">2.615%</td>
           <td class="num">38.2</td>
           <td class="num"><b>1.0 小时</b></td>
-          <td class="num" style="color:#e8595c">42.7 天</td>
-          <td class="num">6.1 天</td>
+          <td class="num" style="color:#e8595c">4.3 天</td>
+          <td class="num">34.2 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">26</td>
           <td><b>蓝点马鲛</b></td>
@@ -1322,8 +1317,8 @@
           <td class="num">2.447%</td>
           <td class="num">40.9</td>
           <td class="num"><b>1.1 小时</b></td>
-          <td class="num" style="color:#e8595c">45.7 天</td>
-          <td class="num">6.5 天</td>
+          <td class="num" style="color:#e8595c">4.6 天</td>
+          <td class="num">36.5 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">27</td>
           <td><b>大黄鱼</b></td>
@@ -1332,8 +1327,8 @@
           <td class="num">2.313%</td>
           <td class="num">43.2</td>
           <td class="num"><b>1.2 小时</b></td>
-          <td class="num" style="color:#e8595c">48.3 天</td>
-          <td class="num">6.9 天</td>
+          <td class="num" style="color:#e8595c">4.8 天</td>
+          <td class="num">38.6 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">28</td>
           <td><b>鮸鱼</b></td>
@@ -1342,8 +1337,8 @@
           <td class="num">2.179%</td>
           <td class="num">45.9</td>
           <td class="num"><b>1.2 小时</b></td>
-          <td class="num" style="color:#e8595c">51.3 天</td>
-          <td class="num">7.3 天</td>
+          <td class="num" style="color:#e8595c">5.1 天</td>
+          <td class="num">41.0 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">29</td>
           <td><b>牙鲆</b></td>
@@ -1352,8 +1347,8 @@
           <td class="num">2.045%</td>
           <td class="num">48.9</td>
           <td class="num"><b>1.3 小时</b></td>
-          <td class="num" style="color:#e8595c">54.6 天</td>
-          <td class="num">7.8 天</td>
+          <td class="num" style="color:#e8595c">5.5 天</td>
+          <td class="num">43.7 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">30</td>
           <td><b>许氏平鲉</b></td>
@@ -1362,8 +1357,8 @@
           <td class="num">1.911%</td>
           <td class="num">52.3</td>
           <td class="num"><b>1.4 小时</b></td>
-          <td class="num" style="color:#e8595c">58.5 天</td>
-          <td class="num">8.4 天</td>
+          <td class="num" style="color:#e8595c">5.8 天</td>
+          <td class="num">46.8 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">31</td>
           <td><b>鬼鲉</b></td>
@@ -1372,8 +1367,8 @@
           <td class="num">1.810%</td>
           <td class="num">55.2</td>
           <td class="num"><b>1.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.17 年</td>
-          <td class="num">8.8 天</td>
+          <td class="num" style="color:#e8595c">6.2 天</td>
+          <td class="num">2.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">32</td>
           <td><b>鲬鱼</b></td>
@@ -1382,8 +1377,8 @@
           <td class="num">1.710%</td>
           <td class="num">58.5</td>
           <td class="num"><b>1.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.18 年</td>
-          <td class="num">9.3 天</td>
+          <td class="num" style="color:#e8595c">6.5 天</td>
+          <td class="num">2.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">33</td>
           <td><b>鱿鱼</b></td>
@@ -1392,8 +1387,8 @@
           <td class="num">1.609%</td>
           <td class="num">62.1</td>
           <td class="num"><b>1.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.19 年</td>
-          <td class="num">9.9 天</td>
+          <td class="num" style="color:#e8595c">6.9 天</td>
+          <td class="num">2.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">34</td>
           <td><b>金枪鱼</b></td>
@@ -1402,8 +1397,8 @@
           <td class="num">2.680%</td>
           <td class="num">37.3</td>
           <td class="num"><b>1.0 小时</b></td>
-          <td class="num" style="color:#e8595c">41.7 天</td>
-          <td class="num">6.0 天</td>
+          <td class="num" style="color:#e8595c">4.2 天</td>
+          <td class="num">33.4 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">35</td>
           <td><b>旗鱼</b></td>
@@ -1412,8 +1407,8 @@
           <td class="num">2.278%</td>
           <td class="num">43.9</td>
           <td class="num"><b>1.2 小时</b></td>
-          <td class="num" style="color:#e8595c">49.1 天</td>
-          <td class="num">7.0 天</td>
+          <td class="num" style="color:#e8595c">4.9 天</td>
+          <td class="num">39.2 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">36</td>
           <td><b>剑鱼</b></td>
@@ -1422,8 +1417,8 @@
           <td class="num">1.956%</td>
           <td class="num">51.1</td>
           <td class="num"><b>1.4 小时</b></td>
-          <td class="num" style="color:#e8595c">57.1 天</td>
-          <td class="num">8.2 天</td>
+          <td class="num" style="color:#e8595c">5.7 天</td>
+          <td class="num">45.7 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">37</td>
           <td><b>龙趸石斑</b></td>
@@ -1432,8 +1427,8 @@
           <td class="num">1.661%</td>
           <td class="num">60.2</td>
           <td class="num"><b>1.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.18 年</td>
-          <td class="num">9.6 天</td>
+          <td class="num" style="color:#e8595c">6.7 天</td>
+          <td class="num">2.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">38</td>
           <td><b>宝石石斑</b></td>
@@ -1442,8 +1437,8 @@
           <td class="num">1.420%</td>
           <td class="num">70.4</td>
           <td class="num"><b>1.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.22 年</td>
-          <td class="num">11.2 天</td>
+          <td class="num" style="color:#e8595c">7.9 天</td>
+          <td class="num">2.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">39</td>
           <td><b>河鲀</b></td>
@@ -1452,8 +1447,8 @@
           <td class="num">1.233%</td>
           <td class="num">81.1</td>
           <td class="num"><b>2.2 小时</b></td>
-          <td class="num" style="color:#e8595c">0.25 年</td>
-          <td class="num">12.9 天</td>
+          <td class="num" style="color:#e8595c">9.1 天</td>
+          <td class="num">3.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">40</td>
           <td><b>翻车鱼</b></td>
@@ -1462,8 +1457,8 @@
           <td class="num">1.045%</td>
           <td class="num">95.7</td>
           <td class="num"><b>2.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.29 年</td>
-          <td class="num">15.3 天</td>
+          <td class="num" style="color:#e8595c">10.7 天</td>
+          <td class="num">3.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">41</td>
           <td><b>角箱鲀</b></td>
@@ -1472,8 +1467,8 @@
           <td class="num">0.884%</td>
           <td class="num">113</td>
           <td class="num"><b>3.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.35 年</td>
-          <td class="num">18.1 天</td>
+          <td class="num" style="color:#e8595c">12.6 天</td>
+          <td class="num">4.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">42</td>
           <td><b>斑鰶</b></td>
@@ -1482,8 +1477,8 @@
           <td class="num">2.052%</td>
           <td class="num">48.7</td>
           <td class="num"><b>1.3 小时</b></td>
-          <td class="num" style="color:#e8595c">54.5 天</td>
-          <td class="num">7.8 天</td>
+          <td class="num" style="color:#e8595c">5.4 天</td>
+          <td class="num">43.6 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">43</td>
           <td><b>日本鳀</b></td>
@@ -1492,8 +1487,8 @@
           <td class="num">2.021%</td>
           <td class="num">49.5</td>
           <td class="num"><b>1.3 小时</b></td>
-          <td class="num" style="color:#e8595c">55.3 天</td>
-          <td class="num">7.9 天</td>
+          <td class="num" style="color:#e8595c">5.5 天</td>
+          <td class="num">44.2 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">44</td>
           <td><b>断崖之王·巨型石斑</b></td>
@@ -1502,8 +1497,8 @@
           <td class="num">0.320%</td>
           <td class="num">313</td>
           <td class="num"><b>8.4 小时</b></td>
-          <td class="num" style="color:#e8595c">0.96 年</td>
-          <td class="num">50.0 天</td>
+          <td class="num" style="color:#e8595c">35.0 天</td>
+          <td class="num">11.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">45</td>
           <td><b>黑潮之王·蓝鳍金枪</b></td>
@@ -1512,8 +1507,8 @@
           <td class="num">0.150%</td>
           <td class="num">666</td>
           <td class="num"><b>17.9 小时</b></td>
-          <td class="num" style="color:#e8595c">2 年</td>
-          <td class="num">0.29 年</td>
+          <td class="num" style="color:#e8595c">0.20 年</td>
+          <td class="num">24.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">46</td>
           <td><b>白浪之神·大青针</b></td>
@@ -1522,8 +1517,8 @@
           <td class="num">0.070%</td>
           <td class="num">1,423</td>
           <td class="num"><b>38.1 小时</b></td>
-          <td class="num" style="color:#e8595c">4 年</td>
-          <td class="num">0.62 年</td>
+          <td class="num" style="color:#e8595c">0.44 年</td>
+          <td class="num">53.0 天</td>
         </tr>
     </table>
     </div>
@@ -1537,15 +1532,15 @@
   <div class="card">
     <div class="kpis">
       <div class="kpi"><b>4.1 天</b><span>收齐全部品种（62 种）</span></div>
-      <div class="kpi"><b style="color:#e8595c">11 年</b><span>连颜色一起收齐（372 组合）</span></div>
-      <div class="kpi"><b>41.7 天</b><span>颜色带来的放大倍数</span></div>
+      <div class="kpi"><b style="color:#e8595c">1.16 年</b><span>连颜色一起收齐（310 组合）</span></div>
+      <div class="kpi"><b>×102.4</b><span>颜色带来的放大倍数</span></div>
     </div>
     <div class="scroll">
     <table>
       <tr>
         <th>#</th><th>鱼名</th><th>稀有度</th><th>体型</th>
         <th class="num">单竿概率</th><th class="num">期望竿数</th><th class="num">期望时间</th>
-        <th class="num">该鱼闪光<br>(0.1%)</th><th class="num">该鱼黄金<br>(0.7%)</th>
+        <th class="num">该鱼闪光<br>(1%)</th><th class="num">该鱼黄金<br>(3%)</th>
       </tr>
       <tr>
           <td class="num" style="color:var(--ink3)">1</td>
@@ -1555,8 +1550,8 @@
           <td class="num">2.260%</td>
           <td class="num">44.2</td>
           <td class="num"><b>1.4 小时</b></td>
-          <td class="num" style="color:#e8595c">58.9 天</td>
-          <td class="num">8.4 天</td>
+          <td class="num" style="color:#e8595c">5.9 天</td>
+          <td class="num">47.1 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">2</td>
           <td><b>灯笼鱼</b></td>
@@ -1565,8 +1560,8 @@
           <td class="num">2.238%</td>
           <td class="num">44.7</td>
           <td class="num"><b>1.4 小时</b></td>
-          <td class="num" style="color:#e8595c">59.4 天</td>
-          <td class="num">8.5 天</td>
+          <td class="num" style="color:#e8595c">5.9 天</td>
+          <td class="num">47.6 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">3</td>
           <td><b>鼬鳚</b></td>
@@ -1575,8 +1570,8 @@
           <td class="num">2.192%</td>
           <td class="num">45.6</td>
           <td class="num"><b>1.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.17 年</td>
-          <td class="num">8.7 天</td>
+          <td class="num" style="color:#e8595c">6.1 天</td>
+          <td class="num">2.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">4</td>
           <td><b>银斧鱼</b></td>
@@ -1585,8 +1580,8 @@
           <td class="num">2.170%</td>
           <td class="num">46.1</td>
           <td class="num"><b>1.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.17 年</td>
-          <td class="num">8.8 天</td>
+          <td class="num" style="color:#e8595c">6.1 天</td>
+          <td class="num">2.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">5</td>
           <td><b>帆蜥鱼</b></td>
@@ -1595,8 +1590,8 @@
           <td class="num">2.125%</td>
           <td class="num">47.1</td>
           <td class="num"><b>1.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.17 年</td>
-          <td class="num">8.9 天</td>
+          <td class="num" style="color:#e8595c">6.3 天</td>
+          <td class="num">2.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">6</td>
           <td><b>深海鲷</b></td>
@@ -1605,8 +1600,8 @@
           <td class="num">2.102%</td>
           <td class="num">47.6</td>
           <td class="num"><b>1.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.17 年</td>
-          <td class="num">9.0 天</td>
+          <td class="num" style="color:#e8595c">6.3 天</td>
+          <td class="num">2.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">7</td>
           <td><b>管眼鱼</b></td>
@@ -1615,8 +1610,8 @@
           <td class="num">2.057%</td>
           <td class="num">48.6</td>
           <td class="num"><b>1.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.18 年</td>
-          <td class="num">9.2 天</td>
+          <td class="num" style="color:#e8595c">6.5 天</td>
+          <td class="num">2.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">8</td>
           <td><b>幽灵鳍鱼</b></td>
@@ -1625,8 +1620,8 @@
           <td class="num">2.034%</td>
           <td class="num">49.2</td>
           <td class="num"><b>1.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.18 年</td>
-          <td class="num">9.3 天</td>
+          <td class="num" style="color:#e8595c">6.5 天</td>
+          <td class="num">2.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">9</td>
           <td><b>黑叉齿鱼</b></td>
@@ -1635,8 +1630,8 @@
           <td class="num">2.012%</td>
           <td class="num">49.7</td>
           <td class="num"><b>1.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.18 年</td>
-          <td class="num">9.4 天</td>
+          <td class="num" style="color:#e8595c">6.6 天</td>
+          <td class="num">2.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">10</td>
           <td><b>尖牙鱼</b></td>
@@ -1645,8 +1640,8 @@
           <td class="num">1.966%</td>
           <td class="num">50.9</td>
           <td class="num"><b>1.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.19 年</td>
-          <td class="num">9.7 天</td>
+          <td class="num" style="color:#e8595c">6.8 天</td>
+          <td class="num">2.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">11</td>
           <td><b>后肛鱼</b></td>
@@ -1655,8 +1650,8 @@
           <td class="num">1.944%</td>
           <td class="num">51.4</td>
           <td class="num"><b>1.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.19 年</td>
-          <td class="num">9.8 天</td>
+          <td class="num" style="color:#e8595c">6.8 天</td>
+          <td class="num">2.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">12</td>
           <td><b>深海狗母鱼</b></td>
@@ -1665,8 +1660,8 @@
           <td class="num">1.921%</td>
           <td class="num">52.1</td>
           <td class="num"><b>1.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.19 年</td>
-          <td class="num">9.9 天</td>
+          <td class="num" style="color:#e8595c">6.9 天</td>
+          <td class="num">2.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">13</td>
           <td><b>囊鳃鳗</b></td>
@@ -1675,8 +1670,8 @@
           <td class="num">1.876%</td>
           <td class="num">53.3</td>
           <td class="num"><b>1.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.19 年</td>
-          <td class="num">10.1 天</td>
+          <td class="num" style="color:#e8595c">7.1 天</td>
+          <td class="num">2.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">14</td>
           <td><b>深海鳐</b></td>
@@ -1685,8 +1680,8 @@
           <td class="num">1.853%</td>
           <td class="num">54.0</td>
           <td class="num"><b>1.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.20 年</td>
-          <td class="num">10.3 天</td>
+          <td class="num" style="color:#e8595c">7.2 天</td>
+          <td class="num">2.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">15</td>
           <td><b>深海鲽</b></td>
@@ -1695,8 +1690,8 @@
           <td class="num">1.831%</td>
           <td class="num">54.6</td>
           <td class="num"><b>1.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.20 年</td>
-          <td class="num">10.4 天</td>
+          <td class="num" style="color:#e8595c">7.3 天</td>
+          <td class="num">2.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">16</td>
           <td><b>灯塔水母</b></td>
@@ -1705,8 +1700,8 @@
           <td class="num">1.808%</td>
           <td class="num">55.3</td>
           <td class="num"><b>1.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.20 年</td>
-          <td class="num">10.5 天</td>
+          <td class="num" style="color:#e8595c">7.4 天</td>
+          <td class="num">2.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">17</td>
           <td><b>深海水母</b></td>
@@ -1715,8 +1710,8 @@
           <td class="num">1.785%</td>
           <td class="num">56.0</td>
           <td class="num"><b>1.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.20 年</td>
-          <td class="num">10.6 天</td>
+          <td class="num" style="color:#e8595c">7.4 天</td>
+          <td class="num">2.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">18</td>
           <td><b>栉水母</b></td>
@@ -1725,8 +1720,8 @@
           <td class="num">1.740%</td>
           <td class="num">57.5</td>
           <td class="num"><b>1.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.21 年</td>
-          <td class="num">10.9 天</td>
+          <td class="num" style="color:#e8595c">7.6 天</td>
+          <td class="num">2.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">19</td>
           <td><b>海猪</b></td>
@@ -1735,8 +1730,8 @@
           <td class="num">1.718%</td>
           <td class="num">58.2</td>
           <td class="num"><b>1.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.21 年</td>
-          <td class="num">11.1 天</td>
+          <td class="num" style="color:#e8595c">7.7 天</td>
+          <td class="num">2.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">20</td>
           <td><b>海蛇尾</b></td>
@@ -1745,8 +1740,8 @@
           <td class="num">1.695%</td>
           <td class="num">59.0</td>
           <td class="num"><b>1.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.21 年</td>
-          <td class="num">11.2 天</td>
+          <td class="num" style="color:#e8595c">7.8 天</td>
+          <td class="num">2.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">21</td>
           <td><b>巨型等足虫</b></td>
@@ -1755,8 +1750,8 @@
           <td class="num">1.672%</td>
           <td class="num">59.8</td>
           <td class="num"><b>1.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.22 年</td>
-          <td class="num">11.4 天</td>
+          <td class="num" style="color:#e8595c">8.0 天</td>
+          <td class="num">2.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">22</td>
           <td><b>管虫</b></td>
@@ -1765,8 +1760,8 @@
           <td class="num">1.650%</td>
           <td class="num">60.6</td>
           <td class="num"><b>1.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.22 年</td>
-          <td class="num">11.5 天</td>
+          <td class="num" style="color:#e8595c">8.1 天</td>
+          <td class="num">2.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">23</td>
           <td><b>深海虾虎</b></td>
@@ -1775,8 +1770,8 @@
           <td class="num">1.627%</td>
           <td class="num">61.5</td>
           <td class="num"><b>2.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.22 年</td>
-          <td class="num">11.7 天</td>
+          <td class="num" style="color:#e8595c">8.2 天</td>
+          <td class="num">2.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">24</td>
           <td><b>无光鳕</b></td>
@@ -1785,8 +1780,8 @@
           <td class="num">1.605%</td>
           <td class="num">62.3</td>
           <td class="num"><b>2.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.23 年</td>
-          <td class="num">11.8 天</td>
+          <td class="num" style="color:#e8595c">8.3 天</td>
+          <td class="num">2.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">25</td>
           <td><b>鮟鱇鱼</b></td>
@@ -1795,8 +1790,8 @@
           <td class="num">2.452%</td>
           <td class="num">40.8</td>
           <td class="num"><b>1.3 小时</b></td>
-          <td class="num" style="color:#e8595c">54.2 天</td>
-          <td class="num">7.7 天</td>
+          <td class="num" style="color:#e8595c">5.4 天</td>
+          <td class="num">43.4 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">26</td>
           <td><b>角鮟鱇</b></td>
@@ -1805,8 +1800,8 @@
           <td class="num">2.354%</td>
           <td class="num">42.5</td>
           <td class="num"><b>1.4 小时</b></td>
-          <td class="num" style="color:#e8595c">56.5 天</td>
-          <td class="num">8.1 天</td>
+          <td class="num" style="color:#e8595c">5.6 天</td>
+          <td class="num">45.2 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">27</td>
           <td><b>树须鱼</b></td>
@@ -1815,8 +1810,8 @@
           <td class="num">2.256%</td>
           <td class="num">44.3</td>
           <td class="num"><b>1.4 小时</b></td>
-          <td class="num" style="color:#e8595c">59.0 天</td>
-          <td class="num">8.4 天</td>
+          <td class="num" style="color:#e8595c">5.9 天</td>
+          <td class="num">47.2 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">28</td>
           <td><b>深海章鱼</b></td>
@@ -1825,8 +1820,8 @@
           <td class="num">2.158%</td>
           <td class="num">46.3</td>
           <td class="num"><b>1.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.17 年</td>
-          <td class="num">8.8 天</td>
+          <td class="num" style="color:#e8595c">6.2 天</td>
+          <td class="num">2.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">29</td>
           <td><b>吸血乌贼</b></td>
@@ -1835,8 +1830,8 @@
           <td class="num">2.060%</td>
           <td class="num">48.5</td>
           <td class="num"><b>1.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.18 年</td>
-          <td class="num">9.2 天</td>
+          <td class="num" style="color:#e8595c">6.5 天</td>
+          <td class="num">2.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">30</td>
           <td><b>幽灵蛸</b></td>
@@ -1845,8 +1840,8 @@
           <td class="num">1.962%</td>
           <td class="num">51.0</td>
           <td class="num"><b>1.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.19 年</td>
-          <td class="num">9.7 天</td>
+          <td class="num" style="color:#e8595c">6.8 天</td>
+          <td class="num">2.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">31</td>
           <td><b>皱鳃鲨</b></td>
@@ -1855,8 +1850,8 @@
           <td class="num">1.888%</td>
           <td class="num">53.0</td>
           <td class="num"><b>1.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.19 年</td>
-          <td class="num">10.1 天</td>
+          <td class="num" style="color:#e8595c">7.0 天</td>
+          <td class="num">2.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">32</td>
           <td><b>雪茄达摩鲨</b></td>
@@ -1865,8 +1860,8 @@
           <td class="num">1.815%</td>
           <td class="num">55.1</td>
           <td class="num"><b>1.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.20 年</td>
-          <td class="num">10.5 天</td>
+          <td class="num" style="color:#e8595c">7.3 天</td>
+          <td class="num">2.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">33</td>
           <td><b>六鳃鲨</b></td>
@@ -1875,8 +1870,8 @@
           <td class="num">1.741%</td>
           <td class="num">57.4</td>
           <td class="num"><b>1.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.21 年</td>
-          <td class="num">10.9 天</td>
+          <td class="num" style="color:#e8595c">7.6 天</td>
+          <td class="num">2.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">34</td>
           <td><b>深海龙鱼</b></td>
@@ -1885,8 +1880,8 @@
           <td class="num">1.668%</td>
           <td class="num">60.0</td>
           <td class="num"><b>1.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.22 年</td>
-          <td class="num">11.4 天</td>
+          <td class="num" style="color:#e8595c">8.0 天</td>
+          <td class="num">2.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">35</td>
           <td><b>深海银鲛</b></td>
@@ -1895,8 +1890,8 @@
           <td class="num">1.594%</td>
           <td class="num">62.7</td>
           <td class="num"><b>2.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.23 年</td>
-          <td class="num">11.9 天</td>
+          <td class="num" style="color:#e8595c">8.3 天</td>
+          <td class="num">2.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">36</td>
           <td><b>单棘魨</b></td>
@@ -1905,8 +1900,8 @@
           <td class="num">1.521%</td>
           <td class="num">65.8</td>
           <td class="num"><b>2.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.24 年</td>
-          <td class="num">12.5 天</td>
+          <td class="num" style="color:#e8595c">8.7 天</td>
+          <td class="num">2.9 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">37</td>
           <td><b>蓝环章鱼</b></td>
@@ -1915,8 +1910,8 @@
           <td class="num">1.447%</td>
           <td class="num">69.1</td>
           <td class="num"><b>2.2 小时</b></td>
-          <td class="num" style="color:#e8595c">0.25 年</td>
-          <td class="num">13.1 天</td>
+          <td class="num" style="color:#e8595c">9.2 天</td>
+          <td class="num">3.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">38</td>
           <td><b>巨口鳗</b></td>
@@ -1925,8 +1920,8 @@
           <td class="num">1.398%</td>
           <td class="num">71.5</td>
           <td class="num"><b>2.3 小时</b></td>
-          <td class="num" style="color:#e8595c">0.26 年</td>
-          <td class="num">13.6 天</td>
+          <td class="num" style="color:#e8595c">9.5 天</td>
+          <td class="num">3.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">39</td>
           <td><b>黑柔骨鱼</b></td>
@@ -1935,8 +1930,8 @@
           <td class="num">1.324%</td>
           <td class="num">75.5</td>
           <td class="num"><b>2.4 小时</b></td>
-          <td class="num" style="color:#e8595c">0.28 年</td>
-          <td class="num">14.3 天</td>
+          <td class="num" style="color:#e8595c">10.0 天</td>
+          <td class="num">3.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">40</td>
           <td><b>深海水母王</b></td>
@@ -1945,8 +1940,8 @@
           <td class="num">1.275%</td>
           <td class="num">78.4</td>
           <td class="num"><b>2.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.29 年</td>
-          <td class="num">14.9 天</td>
+          <td class="num" style="color:#e8595c">10.4 天</td>
+          <td class="num">3.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">41</td>
           <td><b>皇带鱼</b></td>
@@ -1955,8 +1950,8 @@
           <td class="num">2.381%</td>
           <td class="num">42.0</td>
           <td class="num"><b>1.3 小时</b></td>
-          <td class="num" style="color:#e8595c">55.9 天</td>
-          <td class="num">8.0 天</td>
+          <td class="num" style="color:#e8595c">5.6 天</td>
+          <td class="num">44.7 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">42</td>
           <td><b>巨口鲨</b></td>
@@ -1965,8 +1960,8 @@
           <td class="num">2.071%</td>
           <td class="num">48.3</td>
           <td class="num"><b>1.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.18 年</td>
-          <td class="num">9.2 天</td>
+          <td class="num" style="color:#e8595c">6.4 天</td>
+          <td class="num">2.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">43</td>
           <td><b>格陵兰鲨</b></td>
@@ -1975,8 +1970,8 @@
           <td class="num">1.809%</td>
           <td class="num">55.3</td>
           <td class="num"><b>1.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.20 年</td>
-          <td class="num">10.5 天</td>
+          <td class="num" style="color:#e8595c">7.4 天</td>
+          <td class="num">2.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">44</td>
           <td><b>大王酸浆鱿</b></td>
@@ -1985,8 +1980,8 @@
           <td class="num">1.571%</td>
           <td class="num">63.6</td>
           <td class="num"><b>2.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.23 年</td>
-          <td class="num">12.1 天</td>
+          <td class="num" style="color:#e8595c">8.5 天</td>
+          <td class="num">2.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">45</td>
           <td><b>小头睡鲨</b></td>
@@ -1995,8 +1990,8 @@
           <td class="num">1.381%</td>
           <td class="num">72.4</td>
           <td class="num"><b>2.3 小时</b></td>
-          <td class="num" style="color:#e8595c">0.26 年</td>
-          <td class="num">13.8 天</td>
+          <td class="num" style="color:#e8595c">9.6 天</td>
+          <td class="num">3.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">46</td>
           <td><b>太平洋睡鲨</b></td>
@@ -2005,8 +2000,8 @@
           <td class="num">1.190%</td>
           <td class="num">84.0</td>
           <td class="num"><b>2.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.31 年</td>
-          <td class="num">16.0 天</td>
+          <td class="num" style="color:#e8595c">11.2 天</td>
+          <td class="num">3.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">47</td>
           <td><b>尖吻鲭鲨</b></td>
@@ -2015,8 +2010,8 @@
           <td class="num">1.048%</td>
           <td class="num">95.5</td>
           <td class="num"><b>3.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.35 年</td>
-          <td class="num">18.1 天</td>
+          <td class="num" style="color:#e8595c">12.7 天</td>
+          <td class="num">4.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">48</td>
           <td><b>深海巨型鳐</b></td>
@@ -2025,8 +2020,8 @@
           <td class="num">0.905%</td>
           <td class="num">111</td>
           <td class="num"><b>3.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.40 年</td>
-          <td class="num">21.0 天</td>
+          <td class="num" style="color:#e8595c">14.7 天</td>
+          <td class="num">4.9 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">49</td>
           <td><b>北极霞水母</b></td>
@@ -2035,8 +2030,8 @@
           <td class="num">0.786%</td>
           <td class="num">127</td>
           <td class="num"><b>4.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.46 年</td>
-          <td class="num">24.2 天</td>
+          <td class="num" style="color:#e8595c">16.9 天</td>
+          <td class="num">5.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">50</td>
           <td><b>深海鳚</b></td>
@@ -2045,8 +2040,8 @@
           <td class="num">1.582%</td>
           <td class="num">63.2</td>
           <td class="num"><b>2.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.23 年</td>
-          <td class="num">12.0 天</td>
+          <td class="num" style="color:#e8595c">8.4 天</td>
+          <td class="num">2.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">51</td>
           <td><b>黑口鱼</b></td>
@@ -2055,8 +2050,8 @@
           <td class="num">1.559%</td>
           <td class="num">64.1</td>
           <td class="num"><b>2.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.23 年</td>
-          <td class="num">12.2 天</td>
+          <td class="num" style="color:#e8595c">8.5 天</td>
+          <td class="num">2.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">52</td>
           <td><b>巨尾鱼</b></td>
@@ -2065,8 +2060,8 @@
           <td class="num">1.537%</td>
           <td class="num">65.1</td>
           <td class="num"><b>2.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.24 年</td>
-          <td class="num">12.4 天</td>
+          <td class="num" style="color:#e8595c">8.7 天</td>
+          <td class="num">2.9 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">53</td>
           <td><b>褶胸鱼</b></td>
@@ -2075,8 +2070,8 @@
           <td class="num">1.492%</td>
           <td class="num">67.0</td>
           <td class="num"><b>2.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.24 年</td>
-          <td class="num">12.7 天</td>
+          <td class="num" style="color:#e8595c">8.9 天</td>
+          <td class="num">3.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">54</td>
           <td><b>孔灯鱼</b></td>
@@ -2085,8 +2080,8 @@
           <td class="num">1.469%</td>
           <td class="num">68.1</td>
           <td class="num"><b>2.2 小时</b></td>
-          <td class="num" style="color:#e8595c">0.25 年</td>
-          <td class="num">12.9 天</td>
+          <td class="num" style="color:#e8595c">9.1 天</td>
+          <td class="num">3.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">55</td>
           <td><b>大鳍后肛鱼</b></td>
@@ -2095,8 +2090,8 @@
           <td class="num">1.469%</td>
           <td class="num">68.1</td>
           <td class="num"><b>2.2 小时</b></td>
-          <td class="num" style="color:#e8595c">0.25 年</td>
-          <td class="num">12.9 天</td>
+          <td class="num" style="color:#e8595c">9.1 天</td>
+          <td class="num">3.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">56</td>
           <td><b>狼牙鲷</b></td>
@@ -2105,8 +2100,8 @@
           <td class="num">1.226%</td>
           <td class="num">81.5</td>
           <td class="num"><b>2.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.30 年</td>
-          <td class="num">15.5 天</td>
+          <td class="num" style="color:#e8595c">10.8 天</td>
+          <td class="num">3.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">57</td>
           <td><b>角高体金眼鲷</b></td>
@@ -2115,8 +2110,8 @@
           <td class="num">1.177%</td>
           <td class="num">84.9</td>
           <td class="num"><b>2.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.31 年</td>
-          <td class="num">16.1 天</td>
+          <td class="num" style="color:#e8595c">11.3 天</td>
+          <td class="num">3.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">58</td>
           <td><b>海沟幽灵·大王乌贼</b></td>
@@ -2125,8 +2120,8 @@
           <td class="num">0.205%</td>
           <td class="num">488</td>
           <td class="num"><b>15.6 小时</b></td>
-          <td class="num" style="color:#e8595c">1.78 年</td>
-          <td class="num">0.25 年</td>
+          <td class="num" style="color:#e8595c">0.18 年</td>
+          <td class="num">21.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">59</td>
           <td><b>海沟幽魂·无光鲸</b></td>
@@ -2135,8 +2130,8 @@
           <td class="num">0.139%</td>
           <td class="num">718</td>
           <td class="num"><b>22.9 小时</b></td>
-          <td class="num" style="color:#e8595c">3 年</td>
-          <td class="num">0.37 年</td>
+          <td class="num" style="color:#e8595c">0.26 年</td>
+          <td class="num">31.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">60</td>
           <td><b>海沟之主·深渊巨鲨</b></td>
@@ -2145,8 +2140,8 @@
           <td class="num">0.096%</td>
           <td class="num">1,039</td>
           <td class="num"><b>33.2 小时</b></td>
-          <td class="num" style="color:#e8595c">4 年</td>
-          <td class="num">0.54 年</td>
+          <td class="num" style="color:#e8595c">0.38 年</td>
+          <td class="num">46.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">61</td>
           <td><b>幽蓝海心·鬼灯笼</b></td>
@@ -2155,8 +2150,8 @@
           <td class="num">0.066%</td>
           <td class="num">1,526</td>
           <td class="num"><b>2.0 天</b></td>
-          <td class="num" style="color:#e8595c">6 年</td>
-          <td class="num">0.79 年</td>
+          <td class="num" style="color:#e8595c">0.56 年</td>
+          <td class="num">0.19 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">62</td>
           <td><b>海沟终焉·原始巨口鲨</b></td>
@@ -2165,8 +2160,8 @@
           <td class="num">0.045%</td>
           <td class="num">2,219</td>
           <td class="num"><b>3.0 天</b></td>
-          <td class="num" style="color:#e8595c">8 年</td>
-          <td class="num">1.16 年</td>
+          <td class="num" style="color:#e8595c">0.81 年</td>
+          <td class="num">0.27 年</td>
         </tr>
     </table>
     </div>
@@ -2180,15 +2175,15 @@
   <div class="card">
     <div class="kpis">
       <div class="kpi"><b>5.5 天</b><span>收齐全部品种（80 种）</span></div>
-      <div class="kpi"><b style="color:#e8595c">15 年</b><span>连颜色一起收齐（480 组合）</span></div>
-      <div class="kpi"><b>41.7 天</b><span>颜色带来的放大倍数</span></div>
+      <div class="kpi"><b style="color:#e8595c">1.54 年</b><span>连颜色一起收齐（400 组合）</span></div>
+      <div class="kpi"><b>×101.9</b><span>颜色带来的放大倍数</span></div>
     </div>
     <div class="scroll">
     <table>
       <tr>
         <th>#</th><th>鱼名</th><th>稀有度</th><th>体型</th>
         <th class="num">单竿概率</th><th class="num">期望竿数</th><th class="num">期望时间</th>
-        <th class="num">该鱼闪光<br>(0.1%)</th><th class="num">该鱼黄金<br>(0.7%)</th>
+        <th class="num">该鱼闪光<br>(1%)</th><th class="num">该鱼黄金<br>(3%)</th>
       </tr>
       <tr>
           <td class="num" style="color:var(--ink3)">1</td>
@@ -2198,8 +2193,8 @@
           <td class="num">2.268%</td>
           <td class="num">44.1</td>
           <td class="num"><b>1.4 小时</b></td>
-          <td class="num" style="color:#e8595c">56.5 天</td>
-          <td class="num">8.1 天</td>
+          <td class="num" style="color:#e8595c">5.7 天</td>
+          <td class="num">45.2 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">2</td>
           <td><b>陨铁鲷</b></td>
@@ -2208,8 +2203,8 @@
           <td class="num">2.245%</td>
           <td class="num">44.5</td>
           <td class="num"><b>1.4 小时</b></td>
-          <td class="num" style="color:#e8595c">57.1 天</td>
-          <td class="num">8.2 天</td>
+          <td class="num" style="color:#e8595c">5.7 天</td>
+          <td class="num">45.7 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">3</td>
           <td><b>真空鳐</b></td>
@@ -2218,8 +2213,8 @@
           <td class="num">2.222%</td>
           <td class="num">45.0</td>
           <td class="num"><b>1.4 小时</b></td>
-          <td class="num" style="color:#e8595c">57.7 天</td>
-          <td class="num">8.2 天</td>
+          <td class="num" style="color:#e8595c">5.8 天</td>
+          <td class="num">46.2 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">4</td>
           <td><b>深海星鳗</b></td>
@@ -2228,8 +2223,8 @@
           <td class="num">2.200%</td>
           <td class="num">45.5</td>
           <td class="num"><b>1.4 小时</b></td>
-          <td class="num" style="color:#e8595c">58.3 天</td>
-          <td class="num">8.3 天</td>
+          <td class="num" style="color:#e8595c">5.8 天</td>
+          <td class="num">46.6 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">5</td>
           <td><b>冷光鮟鱇</b></td>
@@ -2238,8 +2233,8 @@
           <td class="num">2.154%</td>
           <td class="num">46.4</td>
           <td class="num"><b>1.4 小时</b></td>
-          <td class="num" style="color:#e8595c">59.5 天</td>
-          <td class="num">8.5 天</td>
+          <td class="num" style="color:#e8595c">6.0 天</td>
+          <td class="num">47.6 小时</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">6</td>
           <td><b>幽蓝水母</b></td>
@@ -2248,8 +2243,8 @@
           <td class="num">2.132%</td>
           <td class="num">46.9</td>
           <td class="num"><b>1.4 小时</b></td>
-          <td class="num" style="color:#e8595c">0.16 年</td>
-          <td class="num">8.6 天</td>
+          <td class="num" style="color:#e8595c">6.0 天</td>
+          <td class="num">2.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">7</td>
           <td><b>陨尘鲳</b></td>
@@ -2258,8 +2253,8 @@
           <td class="num">2.109%</td>
           <td class="num">47.4</td>
           <td class="num"><b>1.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.17 年</td>
-          <td class="num">8.7 天</td>
+          <td class="num" style="color:#e8595c">6.1 天</td>
+          <td class="num">2.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">8</td>
           <td><b>暗星鲷</b></td>
@@ -2268,8 +2263,8 @@
           <td class="num">2.086%</td>
           <td class="num">47.9</td>
           <td class="num"><b>1.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.17 年</td>
-          <td class="num">8.8 天</td>
+          <td class="num" style="color:#e8595c">6.1 天</td>
+          <td class="num">2.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">9</td>
           <td><b>星尘鳀</b></td>
@@ -2278,8 +2273,8 @@
           <td class="num">2.064%</td>
           <td class="num">48.5</td>
           <td class="num"><b>1.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.17 年</td>
-          <td class="num">8.9 天</td>
+          <td class="num" style="color:#e8595c">6.2 天</td>
+          <td class="num">2.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">10</td>
           <td><b>陨砾鲹</b></td>
@@ -2288,8 +2283,8 @@
           <td class="num">2.041%</td>
           <td class="num">49.0</td>
           <td class="num"><b>1.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.17 年</td>
-          <td class="num">9.0 天</td>
+          <td class="num" style="color:#e8595c">6.3 天</td>
+          <td class="num">2.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">11</td>
           <td><b>星纹鲷</b></td>
@@ -2298,8 +2293,8 @@
           <td class="num">2.018%</td>
           <td class="num">49.5</td>
           <td class="num"><b>1.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.17 年</td>
-          <td class="num">9.1 天</td>
+          <td class="num" style="color:#e8595c">6.4 天</td>
+          <td class="num">2.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">12</td>
           <td><b>陨星鲈</b></td>
@@ -2308,8 +2303,8 @@
           <td class="num">1.996%</td>
           <td class="num">50.1</td>
           <td class="num"><b>1.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.18 年</td>
-          <td class="num">9.2 天</td>
+          <td class="num" style="color:#e8595c">6.4 天</td>
+          <td class="num">2.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">13</td>
           <td><b>微光鳕</b></td>
@@ -2318,8 +2313,8 @@
           <td class="num">1.973%</td>
           <td class="num">50.7</td>
           <td class="num"><b>1.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.18 年</td>
-          <td class="num">9.3 天</td>
+          <td class="num" style="color:#e8595c">6.5 天</td>
+          <td class="num">2.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">14</td>
           <td><b>星屑鰕虎</b></td>
@@ -2328,8 +2323,8 @@
           <td class="num">1.950%</td>
           <td class="num">51.3</td>
           <td class="num"><b>1.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.18 年</td>
-          <td class="num">9.4 天</td>
+          <td class="num" style="color:#e8595c">6.6 天</td>
+          <td class="num">2.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">15</td>
           <td><b>陨砂鳉</b></td>
@@ -2338,8 +2333,8 @@
           <td class="num">1.927%</td>
           <td class="num">51.9</td>
           <td class="num"><b>1.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.18 年</td>
-          <td class="num">9.5 天</td>
+          <td class="num" style="color:#e8595c">6.7 天</td>
+          <td class="num">2.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">16</td>
           <td><b>幽星鲽</b></td>
@@ -2348,8 +2343,8 @@
           <td class="num">1.905%</td>
           <td class="num">52.5</td>
           <td class="num"><b>1.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.18 年</td>
-          <td class="num">9.6 天</td>
+          <td class="num" style="color:#e8595c">6.7 天</td>
+          <td class="num">2.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">17</td>
           <td><b>星尘水母</b></td>
@@ -2358,8 +2353,8 @@
           <td class="num">1.882%</td>
           <td class="num">53.1</td>
           <td class="num"><b>1.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.19 年</td>
-          <td class="num">9.7 天</td>
+          <td class="num" style="color:#e8595c">6.8 天</td>
+          <td class="num">2.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">18</td>
           <td><b>陨石鳃</b></td>
@@ -2368,8 +2363,8 @@
           <td class="num">1.859%</td>
           <td class="num">53.8</td>
           <td class="num"><b>1.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.19 年</td>
-          <td class="num">9.9 天</td>
+          <td class="num" style="color:#e8595c">6.9 天</td>
+          <td class="num">2.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">19</td>
           <td><b>夜辉鳗</b></td>
@@ -2378,8 +2373,8 @@
           <td class="num">1.837%</td>
           <td class="num">54.4</td>
           <td class="num"><b>1.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.19 年</td>
-          <td class="num">10.0 天</td>
+          <td class="num" style="color:#e8595c">7.0 天</td>
+          <td class="num">2.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">20</td>
           <td><b>碎星魟</b></td>
@@ -2388,8 +2383,8 @@
           <td class="num">1.814%</td>
           <td class="num">55.1</td>
           <td class="num"><b>1.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.19 年</td>
-          <td class="num">10.1 天</td>
+          <td class="num" style="color:#e8595c">7.1 天</td>
+          <td class="num">2.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">21</td>
           <td><b>寂静鲳</b></td>
@@ -2398,8 +2393,8 @@
           <td class="num">1.791%</td>
           <td class="num">55.8</td>
           <td class="num"><b>1.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.20 年</td>
-          <td class="num">10.2 天</td>
+          <td class="num" style="color:#e8595c">7.2 天</td>
+          <td class="num">2.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">22</td>
           <td><b>霜鳞鲑</b></td>
@@ -2408,8 +2403,8 @@
           <td class="num">1.769%</td>
           <td class="num">56.5</td>
           <td class="num"><b>1.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.20 年</td>
-          <td class="num">10.4 天</td>
+          <td class="num" style="color:#e8595c">7.2 天</td>
+          <td class="num">2.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">23</td>
           <td><b>幻影鲽</b></td>
@@ -2418,8 +2413,8 @@
           <td class="num">1.746%</td>
           <td class="num">57.3</td>
           <td class="num"><b>1.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.20 年</td>
-          <td class="num">10.5 天</td>
+          <td class="num" style="color:#e8595c">7.3 天</td>
+          <td class="num">2.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">24</td>
           <td><b>星屑海马</b></td>
@@ -2428,8 +2423,8 @@
           <td class="num">1.723%</td>
           <td class="num">58.0</td>
           <td class="num"><b>1.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.20 年</td>
-          <td class="num">10.6 天</td>
+          <td class="num" style="color:#e8595c">7.4 天</td>
+          <td class="num">2.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">25</td>
           <td><b>陨光鮟鱇</b></td>
@@ -2438,8 +2433,8 @@
           <td class="num">1.701%</td>
           <td class="num">58.8</td>
           <td class="num"><b>1.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.21 年</td>
-          <td class="num">10.8 天</td>
+          <td class="num" style="color:#e8595c">7.5 天</td>
+          <td class="num">2.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">26</td>
           <td><b>幽蓝鳞鲀</b></td>
@@ -2448,8 +2443,8 @@
           <td class="num">1.678%</td>
           <td class="num">59.6</td>
           <td class="num"><b>1.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.21 年</td>
-          <td class="num">10.9 天</td>
+          <td class="num" style="color:#e8595c">7.6 天</td>
+          <td class="num">2.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">27</td>
           <td><b>星砂鲽</b></td>
@@ -2458,8 +2453,8 @@
           <td class="num">1.655%</td>
           <td class="num">60.4</td>
           <td class="num"><b>1.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.21 年</td>
-          <td class="num">11.1 天</td>
+          <td class="num" style="color:#e8595c">7.7 天</td>
+          <td class="num">2.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">28</td>
           <td><b>陨纹金枪</b></td>
@@ -2468,8 +2463,8 @@
           <td class="num">1.655%</td>
           <td class="num">60.4</td>
           <td class="num"><b>1.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.21 年</td>
-          <td class="num">11.1 天</td>
+          <td class="num" style="color:#e8595c">7.7 天</td>
+          <td class="num">2.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">29</td>
           <td><b>夜穹旗鱼</b></td>
@@ -2478,8 +2473,8 @@
           <td class="num">1.633%</td>
           <td class="num">61.2</td>
           <td class="num"><b>1.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.22 年</td>
-          <td class="num">11.2 天</td>
+          <td class="num" style="color:#e8595c">7.9 天</td>
+          <td class="num">2.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">30</td>
           <td><b>星耀鲹</b></td>
@@ -2488,8 +2483,8 @@
           <td class="num">1.610%</td>
           <td class="num">62.1</td>
           <td class="num"><b>1.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.22 年</td>
-          <td class="num">11.4 天</td>
+          <td class="num" style="color:#e8595c">8.0 天</td>
+          <td class="num">2.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">31</td>
           <td><b>虚空鳗</b></td>
@@ -2498,8 +2493,8 @@
           <td class="num">1.323%</td>
           <td class="num">75.6</td>
           <td class="num"><b>2.3 小时</b></td>
-          <td class="num" style="color:#e8595c">0.27 年</td>
-          <td class="num">13.8 天</td>
+          <td class="num" style="color:#e8595c">9.7 天</td>
+          <td class="num">3.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">32</td>
           <td><b>陨光海蛇</b></td>
@@ -2508,8 +2503,8 @@
           <td class="num">1.283%</td>
           <td class="num">77.9</td>
           <td class="num"><b>2.4 小时</b></td>
-          <td class="num" style="color:#e8595c">0.27 年</td>
-          <td class="num">14.3 天</td>
+          <td class="num" style="color:#e8595c">10.0 天</td>
+          <td class="num">3.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">33</td>
           <td><b>星云鳐</b></td>
@@ -2518,8 +2513,8 @@
           <td class="num">1.230%</td>
           <td class="num">81.3</td>
           <td class="num"><b>2.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.29 年</td>
-          <td class="num">14.9 天</td>
+          <td class="num" style="color:#e8595c">10.4 天</td>
+          <td class="num">3.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">34</td>
           <td><b>渊影鲛</b></td>
@@ -2528,8 +2523,8 @@
           <td class="num">1.191%</td>
           <td class="num">84.0</td>
           <td class="num"><b>2.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.30 年</td>
-          <td class="num">15.4 天</td>
+          <td class="num" style="color:#e8595c">10.8 天</td>
+          <td class="num">3.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">35</td>
           <td><b>深星章鱼</b></td>
@@ -2538,8 +2533,8 @@
           <td class="num">1.151%</td>
           <td class="num">86.9</td>
           <td class="num"><b>2.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.31 年</td>
-          <td class="num">15.9 天</td>
+          <td class="num" style="color:#e8595c">11.1 天</td>
+          <td class="num">3.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">36</td>
           <td><b>陨落灯笼</b></td>
@@ -2548,8 +2543,8 @@
           <td class="num">1.111%</td>
           <td class="num">90.0</td>
           <td class="num"><b>2.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.32 年</td>
-          <td class="num">16.5 天</td>
+          <td class="num" style="color:#e8595c">11.5 天</td>
+          <td class="num">3.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">37</td>
           <td><b>星蚀鲷</b></td>
@@ -2558,8 +2553,8 @@
           <td class="num">1.072%</td>
           <td class="num">93.3</td>
           <td class="num"><b>2.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.33 年</td>
-          <td class="num">17.1 天</td>
+          <td class="num" style="color:#e8595c">12.0 天</td>
+          <td class="num">4.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">38</td>
           <td><b>虚时鲳</b></td>
@@ -2568,8 +2563,8 @@
           <td class="num">1.032%</td>
           <td class="num">96.9</td>
           <td class="num"><b>3.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.34 年</td>
-          <td class="num">17.8 天</td>
+          <td class="num" style="color:#e8595c">12.4 天</td>
+          <td class="num">4.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">39</td>
           <td><b>碎陨皇带</b></td>
@@ -2578,8 +2573,8 @@
           <td class="num">0.992%</td>
           <td class="num">101</td>
           <td class="num"><b>3.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.35 年</td>
-          <td class="num">18.5 天</td>
+          <td class="num" style="color:#e8595c">12.9 天</td>
+          <td class="num">4.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">40</td>
           <td><b>星纱水母</b></td>
@@ -2588,8 +2583,8 @@
           <td class="num">0.966%</td>
           <td class="num">104</td>
           <td class="num"><b>3.2 小时</b></td>
-          <td class="num" style="color:#e8595c">0.36 年</td>
-          <td class="num">19.0 天</td>
+          <td class="num" style="color:#e8595c">13.3 天</td>
+          <td class="num">4.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">41</td>
           <td><b>幽暗龙鱼</b></td>
@@ -2598,8 +2593,8 @@
           <td class="num">0.926%</td>
           <td class="num">108</td>
           <td class="num"><b>3.3 小时</b></td>
-          <td class="num" style="color:#e8595c">0.38 年</td>
-          <td class="num">19.8 天</td>
+          <td class="num" style="color:#e8595c">13.8 天</td>
+          <td class="num">4.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">42</td>
           <td><b>陨核鲽</b></td>
@@ -2608,8 +2603,8 @@
           <td class="num">0.900%</td>
           <td class="num">111</td>
           <td class="num"><b>3.4 小时</b></td>
-          <td class="num" style="color:#e8595c">0.39 年</td>
-          <td class="num">20.4 天</td>
+          <td class="num" style="color:#e8595c">14.3 天</td>
+          <td class="num">4.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">43</td>
           <td><b>虚光鮟鱇</b></td>
@@ -2618,8 +2613,8 @@
           <td class="num">0.860%</td>
           <td class="num">116</td>
           <td class="num"><b>3.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.41 年</td>
-          <td class="num">21.3 天</td>
+          <td class="num" style="color:#e8595c">14.9 天</td>
+          <td class="num">5.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">44</td>
           <td><b>暗物质魟</b></td>
@@ -2628,8 +2623,8 @@
           <td class="num">0.834%</td>
           <td class="num">120</td>
           <td class="num"><b>3.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.42 年</td>
-          <td class="num">22.0 天</td>
+          <td class="num" style="color:#e8595c">15.4 天</td>
+          <td class="num">5.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">45</td>
           <td><b>星陨鳐</b></td>
@@ -2638,8 +2633,8 @@
           <td class="num">0.807%</td>
           <td class="num">124</td>
           <td class="num"><b>3.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.44 年</td>
-          <td class="num">22.7 天</td>
+          <td class="num" style="color:#e8595c">15.9 天</td>
+          <td class="num">5.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">46</td>
           <td><b>虚空鲛</b></td>
@@ -2648,8 +2643,8 @@
           <td class="num">0.781%</td>
           <td class="num">128</td>
           <td class="num"><b>3.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.45 年</td>
-          <td class="num">23.5 天</td>
+          <td class="num" style="color:#e8595c">16.4 天</td>
+          <td class="num">5.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">47</td>
           <td><b>陨星鲟</b></td>
@@ -2658,8 +2653,8 @@
           <td class="num">0.754%</td>
           <td class="num">133</td>
           <td class="num"><b>4.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.47 年</td>
-          <td class="num">24.3 天</td>
+          <td class="num" style="color:#e8595c">17.0 天</td>
+          <td class="num">5.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">48</td>
           <td><b>星屑章鱼</b></td>
@@ -2668,8 +2663,8 @@
           <td class="num">0.728%</td>
           <td class="num">137</td>
           <td class="num"><b>4.2 小时</b></td>
-          <td class="num" style="color:#e8595c">0.48 年</td>
-          <td class="num">25.2 天</td>
+          <td class="num" style="color:#e8595c">17.6 天</td>
+          <td class="num">5.9 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">49</td>
           <td><b>星陨旗鱼</b></td>
@@ -2678,8 +2673,8 @@
           <td class="num">1.058%</td>
           <td class="num">94.5</td>
           <td class="num"><b>2.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.33 年</td>
-          <td class="num">17.3 天</td>
+          <td class="num" style="color:#e8595c">12.1 天</td>
+          <td class="num">4.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">50</td>
           <td><b>星核龙鱼</b></td>
@@ -2688,8 +2683,8 @@
           <td class="num">0.973%</td>
           <td class="num">103</td>
           <td class="num"><b>3.2 小时</b></td>
-          <td class="num" style="color:#e8595c">0.36 年</td>
-          <td class="num">18.8 天</td>
+          <td class="num" style="color:#e8595c">13.2 天</td>
+          <td class="num">4.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">51</td>
           <td><b>裂空皇带鱼</b></td>
@@ -2698,8 +2693,8 @@
           <td class="num">0.889%</td>
           <td class="num">113</td>
           <td class="num"><b>3.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.40 年</td>
-          <td class="num">20.6 天</td>
+          <td class="num" style="color:#e8595c">14.4 天</td>
+          <td class="num">4.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">52</td>
           <td><b>渊眼巨鲨</b></td>
@@ -2708,8 +2703,8 @@
           <td class="num">0.825%</td>
           <td class="num">121</td>
           <td class="num"><b>3.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.43 年</td>
-          <td class="num">22.2 天</td>
+          <td class="num" style="color:#e8595c">15.5 天</td>
+          <td class="num">5.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">53</td>
           <td><b>陨落鲸</b></td>
@@ -2718,8 +2713,8 @@
           <td class="num">0.751%</td>
           <td class="num">133</td>
           <td class="num"><b>4.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.47 年</td>
-          <td class="num">24.4 天</td>
+          <td class="num" style="color:#e8595c">17.1 天</td>
+          <td class="num">5.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">54</td>
           <td><b>原初海蛇</b></td>
@@ -2728,8 +2723,8 @@
           <td class="num">0.698%</td>
           <td class="num">143</td>
           <td class="num"><b>4.4 小时</b></td>
-          <td class="num" style="color:#e8595c">0.50 年</td>
-          <td class="num">26.2 天</td>
+          <td class="num" style="color:#e8595c">18.4 天</td>
+          <td class="num">6.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">55</td>
           <td><b>星陨巨鱿</b></td>
@@ -2738,8 +2733,8 @@
           <td class="num">0.635%</td>
           <td class="num">158</td>
           <td class="num"><b>4.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.55 年</td>
-          <td class="num">28.9 天</td>
+          <td class="num" style="color:#e8595c">20.2 天</td>
+          <td class="num">6.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">56</td>
           <td><b>虚空水母王</b></td>
@@ -2748,8 +2743,8 @@
           <td class="num">0.582%</td>
           <td class="num">172</td>
           <td class="num"><b>5.3 小时</b></td>
-          <td class="num" style="color:#e8595c">0.60 年</td>
-          <td class="num">31.5 天</td>
+          <td class="num" style="color:#e8595c">22.0 天</td>
+          <td class="num">7.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">57</td>
           <td><b>陨铁巨口鲨</b></td>
@@ -2758,8 +2753,8 @@
           <td class="num">0.540%</td>
           <td class="num">185</td>
           <td class="num"><b>5.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.65 年</td>
-          <td class="num">33.9 天</td>
+          <td class="num" style="color:#e8595c">23.8 天</td>
+          <td class="num">7.9 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">58</td>
           <td><b>星蚀鳐王</b></td>
@@ -2768,8 +2763,8 @@
           <td class="num">0.497%</td>
           <td class="num">201</td>
           <td class="num"><b>6.2 小时</b></td>
-          <td class="num" style="color:#e8595c">0.71 年</td>
-          <td class="num">36.8 天</td>
+          <td class="num" style="color:#e8595c">25.8 天</td>
+          <td class="num">8.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">59</td>
           <td><b>陨光海龙</b></td>
@@ -2778,8 +2773,8 @@
           <td class="num">0.455%</td>
           <td class="num">220</td>
           <td class="num"><b>6.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.77 年</td>
-          <td class="num">40.3 天</td>
+          <td class="num" style="color:#e8595c">28.2 天</td>
+          <td class="num">9.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">60</td>
           <td><b>陨铁鲹</b></td>
@@ -2788,8 +2783,8 @@
           <td class="num">1.587%</td>
           <td class="num">63.0</td>
           <td class="num"><b>1.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.22 年</td>
-          <td class="num">11.5 天</td>
+          <td class="num" style="color:#e8595c">8.1 天</td>
+          <td class="num">2.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">61</td>
           <td><b>星脉鳉</b></td>
@@ -2798,8 +2793,8 @@
           <td class="num">1.565%</td>
           <td class="num">63.9</td>
           <td class="num"><b>2.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.22 年</td>
-          <td class="num">11.7 天</td>
+          <td class="num" style="color:#e8595c">8.2 天</td>
+          <td class="num">2.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">62</td>
           <td><b>虚空鲽</b></td>
@@ -2808,8 +2803,8 @@
           <td class="num">1.542%</td>
           <td class="num">64.9</td>
           <td class="num"><b>2.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.23 年</td>
-          <td class="num">11.9 天</td>
+          <td class="num" style="color:#e8595c">8.3 天</td>
+          <td class="num">2.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">63</td>
           <td><b>幽蓝鳀</b></td>
@@ -2818,8 +2813,8 @@
           <td class="num">1.542%</td>
           <td class="num">64.9</td>
           <td class="num"><b>2.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.23 年</td>
-          <td class="num">11.9 天</td>
+          <td class="num" style="color:#e8595c">8.3 天</td>
+          <td class="num">2.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">64</td>
           <td><b>星屑鲱</b></td>
@@ -2828,8 +2823,8 @@
           <td class="num">1.519%</td>
           <td class="num">65.8</td>
           <td class="num"><b>2.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.23 年</td>
-          <td class="num">12.1 天</td>
+          <td class="num" style="color:#e8595c">8.4 天</td>
+          <td class="num">2.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">65</td>
           <td><b>陨砂鲈</b></td>
@@ -2838,8 +2833,8 @@
           <td class="num">1.497%</td>
           <td class="num">66.8</td>
           <td class="num"><b>2.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.23 年</td>
-          <td class="num">12.2 天</td>
+          <td class="num" style="color:#e8595c">8.6 天</td>
+          <td class="num">2.9 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">66</td>
           <td><b>微弱鲳</b></td>
@@ -2848,8 +2843,8 @@
           <td class="num">1.474%</td>
           <td class="num">67.8</td>
           <td class="num"><b>2.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.24 年</td>
-          <td class="num">12.4 天</td>
+          <td class="num" style="color:#e8595c">8.7 天</td>
+          <td class="num">2.9 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">67</td>
           <td><b>暗礁鲷</b></td>
@@ -2858,8 +2853,8 @@
           <td class="num">1.474%</td>
           <td class="num">67.8</td>
           <td class="num"><b>2.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.24 年</td>
-          <td class="num">12.4 天</td>
+          <td class="num" style="color:#e8595c">8.7 天</td>
+          <td class="num">2.9 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">68</td>
           <td><b>星陨鳗</b></td>
@@ -2868,8 +2863,8 @@
           <td class="num">0.701%</td>
           <td class="num">143</td>
           <td class="num"><b>4.4 小时</b></td>
-          <td class="num" style="color:#e8595c">0.50 年</td>
-          <td class="num">26.1 天</td>
+          <td class="num" style="color:#e8595c">18.3 天</td>
+          <td class="num">6.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">69</td>
           <td><b>陨落魟</b></td>
@@ -2878,8 +2873,8 @@
           <td class="num">0.675%</td>
           <td class="num">148</td>
           <td class="num"><b>4.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.52 年</td>
-          <td class="num">27.1 天</td>
+          <td class="num" style="color:#e8595c">19.0 天</td>
+          <td class="num">6.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">70</td>
           <td><b>虚空鲳</b></td>
@@ -2888,8 +2883,8 @@
           <td class="num">0.648%</td>
           <td class="num">154</td>
           <td class="num"><b>4.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.54 年</td>
-          <td class="num">28.3 天</td>
+          <td class="num" style="color:#e8595c">19.8 天</td>
+          <td class="num">6.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">71</td>
           <td><b>星蚀鰕虎</b></td>
@@ -2898,8 +2893,8 @@
           <td class="num">0.635%</td>
           <td class="num">157</td>
           <td class="num"><b>4.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.55 年</td>
-          <td class="num">28.8 天</td>
+          <td class="num" style="color:#e8595c">20.2 天</td>
+          <td class="num">6.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">72</td>
           <td><b>陨铁巨鲛</b></td>
@@ -2908,8 +2903,8 @@
           <td class="num">0.413%</td>
           <td class="num">242</td>
           <td class="num"><b>7.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.85 年</td>
-          <td class="num">44.4 天</td>
+          <td class="num" style="color:#e8595c">31.1 天</td>
+          <td class="num">10.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">73</td>
           <td><b>星核皇带</b></td>
@@ -2918,8 +2913,8 @@
           <td class="num">0.381%</td>
           <td class="num">263</td>
           <td class="num"><b>8.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.92 年</td>
-          <td class="num">48.1 天</td>
+          <td class="num" style="color:#e8595c">33.7 天</td>
+          <td class="num">11.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">74</td>
           <td><b>幽蓝巨魟</b></td>
@@ -2928,8 +2923,8 @@
           <td class="num">0.349%</td>
           <td class="num">286</td>
           <td class="num"><b>8.8 小时</b></td>
-          <td class="num" style="color:#e8595c">1.01 年</td>
-          <td class="num">52.5 天</td>
+          <td class="num" style="color:#e8595c">36.7 天</td>
+          <td class="num">12.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">75</td>
           <td><b>星陨终焉·万象鲸</b></td>
@@ -2938,8 +2933,8 @@
           <td class="num">0.160%</td>
           <td class="num">625</td>
           <td class="num"><b>19.2 小时</b></td>
-          <td class="num" style="color:#e8595c">2 年</td>
-          <td class="num">0.31 年</td>
+          <td class="num" style="color:#e8595c">0.22 年</td>
+          <td class="num">26.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">76</td>
           <td><b>星陨之主·天鳞</b></td>
@@ -2948,8 +2943,8 @@
           <td class="num">0.118%</td>
           <td class="num">845</td>
           <td class="num"><b>26.0 小时</b></td>
-          <td class="num" style="color:#e8595c">3 年</td>
-          <td class="num">0.42 年</td>
+          <td class="num" style="color:#e8595c">0.30 年</td>
+          <td class="num">36.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">77</td>
           <td><b>渊底月神·银鳐</b></td>
@@ -2958,8 +2953,8 @@
           <td class="num">0.086%</td>
           <td class="num">1,158</td>
           <td class="num"><b>35.6 小时</b></td>
-          <td class="num" style="color:#e8595c">4 年</td>
-          <td class="num">0.58 年</td>
+          <td class="num" style="color:#e8595c">0.41 年</td>
+          <td class="num">49.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">78</td>
           <td><b>星陨王座·裂空皇带</b></td>
@@ -2968,8 +2963,8 @@
           <td class="num">0.064%</td>
           <td class="num">1,564</td>
           <td class="num"><b>2.0 天</b></td>
-          <td class="num" style="color:#e8595c">5 年</td>
-          <td class="num">0.78 年</td>
+          <td class="num" style="color:#e8595c">0.55 年</td>
+          <td class="num">0.18 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">79</td>
           <td><b>深渊终章·噬星者</b></td>
@@ -2978,8 +2973,8 @@
           <td class="num">0.046%</td>
           <td class="num">2,157</td>
           <td class="num"><b>2.8 天</b></td>
-          <td class="num" style="color:#e8595c">8 年</td>
-          <td class="num">1.08 年</td>
+          <td class="num" style="color:#e8595c">0.76 年</td>
+          <td class="num">0.25 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">80</td>
           <td><b>永夜之主·虚空鲸</b></td>
@@ -2988,8 +2983,8 @@
           <td class="num">0.035%</td>
           <td class="num">2,843</td>
           <td class="num"><b>3.6 天</b></td>
-          <td class="num" style="color:#e8595c">10 年</td>
-          <td class="num">1.43 年</td>
+          <td class="num" style="color:#e8595c">1.00 年</td>
+          <td class="num">0.33 年</td>
         </tr>
     </table>
     </div>
@@ -3003,15 +2998,15 @@
   <div class="card">
     <div class="kpis">
       <div class="kpi"><b>22.1 天</b><span>收齐全部品种（100 种）</span></div>
-      <div class="kpi"><b style="color:#e8595c">60 年</b><span>连颜色一起收齐（600 组合）</span></div>
-      <div class="kpi"><b>41.7 天</b><span>颜色带来的放大倍数</span></div>
+      <div class="kpi"><b style="color:#e8595c">6 年</b><span>连颜色一起收齐（500 组合）</span></div>
+      <div class="kpi"><b>×100.9</b><span>颜色带来的放大倍数</span></div>
     </div>
     <div class="scroll">
     <table>
       <tr>
         <th>#</th><th>鱼名</th><th>稀有度</th><th>体型</th>
         <th class="num">单竿概率</th><th class="num">期望竿数</th><th class="num">期望时间</th>
-        <th class="num">该鱼闪光<br>(0.1%)</th><th class="num">该鱼黄金<br>(0.7%)</th>
+        <th class="num">该鱼闪光<br>(1%)</th><th class="num">该鱼黄金<br>(3%)</th>
       </tr>
       <tr>
           <td class="num" style="color:var(--ink3)">1</td>
@@ -3021,8 +3016,8 @@
           <td class="num">1.932%</td>
           <td class="num">51.7</td>
           <td class="num"><b>1.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.19 年</td>
-          <td class="num">10.1 天</td>
+          <td class="num" style="color:#e8595c">7.0 天</td>
+          <td class="num">2.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">2</td>
           <td><b>溯流鲑</b></td>
@@ -3031,8 +3026,8 @@
           <td class="num">1.913%</td>
           <td class="num">52.3</td>
           <td class="num"><b>1.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.19 年</td>
-          <td class="num">10.2 天</td>
+          <td class="num" style="color:#e8595c">7.1 天</td>
+          <td class="num">2.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">3</td>
           <td><b>零度蝶鱼</b></td>
@@ -3041,8 +3036,8 @@
           <td class="num">1.894%</td>
           <td class="num">52.8</td>
           <td class="num"><b>1.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.20 年</td>
-          <td class="num">10.3 天</td>
+          <td class="num" style="color:#e8595c">7.2 天</td>
+          <td class="num">2.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">4</td>
           <td><b>昨日鲈</b></td>
@@ -3051,8 +3046,8 @@
           <td class="num">1.874%</td>
           <td class="num">53.4</td>
           <td class="num"><b>1.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.20 年</td>
-          <td class="num">10.4 天</td>
+          <td class="num" style="color:#e8595c">7.3 天</td>
+          <td class="num">2.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">5</td>
           <td><b>遗迹鳉</b></td>
@@ -3061,8 +3056,8 @@
           <td class="num">1.855%</td>
           <td class="num">53.9</td>
           <td class="num"><b>1.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.20 年</td>
-          <td class="num">10.5 天</td>
+          <td class="num" style="color:#e8595c">7.3 天</td>
+          <td class="num">2.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">6</td>
           <td><b>虚时鲳</b></td>
@@ -3071,8 +3066,8 @@
           <td class="num">1.836%</td>
           <td class="num">54.5</td>
           <td class="num"><b>1.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.20 年</td>
-          <td class="num">10.6 天</td>
+          <td class="num" style="color:#e8595c">7.4 天</td>
+          <td class="num">2.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">7</td>
           <td><b>刹那鲴</b></td>
@@ -3081,8 +3076,8 @@
           <td class="num">1.816%</td>
           <td class="num">55.1</td>
           <td class="num"><b>1.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.21 年</td>
-          <td class="num">10.7 天</td>
+          <td class="num" style="color:#e8595c">7.5 天</td>
+          <td class="num">2.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">8</td>
           <td><b>须臾鲹</b></td>
@@ -3091,8 +3086,8 @@
           <td class="num">1.797%</td>
           <td class="num">55.6</td>
           <td class="num"><b>1.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.21 年</td>
-          <td class="num">10.8 天</td>
+          <td class="num" style="color:#e8595c">7.6 天</td>
+          <td class="num">2.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">9</td>
           <td><b>瞬息鳉</b></td>
@@ -3101,8 +3096,8 @@
           <td class="num">1.797%</td>
           <td class="num">55.6</td>
           <td class="num"><b>1.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.21 年</td>
-          <td class="num">10.8 天</td>
+          <td class="num" style="color:#e8595c">7.6 天</td>
+          <td class="num">2.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">10</td>
           <td><b>一刻鲹</b></td>
@@ -3111,8 +3106,8 @@
           <td class="num">1.778%</td>
           <td class="num">56.3</td>
           <td class="num"><b>1.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.21 年</td>
-          <td class="num">10.9 天</td>
+          <td class="num" style="color:#e8595c">7.7 天</td>
+          <td class="num">2.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">11</td>
           <td><b>时光鲽</b></td>
@@ -3121,8 +3116,8 @@
           <td class="num">1.758%</td>
           <td class="num">56.9</td>
           <td class="num"><b>1.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.21 年</td>
-          <td class="num">11.1 天</td>
+          <td class="num" style="color:#e8595c">7.7 天</td>
+          <td class="num">2.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">12</td>
           <td><b>琥珀鲷</b></td>
@@ -3131,8 +3126,8 @@
           <td class="num">1.739%</td>
           <td class="num">57.5</td>
           <td class="num"><b>1.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.21 年</td>
-          <td class="num">11.2 天</td>
+          <td class="num" style="color:#e8595c">7.8 天</td>
+          <td class="num">2.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">13</td>
           <td><b>遗迹石斑</b></td>
@@ -3141,8 +3136,8 @@
           <td class="num">1.720%</td>
           <td class="num">58.1</td>
           <td class="num"><b>1.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.22 年</td>
-          <td class="num">11.3 天</td>
+          <td class="num" style="color:#e8595c">7.9 天</td>
+          <td class="num">2.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">14</td>
           <td><b>残响鲻</b></td>
@@ -3151,8 +3146,8 @@
           <td class="num">1.700%</td>
           <td class="num">58.8</td>
           <td class="num"><b>1.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.22 年</td>
-          <td class="num">11.4 天</td>
+          <td class="num" style="color:#e8595c">8.0 天</td>
+          <td class="num">2.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">15</td>
           <td><b>静默鳕</b></td>
@@ -3161,8 +3156,8 @@
           <td class="num">1.681%</td>
           <td class="num">59.5</td>
           <td class="num"><b>1.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.22 年</td>
-          <td class="num">11.6 天</td>
+          <td class="num" style="color:#e8595c">8.1 天</td>
+          <td class="num">2.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">16</td>
           <td><b>尘时鲹</b></td>
@@ -3171,8 +3166,8 @@
           <td class="num">1.662%</td>
           <td class="num">60.2</td>
           <td class="num"><b>2.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.22 年</td>
-          <td class="num">11.7 天</td>
+          <td class="num" style="color:#e8595c">8.2 天</td>
+          <td class="num">2.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">17</td>
           <td><b>初雪鳟</b></td>
@@ -3181,8 +3176,8 @@
           <td class="num">1.662%</td>
           <td class="num">60.2</td>
           <td class="num"><b>2.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.22 年</td>
-          <td class="num">11.7 天</td>
+          <td class="num" style="color:#e8595c">8.2 天</td>
+          <td class="num">2.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">18</td>
           <td><b>沙漏鲽</b></td>
@@ -3191,8 +3186,8 @@
           <td class="num">1.643%</td>
           <td class="num">60.9</td>
           <td class="num"><b>2.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.23 年</td>
-          <td class="num">11.8 天</td>
+          <td class="num" style="color:#e8595c">8.3 天</td>
+          <td class="num">2.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">19</td>
           <td><b>回音鲈</b></td>
@@ -3201,8 +3196,8 @@
           <td class="num">1.623%</td>
           <td class="num">61.6</td>
           <td class="num"><b>2.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.23 年</td>
-          <td class="num">12.0 天</td>
+          <td class="num" style="color:#e8595c">8.4 天</td>
+          <td class="num">2.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">20</td>
           <td><b>旧日鲳</b></td>
@@ -3211,8 +3206,8 @@
           <td class="num">1.604%</td>
           <td class="num">62.3</td>
           <td class="num"><b>2.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.23 年</td>
-          <td class="num">12.1 天</td>
+          <td class="num" style="color:#e8595c">8.5 天</td>
+          <td class="num">2.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">21</td>
           <td><b>年轮鲷</b></td>
@@ -3221,8 +3216,8 @@
           <td class="num">1.585%</td>
           <td class="num">63.1</td>
           <td class="num"><b>2.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.24 年</td>
-          <td class="num">12.3 天</td>
+          <td class="num" style="color:#e8595c">8.6 天</td>
+          <td class="num">2.9 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">22</td>
           <td><b>未时鰕虎</b></td>
@@ -3231,8 +3226,8 @@
           <td class="num">1.585%</td>
           <td class="num">63.1</td>
           <td class="num"><b>2.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.24 年</td>
-          <td class="num">12.3 天</td>
+          <td class="num" style="color:#e8595c">8.6 天</td>
+          <td class="num">2.9 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">23</td>
           <td><b>星轨鳗</b></td>
@@ -3241,8 +3236,8 @@
           <td class="num">1.565%</td>
           <td class="num">63.9</td>
           <td class="num"><b>2.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.24 年</td>
-          <td class="num">12.4 天</td>
+          <td class="num" style="color:#e8595c">8.7 天</td>
+          <td class="num">2.9 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">24</td>
           <td><b>虚空鲽</b></td>
@@ -3251,8 +3246,8 @@
           <td class="num">1.546%</td>
           <td class="num">64.7</td>
           <td class="num"><b>2.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.24 年</td>
-          <td class="num">12.6 天</td>
+          <td class="num" style="color:#e8595c">8.8 天</td>
+          <td class="num">2.9 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">25</td>
           <td><b>昨日鲹</b></td>
@@ -3261,8 +3256,8 @@
           <td class="num">1.527%</td>
           <td class="num">65.5</td>
           <td class="num"><b>2.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.24 年</td>
-          <td class="num">12.7 天</td>
+          <td class="num" style="color:#e8595c">8.9 天</td>
+          <td class="num">3.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">26</td>
           <td><b>远景鲳</b></td>
@@ -3271,8 +3266,8 @@
           <td class="num">1.507%</td>
           <td class="num">66.3</td>
           <td class="num"><b>2.2 小时</b></td>
-          <td class="num" style="color:#e8595c">0.25 年</td>
-          <td class="num">12.9 天</td>
+          <td class="num" style="color:#e8595c">9.0 天</td>
+          <td class="num">3.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">27</td>
           <td><b>回响鲻</b></td>
@@ -3281,8 +3276,8 @@
           <td class="num">1.507%</td>
           <td class="num">66.3</td>
           <td class="num"><b>2.2 小时</b></td>
-          <td class="num" style="color:#e8595c">0.25 年</td>
-          <td class="num">12.9 天</td>
+          <td class="num" style="color:#e8595c">9.0 天</td>
+          <td class="num">3.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">28</td>
           <td><b>初光鲻</b></td>
@@ -3291,8 +3286,8 @@
           <td class="num">1.488%</td>
           <td class="num">67.2</td>
           <td class="num"><b>2.2 小时</b></td>
-          <td class="num" style="color:#e8595c">0.25 年</td>
-          <td class="num">13.1 天</td>
+          <td class="num" style="color:#e8595c">9.1 天</td>
+          <td class="num">3.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">29</td>
           <td><b>遗迹鳐</b></td>
@@ -3301,8 +3296,8 @@
           <td class="num">1.469%</td>
           <td class="num">68.1</td>
           <td class="num"><b>2.2 小时</b></td>
-          <td class="num" style="color:#e8595c">0.25 年</td>
-          <td class="num">13.2 天</td>
+          <td class="num" style="color:#e8595c">9.3 天</td>
+          <td class="num">3.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">30</td>
           <td><b>尘光水母</b></td>
@@ -3311,8 +3306,8 @@
           <td class="num">1.449%</td>
           <td class="num">69.0</td>
           <td class="num"><b>2.3 小时</b></td>
-          <td class="num" style="color:#e8595c">0.26 年</td>
-          <td class="num">13.4 天</td>
+          <td class="num" style="color:#e8595c">9.4 天</td>
+          <td class="num">3.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">31</td>
           <td><b>遗光鲹</b></td>
@@ -3321,8 +3316,8 @@
           <td class="num">1.449%</td>
           <td class="num">69.0</td>
           <td class="num"><b>2.3 小时</b></td>
-          <td class="num" style="color:#e8595c">0.26 年</td>
-          <td class="num">13.4 天</td>
+          <td class="num" style="color:#e8595c">9.4 天</td>
+          <td class="num">3.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">32</td>
           <td><b>空时鳕</b></td>
@@ -3331,8 +3326,8 @@
           <td class="num">1.430%</td>
           <td class="num">69.9</td>
           <td class="num"><b>2.3 小时</b></td>
-          <td class="num" style="color:#e8595c">0.26 年</td>
-          <td class="num">13.6 天</td>
+          <td class="num" style="color:#e8595c">9.5 天</td>
+          <td class="num">3.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">33</td>
           <td><b>逆时鳗</b></td>
@@ -3341,8 +3336,8 @@
           <td class="num">1.346%</td>
           <td class="num">74.3</td>
           <td class="num"><b>2.4 小时</b></td>
-          <td class="num" style="color:#e8595c">0.28 年</td>
-          <td class="num">14.4 天</td>
+          <td class="num" style="color:#e8595c">10.1 天</td>
+          <td class="num">3.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">34</td>
           <td><b>千年纪鱼</b></td>
@@ -3351,8 +3346,8 @@
           <td class="num">1.305%</td>
           <td class="num">76.6</td>
           <td class="num"><b>2.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.29 年</td>
-          <td class="num">14.9 天</td>
+          <td class="num" style="color:#e8595c">10.4 天</td>
+          <td class="num">3.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">35</td>
           <td><b>虚空旗鱼</b></td>
@@ -3361,8 +3356,8 @@
           <td class="num">1.278%</td>
           <td class="num">78.2</td>
           <td class="num"><b>2.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.29 年</td>
-          <td class="num">15.2 天</td>
+          <td class="num" style="color:#e8595c">10.6 天</td>
+          <td class="num">3.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">36</td>
           <td><b>纪元鲟</b></td>
@@ -3371,8 +3366,8 @@
           <td class="num">1.238%</td>
           <td class="num">80.8</td>
           <td class="num"><b>2.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.30 年</td>
-          <td class="num">15.7 天</td>
+          <td class="num" style="color:#e8595c">11.0 天</td>
+          <td class="num">3.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">37</td>
           <td><b>黄昏鳐</b></td>
@@ -3381,8 +3376,8 @@
           <td class="num">1.211%</td>
           <td class="num">82.6</td>
           <td class="num"><b>2.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.31 年</td>
-          <td class="num">16.0 天</td>
+          <td class="num" style="color:#e8595c">11.2 天</td>
+          <td class="num">3.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">38</td>
           <td><b>暗物质水母</b></td>
@@ -3391,8 +3386,8 @@
           <td class="num">1.171%</td>
           <td class="num">85.4</td>
           <td class="num"><b>2.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.32 年</td>
-          <td class="num">16.6 天</td>
+          <td class="num" style="color:#e8595c">11.6 天</td>
+          <td class="num">3.9 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">39</td>
           <td><b>回响鲷</b></td>
@@ -3401,8 +3396,8 @@
           <td class="num">1.144%</td>
           <td class="num">87.4</td>
           <td class="num"><b>2.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.33 年</td>
-          <td class="num">17.0 天</td>
+          <td class="num" style="color:#e8595c">11.9 天</td>
+          <td class="num">4.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">40</td>
           <td><b>时空褶皱·空棘鱼</b></td>
@@ -3411,8 +3406,8 @@
           <td class="num">1.117%</td>
           <td class="num">89.5</td>
           <td class="num"><b>2.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.33 年</td>
-          <td class="num">17.4 天</td>
+          <td class="num" style="color:#e8595c">12.2 天</td>
+          <td class="num">4.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">41</td>
           <td><b>逆流龙鱼</b></td>
@@ -3421,8 +3416,8 @@
           <td class="num">1.077%</td>
           <td class="num">92.9</td>
           <td class="num"><b>3.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.35 年</td>
-          <td class="num">18.1 天</td>
+          <td class="num" style="color:#e8595c">12.6 天</td>
+          <td class="num">4.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">42</td>
           <td><b>残时皇带</b></td>
@@ -3431,8 +3426,8 @@
           <td class="num">1.050%</td>
           <td class="num">95.3</td>
           <td class="num"><b>3.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.36 年</td>
-          <td class="num">18.5 天</td>
+          <td class="num" style="color:#e8595c">13.0 天</td>
+          <td class="num">4.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">43</td>
           <td><b>虚时鮟鱇</b></td>
@@ -3441,8 +3436,8 @@
           <td class="num">1.023%</td>
           <td class="num">97.8</td>
           <td class="num"><b>3.2 小时</b></td>
-          <td class="num" style="color:#e8595c">0.36 年</td>
-          <td class="num">19.0 天</td>
+          <td class="num" style="color:#e8595c">13.3 天</td>
+          <td class="num">4.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">44</td>
           <td><b>千面章鱼</b></td>
@@ -3451,8 +3446,8 @@
           <td class="num">0.996%</td>
           <td class="num">100</td>
           <td class="num"><b>3.3 小时</b></td>
-          <td class="num" style="color:#e8595c">0.37 年</td>
-          <td class="num">19.5 天</td>
+          <td class="num" style="color:#e8595c">13.7 天</td>
+          <td class="num">4.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">45</td>
           <td><b>逆空鲛</b></td>
@@ -3461,8 +3456,8 @@
           <td class="num">0.969%</td>
           <td class="num">103</td>
           <td class="num"><b>3.4 小时</b></td>
-          <td class="num" style="color:#e8595c">0.38 年</td>
-          <td class="num">20.1 天</td>
+          <td class="num" style="color:#e8595c">14.0 天</td>
+          <td class="num">4.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">46</td>
           <td><b>溯光鲹</b></td>
@@ -3471,8 +3466,8 @@
           <td class="num">0.942%</td>
           <td class="num">106</td>
           <td class="num"><b>3.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.40 年</td>
-          <td class="num">20.6 天</td>
+          <td class="num" style="color:#e8595c">14.4 天</td>
+          <td class="num">4.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">47</td>
           <td><b>旧日水母</b></td>
@@ -3481,8 +3476,8 @@
           <td class="num">0.915%</td>
           <td class="num">109</td>
           <td class="num"><b>3.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.41 年</td>
-          <td class="num">21.2 天</td>
+          <td class="num" style="color:#e8595c">14.9 天</td>
+          <td class="num">5.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">48</td>
           <td><b>影时鲽</b></td>
@@ -3491,8 +3486,8 @@
           <td class="num">0.888%</td>
           <td class="num">113</td>
           <td class="num"><b>3.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.42 年</td>
-          <td class="num">21.9 天</td>
+          <td class="num" style="color:#e8595c">15.3 天</td>
+          <td class="num">5.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">49</td>
           <td><b>回环鳕</b></td>
@@ -3501,8 +3496,8 @@
           <td class="num">0.861%</td>
           <td class="num">116</td>
           <td class="num"><b>3.8 小时</b></td>
-          <td class="num" style="color:#e8595c">0.43 年</td>
-          <td class="num">22.6 天</td>
+          <td class="num" style="color:#e8595c">15.8 天</td>
+          <td class="num">5.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">50</td>
           <td><b>沉默巨口鳗</b></td>
@@ -3511,8 +3506,8 @@
           <td class="num">0.848%</td>
           <td class="num">118</td>
           <td class="num"><b>3.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.44 年</td>
-          <td class="num">22.9 天</td>
+          <td class="num" style="color:#e8595c">16.0 天</td>
+          <td class="num">5.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">51</td>
           <td><b>星轨魟</b></td>
@@ -3521,8 +3516,8 @@
           <td class="num">0.821%</td>
           <td class="num">122</td>
           <td class="num"><b>4.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.45 年</td>
-          <td class="num">23.7 天</td>
+          <td class="num" style="color:#e8595c">16.6 天</td>
+          <td class="num">5.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">52</td>
           <td><b>时刻鲳</b></td>
@@ -3531,8 +3526,8 @@
           <td class="num">0.794%</td>
           <td class="num">126</td>
           <td class="num"><b>4.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.47 年</td>
-          <td class="num">24.5 天</td>
+          <td class="num" style="color:#e8595c">17.1 天</td>
+          <td class="num">5.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">53</td>
           <td><b>时间龙鱼</b></td>
@@ -3541,8 +3536,8 @@
           <td class="num">0.107%</td>
           <td class="num">935</td>
           <td class="num"><b>30.5 小时</b></td>
-          <td class="num" style="color:#e8595c">3 年</td>
-          <td class="num">0.50 年</td>
+          <td class="num" style="color:#e8595c">0.35 年</td>
+          <td class="num">42.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">54</td>
           <td><b>终焉鲨</b></td>
@@ -3551,8 +3546,8 @@
           <td class="num">0.099%</td>
           <td class="num">1,005</td>
           <td class="num"><b>32.8 小时</b></td>
-          <td class="num" style="color:#e8595c">4 年</td>
-          <td class="num">0.54 年</td>
+          <td class="num" style="color:#e8595c">0.37 年</td>
+          <td class="num">45.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">55</td>
           <td><b>永恒鲸</b></td>
@@ -3561,8 +3556,8 @@
           <td class="num">0.093%</td>
           <td class="num">1,075</td>
           <td class="num"><b>35.1 小时</b></td>
-          <td class="num" style="color:#e8595c">4 年</td>
-          <td class="num">0.57 年</td>
+          <td class="num" style="color:#e8595c">0.40 年</td>
+          <td class="num">48.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">56</td>
           <td><b>原初蛇颈龙</b></td>
@@ -3571,8 +3566,8 @@
           <td class="num">0.087%</td>
           <td class="num">1,154</td>
           <td class="num"><b>37.7 小时</b></td>
-          <td class="num" style="color:#e8595c">4 年</td>
-          <td class="num">0.61 年</td>
+          <td class="num" style="color:#e8595c">0.43 年</td>
+          <td class="num">52.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">57</td>
           <td><b>星尘巨魟</b></td>
@@ -3581,8 +3576,8 @@
           <td class="num">0.081%</td>
           <td class="num">1,230</td>
           <td class="num"><b>40.2 小时</b></td>
-          <td class="num" style="color:#e8595c">5 年</td>
-          <td class="num">0.66 年</td>
+          <td class="num" style="color:#e8595c">0.46 年</td>
+          <td class="num">55.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">58</td>
           <td><b>时光褶皱·虚空鲸</b></td>
@@ -3591,8 +3586,8 @@
           <td class="num">0.076%</td>
           <td class="num">1,317</td>
           <td class="num"><b>43.0 小时</b></td>
-          <td class="num" style="color:#e8595c">5 年</td>
-          <td class="num">0.70 年</td>
+          <td class="num" style="color:#e8595c">0.49 年</td>
+          <td class="num">59.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">59</td>
           <td><b>纪元褶皱·深渊鲸</b></td>
@@ -3601,8 +3596,8 @@
           <td class="num">0.071%</td>
           <td class="num">1,417</td>
           <td class="num"><b>46.3 小时</b></td>
-          <td class="num" style="color:#e8595c">5 年</td>
-          <td class="num">0.75 年</td>
+          <td class="num" style="color:#e8595c">0.53 年</td>
+          <td class="num">0.18 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">60</td>
           <td><b>逆熵巨鱿</b></td>
@@ -3611,8 +3606,8 @@
           <td class="num">0.066%</td>
           <td class="num">1,508</td>
           <td class="num"><b>2.1 天</b></td>
-          <td class="num" style="color:#e8595c">6 年</td>
-          <td class="num">0.80 年</td>
+          <td class="num" style="color:#e8595c">0.56 年</td>
+          <td class="num">0.19 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">61</td>
           <td><b>残响龙鱼</b></td>
@@ -3621,8 +3616,8 @@
           <td class="num">0.062%</td>
           <td class="num">1,612</td>
           <td class="num"><b>2.2 天</b></td>
-          <td class="num" style="color:#e8595c">6 年</td>
-          <td class="num">0.86 年</td>
+          <td class="num" style="color:#e8595c">0.60 年</td>
+          <td class="num">0.20 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">62</td>
           <td><b>空之翼鳐</b></td>
@@ -3631,8 +3626,8 @@
           <td class="num">0.058%</td>
           <td class="num">1,732</td>
           <td class="num"><b>2.4 天</b></td>
-          <td class="num" style="color:#e8595c">6 年</td>
-          <td class="num">0.92 年</td>
+          <td class="num" style="color:#e8595c">0.65 年</td>
+          <td class="num">0.22 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">63</td>
           <td><b>时光巨口鲨</b></td>
@@ -3641,8 +3636,8 @@
           <td class="num">0.053%</td>
           <td class="num">1,870</td>
           <td class="num"><b>2.5 天</b></td>
-          <td class="num" style="color:#e8595c">7 年</td>
-          <td class="num">1.00 年</td>
+          <td class="num" style="color:#e8595c">0.70 年</td>
+          <td class="num">0.23 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">64</td>
           <td><b>时痕鲽</b></td>
@@ -3651,8 +3646,8 @@
           <td class="num">1.411%</td>
           <td class="num">70.9</td>
           <td class="num"><b>2.3 小时</b></td>
-          <td class="num" style="color:#e8595c">0.26 年</td>
-          <td class="num">13.8 天</td>
+          <td class="num" style="color:#e8595c">9.6 天</td>
+          <td class="num">3.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">65</td>
           <td><b>逆光鳕</b></td>
@@ -3661,8 +3656,8 @@
           <td class="num">1.411%</td>
           <td class="num">70.9</td>
           <td class="num"><b>2.3 小时</b></td>
-          <td class="num" style="color:#e8595c">0.26 年</td>
-          <td class="num">13.8 天</td>
+          <td class="num" style="color:#e8595c">9.6 天</td>
+          <td class="num">3.2 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">66</td>
           <td><b>纪年鲹</b></td>
@@ -3671,8 +3666,8 @@
           <td class="num">1.391%</td>
           <td class="num">71.9</td>
           <td class="num"><b>2.3 小时</b></td>
-          <td class="num" style="color:#e8595c">0.27 年</td>
-          <td class="num">14.0 天</td>
+          <td class="num" style="color:#e8595c">9.8 天</td>
+          <td class="num">3.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">67</td>
           <td><b>溯时鲻</b></td>
@@ -3681,8 +3676,8 @@
           <td class="num">1.372%</td>
           <td class="num">72.9</td>
           <td class="num"><b>2.4 小时</b></td>
-          <td class="num" style="color:#e8595c">0.27 年</td>
-          <td class="num">14.2 天</td>
+          <td class="num" style="color:#e8595c">9.9 天</td>
+          <td class="num">3.3 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">68</td>
           <td><b>残页鲷</b></td>
@@ -3691,8 +3686,8 @@
           <td class="num">1.353%</td>
           <td class="num">73.9</td>
           <td class="num"><b>2.4 小时</b></td>
-          <td class="num" style="color:#e8595c">0.28 年</td>
-          <td class="num">14.4 天</td>
+          <td class="num" style="color:#e8595c">10.1 天</td>
+          <td class="num">3.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">69</td>
           <td><b>空页鲈</b></td>
@@ -3701,8 +3696,8 @@
           <td class="num">1.353%</td>
           <td class="num">73.9</td>
           <td class="num"><b>2.4 小时</b></td>
-          <td class="num" style="color:#e8595c">0.28 年</td>
-          <td class="num">14.4 天</td>
+          <td class="num" style="color:#e8595c">10.1 天</td>
+          <td class="num">3.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">70</td>
           <td><b>遗忘鲳</b></td>
@@ -3711,8 +3706,8 @@
           <td class="num">1.333%</td>
           <td class="num">75.0</td>
           <td class="num"><b>2.4 小时</b></td>
-          <td class="num" style="color:#e8595c">0.28 年</td>
-          <td class="num">14.6 天</td>
+          <td class="num" style="color:#e8595c">10.2 天</td>
+          <td class="num">3.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">71</td>
           <td><b>前尘鳉</b></td>
@@ -3721,8 +3716,8 @@
           <td class="num">1.314%</td>
           <td class="num">76.1</td>
           <td class="num"><b>2.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.28 年</td>
-          <td class="num">14.8 天</td>
+          <td class="num" style="color:#e8595c">10.4 天</td>
+          <td class="num">3.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">72</td>
           <td><b>后时鰕虎</b></td>
@@ -3731,8 +3726,8 @@
           <td class="num">1.314%</td>
           <td class="num">76.1</td>
           <td class="num"><b>2.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.28 年</td>
-          <td class="num">14.8 天</td>
+          <td class="num" style="color:#e8595c">10.4 天</td>
+          <td class="num">3.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">73</td>
           <td><b>拾光鲹</b></td>
@@ -3741,8 +3736,8 @@
           <td class="num">1.295%</td>
           <td class="num">77.2</td>
           <td class="num"><b>2.5 小时</b></td>
-          <td class="num" style="color:#e8595c">0.29 年</td>
-          <td class="num">15.0 天</td>
+          <td class="num" style="color:#e8595c">10.5 天</td>
+          <td class="num">3.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">74</td>
           <td><b>逆旅鲽</b></td>
@@ -3751,8 +3746,8 @@
           <td class="num">1.275%</td>
           <td class="num">78.4</td>
           <td class="num"><b>2.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.29 年</td>
-          <td class="num">15.2 天</td>
+          <td class="num" style="color:#e8595c">10.7 天</td>
+          <td class="num">3.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">75</td>
           <td><b>流年鲻</b></td>
@@ -3761,8 +3756,8 @@
           <td class="num">1.275%</td>
           <td class="num">78.4</td>
           <td class="num"><b>2.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.29 年</td>
-          <td class="num">15.2 天</td>
+          <td class="num" style="color:#e8595c">10.7 天</td>
+          <td class="num">3.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">76</td>
           <td><b>空洞鳕</b></td>
@@ -3771,8 +3766,8 @@
           <td class="num">1.256%</td>
           <td class="num">79.6</td>
           <td class="num"><b>2.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.30 年</td>
-          <td class="num">15.5 天</td>
+          <td class="num" style="color:#e8595c">10.8 天</td>
+          <td class="num">3.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">77</td>
           <td><b>寂时鲹</b></td>
@@ -3781,8 +3776,8 @@
           <td class="num">1.256%</td>
           <td class="num">79.6</td>
           <td class="num"><b>2.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.30 年</td>
-          <td class="num">15.5 天</td>
+          <td class="num" style="color:#e8595c">10.8 天</td>
+          <td class="num">3.6 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">78</td>
           <td><b>时间鲟</b></td>
@@ -3791,8 +3786,8 @@
           <td class="num">0.780%</td>
           <td class="num">128</td>
           <td class="num"><b>4.2 小时</b></td>
-          <td class="num" style="color:#e8595c">0.48 年</td>
-          <td class="num">24.9 天</td>
+          <td class="num" style="color:#e8595c">17.4 天</td>
+          <td class="num">5.8 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">79</td>
           <td><b>溯流皇带</b></td>
@@ -3801,8 +3796,8 @@
           <td class="num">0.754%</td>
           <td class="num">133</td>
           <td class="num"><b>4.3 小时</b></td>
-          <td class="num" style="color:#e8595c">0.49 年</td>
-          <td class="num">25.8 天</td>
+          <td class="num" style="color:#e8595c">18.1 天</td>
+          <td class="num">6.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">80</td>
           <td><b>逆熵鳐</b></td>
@@ -3811,8 +3806,8 @@
           <td class="num">0.740%</td>
           <td class="num">135</td>
           <td class="num"><b>4.4 小时</b></td>
-          <td class="num" style="color:#e8595c">0.50 年</td>
-          <td class="num">26.3 天</td>
+          <td class="num" style="color:#e8595c">18.4 天</td>
+          <td class="num">6.1 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">81</td>
           <td><b>空时鲛</b></td>
@@ -3821,8 +3816,8 @@
           <td class="num">0.713%</td>
           <td class="num">140</td>
           <td class="num"><b>4.6 小时</b></td>
-          <td class="num" style="color:#e8595c">0.52 年</td>
-          <td class="num">27.3 天</td>
+          <td class="num" style="color:#e8595c">19.1 天</td>
+          <td class="num">6.4 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">82</td>
           <td><b>千年魟</b></td>
@@ -3831,8 +3826,8 @@
           <td class="num">0.700%</td>
           <td class="num">143</td>
           <td class="num"><b>4.7 小时</b></td>
-          <td class="num" style="color:#e8595c">0.53 年</td>
-          <td class="num">27.8 天</td>
+          <td class="num" style="color:#e8595c">19.4 天</td>
+          <td class="num">6.5 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">83</td>
           <td><b>时纱水母</b></td>
@@ -3841,8 +3836,8 @@
           <td class="num">0.673%</td>
           <td class="num">149</td>
           <td class="num"><b>4.9 小时</b></td>
-          <td class="num" style="color:#e8595c">0.55 年</td>
-          <td class="num">28.9 天</td>
+          <td class="num" style="color:#e8595c">20.2 天</td>
+          <td class="num">6.7 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">84</td>
           <td><b>虚年章鱼</b></td>
@@ -3851,8 +3846,8 @@
           <td class="num">0.659%</td>
           <td class="num">152</td>
           <td class="num"><b>5.0 小时</b></td>
-          <td class="num" style="color:#e8595c">0.57 年</td>
-          <td class="num">29.5 天</td>
+          <td class="num" style="color:#e8595c">20.6 天</td>
+          <td class="num">6.9 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">85</td>
           <td><b>逆旅鮟鱇</b></td>
@@ -3861,8 +3856,8 @@
           <td class="num">0.646%</td>
           <td class="num">155</td>
           <td class="num"><b>5.1 小时</b></td>
-          <td class="num" style="color:#e8595c">0.58 年</td>
-          <td class="num">30.1 天</td>
+          <td class="num" style="color:#e8595c">21.1 天</td>
+          <td class="num">7.0 天</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">86</td>
           <td><b>纪元巨鲨</b></td>
@@ -3871,8 +3866,8 @@
           <td class="num">0.050%</td>
           <td class="num">1,990</td>
           <td class="num"><b>2.7 天</b></td>
-          <td class="num" style="color:#e8595c">7 年</td>
-          <td class="num">1.06 年</td>
+          <td class="num" style="color:#e8595c">0.74 年</td>
+          <td class="num">0.25 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">87</td>
           <td><b>时光巨龙</b></td>
@@ -3881,8 +3876,8 @@
           <td class="num">0.047%</td>
           <td class="num">2,125</td>
           <td class="num"><b>2.9 天</b></td>
-          <td class="num" style="color:#e8595c">8 年</td>
-          <td class="num">1.13 年</td>
+          <td class="num" style="color:#e8595c">0.79 年</td>
+          <td class="num">0.26 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">88</td>
           <td><b>千年巨鲸</b></td>
@@ -3891,8 +3886,8 @@
           <td class="num">0.044%</td>
           <td class="num">2,281</td>
           <td class="num"><b>3.1 天</b></td>
-          <td class="num" style="color:#e8595c">9 年</td>
-          <td class="num">1.21 年</td>
+          <td class="num" style="color:#e8595c">0.85 年</td>
+          <td class="num">0.28 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">89</td>
           <td><b>逆流皇带</b></td>
@@ -3901,8 +3896,8 @@
           <td class="num">0.041%</td>
           <td class="num">2,461</td>
           <td class="num"><b>3.3 天</b></td>
-          <td class="num" style="color:#e8595c">9 年</td>
-          <td class="num">1.31 年</td>
+          <td class="num" style="color:#e8595c">0.92 年</td>
+          <td class="num">0.31 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">90</td>
           <td><b>时之褶皱·空鲸</b></td>
@@ -3911,8 +3906,8 @@
           <td class="num">0.038%</td>
           <td class="num">2,597</td>
           <td class="num"><b>3.5 天</b></td>
-          <td class="num" style="color:#e8595c">10 年</td>
-          <td class="num">1.38 年</td>
+          <td class="num" style="color:#e8595c">0.97 年</td>
+          <td class="num">0.32 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">91</td>
           <td><b>纪元龙鱼</b></td>
@@ -3921,8 +3916,8 @@
           <td class="num">0.035%</td>
           <td class="num">2,834</td>
           <td class="num"><b>3.9 天</b></td>
-          <td class="num" style="color:#e8595c">11 年</td>
-          <td class="num">1.51 年</td>
+          <td class="num" style="color:#e8595c">1.06 年</td>
+          <td class="num">0.35 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">92</td>
           <td><b>时之终点·无相鲲</b></td>
@@ -3931,8 +3926,8 @@
           <td class="num">0.049%</td>
           <td class="num">2,021</td>
           <td class="num"><b>2.7 天</b></td>
-          <td class="num" style="color:#e8595c">8 年</td>
-          <td class="num">1.08 年</td>
+          <td class="num" style="color:#e8595c">0.75 年</td>
+          <td class="num">0.25 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">93</td>
           <td><b>初源之影·混沌</b></td>
@@ -3941,8 +3936,8 @@
           <td class="num">0.041%</td>
           <td class="num">2,435</td>
           <td class="num"><b>3.3 天</b></td>
-          <td class="num" style="color:#e8595c">9 年</td>
-          <td class="num">1.30 年</td>
+          <td class="num" style="color:#e8595c">0.91 年</td>
+          <td class="num">0.30 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">94</td>
           <td><b>终焉纪元·忘川</b></td>
@@ -3951,8 +3946,8 @@
           <td class="num">0.034%</td>
           <td class="num">2,973</td>
           <td class="num"><b>4.0 天</b></td>
-          <td class="num" style="color:#e8595c">11 年</td>
-          <td class="num">1.58 年</td>
+          <td class="num" style="color:#e8595c">1.11 年</td>
+          <td class="num">0.37 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">95</td>
           <td><b>时之尽头·无相巨鲲</b></td>
@@ -3961,8 +3956,8 @@
           <td class="num">0.028%</td>
           <td class="num">3,610</td>
           <td class="num"><b>4.9 天</b></td>
-          <td class="num" style="color:#e8595c">13 年</td>
-          <td class="num">1.92 年</td>
+          <td class="num" style="color:#e8595c">1.35 年</td>
+          <td class="num">0.45 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">96</td>
           <td><b>创世之鳞</b></td>
@@ -3971,8 +3966,8 @@
           <td class="num">0.023%</td>
           <td class="num">4,301</td>
           <td class="num"><b>5.9 天</b></td>
-          <td class="num" style="color:#e8595c">16 年</td>
-          <td class="num">2 年</td>
+          <td class="num" style="color:#e8595c">1.60 年</td>
+          <td class="num">0.53 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">97</td>
           <td><b>终末渔者之影</b></td>
@@ -3981,8 +3976,8 @@
           <td class="num">0.019%</td>
           <td class="num">5,183</td>
           <td class="num"><b>7.1 天</b></td>
-          <td class="num" style="color:#e8595c">19 年</td>
-          <td class="num">3 年</td>
+          <td class="num" style="color:#e8595c">1.93 年</td>
+          <td class="num">0.64 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">98</td>
           <td><b>纪元终焉·空之鲸</b></td>
@@ -3991,8 +3986,8 @@
           <td class="num">0.016%</td>
           <td class="num">6,317</td>
           <td class="num"><b>8.6 天</b></td>
-          <td class="num" style="color:#e8595c">24 年</td>
-          <td class="num">3 年</td>
+          <td class="num" style="color:#e8595c">2 年</td>
+          <td class="num">0.78 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">99</td>
           <td><b>最初之鳞·混沌</b></td>
@@ -4001,8 +3996,8 @@
           <td class="num">0.013%</td>
           <td class="num">7,774</td>
           <td class="num"><b>10.6 天</b></td>
-          <td class="num" style="color:#e8595c">29 年</td>
-          <td class="num">4 年</td>
+          <td class="num" style="color:#e8595c">3 年</td>
+          <td class="num">0.97 年</td>
         </tr><tr>
           <td class="num" style="color:var(--ink3)">100</td>
           <td><b>终焉之影·忘川</b></td>
@@ -4011,8 +4006,8 @@
           <td class="num">0.011%</td>
           <td class="num">9,188</td>
           <td class="num"><b>12.5 天</b></td>
-          <td class="num" style="color:#e8595c">34 年</td>
-          <td class="num">5 年</td>
+          <td class="num" style="color:#e8595c">3 年</td>
+          <td class="num">1.14 年</td>
         </tr>
     </table>
     </div>
@@ -4023,8 +4018,8 @@
   <div class="card">
     <ul>
       <li><b>收齐全部品种</b>：34.5 天（7 个钓场累计）</li>
-      <li><b>连颜色一起收齐</b>：95 年，共 2172 个组合</li>
-      <li>放大倍数约 <b>1001 倍</b> —— 原因就是闪光只有 0.1%，
+      <li><b>连颜色一起收齐</b>：10 年，共 1810 个组合</li>
+      <li>放大倍数约 <b>102 倍</b> —— 原因就是闪光只有 1%，
           而它要求「每一条鱼都要闪一次」</li>
       <li>所以颜色只能当收藏彩蛋，<b>绝不能写进解锁条件</b></li>
     </ul>

@@ -33,13 +33,25 @@ G.Panels = (function () {
 
   function isOpen() { return !modal.classList.contains('hidden'); }
 
+  /* 只重绘当前弹层，不重置任何筛选状态（refresh 用） */
+  function renderCurrent(arg) {
+    if (!current || !VIEWS[current]) return;
+    var def = VIEWS[current];
+    titleEl.textContent = typeof def.title === 'function' ? def.title(arg) : def.title;
+    bodyEl.innerHTML = '';
+    def.render(bodyEl, arg);
+  }
+
   function open(name, arg) {
     current = name;
     var def = VIEWS[name];
     if (!def) return;
-    titleEl.textContent = typeof def.title === 'function' ? def.title(arg) : def.title;
-    bodyEl.innerHTML = '';
-    def.render(bodyEl, arg);
+    /* 图鉴：每次打开都回到「当前钓场」的列表页（不保留上次的筛选/详情） */
+    if (name === 'book') {
+      bookFilter.field = St.get().field || 'ALL';
+      bookFilter.sel = null;
+    }
+    renderCurrent(arg);
     modal.classList.remove('hidden');
     G.Audio.click();
   }
@@ -52,7 +64,7 @@ G.Panels = (function () {
   }
 
   function refresh() {
-    if (isOpen() && current && VIEWS[current]) open(current);
+    if (isOpen()) renderCurrent();
   }
 
   function setOnClose(fn) { onCloseCb = fn; }
@@ -130,11 +142,185 @@ G.Panels = (function () {
   /* =========================================================
      图鉴
      ========================================================= */
-  var bookFilter = { field: 'ALL', rarity: -1, hideUnknown: false };
+  /* 图鉴筛选状态
+     field:  null = 打开时自动定位到「当前钓场」（见 open()）
+     sel:    当前展开的鱼种 id（鱼种详情页），null = 列表页 */
+  var bookFilter = { field: null, rarity: -1, sel: null };
+
+  /* 某鱼种「单竿钓到」的基础概率（不含鱼饵/鱼竿加成）
+     = 该档位在场内的权重占比 × 该鱼在本档鱼种池里的权重占比 */
+  function baseFishProb(f) {
+    var fld = G.FIELD_MAP[f.field];
+    if (!fld || !fld.rarity) return 0;
+    var tot = 0, i;
+    for (i = 0; i < fld.rarity.length; i++) tot += fld.rarity[i];
+    if (tot <= 0) return 0;
+    var bucket = (G.FISH_BY_FIELD_RARITY[f.field] || [])[f.rar] || [];
+    var bw = 0;
+    for (i = 0; i < bucket.length; i++) bw += (bucket[i].w || 0);
+    if (bw <= 0) return 0;
+    return (fld.rarity[f.rar] / tot) * ((f.w || 0) / bw);
+  }
+
+  /* 颜色概率总和（用于归一化，避免百分比写错时算出负数概率） */
+  function colorProbTotal() {
+    var t = 0;
+    CFG.colorMorphs.forEach(function (c) { t += c.prob; });
+    return t > 0 ? t : 1;
+  }
+
+  /* 期望竿数文本 */
+  function expCasts(p) {
+    if (!p || p <= 0) return '—';
+    var n = 1 / p;
+    if (n < 10) return (Math.round(n * 10) / 10) + ' 竿';
+    if (n < 10000) return Math.round(n) + ' 竿';
+    if (n < 1e6) return (n / 10000).toFixed(2) + ' 万竿';
+    return (n / 1e8).toFixed(2) + ' 亿竿';
+  }
+
+  /* 概率文本：自动选有效位数，避免「11.5368%」这种噪音，也不会把稀有鱼显示成 0.00% */
+  function fmtPct(p) {
+    if (!p || p <= 0) return '0%';
+    var v = p * 100;
+    if (v >= 10) return v.toFixed(1) + '%';
+    if (v >= 1) return v.toFixed(2) + '%';
+    if (v >= 0.01) return v.toFixed(3) + '%';
+    if (v >= 0.0001) return v.toFixed(5) + '%';
+    return v.toExponential(2) + '%';
+  }
+
+  /* ---------------- 鱼种详情页：看这一条鱼各种颜色的收集情况 ---------------- */
+  function renderFishDetail(root, fid) {
+    var f = G.FISH_ID[fid];
+    if (!f) { bookFilter.sel = null; VIEWS.book.render(root); return; }
+
+    var e = St.bookEntry(fid);
+    var fld = G.FIELD_MAP[f.field] || {};
+    var pFish = baseFishProb(f);
+    var cTotal = colorProbTotal();
+    var gotColors = 0;
+    if (e && e.colors) {
+      CFG.colorMorphs.forEach(function (cm) { if (e.colors[cm.key]) gotColors++; });
+    }
+
+    /* ---- 返回条 ---- */
+    var bar = U.el('div', 'fd-bar');
+    var back = U.el('button', 'chip', '‹ 返回图鉴');
+    U.on(back, 'click', function () { bookFilter.sel = null; G.Audio.click(); refresh(); });
+    bar.appendChild(back);
+    bar.appendChild(U.el('span', 'fd-bar-stat',
+      '颜色收集 <b>' + gotColors + '</b> / ' + CFG.colorMorphs.length));
+    root.appendChild(bar);
+
+    /* ---- 鱼卡 ---- */
+    var card = U.el('div', 'fd-card');
+
+    var cv = document.createElement('canvas');
+    cv.className = 'fd-canvas';
+    cv.width = 380; cv.height = 190;
+    card.appendChild(cv);
+
+    /* 展示「已收集到的最稀有颜色」，没收集过就画剪影 */
+    var best = null;
+    CFG.colorMorphs.forEach(function (cm) {
+      if (!(e && e.colors && e.colors[cm.key])) return;
+      if (!best || cm.prob < best.prob) best = cm;
+    });
+
+    (function () {
+      var dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cv.width = 380 * dpr; cv.height = 190 * dpr;
+      cv.style.width = '380px'; cv.style.height = '190px';
+      var ctx = cv.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      var g2 = ctx.createLinearGradient(0, 0, 0, 190);
+      g2.addColorStop(0, '#eaf7ff'); g2.addColorStop(1, '#c6e9fb');
+      ctx.fillStyle = g2; ctx.fillRect(0, 0, 380, 190);
+      ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 2;
+      for (var i = 0; i < 4; i++) {
+        ctx.beginPath();
+        for (var x = 0; x <= 380; x += 10) {
+          var y = 142 + i * 14 + Math.sin(x * 0.05 + i) * 3;
+          if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      if (e) {
+        var amt = best && best.tint ? 0.75 : 0;
+        G.FishArt.draw(ctx, f, 190, 90, 240, { tint: best && best.tint, tintAmt: amt, t: 0.8 });
+      } else {
+        G.FishArt.drawSilhouette(ctx, f, 190, 90, 240);
+        ctx.fillStyle = 'rgba(91,116,136,.75)';
+        ctx.font = 'bold 30px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('?', 190, 100);
+      }
+    })();
+
+    var info = U.el('div', 'fd-info');
+    info.innerHTML =
+      '<div class="fd-name">' + (e ? f.name : '？？？') + '</div>' +
+      '<div class="fd-tags">' +
+        '<span class="cc-tag rar' + f.rar + '">' + CFG.rarity[f.rar].name + '</span>' +
+        '<span class="cc-tag plain">' + (fld.rank || '?') + ' ' + (fld.name || '未知钓场') + '</span>' +
+        (best ? '<span class="cc-tag plain">最稀有已得：' + best.name + '</span>' : '') +
+      '</div>' +
+      '<div class="fd-rows">' +
+        '<div class="fd-row"><span>体重区间</span><span>' + U.kg(f.minKg) + ' ~ ' + U.kg(f.maxKg) + '</span></div>' +
+        '<div class="fd-row"><span>基础售价</span><span>' + U.coin(f.price) + ' 金</span></div>' +
+        (e
+          ? '<div class="fd-row"><span>你的纪录</span><span>' + U.kg(e.maxKg) + '</span></div>' +
+            '<div class="fd-row"><span>累计钓获</span><span>' + e.n + ' 条</span></div>'
+          : '<div class="fd-row"><span>状态</span><span style="color:#e8595c">尚未钓到</span></div>') +
+        '<div class="fd-row"><span>单竿概率</span><span>' + fmtPct(pFish) + '　（约 ' +
+          expCasts(pFish) + ' 一次）</span></div>' +
+      '</div>';
+    card.appendChild(info);
+    root.appendChild(card);
+
+    /* ---- 颜色收集清单 ---- */
+    root.appendChild(U.el('div', 'section-title', '颜色收集'));
+
+    var list = U.el('div', 'fd-colors');
+    CFG.colorMorphs.forEach(function (cm) {
+      var cnt = (e && e.colors && e.colors[cm.key]) || 0;
+      var has = cnt > 0;
+      var p = cm.prob / cTotal;
+      var row = U.el('div', 'fd-color-row' + (has ? ' on' : ''));
+
+      var sw = U.el('i', 'fd-swatch');
+      sw.style.background = cm.tint || '#a9c7da';
+      row.appendChild(sw);
+
+      var main = U.el('div', 'fd-c-main');
+      main.innerHTML =
+        '<div class="fd-c-name">' + cm.name +
+          (has ? '<em class="fd-yes">已收集 ' + cnt + ' 条</em>'
+               : '<em class="fd-no">未收集</em>') + '</div>' +
+        '<div class="fd-c-sub">出现概率 ' + fmtPct(p) + '　｜　售价 ×' +
+          cm.valueMul.toFixed(2) + '　｜　约 ' + expCasts(pFish * p) + ' 钓到一条</div>';
+      row.appendChild(main);
+
+      list.appendChild(row);
+    });
+    root.appendChild(list);
+
+    var tip = U.el('div', 'hint-text');
+    tip.style.marginTop = '10px';
+    tip.innerHTML = '期望竿数按<b>基础掉率</b>计算（未计入鱼饵 / 鱼竿的稀有权重加成，实际会更快）。' +
+                    '颜色只影响外观与售价，<b>不参与钓场解锁</b>。';
+    root.appendChild(tip);
+  }
 
   VIEWS.book = {
-    title: '鱼类图鉴',
+    title: function () {
+      return bookFilter.sel && G.FISH_ID[bookFilter.sel] ? G.FISH_ID[bookFilter.sel].name : '鱼类图鉴';
+    },
     render: function (root) {
+      /* 详情页 */
+      if (bookFilter.sel) { renderFishDetail(root, bookFilter.sel); return; }
+
       var g = St.globalProgress();
 
       var head = U.el('div', 'book-head');
@@ -150,8 +336,11 @@ G.Panels = (function () {
 
       var filters = U.el('div', 'book-filters');
 
-      var fieldOpts = [{ k: 'ALL', n: '全部钓场' }].concat(
-        G.FIELDS.map(function (f) { return { k: f.id, n: f.rank + ' ' + f.name }; }));
+      /* 钓场筛选：各钓场在前，「全部钓场」放最后 */
+      if (bookFilter.field == null) bookFilter.field = St.get().field || 'ALL';
+      var fieldOpts = G.FIELDS.map(function (f) {
+        return { k: f.id, n: f.rank + ' ' + f.name + (St.get().field === f.id ? ' ·当前' : '') };
+      }).concat([{ k: 'ALL', n: '全部钓场' }]);
       fieldOpts.forEach(function (o) {
         var c = U.el('button', 'chip' + (bookFilter.field === o.k ? ' active' : ''), o.n);
         U.on(c, 'click', function () { bookFilter.field = o.k; refresh(); });
@@ -183,6 +372,12 @@ G.Panels = (function () {
       list.forEach(function (f) {
         var e = St.bookEntry(f.id);
         var item = U.el('div', 'book-item' + (e ? '' : ' unknown'));
+        /* 点进详情：看这一条鱼各种颜色的收集情况 */
+        U.on(item, 'click', function () {
+          bookFilter.sel = f.id;
+          G.Audio.click();
+          refresh();
+        });
         var cv = document.createElement('canvas');
         cv.width = 260; cv.height = 112;
         item.appendChild(cv);
@@ -194,7 +389,7 @@ G.Panels = (function () {
         CFG.colorMorphs.forEach(function (cm, ci) {
           var has = !!(e && e.colors && e.colors[cm.key]);
           var dot = U.el('i', has ? 'on' : '');
-          dot.style.background = cm.tint || '#8b98a5';
+          dot.style.background = cm.tint || '#a9c7da';
           dot.title = cm.name + (has ? ' ✓ 已收集' : ' ✗ 未收集');
           colorsRow.appendChild(dot);
         });
@@ -223,7 +418,7 @@ G.Panels = (function () {
               if (!(e.colors && e.colors[cm.key])) return;
               if (!best || cm.prob < best.prob) best = cm;
             });
-            var amt = best && best.tint ? (best.key === 'dark' ? 0.6 : 0.75) : 0;
+            var amt = best && best.tint ? 0.75 : 0;
             G.FishArt.draw(ctx, f, 130, 56, 168, {
               tint: best && best.tint, tintAmt: amt, t: 0.6,
             });
@@ -248,13 +443,14 @@ G.Panels = (function () {
       });
       CFG.colorMorphs.forEach(function (c) {
         lg.innerHTML += '<span class="lg"><i style="background:' + (c.tint || '#8b98a5') + '"></i>' + c.name +
-                        ' ' + (c.prob * 100).toFixed(1) + '%　售价 ×' + c.valueMul.toFixed(2) + '</span>';
+                        ' ' + fmtPct(c.prob / colorProbTotal()) + '　售价 ×' + c.valueMul.toFixed(2) + '</span>';
       });
       root.appendChild(lg);
       var ctip = U.el('div', 'hint-text');
       ctip.style.marginTop = '8px';
       ctip.innerHTML = '每种鱼最多可能有 6 种颜色。图鉴里显示的图案是<b>你收集到的最稀有颜色</b>，' +
-                       '下面 6 个小圆点代表该颜色的收集状态。颜色只影响外观和售价，<b>不影响解锁</b>。';
+                       '下面 6 个小圆点代表该颜色的收集状态。<b>点任意一条鱼可以查看它的颜色收集详情</b>。' +
+                       '颜色只影响外观和售价，<b>不影响解锁</b>。';
       root.appendChild(ctip);
     },
   };

@@ -250,7 +250,7 @@ function fmtLong(h) {
 
 console.log('\n=== ④ 全颜色 × 全品类收集耗时（完美目标，非解锁条件） ===');
 console.log('说明：解锁只看「品种」，颜色完全不参与解锁判定。下面是纯粹的理论极限。');
-console.log('钓场   组合数   收集全部组合均值   其中：集齐1条鱼6色的均值');
+console.log(`钓场   组合数   收集全部组合均值   其中：集齐1条鱼${CFG.colorMorphs.length}色的均值`);
 
 let totalCombos = 0, totalHours = 0;
 for (const field of G.FIELDS) {
@@ -263,7 +263,7 @@ for (const field of G.FIELDS) {
   });
   const casts = expectedAll(expanded);
   const hours = casts * cyc / 3600;
-  /* 集齐「某一条鱼」的 6 种颜色：用最稀有的那条鱼的摄食频率做基准 */
+  /* 集齐「某一条鱼」的全部颜色：用最稀有的那条鱼的摄食频率做基准 */
   const rarest = probs.reduce((a, b) => (b.p < a.p ? b : a));
   const colorOnly = expectedAll(CFG.colorMorphs.map(c => c.prob)) / rarest.p;
   totalCombos += expanded.length;

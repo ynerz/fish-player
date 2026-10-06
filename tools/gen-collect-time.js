@@ -73,6 +73,9 @@ function fmtNum(n) {
 
 const RAR_NAME = ['普通', '稀有', '史诗', '传说'];
 const RAR_COLOR = ['#8b98a5', '#2b8fe0', '#8b5cf6', '#e8901a'];
+/* 颜色表里最稀有 / 次稀有的颜色（用于明细表的两个额外列） */
+const RAREST = CFG.colorMorphs.slice().sort((a, b) => a.prob - b.prob);
+const C_RARE = RAREST[0], C_NEXT = RAREST[1];
 
 /* ---------------- 计算 ---------------- */
 const fieldData = [];
@@ -202,14 +205,14 @@ const html = `<!DOCTYPE html>
       <code>E[T] = ∫₀^∞ [1 − Π(1 − e^(−p·t))] dt</code>，
       它比「Σ(1/p)」小得多 —— Σ(1/p) 是「某一条鱼」的期望，不是「收齐所有鱼」的期望。</p>
     <p><b>把颜色也算进去</b>就是同一个公式，但目标集合扩成「品种 × 颜色」。
-      因为最稀有的颜色（闪光 0.1%）会把时间放大 1000 倍，这一列的数字会非常夸张 —— 那是刻意的。</p>
+      最稀有的颜色（${C_RARE.name} ${(C_RARE.prob * 100).toFixed(0)}%）比原色低 ${Math.round(CFG.colorMorphs[0].prob / C_RARE.prob)} 倍，它要求「每一条鱼都要出一次最稀有色」，所以这一列的数字会很长 —— 那是刻意的。</p>
   </div>
 
   <h2>一、总览</h2>
   <div class="kpis">
     <div class="kpi"><b>${G.FISH.length}</b><span>鱼种总数</span></div>
     <div class="kpi"><b>${G.FIELDS.length}</b><span>钓场</span></div>
-    <div class="kpi"><b>6</b><span>颜色变异</span></div>
+    <div class="kpi"><b>${CFG.colorMorphs.length}</b><span>颜色变异</span></div>
     <div class="kpi"><b>${totalCombos}</b><span>品种×颜色 组合</span></div>
     <div class="kpi"><b>${fmtHour(totalAllHours)}</b><span>收齐全部品种</span></div>
     <div class="kpi"><b>${fmtHour(totalColorHours)}</b><span>收齐全部品种×颜色</span></div>
@@ -249,14 +252,14 @@ const html = `<!DOCTYPE html>
         <td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${cm.tint || '#8b98a5'};border:1px solid rgba(0,0,0,.18);vertical-align:-1px"></span> <b>${cm.name}</b></td>
         <td class="num">${(cm.prob * 100).toFixed(1)}%</td>
         <td class="num">×${cm.valueMul.toFixed(2)}</td>
-        <td>${cm.key === 'shiny' ? '<b style="color:#e8595c">全场最稀有</b>' : (cm.key === 'golden' ? '第二稀有' : '')}</td>
+        <td>${cm.key === C_RARE.key ? '<b style="color:#e8595c">全场最稀有 · 最贵</b>' : (cm.key === C_NEXT.key ? '第二稀有' : '')}</td>
       </tr>`).join('')}
     </table>
-    <div class="note warn">
-      ⚠️ <b>闪光与黄金的概率已按需求对调</b>：闪光从 0.7% 降到 <b>0.1%（最稀有）</b>，
-      黄金从 0.1% 升到 <b>0.7%</b>。<br>
-      但<b>售价系数没有跟着换</b> —— 黄金仍是最高 4.0×，闪光 2.3×。
-      也就是说现在「最稀有的颜色卖得比第二稀有的便宜」，如果要把售价也一起对调，说一声即可。
+    <div class="note">
+      ✅ <b>颜色档位已重构为 5 档</b>（原「暗色」已移除）：原色 76% / 亮色 10% / 白化 10% /
+      黄金 3% / <b>闪光 1%</b>。<br>
+      <b>售价系数同步对调</b>：<b>闪光 ×4.00 最高</b>、黄金 ×2.30 —— 现在「越稀有越值钱」。
+      最稀有（闪光 1%）也最贵，收藏动力最强。
     </div>
 
     <h3>每个钓场里，各颜色的期望出现间隔</h3>
@@ -287,18 +290,16 @@ ${fieldData.map(d => `
     <div class="kpis">
       <div class="kpi"><b>${fmtHour(d.hoursAll)}</b><span>收齐全部品种（${d.rows.length} 种）</span></div>
       <div class="kpi"><b style="color:#e8595c">${fmtHour(d.hoursColor)}</b><span>连颜色一起收齐（${d.combos} 组合）</span></div>
-      <div class="kpi"><b>${fmtHour(d.hoursColor / d.hoursAll)}</b><span>颜色带来的放大倍数</span></div>
+      <div class="kpi"><b>×${(d.hoursColor / d.hoursAll).toFixed(1)}</b><span>颜色带来的放大倍数</span></div>
     </div>
     <div class="scroll">
     <table>
       <tr>
         <th>#</th><th>鱼名</th><th>稀有度</th><th>体型</th>
         <th class="num">单竿概率</th><th class="num">期望竿数</th><th class="num">期望时间</th>
-        <th class="num">该鱼闪光<br>(0.1%)</th><th class="num">该鱼黄金<br>(0.7%)</th>
+        <th class="num">该鱼${C_RARE.name}<br>(${(C_RARE.prob * 100).toFixed(0)}%)</th><th class="num">该鱼${C_NEXT.name}<br>(${(C_NEXT.prob * 100).toFixed(0)}%)</th>
       </tr>
       ${d.rows.map((r, i) => {
-        const shiny = CFG.colorMorphs.find(c => c.key === 'shiny');
-        const gold = CFG.colorMorphs.find(c => c.key === 'golden');
         const th = (cm) => (1 / (r.p * cm.prob)) * d.cyc / 3600;
         return `<tr>
           <td class="num" style="color:var(--ink3)">${i + 1}</td>
@@ -308,8 +309,8 @@ ${fieldData.map(d => `
           <td class="num">${(r.p * 100).toFixed(3)}%</td>
           <td class="num">${fmtNum(r.casts)}</td>
           <td class="num"><b>${fmtHour(r.hours)}</b></td>
-          <td class="num" style="color:#e8595c">${fmtHour(th(shiny))}</td>
-          <td class="num">${fmtHour(th(gold))}</td>
+          <td class="num" style="color:#e8595c">${fmtHour(th(C_RARE))}</td>
+          <td class="num">${fmtHour(th(C_NEXT))}</td>
         </tr>`;
       }).join('')}
     </table>
@@ -322,7 +323,7 @@ ${fieldData.map(d => `
     <ul>
       <li><b>收齐全部品种</b>：${fmtHour(totalAllHours)}（7 个钓场累计）</li>
       <li><b>连颜色一起收齐</b>：${fmtHour(totalColorHours)}，共 ${totalCombos} 个组合</li>
-      <li>放大倍数约 <b>${Math.round(totalColorHours / totalAllHours)} 倍</b> —— 原因就是闪光只有 0.1%，
+      <li>放大倍数约 <b>${Math.round(totalColorHours / totalAllHours)} 倍</b> —— 原因就是${C_RARE.name}只有 ${(C_RARE.prob * 100).toFixed(0)}%，
           而它要求「每一条鱼都要闪一次」</li>
       <li>所以颜色只能当收藏彩蛋，<b>绝不能写进解锁条件</b></li>
     </ul>

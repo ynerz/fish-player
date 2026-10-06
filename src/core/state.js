@@ -177,7 +177,7 @@ G.State = (function () {
       }
     }
 
-    if (ok && G.UNLOCK_HOURS_AS_GATE && f.unlockHours > 0) {
+    if (ok && CFG.unlockHoursAsGate && f.unlockHours > 0) {
       var needSec = f.unlockHours * 3600;
       if (S.playTime < needSec) {
         ok = false;

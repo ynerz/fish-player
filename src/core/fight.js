@@ -16,7 +16,7 @@ G.Fight = (function () {
   var U = G.U, CFG = G.CONFIG;
 
   var F = null;              // 当前战局
-  var SAFE = 0.78;           // 张力安全线（占比）
+  var SAFE = CFG.fight.safeRatio;   // 张力安全线（占比），见 config.js
 
   function begin(o) {
     var rar = CFG.rarity[o.fish.rar];

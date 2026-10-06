@@ -4,6 +4,7 @@
 (function () {
   var U = G.U, St = G.State, Hud = G.Hud, S = G.Scene, F = G.Fishing, P = G.Panels;
   var last = 0, hudTimer = 0, lastState = '', hiddenAt = 0, bootDone = false;
+  var blurred = false;   /* 窗口失焦（切到别的应用）时也停掉逻辑与计时 */
 
   function boot() {
     /* ---------- 存档 ---------- */
@@ -92,6 +93,10 @@
       }
     });
 
+    /* ---------- 窗口失焦：多显示器下切走也要停，只靠 visibilitychange 不够 ---------- */
+    U.on(window, 'blur', function () { blurred = true; St.save(true); });
+    U.on(window, 'focus', function () { blurred = false; last = performance.now(); });
+
     /* ---------- 关闭前保存 ---------- */
     U.on(window, 'beforeunload', function () { St.save(true); });
     setInterval(function () { St.save(false); }, G.CONFIG.misc.autoSaveInterval * 1000);
@@ -117,14 +122,18 @@
   }
 
   /* ---------------- 状态 ---------------- */
+  /* 单竿期望耗时（秒）= 期望咬口（含 biteMul）+ 期望拉扯
+     与 tools/balance.js 的 cycleOf() 用同一套口径，离线补算才准。 */
   function avgCycle() {
     var f = G.FIELD_MAP[St.get().field] || G.FIELDS[0];
-    var sum = 0, tot = 0;
-    f.rarity.forEach(function (v, i) {
-      sum += v * ((G.CONFIG.rarity[i].timeMin + G.CONFIG.rarity[i].timeMax) / 2 + 12);
-      tot += v;
-    });
-    return Math.max(12, sum / tot);
+    var w = G.Loot.rarityWeights(f, { bait: null, rod: null, idle: true });
+    var tw = w.reduce(function (a, b) { return a + b; }, 0);
+    var ex = G.CONFIG.misc.fightExpect;
+    var sum = 0;
+    for (var i = 0; i < 4; i++) {
+      sum += (w[i] / tw) * (G.Loot.biteTime(i, { field: f }) + ex[i]);
+    }
+    return Math.max(5, sum);
   }
 
   function onStateChange(st) {
@@ -181,11 +190,19 @@
     Hud.syncAll();
   }
 
-  function onMiss(result, pending) {
+  function onMiss(result, pending, fee) {
     if (G.Fishing.isIdleMode()) return;
-    if (result === 'snap') Hud.toast({ text: '啪！线断了，鱼跑了', kind: 'bad' });
-    else if (result === 'escape') Hud.toast({ text: '松线太久，鱼脱钩了', kind: 'bad' });
-    else Hud.toast({ text: '没抓住咬口，鱼跑了', kind: 'warn' });
+    if (result === 'snap') {
+      Hud.toast({
+        text: '啪！线断了，鱼跑了' + (fee ? '　修理鱼线 -' + U.coin(Math.round(fee)) + ' 金' : ''),
+        kind: 'bad',
+      });
+      if (fee) Hud.syncCoin(true);
+    } else if (result === 'escape') {
+      Hud.toast({ text: '松线太久，鱼脱钩了', kind: 'bad' });
+    } else {
+      Hud.toast({ text: '没抓住咬口，鱼跑了', kind: 'warn' });
+    }
   }
 
   function onUnlock(list) {
@@ -211,11 +228,14 @@
     if (!isFinite(dt) || dt < 0) dt = 0;
     dt = Math.min(dt, 0.05);
 
-    var paused = P.isCatchOpen() || P.isOpen();
+    /* 只有「结算卡」会打断钓鱼 —— 玩家正在看渔获。
+       浏览图鉴 / 商店 / 统计时挂机继续跑，否则挂机游戏的核心预期就废了。 */
+    var paused = P.isCatchOpen();
 
-    if (document.visibilityState === 'visible') St.tick(dt);
+    var focused = document.visibilityState === 'visible' && !blurred;
+    if (focused) St.tick(dt);
 
-    if (!paused) {
+    if (!paused && focused) {
       F.update(dt);
       /* 鱼力竭提示 */
       var f = G.Fight.get();

@@ -139,9 +139,22 @@ G.Fishing = (function () {
       }
     } else {
       var st = St.get();
-      if (result === 'snap') { st.stats.snaps++; G.Audio.snap(); G.Scene.splash(1.5); }
-      else { st.stats.escapes++; G.Audio.escape(); G.Scene.splash(0.8); }
-      if (cb.onMiss) cb.onMiss(result, pending);
+      var fee = 0;
+      if (result === 'snap') {
+        st.stats.snaps++;
+        G.Audio.snap(); G.Scene.splash(1.5);
+        /* 断线要付鱼线修理费 —— 否则「断线」和「主动放弃」收益完全一样，
+           玩家没有理由认真躲逃窜，张力玩法就没有张力。 */
+        fee = Math.max(
+          CFG.snap.repairMin,
+          Math.round(St.curLine().price * CFG.snap.repairPct)
+        );
+        fee = Math.min(fee, Math.floor(st.coin));
+        if (fee > 0) St.spend(fee);
+      } else {
+        st.stats.escapes++; G.Audio.escape(); G.Scene.splash(0.8);
+      }
+      if (cb.onMiss) cb.onMiss(result, pending, fee);
     }
 
     pending = null;
@@ -163,13 +176,13 @@ G.Fishing = (function () {
       case 'idle':
         if (idleOn) {
           timer += dt;
-          if (timer > 0.5) cast();
+          if (timer > CFG.misc.idleCastDelay) cast();
         }
         break;
 
       case 'flying':
         timer += dt;
-        if (timer >= 0.85) {
+        if (timer >= CFG.misc.flyTime) {
           state = 'waiting';
           waitLeft = pending.wait;
           G.Scene.beginWait();
@@ -180,7 +193,11 @@ G.Fishing = (function () {
       case 'waiting':
         waitLeft -= dt;
         // 提前收杆提示：临近咬钩时给个暗示（8 秒内浮漂轻微异动）
-        if (waitLeft <= 8 && !pending._hinted) { pending._hinted = true; }
+        if (waitLeft <= CFG.misc.biteHintLead && !pending._hinted) {
+          pending._hinted = true;
+          G.Scene.floatNudge();          // 浮漂轻微异动：这是「提前收杆」唯一的价值来源
+          G.Audio.hint();
+        }
         if (waitLeft <= 0) {
           state = 'bite';
           biteLeft = CFG.misc.biteWindow[CFG.rarity[pending.rar].key] || 1.5;
@@ -190,7 +207,7 @@ G.Fishing = (function () {
 
           if (idleOn) {
             // 挂机：延迟一点自动提竿，看起来像在操作
-            biteLeft = Math.min(biteLeft, 0.45);
+            biteLeft = Math.min(biteLeft, CFG.misc.idleStrikeHold);
           }
         }
         break;
@@ -231,7 +248,7 @@ G.Fishing = (function () {
             if (evs[i] === 'overSafe' && cb.onToast) cb.onToast({ text: '张力过高！松手！', kind: 'bad' });
           }
           if (f.over) resolve(f.result);
-          else if (f.elapsed > 300) resolve('escape');   // 兜底：单场拉扯不超过 5 分钟
+          else if (f.elapsed > CFG.misc.fightTimeout) resolve('escape');   // 兜底：单场拉扯上限
         }
         break;
     }

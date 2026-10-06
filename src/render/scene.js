@@ -19,6 +19,7 @@ G.Scene = (function () {
     floatState: 'none',   // none | flying | wait | bite | fight
     floatT: 0,
     biteDip: 0,
+    nudge: 0,             // 0~1，咬钩前的「浮漂异动」强度，指数衰减
     rodBend: 0,
     lineOut: 0,           // 0~1 线放出的程度（抛竿动画）
     fightFish: null,
@@ -99,10 +100,15 @@ G.Scene = (function () {
   function cast() {
     S.floatState = 'flying';
     S.floatT = 0;
+    S.nudge = 0;
     S.lineOut = 0;
     S.fishShadow = null;
     G.Audio.cast();
   }
+
+  /* 咬钩前的浮漂异动 —— 让「提前收杆」这件事有可观察的信号。
+     只是很轻微的连续抖动 + 一圈细小涟漪，不暴露鱼的稀有度。 */
+  function floatNudge() { S.nudge = 1; }
   function beginWait() {
     S.floatState = 'wait';
     S.floatT = 0;
@@ -172,8 +178,10 @@ G.Scene = (function () {
 
   function floatX() {
     if (S.floatState === 'flying') {
-      return U.lerp(W * 0.30, floatHomeX(), U.easeOut(S.floatT / 0.85));
+      return U.lerp(W * 0.30, floatHomeX(), U.easeOut(S.floatT / G.CONFIG.misc.flyTime));
     }
+    /* 异动时浮漂轻微横向游移，看起来像有东西在水下试探 */
+    if (S.nudge > 0) return floatHomeX() + Math.sin(time * 7.5) * S.nudge * 3.4;
     return floatHomeX();
   }
 
@@ -190,9 +198,10 @@ G.Scene = (function () {
     /* 抛竿动画推进 */
     if (S.floatState === 'flying') {
       S.floatT += dt;
-      if (S.floatT > 0.85) { S.floatT = 0.85; }
+      if (S.floatT > G.CONFIG.misc.flyTime) { S.floatT = G.CONFIG.misc.flyTime; }
     }
     if (S.biteDip > 0) S.biteDip = Math.max(0, S.biteDip - dt * 1.6);
+    if (S.nudge > 0) S.nudge = Math.max(0, S.nudge - dt * 0.42);
 
     var th = field.theme;
 
@@ -724,7 +733,7 @@ G.Scene = (function () {
     var fx = floatX(), fy = surfaceY();
 
     if (S.floatState === 'flying') {
-      var t = S.floatT / 0.85;
+      var t = S.floatT / G.CONFIG.misc.flyTime;
       fx = U.lerp(W * 0.30, floatHomeX(), U.easeOut(t));
       fy = fy - (1 - t) * (1 - t) * H * 0.22;
     }
@@ -754,6 +763,7 @@ G.Scene = (function () {
     } else if (S.floatState === 'fight') {
       dip = 5 + Math.sin(time * 9) * 3;
     }
+    if (S.nudge > 0) dip += (Math.sin(time * 11) * 0.5 + 0.5) * S.nudge * 2.6;
     var fy = base + bob + dip;
 
     // 水波圈
@@ -762,6 +772,7 @@ G.Scene = (function () {
     ctx.lineWidth = 1;
     for (var i = 0; i < 2; i++) {
       var rr = ((time * 22 + i * 16) % 34);
+      if (S.nudge > 0) { rr = (rr + S.nudge * 8) % 34; }
       ctx.globalAlpha = 1 - rr / 34;
       ctx.beginPath(); ctx.ellipse(fx, base + 2, rr, rr * 0.32, 0, 0, 6.3); ctx.stroke();
     }
@@ -947,7 +958,7 @@ G.Scene = (function () {
   return {
     init: init, render: render, resize: resize,
     setField: setField, setDecor: setDecor,
-    cast: cast, beginWait: beginWait, bite: bite,
+    cast: cast, beginWait: beginWait, bite: bite, floatNudge: floatNudge,
     beginFight: beginFight, endFight: endFight,
     splash: splash, sparkle: sparkle, showShadow: showShadow,
     setRodBend: setRodBend, getRodTip: getRodTip, getFloat: getFloat,

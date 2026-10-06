@@ -96,6 +96,11 @@ G.Audio = (function () {
       tone(880, 0.10, 'square', 0.14, 0);
       tone(1320, 0.12, 'square', 0.12, 0.11);
     },
+    /* 咬钩前的浮漂异动：刻意做得很轻，只是「有东西在试探」的感觉 */
+    hint: function () {
+      tone(1180, 0.09, 'sine', 0.035, 0);
+      noise(0.10, 0.030, 1600, 0, 0.9);
+    },
     /* 收线咔哒 */
     tick: function () {
       tone(1500 + Math.random() * 500, 0.035, 'square', 0.045, 0);

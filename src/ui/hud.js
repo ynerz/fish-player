@@ -31,6 +31,13 @@ G.Hud = (function () {
     el.badgeSub  = U.$('.fb-sub');
     el.idleChip  = U.$('#idleChip');
     el.catchLog  = U.$('#catchLog');
+    el.zoneSafe  = U.$('.tension-track .zone-safe');
+    el.dangerMark = U.$('.tension-track .danger-mark');
+
+    /* 安全区带宽度 / 危险线位置都从 CFG.fight.safeRatio 算，
+       避免「fight.js 里改 0.78、CSS 里还写着 78%」这种两份硬编码 */
+    if (el.zoneSafe)   el.zoneSafe.style.width  = (G.Fight.SAFE * 100) + '%';
+    if (el.dangerMark) el.dangerMark.style.left = (G.Fight.SAFE * 100) + '%';
 
     /* 顶栏按钮 */
     U.$$('.tab').forEach(function (b) {

@@ -65,9 +65,11 @@ function simulate(fish, kg, tensionMax, reelMul, prof) {
 }
 
 /* ---------------- 单竿耗时 ---------------- */
-function waitTime(rar) {
-  const r = CFG.rarity[rar];
-  return U.range(r.timeMin, r.timeMax);
+/* ⚠️ 必须把 field 传进 Loot.biteTime —— 它会给「普通 / 稀有」两档乘 biteMul。
+   之前这里漏了参数，导致 B/A/S/SS/SSS 场的每小时收益被系统性高估
+   （SSS 报 24313、实际只有 12176）。游戏本体走的是同一条路径。 */
+function waitTime(rar, field) {
+  return G.Loot.biteTime(rar, { field: field });
 }
 
 /* ---------------- 抽鱼 ---------------- */
@@ -134,10 +136,12 @@ for (const field of G.FIELDS) {
   for (let i = 0; i < n; i++) {
     const { fish } = rollFish(field, G.BAITS[0], 1.0, false);
     const kg = rollKg(fish);
-    sumWait += waitTime(fish.rar);
+    sumWait += waitTime(fish.rar, field);
     const r = simulate(fish, kg, 100, 1.0, PROFILE["熟练"]);
     sumFight += r.result === 'success' ? r.time : r.time * 0.6;
-    sumValue += fish.price * (kg / ((fish.minKg + fish.maxKg) / 2));
+    /* 用游戏真实的售价函数：鱼种基础价 × 重量系数 × 颜色系数
+       （此前只乘了重量，漏了颜色，收益被低估约 15~50%） */
+    sumValue += G.Loot.price(fish, kg, G.Loot.rollColor(fish.rar), false);
   }
   const avgWait = sumWait / n, avgFight = sumFight / n;
   const perFish = avgWait + avgFight;
@@ -151,7 +155,7 @@ for (const field of G.FIELDS) {
 }
 
 /* ---------------- ③ 图鉴收集耗时（用游戏真实抽卡逻辑蒙特卡洛） ---------------- */
-const FIGHT_EXP = [7.3, 22, 34, 50];   // 每竿期望耗时（含失败重来），秒
+const FIGHT_EXP = CFG.misc.fightExpect;   // 每竿期望耗时（含失败重来），秒
 
 function simulateCollect(field, needCount, opts) {
   const seen = new Set();

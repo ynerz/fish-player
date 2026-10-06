@@ -310,8 +310,11 @@ G.Fishing = (function () {
     if (n <= 0) return null;
 
     // 用「期望收益」而不是逐条模拟，避免卡顿
-    var sumCoin = 0, gained = {}, rareGot = 0, newKinds = 0;
+    var sumCoin = 0, gained = {}, rareGot = 0, newKinds = 0, recent = [];
     var sample = Math.min(n, 4000);
+    /* 从抽样里匀出几条「代表渔获」带回去给播报栏 / 收获面板 ——
+       否则玩家回来只看到一句「又上了 N 条鱼」，不知道钓到了什么 */
+    var stride = Math.max(1, Math.floor(sample / 5));
     for (var i = 0; i < sample; i++) {
       /* 离线期间会跨过很多次天气变化，这里用「中性环境」，
          保证与 tools/balance.js 的节奏表口径一致 */
@@ -322,6 +325,12 @@ G.Fishing = (function () {
       gained[g.fish.id] = (gained[g.fish.id] || 0) + 1;
       if (g.fish.rar >= 2) rareGot++;
       if (isNew) newKinds++;
+      if (recent.length < 5 && i % stride === 0) {
+        recent.push({
+          fish: g.fish, kg: g.kg, color: g.color, price: p,
+          rar: g.fish.rar, isNew: isNew, isRecord: false,
+        });
+      }
     }
     var scale = n / sample;
     sumCoin = Math.round(sumCoin * scale);
@@ -345,7 +354,7 @@ G.Fishing = (function () {
     St.save(true);
     /* 离线补算也可能推进成就（挂机几千条），这里补一次判定 */
     if (G.Goals) G.Goals.check(null);
-    return { count: n, coin: sumCoin, rare: rareGot, kinds: newKinds, seconds: seconds, unlocks: ups };
+    return { count: n, coin: sumCoin, rare: rareGot, kinds: newKinds, seconds: seconds, unlocks: ups, recent: recent };
   }
 
   return {

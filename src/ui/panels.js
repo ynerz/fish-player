@@ -1465,6 +1465,18 @@ G.Panels = (function () {
         '<div class="stat-box"><div class="sb-label">史诗 / 传说</div><div class="sb-value">' + r.rare + '<small>条</small></div></div>' +
         '<div class="stat-box"><div class="sb-label">新增图鉴</div><div class="sb-value">' + r.kinds + '<small>种</small></div></div>';
       root.appendChild(g);
+      /* 代表渔获：离线补算是抽样折算的，但玩家总得看到「具体钓到了什么」 */
+      if (r.recent && r.recent.length) {
+        var rl = U.el('div', 'offline-list');
+        rl.style.marginTop = '14px';
+        rl.innerHTML = '<div class="sb-label">离线期间的代表渔获</div>' +
+          r.recent.map(function (x) {
+            return '<div class="ol-row"><span class="ol-name">' + esc(x.fish.name) + '</span>' +
+              '<span class="ol-note">' + esc(x.color.name) + ' · ' + U.kg(x.kg) + '</span>' +
+              '<span class="ol-coin">+' + U.coin(x.price) + '</span></div>';
+          }).join('');
+        root.appendChild(rl);
+      }
       if (r.unlocks && r.unlocks.length) {
         var t = U.el('div', 'hint-text');
         t.style.marginTop = '12px';

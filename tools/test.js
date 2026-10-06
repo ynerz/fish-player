@@ -30,11 +30,14 @@ global.localStorage = {
 ['src/data/config.js', 'src/data/fields.js', 'src/data/fish.js', 'src/data/items.js',
  'src/data/goals.js',
  'src/core/util.js', 'src/core/platform.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js',
- 'src/core/goals.js',
+ 'src/core/goals.js', 'src/core/weather.js', 'src/core/fishing.js',
  'src/ui/tutorial.js']
   .forEach(r => (new Function(fs.readFileSync(path.join(ROOT, r), 'utf8'))).call(global));
 
 const G = global.G, CFG = G.CONFIG, L = G.Loot, F = G.Fight, St = G.State, U = G.U;
+/* fishing.js 是纯逻辑（渲染靠 G.Scene，只在运行时才碰），所以能在 Node 里单测。
+   让离线补算这类「只有关闭页面才走到」的路径也有断言覆盖。 */
+const Fish = G.Fishing;
 
 /* =========================================================
    1. Loot —— 颜色
@@ -689,6 +692,27 @@ St.load();
 ok(!!St.get().tut && St.get().tut.step === 0 && St.get().tut.done === false, 'tut 不是对象时重建为默认值');
 St.reset();
 ok(St.get().tut.step === 0 && St.get().tut.done === false, '重置存档后引导重新开始');
+
+/* =========================================================
+   Fishing —— 离线补算
+   ========================================================= */
+G_('Fishing · 离线补算');
+St.reset();
+Fish.init({});
+ok(Fish.offlineCatchUp(30, 30) === null, '离线不足 60 秒不补算');
+const oc = Fish.offlineCatchUp(3600, 30);
+ok(!!oc, '一小时离线能补算出结果');
+ok(oc.count === Math.floor(3600 / 30), '竿数 = 离线秒数 ÷ 单竿耗时', '实际 ' + (oc && oc.count));
+ok(oc.coin > 0, '补算收入为正', '实际 ' + (oc && oc.coin));
+ok(oc.kinds >= 0 && oc.rare >= 0 && oc.rare <= oc.count, '史诗/传说条数与新增图鉴数都在合理范围');
+ok(Array.isArray(oc.recent) && oc.recent.length >= 1 && oc.recent.length <= 5,
+   '带回 1~5 条代表渔获（主循环要它们进播报栏）', '实际 ' + (oc.recent && oc.recent.length));
+ok(oc.recent.every(x => x.fish && x.fish.name && x.color && x.color.name &&
+   x.kg > 0 && x.price > 0 && x.rar >= 0 && x.rar <= 3 && typeof x.isNew === 'boolean'),
+   '代表渔获的字段与真实渔获同构（Hud.pushCatch 能直接吃）');
+const ocCap = Fish.offlineCatchUp(999999, 30);
+ok(ocCap.seconds === CFG.idle.maxCatchUp, '离线补算按 idle.maxCatchUp 封顶', '实际 ' + (ocCap && ocCap.seconds));
+ok(ocCap.recent.length <= 5, '离线再久，代表渔获也不超过 5 条（播报栏不会刷屏）');
 
 /* =========================================================
    Platform —— 输入通道

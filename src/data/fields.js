@@ -10,6 +10,11 @@
    ========================================================= */
 window.G = window.G || {};
 
+/* 各钓场的「咬口倍率」biteMul：
+   越深的水域，鱼找饵的时间越长。只作用于「普通 / 稀有」两档 ——
+   史诗 / 传说本来就接近 10 分钟上限，再乘就超出策划设定的单竿时长上限了。
+   这条倍率让后期钓场在「不靠稀有种」的前提下自然变慢。 */
+
 /* 是否把「设计时长」也作为硬性解锁门槛。
    用户口径：只需要收藏即可 → false。 */
 G.UNLOCK_HOURS_AS_GATE = false;
@@ -17,8 +22,9 @@ G.UNLOCK_HOURS_AS_GATE = false;
 G.FIELDS = [
   {
     id: 'D',
+    biteMul: 1.0,   // 深水鱼咬口更慢（只作用于普通/稀有档）
     estUnlockHours: 0.0,   // 解锁本钓场需累计多少小时（实测期望值）
-    estOwnHours: 1.0,      // 本钓场 100% 收满需多少小时
+    estOwnHours: 2.0,      // 本钓场 100% 收满需多少小时
     rank: 'D',
     name: '村口小池塘',
     sub: '新手钓场',
@@ -29,7 +35,7 @@ G.FIELDS = [
     requires: null,
     requireFull: false,
     /* 稀有度权重（普通 / 稀有 / 史诗 / 传说），合计 100 */
-    rarity: [93.238, 5.953, 0.809, 0],
+    rarity: [84.333, 9.911, 4.211, 1.544],
     /* 每个稀有度内部的鱼种权重在 fish.js 里定义 */
     theme: {
       sky: ['#a8dcff', '#e6f6ff'],
@@ -53,8 +59,9 @@ G.FIELDS = [
 
   {
     id: 'C',
-    estUnlockHours: 1.0,   // 解锁本钓场需累计多少小时（实测期望值）
-    estOwnHours: 2.0,      // 本钓场 100% 收满需多少小时
+    biteMul: 1.0,   // 深水鱼咬口更慢（只作用于普通/稀有档）
+    estUnlockHours: 2.0,   // 解锁本钓场需累计多少小时（实测期望值）
+    estOwnHours: 4.0,      // 本钓场 100% 收满需多少小时
     rank: 'C',
     name: '溪流浅滩',
     sub: '溪流钓场',
@@ -64,7 +71,7 @@ G.FIELDS = [
     collectionPct: 0.8,
     requires: 'D',
     requireFull: false,
-    rarity: [88.182, 6.96, 3.816, 1.042],
+    rarity: [77.245, 17.511, 4.823, 0.42],
     theme: {
       sky: ['#cfeaff', '#fdf6e4'],
       sun: { x: 0.20, y: 0.14, r: 40, color: '#fff8d8', glow: 'rgba(255,240,190,.65)' },
@@ -88,8 +95,9 @@ G.FIELDS = [
 
   {
     id: 'B',
-    estUnlockHours: 3.0,   // 解锁本钓场需累计多少小时（实测期望值）
-    estOwnHours: 7.0,      // 本钓场 100% 收满需多少小时
+    biteMul: 1.2,   // 深水鱼咬口更慢（只作用于普通/稀有档）
+    estUnlockHours: 6.0,   // 解锁本钓场需累计多少小时（实测期望值）
+    estOwnHours: 15.9,      // 本钓场 100% 收满需多少小时
     rank: 'B',
     name: '湖心半岛',
     sub: '湖泊钓场',
@@ -99,7 +107,7 @@ G.FIELDS = [
     collectionPct: 0.8,
     requires: 'C',
     requireFull: false,
-    rarity: [87.734, 7.931, 4.172, 0.162],
+    rarity: [74.746, 14.88, 9.708, 0.666],
     theme: {
       sky: ['#7fb2e0', '#ffd9a8'],
       sun: { x: 0.68, y: 0.34, r: 52, color: '#ffd27a', glow: 'rgba(255,180,90,.55)' },
@@ -122,8 +130,9 @@ G.FIELDS = [
 
   {
     id: 'A',
-    estUnlockHours: 9.9,   // 解锁本钓场需累计多少小时（实测期望值）
-    estOwnHours: 19.8,      // 本钓场 100% 收满需多少小时
+    biteMul: 1.6,   // 深水鱼咬口更慢（只作用于普通/稀有档）
+    estUnlockHours: 21.8,   // 解锁本钓场需累计多少小时（实测期望值）
+    estOwnHours: 44.7,      // 本钓场 100% 收满需多少小时
     rank: 'A',
     name: '深海断崖',
     sub: '近海钓场',
@@ -133,7 +142,7 @@ G.FIELDS = [
     collectionPct: 0.8,
     requires: 'B',
     requireFull: false,
-    rarity: [83.298, 13.112, 3.229, 0.36],
+    rarity: [55.43, 30.873, 13.157, 0.54],
     theme: {
       sky: ['#4fa8e8', '#bfe8ff'],
       sun: { x: 0.5, y: 0.10, r: 40, color: '#ffffff', glow: 'rgba(255,255,255,.7)' },
@@ -156,8 +165,9 @@ G.FIELDS = [
 
   {
     id: 'S',
-    estUnlockHours: 29.8,   // 解锁本钓场需累计多少小时（实测期望值）
-    estOwnHours: 69.4,      // 本钓场 100% 收满需多少小时
+    biteMul: 2.2,   // 深水鱼咬口更慢（只作用于普通/稀有档）
+    estUnlockHours: 66.5,   // 解锁本钓场需累计多少小时（实测期望值）
+    estOwnHours: 99.5,      // 本钓场 100% 收满需多少小时
     rank: 'S',
     name: '幽蓝海沟',
     sub: '深海钓场',
@@ -167,7 +177,7 @@ G.FIELDS = [
     collectionPct: 0.8,
     requires: 'A',
     requireFull: false,
-    rarity: [81.308, 12.814, 5.764, 0.114],
+    rarity: [54.988, 31.318, 13.142, 0.551],
     theme: {
       sky: ['#2a3f5c', '#4a6b85'],
       sun: null,
@@ -191,8 +201,9 @@ G.FIELDS = [
 
   {
     id: 'SS',
-    estUnlockHours: 99.2,   // 解锁本钓场需累计多少小时（实测期望值）
-    estOwnHours: 586.9,      // 本钓场 100% 收满需多少小时
+    biteMul: 3.0,   // 深水鱼咬口更慢（只作用于普通/稀有档）
+    estUnlockHours: 166.0,   // 解锁本钓场需累计多少小时（实测期望值）
+    estOwnHours: 132.3,      // 本钓场 100% 收满需多少小时
     rank: 'SS',
     name: '星陨之渊',
     sub: '隐藏钓场',
@@ -203,7 +214,7 @@ G.FIELDS = [
     requires: ['D', 'C', 'B', 'A', 'S'],
     requireFull: true,
     hidden: true,
-    rarity: [97.218, 2.378, 0.388, 0.016],
+    rarity: [69.844, 20.6, 9.047, 0.51],
     theme: {
       sky: ['#080d24', '#1b2450'],
       sun: null,
@@ -230,8 +241,9 @@ G.FIELDS = [
 
   {
     id: 'SSS',
-    estUnlockHours: 686.1,   // 解锁本钓场需累计多少小时（实测期望值）
-    estOwnHours: 296.6,      // 本钓场 100% 收满需多少小时
+    biteMul: 3.5,   // 深水鱼咬口更慢（只作用于普通/稀有档）
+    estUnlockHours: 298.3,   // 解锁本钓场需累计多少小时（实测期望值）
+    estOwnHours: 529.3,      // 本钓场 100% 收满需多少小时
     rank: 'SSS',
     name: '时之尽头',
     sub: '終極隐藏钓场',
@@ -242,7 +254,7 @@ G.FIELDS = [
     requires: ['D', 'C', 'B', 'A', 'S', 'SS'],
     requireFull: true,
     hidden: true,
-    rarity: [89.091, 7.13, 3.717, 0.062],
+    rarity: [72, 26.657, 1.109, 0.234],
     theme: {
       sky: ['#120a2e', '#2e1a4d'],
       sun: null,

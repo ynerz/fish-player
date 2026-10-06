@@ -160,7 +160,7 @@ function simulateCollect(field, needCount, opts) {
     const pick = G.Loot.rollFish(field, opts);
     seen.add(pick.fish.id);
     casts++;
-    sec += G.Loot.biteTime(pick.rar, opts) + FIGHT_EXP[pick.rar];
+    sec += G.Loot.biteTime(pick.rar, { field: field }) + FIGHT_EXP[pick.rar];
   }
   return { casts, sec };
 }
@@ -204,8 +204,11 @@ function cycleOf(field) {
   let c = 0;
   const w = G.Loot.rarityWeights(field, {});
   const tw = w.reduce((a, b) => a + b, 0);
+  const mul = field.biteMul || 1;
   for (let t = 0; t < 4; t++) {
-    c += (w[t] / tw) * ((CFG.rarity[t].timeMin + CFG.rarity[t].timeMax) / 2 + FIGHT_EXP[t]);
+    /* 深水咬口倍率只作用于普通/稀有档，与 loot.js 保持一致 */
+    const bite = (CFG.rarity[t].timeMin + CFG.rarity[t].timeMax) / 2 * (t <= 1 ? mul : 1);
+    c += (w[t] / tw) * (bite + FIGHT_EXP[t]);
   }
   return c;
 }

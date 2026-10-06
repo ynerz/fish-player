@@ -66,10 +66,19 @@ G.Loot = (function () {
     return { fish: U.weighted(buckets, 'w'), rar: rar };
   }
 
-  /* ---------------- 上鱼耗时（秒） ---------------- */
+  /* ---------------- 上鱼耗时（秒） ----------------
+     咬口时长 = 稀有度基础区间 × 钓场深度倍率 × 鱼饵速度系数
+     深度倍率只作用于普通 / 稀有档：史诗 / 传说本来就接近 10 分钟上限。 */
   function biteTime(rarityIdx, opts) {
     opts = opts || {};
-    var t = U.range(CFG.rarity[rarityIdx].timeMin, CFG.rarity[rarityIdx].timeMax);
+    var r = CFG.rarity[rarityIdx];
+    var t = U.range(r.timeMin, r.timeMax);
+    if (rarityIdx <= 1) {
+      var mul = 1;
+      if (opts.field && opts.field.biteMul) mul = opts.field.biteMul;
+      else if (opts.fieldId && G.FIELD_MAP[opts.fieldId]) mul = G.FIELD_MAP[opts.fieldId].biteMul || 1;
+      t *= mul;
+    }
     if (opts.bait && opts.bait.speed) t *= opts.bait.speed;
     return t;
   }

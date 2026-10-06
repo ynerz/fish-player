@@ -218,7 +218,7 @@
   <div class="scenes" id="sceneBox"></div>
 
   <!-- ================= 3 ================= -->
-  <h2 id="s3">③ 全部鱼类图鉴（112 种）</h2>
+  <h2 id="s3">③ 全部鱼类图鉴（362 种）</h2>
   <div class="card">
     <p>下面每一格都是游戏里真实的鱼 —— 同一个绘制器、同一套数据渲染出来的，
        没有任何贴图文件。</p>
@@ -315,7 +315,30 @@
   <div class="card"><table id="decorTable"></table></div>
 
   <h3>每小时收益</h3>
-  <div class="card"><table id="incomeTable"></table></div>
+  <div class="card">
+    <table id="incomeTable"></table>
+    <div class="note">
+      每小时金币<b>逐场递增</b>（每进一个新钓场至少 +24%），不会出现「越玩越亏」。
+      这张表是用游戏真实的抽卡与售价函数现算的，改数值会自动跟着变。
+    </div>
+  </div>
+
+  <h3>鱼护与水族箱</h3>
+  <div class="card">
+    <p>钓上一条鱼时，结算卡给你两个选择：</p>
+    <ul>
+      <li><b>卖出</b> —— 立刻换成金币</li>
+      <li><b>收进鱼护</b> —— 先把鱼留着（鱼护初始 30 格）</li>
+    </ul>
+    <p>鱼护里的鱼可以随时 <b>卖出 / 放生 / 移进水族箱</b>。水族箱（初始 6 格）
+       会把鱼真的画进水里游动，是纯展示用的收藏柜。</p>
+    <div class="note">
+      容量可以用金币扩容，越扩越贵 —— 这也是通关之后金币的去处之一。<br>
+      <b>图鉴与鱼护是两件事</b>：图鉴钓到就永久登记，跟卖不卖无关；
+      鱼护存的是你真留下的那几条。<br>
+      挂机时没有玩家点卡片，所以<b>挂机的鱼一律自动卖出</b>。
+    </div>
+  </div>
 
   <!-- ================= 8 ================= -->
   <h2 id="s8">⑧ 挂机系统</h2>
@@ -325,6 +348,7 @@
       <li><b>代价：</b>稀有 / 史诗 / 传说 档权重 ×0.95（对应设定里的「稀有鱼概率下降 5%」）</li>
       <li>挂机时<b>不会弹结算卡</b>打断操作，但画面右侧有一条<b>渔获播报</b>，每一条鱼都会滚进来</li>
       <li>页面关掉也照样算：回来时按离线时长补算（<b>上限 8 小时</b>），并弹一份收获报告</li>
+      <li><b>挂机的鱼自动卖出</b>（因为挂机时不弹结算卡，没法让你选留还是卖）</li>
     </ul>
     <div class="note">
       <b>渔获播报</b>：画面右侧那一列就是。绿点=普通 / 蓝点=稀有 / 紫点=史诗 / 金点=传说，
@@ -575,15 +599,40 @@
         U.num(r.price) + '</td><td>' + r.desc + '</td></tr>';
     }).join('');
 
+  /* 每小时收益不再写死 —— 用游戏真实的抽卡/售价函数现场蒙特卡洛，
+     改任何数值后这张表自动跟着变，不会像以前那样跟代码脱节。 */
+  function fieldIncome(f) {
+    var tot = 0, i;
+    for (i = 0; i < 4; i++) tot += f.rarity[i];
+    var cycle = 0;
+    for (i = 0; i < 4; i++) {
+      cycle += (f.rarity[i] / tot) *
+        ((CFG.rarity[i].timeMin + CFG.rarity[i].timeMax) / 2 * (i <= 1 ? f.biteMul : 1) +
+         CFG.misc.fightExpect[i]);
+    }
+    var sum = 0, N = 2000;
+    for (var k = 0; k < N; k++) {
+      var pick = G.Loot.rollFish(f, {});
+      sum += G.Loot.price(pick.fish, G.Loot.rollKg(pick.fish), G.Loot.rollColor(pick.rar), false);
+    }
+    return Math.round(3600 / cycle * (sum / N));
+  }
+  var baseIncome = fieldIncome(G.FIELDS[0]);
   document.getElementById('incomeTable').innerHTML =
-    '<tr><th>钓场</th><th class="num">每小时金币</th><th class="num">对比 D 钓场</th><th>能买什么</th></tr>' +
-    [['D',1309,'1×','玻璃钢竿 900'],['C',2180,'1.7×','碳素矶竿 5,200'],
-     ['B',2717,'2.1×','碳素矶竿 5,200'],['A',5723,'4.4×','深海船竿 32,000'],
-     ['S',6649,'5.1×','深海船竿 32,000'],['SS',15119,'11.6×','传说·星陨竿 210,000'],
-     ['SSS',23438,'17.9×','传说·星陨竿 210,000']]
-    .map(function (r) {
-      return '<tr><td><b>' + r[0] + '</b></td><td class="num">' + U.num(r[1]) +
-        '</td><td class="num">' + r[2] + '</td><td>' + r[3] + '</td></tr>';
+    '<tr><th>钓场</th><th class="num">每小时金币</th><th class="num">对比 D 钓场</th>' +
+      '<th class="num">本场全程约能攒</th><th>该场适合的鱼竿</th></tr>' +
+    G.FIELDS.map(function (f, fi) {
+      var inc = fieldIncome(f);
+      var total = inc * (f.estOwnHours || 0);
+      /* 「适合本场的鱼竿」= 价格不超过本场总收入的最高一档（与定价规则一致） */
+      var best = G.RODS[0];
+      G.RODS.forEach(function (r) { if (r.price > 0 && r.price <= total) best = r; });
+      var label = best.price > 0
+        ? best.name + ' <span style="color:#93a9b8">' + U.num(best.price) + '</span>'
+        : '竹制手竿（起始）';
+      return '<tr><td><b>' + f.rank + '</b> ' + f.name + '</td><td class="num">' + U.num(inc) +
+        '</td><td class="num">' + (inc / baseIncome).toFixed(1) + '×</td><td class="num">' +
+        U.num(total) + '</td><td>' + label + '</td></tr>';
     }).join('');
 
   /* ---------------- 付费 ---------------- */

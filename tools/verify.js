@@ -537,6 +537,24 @@ if (!/CFG\.track/.test(tkCode)) { err('track.js 没有读 CFG.track（参数可�
 ['XMLHttpRequest', 'sendBeacon', 'fetch('].forEach(k => {
   if (tkCode.indexOf(k) >= 0) { err(`track.js 里出现了 ${k} —— E4 明确要求不接外部服务（空壳）`); trackBad++; }
 });
+/* 落盘：白屏那条日志最值钱，刷新后必须还在（内存缓冲会跟着页面一起没） */
+if (tkCfg && tkCfg.persist !== false) {
+  if (!/G\.Platform\.storage\.(get|set)\s*\(/.test(tkCode)) {
+    err('track.persist 开着，但 track.js 没有通过 G.Platform.storage 落盘'); trackBad++;
+  }
+  if (typeof tkCfg.storageKey !== 'string' || !tkCfg.storageKey) {
+    err('track.storageKey 必须是非空字符串（日志不能挤进存档键）'); trackBad++;
+  }
+  if (!(tkCfg.persistMinMs > 0)) {
+    err('track.persistMinMs 必须是正数（渲染循环里出错是每帧一次，不节流会每帧写盘）'); trackBad++;
+  }
+  if (!(tkCfg.persistMaxBytes > 0)) {
+    err('track.persistMaxBytes 必须是正数（单次落盘要有上限）'); trackBad++;
+  }
+  if (!/function load\s*\(/.test(tkCode) || !/function save\s*\(/.test(tkCode)) {
+    err('track.js 缺少 load() / save() —— 落盘就是半成品'); trackBad++;
+  }
+}
 const tkIdx = htmlRaw.indexOf('src/core/track.js'), mnIdx = htmlRaw.indexOf('src/main.js');
 if (!(tkIdx > 0 && mnIdx > tkIdx)) {
   err('track.js 必须在 index.html 里、且在 main.js 之前加载（否则启动期的崩溃采不到）'); trackBad++;
@@ -547,7 +565,7 @@ if (mainSrc.indexOf('G.Track.init()') < 0) {
 if (!/function safeBoot\s*\(/.test(mainSrc)) {
   err('main.js 没有把 boot 包起来 —— 启动期抛异常就只剩白屏，拿不到任何线索'); trackBad++;
 }
-if (!trackBad) ok(`config.track 参数齐全（缓冲 ${tkCfg.buffer} 条）；track.js 不碰存储 / 不联网；main.js 已挂采集`);
+if (!trackBad) ok(`config.track 参数齐全（缓冲 ${tkCfg.buffer} 条、落盘节流 ${tkCfg.persistMinMs}ms）；track.js 只走 G.Platform 存储、不联网；main.js 已挂采集`);
 
 
 /* ---------------- 16. 周常挑战（中周期目标）的跨文件一致性 ----------------

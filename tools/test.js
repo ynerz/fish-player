@@ -1224,10 +1224,49 @@ G_('Track · 错误采集（空壳）');
 
     ok(Tk.flush([]) === false, 'flush() 仍是空壳：明确返回 false，说明没接外部服务');
 
+    /* ---- 落盘：白屏那条最值钱，刷新后必须还在 ---- */
+    Tk.clear();
+    Tk.error('落盘测试', new Error('persist-me'));
+    const raw = localStorage.getItem(CFG.track.storageKey);
+    ok(typeof raw === 'string' && raw.indexOf('persist-me') >= 0,
+       'error 记录会立刻落到 CFG.track.storageKey（不等节流窗口）');
+    ok(Tk.persist() === true, 'persist() 能手动写盘');
+    /* 模拟刷新：重新执行一份 track.js，再 init（init 里会 load） */
+    const TkOld = G.Track;
+    const reload = () => {
+      new Function(fs.readFileSync(path.join(ROOT, 'src/core/track.js'), 'utf8')).call(global);
+      G.Track.init();
+      return G.Track;
+    };
+    let Tk2 = reload();
+    ok(Tk2.count() >= 1 && Tk2.restored() >= 1, 'init() 把上次会话的日志接回来了', 'restored=' + Tk2.restored());
+    ok(Tk2.list()[0].prev === true && Tk2.list()[0].msg === 'persist-me',
+       '接回来的记录带 prev 标记，dump 里能分清「这次崩的」和「上次崩的」');
+    ok(Tk2.dump().indexOf('上次会话') >= 0, 'dump() 抬头标明有多少条来自上次会话');
+    Tk2.clear();
+    ok(localStorage.getItem(CFG.track.storageKey).indexOf('persist-me') < 0,
+       'clear() 会把磁盘一起清掉（否则刷新一次旧日志又冒出来）');
+    ok(reload().count() === 0, '清空后刷新，缓冲是空的');
+    /* 脏数据 / 存储不可用都不许把游戏带崩 */
+    localStorage.setItem(CFG.track.storageKey, '{{{ 不是 JSON');
+    ok(reload().count() === 0, '磁盘上是坏 JSON 时按「没有日志」处理，不抛异常');
+    localStorage.setItem(CFG.track.storageKey, JSON.stringify({
+      records: [null, 42, 'x', { level: 'weird', msg: 123, i: 'NaN' }],
+    }));
+    Tk2 = reload();
+    ok(Tk2.count() === 1 && Tk2.list()[0].level === 'event' && Tk2.list()[0].msg === '123',
+       '磁盘上的脏记录被逐字段纠正（非法 level 归 event、数字 msg 转字符串）');
+    localStorage.removeItem(CFG.track.storageKey);
+    G.Track = TkOld;                                  // 换回原来的实例，别影响后面的用例
+    G.Track.clear();
+
     const saved = CFG.track.enabled;
+    const beforeDisabled = localStorage.getItem(CFG.track.storageKey);
     CFG.track.enabled = false; Tk.clear();
     Tk.error('x', new Error('y'));
     ok(Tk.count() === 0, 'CFG.track.enabled=false 时采集是 no-op（不占内存）');
+    ok(localStorage.getItem(CFG.track.storageKey) === beforeDisabled,
+       'CFG.track.enabled=false 时也不写盘');
     CFG.track.enabled = saved;
   } finally {
     console.error = realErr;

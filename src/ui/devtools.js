@@ -131,8 +131,11 @@ G.Cheat = (function () {
   }
   function trackCount() {
     if (!G.Track) return '无 Track 模块';
+    /* 环冲是落盘的：刷新后接回来的条数要标出来，否则会以为是本次会话新报的 */
+    var prev = G.Track.restored ? G.Track.restored() : 0;
     return '日志 ' + G.Track.count() + ' 条（上限 ' +
-      ((G.CONFIG.track && G.CONFIG.track.buffer) || '?') + '）';
+      ((G.CONFIG.track && G.CONFIG.track.buffer) || '?') + '）' +
+      (prev ? '，其中 ' + prev + ' 条来自上次会话' : '');
   }
   function copyTrack() {
     if (!G.Track) return '无 Track 模块';
@@ -162,7 +165,7 @@ G.Cheat = (function () {
     ['解锁全部装饰', function () { return allDecors(); }],
     ['日志条数', function () { return trackCount(); }],
     ['导出日志', function () { return copyTrack(); }],
-    ['清空日志', function () { G.Track && G.Track.clear(); return '已清空'; }],
+    ['清空日志', function () { G.Track && G.Track.clear(); return '已清空（含磁盘）'; }],
     ['造一个错误', function () { try { null.x = 1; } catch (e) { G.Track.error('devtools 自测', e); } return '已记录 1 条'; }],
     ['清档重开', function () { clearSave(); return 'reloading'; }],
   ];

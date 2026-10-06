@@ -25,6 +25,7 @@ G.Fishing = (function () {
   var catchCount = 0;      // 挂机累计（用于合并播报）
   var castBait = null;     // 本竿实际生效的鱼饵（提前收杆时要退回）
   var castPrevSel = null;  // 本竿把最后一枚用掉、自动切回蚯蚓之前的选饵（一并还原）
+  var castEnv = null;      // 本竿**抛竿那一刻**的天气 / 时段（结算归因要用它，见 resolve）
   var cb = {};
 
   function init(callbacks) {
@@ -42,7 +43,7 @@ G.Fishing = (function () {
     state = 'idle';
     timer = 0; pending = null;
     waitLeft = 0; biteLeft = 0; holding = false;
-    castBait = null; castPrevSel = null;
+    castBait = null; castPrevSel = null; castEnv = null;
     catchCount = 0;   // 挂机累计播报重新计数，避免跨场/跨状态乱触发
     G.Fight.end();
     G.Scene.endFight();
@@ -71,11 +72,16 @@ G.Fishing = (function () {
     castPrevSel = (s.baitSel !== selBefore) ? selBefore : null;
 
     // 决定这一竿的渔获
+    /* ⚠️ 天气 / 时段要**在这一刻取一次并留到结算**。
+       这一竿的鱼是在抛竿时定的，可一场传说鱼要拉扯好几分钟，
+       中途完全可能变天 / 天黑 —— 结算时再读环境就会记到「上鱼那一刻」的天气上，
+       和「在雨天钓 N 条」这类任务的直觉不一致。 */
+    castEnv = G.Weather.isReady() ? G.Weather.env() : null;
     pending = Loot.generate(field, {
       bait: usedBait,
       rod: St.curRod(),
       idle: isIdleMode(),
-      env: G.Weather.isReady() ? G.Weather.env() : null,
+      env: castEnv,
     });
 
     s.stats.casts++;
@@ -136,10 +142,16 @@ G.Fishing = (function () {
 
     if (result === 'success') {
       /* ctx 里的鱼饵 / 天气 / 时段会写进 stats 的分维计数，
-         每日任务与成就都从这里取数（见 src/core/goals.js） */
+         每日任务与成就都从这里取数（见 src/core/goals.js）。
+         ⚠️ 鱼饵必须用 `castBait`（这一竿**实际生效**的那枚），
+            不能回头读「当前选中的鱼饵」：用掉最后一枚的瞬间 baitSel 已被切回蚯蚓，
+            再读现值就会把这一竿错记到蚯蚓名下（「用面团钓 N 条」永远差一条），
+            和 `cast()` 里修过的是同一个坑。 */
       var rec = St.recordCatch(fish, kg, color.key, {
-        bait: St.curBait().id,
-        env: G.Weather.isReady() ? G.Weather.env() : null,
+        /* castBait 在 resolve 时必定还在（只有 cast() 能进这局，hardReset 会同时回到 idle）。
+           真为空就记 null —— recordDims 会跳过，宁可少记一条，也别错记成别人的鱼饵。 */
+        bait: castBait ? castBait.id : null,
+        env: castEnv,
       });
       St.noteResult(true);
       var price = Loot.price(fish, kg, color, rec.isNew);
@@ -203,7 +215,7 @@ G.Fishing = (function () {
     autoHold = true;
     /* 这一竿到此为止：鱼已经咬过钩（钓上 / 脱钩 / 断线 / 错过咬口），
        饵就是花掉了，不许再被后续的 giveUp 退回来 */
-    castBait = null; castPrevSel = null;
+    castBait = null; castPrevSel = null; castEnv = null;
     St.scheduleSave();
     /* 每日任务 / 成就的完成判定与播报统一走 Goals，
        这里只负责「这一竿结束了」这个时机 */

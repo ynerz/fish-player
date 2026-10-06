@@ -285,9 +285,14 @@ const sceneStub = {
   floatNudge() {}, setRodBend() {}, splash() {}, sparkle() {},
 };
 let toastSeen = [];
-/* fishing.js 收杆时会调 G.Audio.click()；Node 里没有音频层，也给个空壳 */
+/* fishing.js 收杆时会调 G.Audio.click()；Node 里没有音频层，也给个空壳。
+   ⚠️ 这个空壳**要一直留着**（不要还原成 origAudio）：
+      `resolve()` 里有一句 `setTimeout(function () { G.Audio.newRecord(); }, 320)`，
+      测试是同步跑完的，定时器在「测试已结束」之后才触发 ——
+      还原成 Node 里的 undefined 就会炸成未捕获异常。 */
+const audioStub = { click() {}, snap() {}, escape() {}, bite() {}, hint() {}, success() {}, newRecord() {}, unlock() {} };
 const origAudio = G.Audio;
-G.Audio = { click() {}, snap() {}, escape() {}, bite() {}, hint() {}, success() {}, newRecord() {}, unlock() {} };
+G.Audio = audioStub;
 function newFishing() {
   toastSeen = [];
   G.Scene = sceneStub;
@@ -360,6 +365,77 @@ Fh.giveUp();
 ok(St.get().baits[paid.id] === 3, '连调三次 giveUp 也只退回一枚');
 G.Scene = origScene;
 G.Audio = origAudio;
+
+/* =========================================================
+   5a-3. 渔获归因：鱼饵 / 天气用「抛竿那一刻」的值
+   =========================================================
+   resolve() 原来写的是 `St.curBait().id` 和 `G.Weather.env()` ——
+   都是「上鱼那一刻」的现值。而用掉最后一枚鱼饵时 baitSel 已被切回蚯蚓，
+   于是那一竿被错记到蚯蚓名下（「用面团钓 N 条」永远差一条）；
+   同理，一场传说鱼要拉扯几分钟，中途变天会把渔获记到错误的天气上。
+   ========================================================= */
+G_('Fishing · 渔获归因用抛竿时的鱼饵与环境');
+{
+  /* 让这一竿必然上岸：把 G.Fight 换成「立刻成功」的桩（fishing.js 走的是全局 G.Fight） */
+  const fightStub = {
+    begin() {}, end() {}, update() {}, drainEvents() { return []; },
+    get() {
+      return { over: true, result: 'success', tensionMax: 100, tension: 0,
+               struggle: 0, warn: 0, dashing: false, elapsed: 1 };
+    },
+    snapshot() { return {}; },
+  };
+  const origFight = G.Fight;
+  G.Scene = sceneStub;
+  G.Audio = audioStub;
+
+  /* ① 鱼饵：只剩最后一枚 → 抛竿时被自动切回蚯蚓 → 这一竿仍该记在付费饵名下 */
+  St.reset();
+  G.Goals.init();
+  St.get().baits[paid.id] = 1;
+  St.selectBait(paid.id);
+  G.Fight = fightStub;
+  G.Fishing.init({ onToast: o => toastSeen.push(o) });
+  const Fz = G.Fishing;
+  Fz.cast();
+  ok(St.get().baits[paid.id] === 0 && St.get().baitSel === 'worm',
+     '用掉最后一枚 → 选饵被自动切回蚯蚓（这就是原本记错名字的时刻）');
+  Fz.update(1.0);                                   // flying → waiting
+  Fz.update(Fz.getPending().wait + 0.001);          // → bite
+  Fz.strike();                                      // → fight
+  const bBait = { paid: St.get().stats.byBait[paid.id] || 0, worm: St.get().stats.byBait.worm || 0 };
+  Fz.update(0.05);                                  // 桩判 over:'success' → resolve
+  ok(Fz.getState() === 'idle', '这一竿成功上岸并回到 idle');
+  ok((St.get().stats.byBait[paid.id] || 0) === bBait.paid + 1,
+     `这一竿记在真正用掉的那枚鱼饵名下（${paid.name}）`);
+  ok((St.get().stats.byBait.worm || 0) === bBait.worm,
+     '没有被错记到蚯蚓名下（即便选饵已被自动切走）');
+
+  /* ② 天气 / 时段：抛竿后变天，仍按抛竿那一刻记账 */
+  St.reset();
+  G.Goals.init();
+  G.Fishing.init({ onToast: () => {} });
+  const origWx = G.Weather;
+  const wxAt = (wx, tm) => ({ isReady: () => true, neutral: () => ({ wx: null, tm: null, rareMul: 1, colorBoost: 1 }),
+                              env: () => ({ wx: wx, tm: tm, rareMul: 1, colorBoost: 1 }) });
+  G.Weather = wxAt('rain', 'night');
+  G.Fishing.hardReset();
+  G.Fishing.cast();                                 // 这一竿是在「雨天 / 夜里」抛的
+  G.Weather = wxAt('clear', 'day');                 // 抛完之后变天
+  G.Fishing.update(1.0);
+  G.Fishing.update(G.Fishing.getPending().wait + 0.001);
+  G.Fishing.strike();
+  G.Fishing.update(0.05);
+  ok((St.get().stats.byWx.rain || 0) === 1 && !St.get().stats.byWx.clear,
+     '抛竿后变天，渔获仍记在「抛竿时的天气」上');
+  ok((St.get().stats.byTm.night || 0) === 1 && !St.get().stats.byTm.day,
+     '时段同理记抛竿时的');
+  G.Weather = origWx;
+
+  G.Fight = origFight;
+  G.Scene = origScene;
+  G.Audio = audioStub;   // 见 audioStub 的注释：不能还原成 undefined
+}
 
 /* =========================================================
    5b. 鱼护 / 水族箱

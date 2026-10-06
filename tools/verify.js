@@ -703,6 +703,37 @@ if (!/G\.Panels\.isOpen\(\)\s*&&\s*G\.Panels\.current\(\)\s*===\s*p/.test(hudSrc
 if (!layerBad) ok('弹层从顶栏下方开始；点标签页可直接切换/收起面板');
 
 
+/* ---------------- 20. 渔获归因必须用「抛竿时」的值 ----------------
+   resolve() 记 `stats.byBait / byWx / byTm` 时一度读的是**现值**
+   (`St.curBait().id` / `G.Weather.env()`)。两个静默后果：
+     · 用掉最后一枚付费饵时 baitSel 已被切回蚯蚓 → 那一竿错记到蚯蚓名下
+       （与 v0.5.6 修过的「最后一枚白花」是同一个坑的两个面）
+     · 一场传说鱼要拉扯几分钟，中途变天 / 天黑 → 记到错误的天气时段上
+   这类 bug 不报错、只在任务进度上慢慢显出偏差，所以做一条源码级断言兜住。 */
+console.log('\n[20] 渔获归因用抛竿时的鱼饵与环境（不许读结算时的现值）');
+let attrBad = 0;
+const fishingSrc = fs.readFileSync(path.join(ROOT, 'src/core/fishing.js'), 'utf8');
+/* 只看 resolve() 的函数体：offlineCatchUp 里的 `St.curBait()` 是合法的
+   （离线补算没有「抛竿那一刻」，当前选中的饵就是唯一合理的说法） */
+const resolveBody = (fishingSrc.match(/function resolve\s*\([\s\S]*?\n  \}/) || [''])[0];
+if (!resolveBody) { err('fishing.js 里找不到 resolve()'); attrBad++; }
+else {
+  if (!/bait:\s*castBait/.test(resolveBody)) {
+    err('resolve() 没有用 castBait 记鱼饵 —— 用掉最后一枚时那一竿会错记到蚯蚓名下'); attrBad++;
+  }
+  if (/St\.curBait\(\)/.test(resolveBody)) {
+    err('resolve() 又读 St.curBait() 了（结算时的现值，选饵可能已被自动切走）'); attrBad++;
+  }
+  if (!/env:\s*castEnv/.test(resolveBody)) {
+    err('resolve() 没有用抛竿时缓存的 castEnv —— 拉扯中变天会记错天气时段'); attrBad++;
+  }
+}
+if (!/castEnv\s*=\s*G\.Weather\.isReady/.test(fishingSrc)) {
+  err('fishing.js 没有在 cast() 里缓存抛竿时的环境（castEnv）'); attrBad++;
+}
+if (!attrBad) ok('鱼饵用 castBait、环境用 castEnv；两处都取自抛竿那一刻');
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

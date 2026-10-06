@@ -114,7 +114,13 @@ G.Fishing = (function () {
     G.Fight.end();
 
     if (result === 'success') {
-      var rec = St.recordCatch(fish, kg, color.key);
+      /* ctx 里的鱼饵 / 天气 / 时段会写进 stats 的分维计数，
+         每日任务与成就都从这里取数（见 src/core/goals.js） */
+      var rec = St.recordCatch(fish, kg, color.key, {
+        bait: St.curBait().id,
+        env: G.Weather.isReady() ? G.Weather.env() : null,
+      });
+      St.noteResult(true);
       var price = Loot.price(fish, kg, color, rec.isNew);
       var s = St.get();
       s.stats.catches++;
@@ -152,6 +158,7 @@ G.Fishing = (function () {
     } else {
       var st = St.get();
       var fee = 0;
+      St.noteResult(false);          // 断线 / 脱钩 / 错过咬口都打断「连续成功」
       if (result === 'snap') {
         st.stats.snaps++;
         G.Audio.snap(); G.Scene.splash(1.5);
@@ -174,6 +181,9 @@ G.Fishing = (function () {
     timer = 0;
     autoHold = true;
     St.scheduleSave();
+    /* 每日任务 / 成就的完成判定与播报统一走 Goals，
+       这里只负责「这一竿结束了」这个时机 */
+    if (G.Goals) G.Goals.check(result === 'success' ? { fish: fish, kg: kg, rar: fish.rar } : null);
     if (cb.onState) cb.onState(state);
   }
 
@@ -331,6 +341,8 @@ G.Fishing = (function () {
     s.stats.totalValue += sumCoin;
     var ups = St.checkUnlocks();
     St.save(true);
+    /* 离线补算也可能推进成就（挂机几千条），这里补一次判定 */
+    if (G.Goals) G.Goals.check(null);
     return { count: n, coin: sumCoin, rare: rareGot, kinds: newKinds, seconds: seconds, unlocks: ups };
   }
 

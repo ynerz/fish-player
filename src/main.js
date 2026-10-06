@@ -14,6 +14,9 @@
     G.Audio.setEnabled(s.settings.sound);
     G.Audio.setVolume(s.settings.volume);
 
+    /* ---------- 长线目标（每日任务 / 成就 / 称号） ---------- */
+    G.Goals.init();
+
     /* ---------- 天气与时段 ---------- */
     G.Weather.init(Math.random());
     G.Weather.on(function (sn) { Hud.setWeather(sn); });
@@ -57,6 +60,10 @@
     St.on('idle', function () { Hud.syncDeck(); });
     St.on('net', function () { if (P.current() === 'net') P.refresh(); });
     St.on('reset', function () { location.reload(); });
+    St.on('goals', function () {
+      Hud.setTitle(G.Goals.equipped());
+      if (P.current() === 'goals') P.refresh();
+    });
 
     /* ---------- 首次交互激活音频 ---------- */
     var armed = false;
@@ -281,6 +288,7 @@
     if (focused) {
       St.tick(dt);
       G.Weather.update(dt);
+      G.Goals.tick(dt);        // 跨天自动重掷每日任务（内部按 3 秒节流）
     }
 
     if (!paused && focused) {

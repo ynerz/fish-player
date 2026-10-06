@@ -34,6 +34,8 @@ G.Hud = (function () {
     el.wxIcon    = U.$('#wxIcon');
     el.wxText    = U.$('#wxText');
     el.wxChip    = U.$('#weatherChip');
+    el.hudTitle  = U.$('#hudTitle');
+    el.goalBadge = U.$('#goalBadge');
     el.zoneSafe  = U.$('.tension-track .zone-safe');
     el.dangerMark = U.$('.tension-track .danger-mark');
 
@@ -104,7 +106,25 @@ G.Hud = (function () {
   }
 
   /* ---------------- 同步 ---------------- */
-  function syncAll() { syncCoin(); syncStats(); syncDeck(); }
+  function syncAll() { syncCoin(); syncStats(); syncDeck(); syncTitle(); }
+
+  /* 佩戴中的称号（纯展示，长线目标的奖励） */
+  function setTitle(t) {
+    if (!el.hudTitle) return;
+    var name = t && t.id ? t.name : '';
+    el.hudTitle.textContent = name;
+    el.hudTitle.classList.toggle('hidden', !name);
+    el.hudTitle.title = name ? ('称号：' + name + '（来自' + t.from + '）') : '';
+  }
+  function syncTitle() { if (G.Goals) setTitle(G.Goals.equipped()); }
+
+  /* 顶栏「目标」角标：有几条已完成但没领的任务 */
+  function syncGoalBadge() {
+    if (!el.goalBadge || !G.Goals) return;
+    var n = G.Goals.medalClaimable();
+    el.goalBadge.textContent = n > 0 ? String(n) : '';
+    el.goalBadge.classList.toggle('hidden', n <= 0);
+  }
 
   function syncCoin(flash) {
     el.coin.textContent = U.coin(St.get().coin);
@@ -121,6 +141,7 @@ G.Hud = (function () {
     el.time.textContent = U.clock(s.playTime);
     var p = St.fieldProgress(s.field);
     el.book.textContent = p.got + '/' + p.total;
+    syncGoalBadge();
   }
 
   function syncDeck() {
@@ -218,6 +239,7 @@ G.Hud = (function () {
     init: init, syncAll: syncAll, syncCoin: syncCoin, syncStats: syncStats, syncDeck: syncDeck,
     setAction: setAction, showBite: showBite, showFight: showFight, updateFight: updateFight,
     toast: toast, setField: setField, setWeather: setWeather,
+    setTitle: setTitle, syncTitle: syncTitle, syncGoalBadge: syncGoalBadge,
     pushCatch: pushCatch, clearCatchLog: clearCatchLog,
     el: el,
   };

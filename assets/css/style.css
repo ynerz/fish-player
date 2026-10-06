@@ -72,6 +72,13 @@ html,body{
   white-space:nowrap;
 }
 .logo span{ font-size:14px; }
+/* 佩戴中的称号（长线目标奖励，纯展示） */
+.logo .hud-title{
+  font-style:normal; font-size:11px; font-weight:700;
+  color:#fff; background:linear-gradient(135deg,var(--c-accent),var(--c-primary));
+  padding:2px 8px; border-radius:20px; margin-left:6px;
+  letter-spacing:.5px;
+}
 
 .stat{
   display:flex; align-items:center; gap:5px;
@@ -101,6 +108,14 @@ html,body{
 .tab:hover{ background:var(--c-primary-l); color:var(--c-primary-d); }
 .tab:active{ transform:translateY(1px); }
 .tab.active{ background:var(--c-primary); color:#fff; }
+.tab{ position:relative; }
+/* 「目标」角标：有已完成待领取的每日任务时才出现 */
+.tab .tab-badge{
+  font-style:normal; position:absolute; top:-2px; right:-2px;
+  min-width:15px; height:15px; line-height:15px; padding:0 4px;
+  border-radius:9px; background:var(--c-red); color:#fff;
+  font-size:10px; font-weight:800; text-align:center;
+}
 
 /* ================= 舞台 ================= */
 #stage{
@@ -773,3 +788,63 @@ input[type=range]{ width:130px; accent-color:var(--c-primary); }
   background:rgba(63,191,127,.25); color:#8ce6b6; white-space:nowrap;
   font-variant-numeric:tabular-nums;
 }
+
+/* ================= 目标（每日任务 / 称号 / 成就） ================= */
+.goal-list{ display:flex; flex-direction:column; gap:8px; }
+
+.goal-row{
+  display:flex; align-items:center; gap:10px;
+  padding:9px 12px; border-radius:11px;
+  background:var(--c-panel-2); border:1px solid var(--c-line);
+}
+.goal-row.done{ border-color:#b7e3c9; background:#f2fbf6; }
+.goal-row.claimed{ opacity:.55; }
+.goal-row.ach{ align-items:flex-start; }
+
+.goal-main{ flex:1 1 auto; min-width:0; }
+.goal-top{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; }
+.goal-name{ font-size:13px; font-weight:700; color:var(--c-text); }
+.goal-name .goal-tag{
+  font-style:normal; font-size:10px; font-weight:700; margin-left:6px;
+  color:#fff; background:var(--c-accent); padding:1px 6px; border-radius:9px;
+}
+.goal-num{ font-size:11.5px; color:var(--c-text-2); font-variant-numeric:tabular-nums; white-space:nowrap; }
+.goal-desc{ font-size:11px; color:var(--c-text-3); margin-top:2px; }
+
+.goal-bar{
+  height:6px; border-radius:4px; margin-top:6px;
+  background:#e2ecf4; overflow:hidden;
+}
+.goal-bar > i{
+  display:block; height:100%; border-radius:4px;
+  background:var(--c-primary); transition:width .25s;
+}
+.goal-row.done .goal-bar > i{ background:var(--c-green); }
+.goal-row.claimed .goal-bar > i{ background:#9db0bf; }
+
+.goal-act{ flex:0 0 auto; }
+.goal-act .sh-buy{ min-width:64px; }
+.goal-act .sh-buy.plain{ background:#cfdde8; color:#7b8f9e; }
+.goal-act .sh-buy.plain:disabled{ background:#cfdde8; color:#9db0bf; }
+.goal-act .sh-buy.ready{ background:var(--c-gold); }
+.goal-act .sh-buy.ready:hover{ background:#cf8b12; }
+
+.ach-mark{
+  flex:0 0 auto; width:22px; height:22px; line-height:22px; text-align:center;
+  border-radius:50%; font-size:12px; font-weight:800;
+  background:#e6eef5; color:#93a9b8;
+}
+.goal-row.ach.done .ach-mark{ background:var(--c-green); color:#fff; }
+
+.title-wrap{ display:flex; flex-wrap:wrap; gap:8px; }
+.title-chip{
+  padding:6px 12px; border-radius:10px; cursor:pointer;
+  background:var(--c-panel-2); border:1px solid var(--c-line);
+  transition:border-color .15s,background .15s;
+}
+.title-chip b{ display:block; font-size:12.5px; color:var(--c-text); }
+.title-chip i{ display:block; font-style:normal; font-size:10px; color:var(--c-text-3); margin-top:1px; }
+.title-chip:hover{ border-color:var(--c-primary); }
+.title-chip.on{ background:var(--c-primary-l); border-color:var(--c-primary); }
+.title-chip.locked{ opacity:.45; cursor:not-allowed; }
+.title-chip.locked b{ color:var(--c-text-3); }

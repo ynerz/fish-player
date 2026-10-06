@@ -1042,6 +1042,159 @@ G.Panels = (function () {
   };
 
   /* =========================================================
+     目标（每日任务 / 称号 / 成就）
+     =========================================================
+     ⚠️ 奖励口径：这里只发「称号」与纪念币（纪念币无消费出口），
+        不发金币 / 鱼饵 / 装备，避免长线系统把经济曲线带跑。
+     ========================================================= */
+  VIEWS.goals = {
+    title: '目标',
+    render: function (root) {
+      var Gl = G.Goals, s = St.get();
+      var list = Gl.quests();
+
+      /* --- 顶部：纪念币 / 称号 / 成就进度 --- */
+      var ap = Gl.achProgress();
+      var head = U.el('div', 'stat-grid');
+      head.innerHTML =
+        '<div class="stat-box"><div class="sb-label">纪念币</div><div class="sb-value">' +
+          Gl.medals() + '<small>枚</small></div></div>' +
+        '<div class="stat-box"><div class="sb-label">成就</div><div class="sb-value">' +
+          ap.got + '<small>/ ' + ap.total + '</small></div></div>' +
+        '<div class="stat-box"><div class="sb-label">已解锁称号</div><div class="sb-value">' +
+          Gl.titles().filter(function (t) { return t.id; }).length + '<small>个</small></div></div>' +
+        '<div class="stat-box"><div class="sb-label">当前佩戴</div><div class="sb-value" style="font-size:16px">' +
+          esc(Gl.equipped().name) + '</div></div>';
+      root.appendChild(head);
+
+      /* --- 每日任务 --- */
+      var claimable = 0;
+      list.forEach(function (q) { if (q.done && !q.claimed) claimable++; });
+      var qTitle = U.el('div', 'section-title', '每日任务 · ' + s.daily.day +
+        (claimable ? '　<span style="color:#e8a020">' + claimable + ' 条可领取</span>' : ''));
+      root.appendChild(qTitle);
+
+      var tip = U.el('div', 'hint-text');
+      tip.style.marginBottom = '10px';
+      tip.innerHTML = '每天 <b>' + list.length + '</b> 条，按日期自动生成（不联网）。' +
+        '完成一条得 <b>1 枚纪念币</b>，每天 0 点刷新，<b>未领取的任务会作废</b>。';
+      root.appendChild(tip);
+
+      var qList = U.el('div', 'goal-list');
+      list.forEach(function (q) {
+        var row = U.el('div', 'goal-row' + (q.claimed ? ' claimed' : (q.done ? ' done' : '')));
+        row.innerHTML =
+          '<div class="goal-main">' +
+            '<div class="goal-top"><span class="goal-name">' + esc(q.text) + '</span>' +
+            '<span class="goal-num">' + esc(Gl.fmtVal(q.t, q.cur)) + ' / ' + esc(Gl.fmtVal(q.t, q.need)) + '</span></div>' +
+            '<div class="goal-bar"><i style="width:' + (q.pct * 100).toFixed(1) + '%"></i></div>' +
+          '</div>';
+        var btn = U.el('button', 'sh-buy' + (q.claimed ? '' : (q.done ? '' : ' plain')),
+          q.claimed ? '已领取' : (q.done ? '领 取' : '进行中'));
+        btn.disabled = q.claimed || !q.done;
+        if (q.done && !q.claimed) btn.classList.add('ready');
+        U.on(btn, 'click', function () {
+          var r = Gl.claim(q.i);
+          if (!r.ok) { G.Audio.deny(); St.emit('toast', { text: r.msg, kind: 'warn' }); return; }
+          G.Audio.unlock();
+          St.emit('toast', { text: '任务完成　+1 纪念币（共 ' + r.medals + ' 枚）', kind: 'good' });
+          if (G.Hud) G.Hud.syncGoalBadge();
+          refresh();
+        });
+        row.appendChild(U.el('div', 'goal-act')).appendChild(btn);
+        qList.appendChild(row);
+      });
+      root.appendChild(qList);
+
+      if (claimable > 1) {
+        var all = U.el('button', 'btn-ghost');
+        all.style.marginTop = '10px';
+        all.textContent = '全部领取（' + claimable + ' 条）';
+        U.on(all, 'click', function () {
+          var n = Gl.claimAll();
+          G.Audio.unlock();
+          St.emit('toast', { text: '领取了 ' + n + ' 条任务奖励', kind: 'good' });
+          if (G.Hud) G.Hud.syncGoalBadge();
+          refresh();
+        });
+        root.appendChild(all);
+      }
+
+      /* --- 称号 --- */
+      var titles = Gl.titles();
+      var pool = [];
+      G.ACHIEVEMENTS.forEach(function (a) {
+        if (a.title) pool.push({ name: a.title, from: '成就「' + a.name + '」', on: Gl.achDone(a), id: 'ach:' + a.id });
+      });
+      G.MEDAL_TITLES.forEach(function (t) {
+        pool.push({ name: t.name, from: t.desc, on: Gl.medals() >= t.need, id: 'medal:' + t.id });
+      });
+      var onN = pool.filter(function (t) { return t.on; }).length;
+      root.appendChild(U.el('div', 'section-title', '称号（' + onN + ' / ' + pool.length + '）'));
+      var tWrap = U.el('div', 'title-wrap');
+      pool.forEach(function (t) {
+        var chip = U.el('div', 'title-chip' + (t.on ? '' : ' locked') + (s.titleSel === t.id ? ' on' : ''));
+        chip.innerHTML = '<b>' + esc(t.name) + '</b><i>' + esc(t.from) + '</i>';
+        chip.title = t.on ? (s.titleSel === t.id ? '点击卸下' : '点击佩戴') : ('未解锁：' + t.from);
+        U.on(chip, 'click', function () {
+          if (!t.on) { G.Audio.deny(); return; }
+          Gl.equip(s.titleSel === t.id ? '' : t.id);
+          G.Audio.click();
+          if (G.Hud) G.Hud.syncTitle();
+          refresh();
+        });
+        tWrap.appendChild(chip);
+      });
+      root.appendChild(tWrap);
+      var tTip = U.el('div', 'hint-text');
+      tTip.style.marginTop = '8px';
+      tTip.innerHTML = '称号只做展示，不带任何属性加成。';
+      root.appendChild(tTip);
+
+      /* --- 成就 --- */
+      var ach = Gl.achievements();
+      function achFmt(a, v) {
+        if (a.fmt === 'coin') return U.coin(v) + ' 金';
+        if (a.metric === 'maxKgAll') return U.kg(v);
+        if (a.metric === 'playHours') return (v < 10 ? (Math.round(v * 10) / 10) : Math.round(v)) + ' 小时';
+        return U.num(Math.floor(v));
+      }
+      G.ACH_CATS.forEach(function (cat) {
+        var items = ach.filter(function (a) { return a.cat === cat.key; });
+        var done = items.filter(function (a) { return a.done; }).length;
+        root.appendChild(U.el('div', 'section-title', '成就 · ' + cat.name + '（' + done + ' / ' + items.length + '）'));
+        var l = U.el('div', 'goal-list');
+        items.forEach(function (a) {
+          var row = U.el('div', 'goal-row ach' + (a.done ? ' done' : ''));
+          row.innerHTML =
+            '<div class="ach-mark">' + (a.done ? '✓' : '·') + '</div>' +
+            '<div class="goal-main">' +
+              '<div class="goal-top"><span class="goal-name">' + esc(a.name) +
+                (a.title ? '<em class="goal-tag">称号</em>' : '') + '</span>' +
+              '<span class="goal-num">' + esc(achFmt(a, a.got)) + ' / ' + esc(achFmt(a, a.need)) + '</span></div>' +
+              '<div class="goal-desc">' + esc(a.desc) + '</div>' +
+              '<div class="goal-bar"><i style="width:' + (a.pct * 100).toFixed(1) + '%"></i></div>' +
+            '</div>';
+          l.appendChild(row);
+        });
+        root.appendChild(l);
+      });
+
+      var foot = U.el('div', 'hint-text');
+      foot.style.marginTop = '16px';
+      foot.innerHTML = '成就是<b>按存档实时算出来的</b>（不额外占用存档字段），所以以后调整条件不需要迁移存档。';
+      root.appendChild(foot);
+    },
+  };
+
+  /* 面板里所有来自数据的文本都要过一遍，避免鱼名/称号名把 HTML 结构撕开 */
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /* =========================================================
      设置
      ========================================================= */
   VIEWS.settings = {

@@ -80,6 +80,34 @@ G.Cheat = (function () {
     location.reload();
   }
 
+  /* ---------------- 长线目标（B5） ---------------- */
+  /* 把三条任务的「当天基准」倒推成 当前值 − 目标值，
+     进度条刚好满格、文案显示 8/8 → 立刻变成「已完成可领取」。
+     比伪造各种统计计数靠谱，也不依赖具体任务类型。 */
+  function finishQuests() {
+    if (!G.Goals) return '无目标系统';
+    var d = St.get().daily;
+    if (!d) return '没有每日任务';
+    d.q.forEach(function (q) {
+      var t = null;
+      G.QUEST_TPL.forEach(function (x) { if (x.id === q.tpl) t = x; });
+      if (!t || !G.Goals.metrics[t.metric]) return;
+      d.base[t.metric] = G.Goals.metrics[t.metric](St.get(), q.key, d) - q.need;
+      q.seen = false;
+    });
+    St.save(true);
+    G.Goals.check(null);
+    G.Hud.syncGoalBadge();
+    return '每日任务已标记完成';
+  }
+
+  function addMedals(n) {
+    St.get().medals = Math.max(0, (St.get().medals || 0) + (n || 10));
+    St.save(true);
+    if (G.Goals) G.Goals.check(null);
+    return '纪念币 = ' + St.get().medals;
+  }
+
   /* ---------------- 面板 ---------------- */
   var BTNS = [
     ['解锁全部钓场', function () { return unlockAll(); }],
@@ -88,6 +116,8 @@ G.Cheat = (function () {
     ['一键全填', function () { unlockAll(); fillBook(); return fillColors(); }],
     ['+10 万金币', function () { return addCoin(100000); }],
     ['时长 +1000h', function () { return setPlayTime(1000); }],
+    ['完成每日任务', function () { return finishQuests(); }],
+    ['+10 纪念币', function () { return addMedals(10); }],
     ['清档重开', function () { clearSave(); return 'reloading'; }],
   ];
 

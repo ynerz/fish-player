@@ -14,7 +14,7 @@
   <!-- ============ 顶栏 HUD ============ -->
   <header id="hud">
     <div class="hud-left">
-      <div class="logo">🎣<span>钓鱼人生</span></div>
+      <div class="logo">🎣<span>钓鱼人生</span><em class="hud-title hidden" id="hudTitle"></em></div>
       <div class="stat" id="statCoin" title="金币">
         <span class="ico">💰</span><span class="val">0</span>
       </div>
@@ -34,6 +34,7 @@
       <button class="tab" data-panel="book"><span>📖</span>图鉴</button>
       <button class="tab" data-panel="shop"><span>🛒</span>商店</button>
       <button class="tab" data-panel="net"><span>🎒</span>鱼护</button>
+      <button class="tab" data-panel="goals"><span>🎯</span>目标<em class="tab-badge hidden" id="goalBadge"></em></button>
       <button class="tab" data-panel="stats"><span>📊</span>统计</button>
       <button class="tab" data-panel="settings"><span>⚙</span>设置</button>
     </nav>
@@ -146,11 +147,13 @@
 <script src="src/data/fields.js"></script>
 <script src="src/data/fish.js"></script>
 <script src="src/data/items.js"></script>
+<script src="src/data/goals.js"></script>
 <script src="src/core/util.js"></script>
 <script src="src/core/platform.js"></script>
 <script src="src/core/audio.js"></script>
 <script src="src/core/loot.js"></script>
 <script src="src/core/state.js"></script>
+<script src="src/core/goals.js"></script>
 <script src="src/render/fishart.js"></script>
 <script src="src/render/scene.js"></script>
 <script src="src/core/fight.js"></script>

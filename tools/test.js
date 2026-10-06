@@ -28,7 +28,9 @@ global.localStorage = {
   removeItem: k => { delete store[k]; },
 };
 ['src/data/config.js', 'src/data/fields.js', 'src/data/fish.js', 'src/data/items.js',
- 'src/core/util.js', 'src/core/platform.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js']
+ 'src/data/goals.js',
+ 'src/core/util.js', 'src/core/platform.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js',
+ 'src/core/goals.js']
   .forEach(r => (new Function(fs.readFileSync(path.join(ROOT, r), 'utf8'))).call(global));
 
 const G = global.G, CFG = G.CONFIG, L = G.Loot, F = G.Fight, St = G.State, U = G.U;
@@ -209,6 +211,7 @@ ok(sm.stats && sm.stats.casts === 0, '缺失的 stats 被补成默认值');
 ok(sm.settings && sm.settings.sound === true, '缺失的 settings 被补成默认值');
 ok(sm.baitSel === 'worm', '缺失的 baitSel 补成 worm');
 ok(!!sm.baits.worm, '缺失的鱼饵库存被补全');
+ok(Array.isArray(sm.stats.byRar) && sm.stats.byRar.length === 4, '缺失的分维计数（byRar）被补全');
 
 /* =========================================================
    5b. 鱼护 / 水族箱
@@ -230,6 +233,8 @@ for (let i = 0; i < cap + 5; i++) St.toNet(nf, 0.4, 'normal');
 ok(St.netCount() === cap, `鱼护不会超过容量上限（${cap}）`);
 ok(St.netFull() === true && St.toNet(nf, 0.4, 'normal') === false, '满了之后 toNet 返回 false');
 ok(St.moveToTank(0) === false || St.tankCount() <= St.get().tankCap, '水族箱同样受容量约束');
+/* 峰值占用：成就不能看当前条数，否则卖光之后进度会回退 */
+ok(St.get().stats.netMax === cap, `鱼护历史最大占用被记到 ${cap}（成就「满载而归」用这个）`);
 
 /* 卖出 / 放生 */
 St.get().coin = 0;
@@ -240,6 +245,9 @@ ok(got === one && St.get().coin === one, `单条卖出入账 ${one} 金`);
 const before = St.netCount();
 St.releaseNetAt(0);
 ok(St.netCount() === before - 1 && St.get().coin === one, '放生不产生金币');
+St.sellAllNet();
+ok(St.netCount() === 0 && St.get().stats.netMax === cap, '卖光鱼护后历史峰值不回退（成就进度不会倒退）');
+ok(G.Goals.metrics.netMax(St.get()) === cap, '成就取数走 stats.netMax，而不是当前条数');
 
 /* 扩容 */
 St.get().coin = 1e9;
@@ -278,7 +286,7 @@ const good = JSON.stringify({
 const imp = St.importSave(good);
 ok(imp.ok === true, '导入合法存档成功');
 ok(St.get().coin === 12345, '导入后金币 = 12345（v1 老存档被正确迁移）');
-ok(St.get().v === 2, '老存档版本号被升到 2');
+ok(St.get().v === 3, '老存档版本号被升到 3（当前 SAVE_V）');
 ok(Array.isArray(St.get().net) && Array.isArray(St.get().tank), 'v1 → v2 迁移补齐了鱼护字段');
 ok(St.bookEntry(nf.id).n === 3, '导入后图鉴数据保留');
 
@@ -302,6 +310,166 @@ ok(G.FIELDS.length === 7, `钓场总数 7（实际 ${G.FIELDS.length}）`);
 ok(G.FIELDS.every(f => f.biteMul >= 1), '所有钓场 biteMul ≥ 1');
 ok(G.FIELDS[0].biteMul === 1, '起始钓场 biteMul = 1');
 ok(U.clamp(5, 0, 10) === 5 && U.clamp(-1, 0, 10) === 0, 'U.clamp 边界正确');
+
+/* =========================================================
+   7. Goals —— 每日任务 / 成就 / 称号（B5）
+   ========================================================= */
+G_('Goals · 每日任务生成');
+St.reset();
+G.Goals.init();
+const daily0 = G.Goals.day();
+ok(daily0 && /^\d{4}-\d{2}-\d{2}$/.test(daily0.day), `任务归属日期格式正确（${daily0 && daily0.day}）`);
+const qs = G.Goals.quests();
+ok(qs.length === G.QUEST_PER_DAY, `每天生成 ${G.QUEST_PER_DAY} 条任务`);
+ok(new Set(qs.map(q => q.t.id)).size === qs.length, '同一天的任务类型不重复');
+ok(qs.every(q => q.need > 0 && isFinite(q.cur) && q.pct >= 0 && q.pct <= 1), '任务目标与进度都是有限数，进度在 0~1');
+ok(qs.every(q => q.text && q.text.length > 3), '每条任务都有可读文案');
+ok(daily0.q.every(q => typeof q.key === 'string'), '任务的上下文 key 都是字符串');
+const snapQ = JSON.stringify(G.Goals.day().q);
+G.Goals.ensureDay(true);
+ok(JSON.stringify(G.Goals.day().q) === snapQ, '同一天重复 ensureDay 不会重掷任务');
+ok(typeof daily0.base[qs[0].t.metric] === 'number', `当天基准值已记录（${qs[0].t.metric} = ${daily0.base[qs[0].t.metric]}）`);
+
+/* 进度 = 当前累计 − 当天基准；基准高于当前时必须 clamp 到 0 */
+daily0.base[qs[0].t.metric] += 5;
+ok(G.Goals.quests()[0].cur === 0, '进度不会算成负数（clamp 到 0）');
+
+/* 跨天重掷 */
+St.get().daily.day = '1999-01-01';
+G.Goals.ensureDay(true);
+ok(St.get().daily.day !== '1999-01-01', '跨天后旧任务被重掷');
+
+G_('Goals · 进度推进与领取');
+St.reset();
+G.Goals.init();
+const d2 = St.get().daily;
+d2.q[0] = { tpl: 'catch', need: 3, key: '', seen: false };
+d2.base = { catch: St.get().stats.catches };
+d2.claimed = [false, false, false];
+ok(G.Goals.quests()[0].cur === 0, '重写任务后进度从 0 开始');
+St.get().stats.catches += 3;
+const q2 = G.Goals.quests()[0];
+ok(q2.done === true && q2.pct === 1, '统计推进 3 条 → catch 任务达成');
+ok(G.Goals.medalClaimable() === 1, '有 1 条可领取');
+const m0 = G.Goals.medals();
+const cl = G.Goals.claim(0);
+ok(cl.ok === true && G.Goals.medals() === m0 + 1, `领取任务 +1 纪念币（${m0} → ${G.Goals.medals()}）`);
+ok(G.Goals.claim(0).ok === false, '同一条任务不能重复领取');
+ok(G.Goals.claim(99).ok === false, '越界下标不会崩');
+d2.q[0].need = 0;
+ok(G.Goals.quests()[0].done === true, 'need 归零 → 判定完成（作弊面板用的就是这招）');
+
+/* 取数口径 */
+const S_ = St.get();
+ok(G.Goals.metrics.catch(S_) === S_.stats.catches, 'metrics.catch = stats.catches');
+ok(G.Goals.metrics.rareUp(S_) === S_.stats.byRar[1] + S_.stats.byRar[2] + S_.stats.byRar[3],
+   'metrics.rareUp = 稀有+史诗+传说 三档之和');
+ok(G.Goals.fmtVal({ fmt: null }, 3.7) === '4', 'fmtVal 默认取整');
+ok(G.Goals.fmtVal({ fmt: v => v.toFixed(1) + ' kg' }, 3.25) === '3.3 kg', 'fmtVal 走自定义格式化');
+
+G_('Goals · 成就（纯派生）');
+St.reset();
+G.Goals.init();
+const ap0 = G.Goals.achProgress();
+ok(ap0.total === G.ACHIEVEMENTS.length && ap0.total >= 30, `成就总数 ${ap0.total}（≥30）`);
+ok(ap0.got === 0, '全新存档没有任何成就达成');
+
+St.noteResult(true); St.noteResult(true); St.noteResult(true);
+ok(St.get().stats.streak === 3 && St.get().stats.maxStreak === 3, '连续成功计数正确');
+St.noteResult(false);
+ok(St.get().stats.streak === 0 && St.get().stats.maxStreak === 3, '失败归零但保留历史最长纪录');
+for (let i = 0; i < 10; i++) St.noteResult(true);
+ok(G.Goals.achievements().find(a => a.id === 's10').done === true, '连续成功 10 竿 → 成就「手感来了」达成');
+
+const ff = G.FISH[0];
+St.recordCatch(ff, 1, 'normal', { bait: 'worm', env: { wx: 'rain', tm: 'night' } });
+const stt = St.get().stats;
+ok(stt.byRar[ff.rar] === 1, 'byRar 按稀有度分档计数');
+ok(stt.byField[ff.field] === 1, 'byField 按钓场计数');
+ok(stt.byBait.worm === 1 && stt.byWx.rain === 1 && stt.byTm.night === 1, 'byBait / byWx / byTm 分别计数');
+ok(G.Goals.metrics.baitUsed(St.get()) === 1, 'baitUsed = 已上过鱼的鱼饵种类数');
+/* 不传 ctx 也必须合法（devtools / 离线补算就是这么调的） */
+St.recordCatch(ff, 1, 'normal');
+ok(St.get().stats.byRar[ff.rar] === 2, '不传 ctx 的 recordCatch 不会崩，byRar 照常累加');
+
+G.FISH.forEach(f => { if (!St.isCaught(f.id)) St.recordCatch(f, (f.minKg + f.maxKg) / 2, 'normal'); });
+const ach = G.Goals.achievements();
+ok(ach.find(a => a.id === 'b1').done && ach.find(a => a.id === 'b362').done, '填满图鉴 → 图鉴类成就全部达成');
+ok(ach.find(a => a.id === 'f7').got < 7, '没解锁的钓场不会被算进「七海旅人」');
+ok(ach.every(a => isFinite(a.got) && a.pct >= 0 && a.pct <= 1), '所有成就进度都是有限数且在 0~1');
+/* 成就是纯派生的：不占存档字段 */
+ok(St.get().ach === undefined, '成就状态没有被写进存档（只有「已播报 id」列表）');
+ok(St.get().daily.q.some(q => q.need > 0), '每日任务仍然独立存在');
+
+G_('Goals · 称号与纪念币');
+const ts = G.Goals.titles();
+ok(ts[0].id === '', '称号列表第一位是「无称号」（默认）');
+ok(ts.some(t => t.name === '万鱼之书'), '达成成就后解锁对应称号');
+ok(G.Goals.equipped().id === '', '默认不佩戴称号');
+ok(G.Goals.equip('ach:b362') === true && G.Goals.equipped().name === '万鱼之书', '可以佩戴已解锁的称号');
+ok(G.Goals.equip('ach:zzz') === false && G.Goals.equipped().name === '万鱼之书', '不能佩戴不存在的称号');
+ok(G.Goals.equip('') === true && G.Goals.equipped().id === '', '可以卸下称号');
+St.get().medals = 40; St.save(true);
+ok(G.Goals.medals() === 40 && G.Goals.titles().some(t => t.name === '赶海人'), '纪念币到 40 解锁称号「赶海人」');
+ok(!G.Goals.titles().some(t => t.name === '纪念收藏家'), '纪念币不够时不解锁更高档称号');
+/* 称号只解锁不消耗，纪念币没有消费出口 —— 这是设计约束，不是漏做 */
+ok(G.Goals.medals() === 40, '解锁称号不消耗纪念币（纪念币是纯计数，买不到任何数值）');
+
+G_('Goals · 老存档迁移（v2 → v3）');
+const legacy2 = {
+  v: 2, coin: 500, playTime: 3600, field: 'D', unlocked: { D: true },
+  book: {}, baits: { worm: -1 }, rods: ['bamboo'], lines: ['n2'], decors: [],
+  net: [], tank: [], netCap: 30, tankCap: 6, netEx: 0, tankEx: 0,
+  stats: { casts: 3, catches: 4, escapes: 0, snaps: 0, idleCatches: 0,
+           maxKg: 2, maxKgFish: 'x', totalValue: 100, days: 0 },
+  settings: { sound: true, volume: 0.5, ambient: true, idle: false },
+};
+store[CFG.saveKey] = JSON.stringify(legacy2);
+St.load();
+const sv = St.get();
+ok(sv.v === 3, '老存档版本号被升到 3');
+ok(Array.isArray(sv.stats.byRar) && sv.stats.byRar.length === 4, 'byRar 被补成 4 档');
+ok(sv.stats.byRar.every(x => x === 0), 'byRar 初始全 0');
+ok(sv.stats.byField && typeof sv.stats.byField === 'object' && !Array.isArray(sv.stats.byField), 'byField 被补成对象');
+ok(sv.stats.netKept === 0 && sv.stats.streak === 0 && sv.stats.maxStreak === 0, '新增统计字段都有默认值');
+ok(sv.medals === 0 && sv.titleSel === '' && sv.daily === null, '纪念币 / 称号 / 每日任务都有默认值');
+ok(sv.stats.catches === 4 && sv.coin === 500, '老存档既有数据不受影响');
+ok(sv.achInit === false, 'v2 → v3 标记「成就还没补登记」，避免老档一进来刷屏');
+
+const dirty2 = JSON.parse(JSON.stringify(legacy2));
+dirty2.stats.byRar = 'oops'; dirty2.stats.byField = [1, 2]; dirty2.medals = -5; dirty2.titleSel = 123;
+dirty2.stats.streak = NaN;
+store[CFG.saveKey] = JSON.stringify(dirty2);
+St.load();
+const sd = St.get();
+ok(Array.isArray(sd.stats.byRar) && sd.stats.byRar.length === 4, '脏 byRar 被纠正成 4 档数组');
+ok(!Array.isArray(sd.stats.byField), '脏 byField 被纠正成对象');
+ok(sd.medals === 0, '负数纪念币被纠正为 0');
+ok(typeof sd.titleSel === 'string', '非字符串称号被纠正成字符串');
+ok(isFinite(sd.stats.streak), 'NaN 的连续成功计数被兜住');
+/* 迁移完仍然能正常接入目标系统 */
+G.Goals.init();
+ok(G.Goals.quests().length === G.QUEST_PER_DAY, '迁移后的存档也能正常生成每日任务');
+ok(G.Goals.achProgress().total === G.ACHIEVEMENTS.length, '迁移后的存档也能算出成就列表');
+
+G_('Goals · 数据完整性');
+const ids = new Set(); let dup = 0;
+G.ACHIEVEMENTS.forEach(a => { if (ids.has(a.id)) dup++; ids.add(a.id); });
+ok(dup === 0, `成就 id 无重复（${G.ACHIEVEMENTS.length} 条）`);
+ok(G.ACHIEVEMENTS.every(a => G.Goals.metrics[a.metric] && typeof G.Goals.metrics[a.metric] === 'function'),
+   '每条成就的 metric 都有对应实现');
+ok(G.ACHIEVEMENTS.every(a => a.need > 0 && a.name && a.desc), '每条成就都有 need / name / desc');
+ok(G.ACHIEVEMENTS.every(a => G.ACH_CATS.some(c => c.key === a.cat)), '每条成就的分类合法');
+const tids = new Set(); let tdup = 0;
+G.QUEST_TPL.forEach(t => { if (tids.has(t.id)) tdup++; tids.add(t.id); });
+ok(tdup === 0, `任务模板 id 无重复（${G.QUEST_TPL.length} 条）`);
+ok(G.QUEST_TPL.every(t => G.Goals.metrics[t.metric] && typeof t.text === 'function' && (t.pool || t.poolFn)),
+   '每个任务模板字段完整（metric / text / pool）');
+ok(G.QUEST_TPL.every(t => !t.pool || t.pool.every(n => n > 0)), '任务目标值都是正数');
+ok(G.QUEST_TPL.every(t => typeof t.text(1, '', St.get()) === 'string'), '任务文案函数都能正常产出字符串');
+ok(G.QUEST_PER_DAY >= 1 && G.QUEST_PER_DAY <= G.QUEST_TPL.length, '每日条数不超过模板总数');
+const titled = G.ACHIEVEMENTS.filter(a => a.title).length + G.MEDAL_TITLES.length;
+ok(titled >= 10, `称号数量 ≥10（成就 ${G.ACHIEVEMENTS.filter(a => a.title).length} + 纪念币 ${G.MEDAL_TITLES.length}）`);
 
 /* ---------- 汇总 ---------- */
 console.log('\n' + '='.repeat(52));

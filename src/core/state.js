@@ -11,8 +11,10 @@ G.State = (function () {
   var listeners = [];
 
   /* 存档结构版本。改动存档字段时把它 +1，并在 migrate() 里补一条分支。
-     版本 2：新增 net / tank / netCap / tankCap / netEx / tankEx */
-  var SAVE_V = 2;
+     版本 2：新增 net / tank / netCap / tankCap / netEx / tankEx
+     版本 3：新增每日任务 / 纪念币 / 称号，以及 stats 的分维计数
+             （byRar / byField / byBait / byWx / byTm / streak / maxStreak） */
+  var SAVE_V = 3;
 
   /* 数字兜底：任何来自存档或计算的数值都要过一遍，
      否则 NaN 会被 JSON.stringify 写成 null，静默污染整个存档。 */
@@ -45,9 +47,25 @@ G.State = (function () {
       netEx: 0,                        // 已扩容次数（用于取价格）
       tankEx: 0,
       locked: [],                      // 隐藏钓场被「发现」时记录，用于解锁提示
+      /* ---- 长线目标（v3）---- */
+      daily: null,                     // 当日任务（由 G.Goals 生成，跨天自动重掷）
+      medals: 0,                       // 纪念币：只统计，没有消费出口
+      medalSeen: {},                   // 已播报过的纪念币里程碑
+      titleSel: '',                    // 佩戴中的称号 id
+      achSeen: [],                     // 已播报过的成就 id（成就是纯派生的，不存状态）
+      achInit: false,                  // 老存档首次接入成就系统时静默补登记
       stats: {
         casts: 0, catches: 0, escapes: 0, snaps: 0, idleCatches: 0,
         maxKg: 0, maxKgFish: '', totalValue: 0, days: 0,
+        /* 分维计数：供每日任务 / 成就取数（不要删，Goals 依赖它们） */
+        byRar: [0, 0, 0, 0],           // 各稀有度的钓获条数
+        byField: {},                   // 各钓场钓获条数
+        byBait: {},                    // 各鱼饵成功上鱼条数
+        byWx: {},                      // 各天气下钓获条数
+        byTm: {},                      // 各时段钓获条数
+        netKept: 0,                    // 收进鱼护的累计条数
+        netMax: 0, tankMax: 0,         // 鱼护 / 水族箱的**历史最大占用**（成就用）
+        streak: 0, maxStreak: 0,       // 当前 / 历史最长「连续成功」竿数
       },
       settings: { sound: true, volume: 0.55, ambient: true, idle: false },
       lastSeen: Date.now(),
@@ -85,6 +103,29 @@ G.State = (function () {
     if (d.tankEx == null) d.tankEx = 0;
     if (!d.unlocked || !d.unlocked.D) d.unlocked = Object.assign({ D: true }, d.unlocked || {});
 
+    /* ---- 长线目标（v3）：字段兜底 + 类型纠正 ---- */
+    if (!Array.isArray(d.achSeen)) d.achSeen = [];
+    if (!d.medalSeen || typeof d.medalSeen !== 'object') d.medalSeen = {};
+    if (typeof d.titleSel !== 'string') d.titleSel = '';
+    d.medals = Math.max(0, Math.round(safeNum(d.medals, 0)));
+    if (d.daily && (typeof d.daily !== 'object' || !Array.isArray(d.daily.q))) d.daily = null;
+    if (!Array.isArray(d.stats.byRar) || d.stats.byRar.length !== 4) d.stats.byRar = [0, 0, 0, 0];
+    d.stats.byRar = d.stats.byRar.map(function (v) { return Math.max(0, Math.round(safeNum(v, 0))); });
+    ['byField', 'byBait', 'byWx', 'byTm'].forEach(function (k) {
+      if (!d.stats[k] || typeof d.stats[k] !== 'object' || Array.isArray(d.stats[k])) d.stats[k] = {};
+      var src = d.stats[k], clean = {};
+      Object.keys(src).forEach(function (id) { clean[id] = Math.max(0, Math.round(safeNum(src[id], 0))); });
+      d.stats[k] = clean;
+    });
+    d.stats.netKept = Math.max(0, Math.round(safeNum(d.stats.netKept, 0)));
+    /* netMax / tankMax：历史最大占用。没有这个字段的老档用「当前条数」起步，
+       至少保证不会因为缺字段而被判成 0 之后又永远追不上。 */
+    d.stats.netMax = Math.max(0, Math.round(safeNum(d.stats.netMax, (d.net || []).length)));
+    d.stats.tankMax = Math.max(0, Math.round(safeNum(d.stats.tankMax, (d.tank || []).length)));
+    d.stats.streak = Math.max(0, Math.round(safeNum(d.stats.streak, 0)));
+    d.stats.maxStreak = Math.max(0, Math.round(safeNum(d.stats.maxStreak, 0)));
+    if (d.stats.maxStreak < d.stats.streak) d.stats.maxStreak = d.stats.streak;
+
     /* ---- 按版本号迁移 ---- */
     if (from < 2) {
       // v1 → v2：新增鱼护 / 水族箱
@@ -94,6 +135,12 @@ G.State = (function () {
       d.tankCap = safeNum(d.tankCap, CFG.storage.tankCap);
       d.netEx = safeNum(d.netEx, 0);
       d.tankEx = safeNum(d.tankEx, 0);
+    }
+    if (from < 3) {
+      // v2 → v3：长线目标系统（每日任务 / 纪念币 / 称号 / 分维计数）。
+      // 全部走上面的兜底逻辑，这里只标记「成就还没补登记」，
+      // 由 G.Goals.init() 静默登记已满足的成就，避免老档一进来刷屏。
+      d.achInit = false;
     }
     d.v = SAVE_V;
 
@@ -135,8 +182,18 @@ G.State = (function () {
     }
   }
 
+  /* 鱼护 / 水族箱的「历史最大占用」。
+     成就不能直接看当前条数 —— 玩家卖光之后进度会回退，
+     而成就判定只在「上岸 / 失败」时触发，可能永远抓不到那个峰值。 */
+  function notePeaks() {
+    var st = S.stats;
+    if (S.net.length > (st.netMax || 0)) st.netMax = S.net.length;
+    if (S.tank.length > (st.tankMax || 0)) st.tankMax = S.tank.length;
+  }
+
   function save(now) {
     if (!S) return;
+    notePeaks();
     S.lastSeen = Date.now();
     var txt = JSON.stringify(S);
     var PS = G.Platform.storage;
@@ -145,6 +202,7 @@ G.State = (function () {
   }
 
   function scheduleSave() {
+    notePeaks();
     if (saveTimer) return;
     saveTimer = setTimeout(function () { saveTimer = null; save(false); }, 1200);
   }
@@ -200,6 +258,7 @@ G.State = (function () {
   function toNet(fish, kg, colorKey) {
     if (netFull()) return false;
     S.net.push({ f: fish.id, kg: kg, c: colorKey });
+    S.stats.netKept = (S.stats.netKept || 0) + 1;   // 每日任务「收进鱼护 N 条」要用
     scheduleSave();
     emit('net');
     return true;
@@ -297,7 +356,10 @@ G.State = (function () {
   function bookEntry(id) { return S.book[id] || null; }
   function isCaught(id) { return !!S.book[id]; }
 
-  function recordCatch(fish, kg, colorKey) {
+  /* ctx（可选）：{ bait: 鱼饵 id, env: { wx, tm } }
+     用于填写分维计数，每日任务与成就要靠它取数。
+     ⚠️ 老的调用点（devtools / 离线补算）不传 ctx 也完全合法。 */
+  function recordCatch(fish, kg, colorKey, ctx) {
     if (!fish) return { isNew: false, isRecord: false };
     kg = Math.max(0, safeNum(kg, 0));
     var e = S.book[fish.id];
@@ -312,9 +374,38 @@ G.State = (function () {
 
     // 全局统计
     if (kg > S.stats.maxKg) { S.stats.maxKg = kg; S.stats.maxKgFish = fish.name; }
+    recordDims(fish, ctx);
 
     scheduleSave();
     return { isNew: isNew, isRecord: isRecord };
+  }
+
+  /* 分维计数：每日任务 / 成就的取数来源 */
+  function recordDims(fish, ctx) {
+    var st = S.stats;
+    if (fish.rar >= 0 && fish.rar < 4) st.byRar[fish.rar] = (st.byRar[fish.rar] || 0) + 1;
+    st.byField[fish.field] = (st.byField[fish.field] || 0) + 1;
+    if (ctx) {
+      if (ctx.bait) st.byBait[ctx.bait] = (st.byBait[ctx.bait] || 0) + 1;
+      if (ctx.env) {
+        if (ctx.env.wx) st.byWx[ctx.env.wx] = (st.byWx[ctx.env.wx] || 0) + 1;
+        if (ctx.env.tm) st.byTm[ctx.env.tm] = (st.byTm[ctx.env.tm] || 0) + 1;
+      }
+    }
+  }
+
+  /* 「连续成功竿数」的记账。断线 / 脱钩 / 错过咬口都算断。
+     成就有「连续成功 N 竿」，所以要留 maxStreak。 */
+  function noteResult(ok) {
+    var st = S.stats;
+    if (ok) {
+      st.streak = (st.streak || 0) + 1;
+      if (st.streak > (st.maxStreak || 0)) st.maxStreak = st.streak;
+    } else {
+      st.streak = 0;
+    }
+    scheduleSave();
+    return st.streak;
   }
 
   function fieldProgress(fid) {
@@ -513,7 +604,7 @@ G.State = (function () {
     curBait: curBait, curRod: curRod, curLine: curLine,
     bait: bait, rod: rod, line: line, baitCount: baitCount,
     addCoin: addCoin, spend: spend,
-    bookEntry: bookEntry, isCaught: isCaught, recordCatch: recordCatch,
+    bookEntry: bookEntry, isCaught: isCaught, recordCatch: recordCatch, noteResult: noteResult,
     netCount: netCount, tankCount: tankCount, netFull: netFull, tankFull: tankFull,
     toNet: toNet, netPrice: netPrice, netValue: netValue,
     sellNetAt: sellNetAt, sellAllNet: sellAllNet, releaseNetAt: releaseNetAt,

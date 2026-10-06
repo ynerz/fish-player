@@ -411,6 +411,33 @@ else {
 if (!inputBad) ok('画布按下 = 主按钮按下（无状态白名单，fight 状态也能收线）');
 
 
+/* ---------------- 13. 张力安全线只有一处来源 ----------------
+   A4 的遗留：安全线数值写在 config，但 CSS 里又硬编码了一份 78%。
+   改 config 时 CSS 不跟着变 → 「改一处不生效」，而且没有任何报错。
+   现在统一由 hud.js 在 init 时从 G.Fight.SAFE 写进行内样式。 */
+console.log('\n[13] 张力安全线只有一处来源（CFG.fight.safeRatio）');
+let safeBad = 0;
+const safeR = CFG.fight.safeRatio;
+if (!(safeR > 0 && safeR < 1)) { err(`CFG.fight.safeRatio 不是 0~1 的占比：${safeR}`); safeBad++; }
+if (G.Fight.SAFE !== safeR) {
+  err(`G.Fight.SAFE(${G.Fight.SAFE}) 与 CFG.fight.safeRatio(${safeR}) 不一致`); safeBad++;
+}
+const safeCss = fs.readFileSync(path.join(ROOT, 'assets/css/style.css'), 'utf8');
+['zone-safe', 'danger-mark'].forEach(cls => {
+  const rule = (safeCss.match(new RegExp('\\.tension-track\\s+\\.' + cls + '\\s*\\{[^}]*\\}')) || [''])[0];
+  if (!rule) { err(`style.css 里找不到 .tension-track .${cls} 规则`); safeBad++; return; }
+  if (/(width|left)\s*:\s*[^;]*\d\s*%/.test(rule)) {
+    err(`.tension-track .${cls} 的 width/left 又写死了百分比（应由 JS 从 CFG.fight.safeRatio 写入）`); safeBad++;
+  }
+});
+const hudSrcSafe = fs.readFileSync(path.join(ROOT, 'src/ui/hud.js'), 'utf8');
+if (!/zoneSafe[\s\S]{0,200}G\.Fight\.SAFE/.test(hudSrcSafe) ||
+    !/dangerMark[\s\S]{0,200}G\.Fight\.SAFE/.test(hudSrcSafe)) {
+  err('hud.js 没有把 G.Fight.SAFE 写进安全区带 / 危险标（改了 config 界面不跟着变）'); safeBad++;
+}
+if (!safeBad) ok(`安全线 ${(safeR * 100).toFixed(0)}% 只存在于 config.js，CSS 里没有第二份`);
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

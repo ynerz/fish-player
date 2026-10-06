@@ -200,12 +200,15 @@ html,body{
 }
 .bar-fill.prog{ background:linear-gradient(90deg,#4fc3f7,#1f8fd6); }
 .bar-fill.tension{ background:linear-gradient(90deg,#7ed957,#ffc107 62%,#e8595c); }
+/* 安全线与危险标的尺寸由 JS 从 CFG.fight.safeRatio 写入（hud.js init）。
+   这里**故意**不写 78% —— 写死就会出现「config 改了、CSS 还是老的」
+   这种改一处不生效的两份硬编码。 */
 .tension-track .zone-safe{
-  position:absolute; left:0; top:0; height:100%; width:78%;
+  position:absolute; left:0; top:0; height:100%; width:0;
   background:rgba(63,191,127,.10);
 }
 .tension-track .danger-mark{
-  position:absolute; left:78%; top:0; height:100%; width:2px;
+  position:absolute; left:0; top:0; height:100%; width:2px;
   background:rgba(232,89,92,.65);
 }
 .fight-tip{

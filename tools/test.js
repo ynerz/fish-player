@@ -98,6 +98,10 @@ ok(kBig > fish.maxKg, `巨物溢出生效（最大 ${kBig.toFixed(2)}kg > 上限
    4. Fight —— 张力拉扯
    ========================================================= */
 G_('Fight · 张力拉扯');
+/* 安全线只有一处来源：config.js。fight.js 与 UI 都必须读它。 */
+ok(F.SAFE === CFG.fight.safeRatio, 'Fight.SAFE 直接取自 CFG.fight.safeRatio（没有第二份常数）',
+   `Fight.SAFE=${F.SAFE} / CFG=${CFG.fight.safeRatio}`);
+ok(CFG.fight.safeRatio > 0 && CFG.fight.safeRatio < 1, 'safeRatio 是 0~1 的占比');
 function fight(fishRar, kg, opts) {
   opts = opts || {};
   const f = G.FISH.filter(x => x.rar === fishRar)[0];

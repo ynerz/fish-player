@@ -338,11 +338,15 @@ G.Fishing = (function () {
     newKinds = Math.round(newKinds * scale);
 
     // 写进图鉴（按比例折算成整数条）
+    /* ctx 必须一起传：每日任务里有「用某鱼饵钓 N 条」这类分维任务，
+       离线补算不传 ctx 就会让这些任务在挂机后进度纹丝不动。
+       天气 / 时段继续用中性值（离线会跨过很多次变天，硬记一个反而失真）。 */
+    var offlineCtx = { bait: St.curBait().id, env: G.Weather.neutral() };
     Object.keys(gained).forEach(function (id) {
       var c = Math.max(1, Math.round(gained[id] * scale));
       var fish = G.FISH_ID[id];
       for (var k = 0; k < c; k++) {
-        St.recordCatch(fish, G.Loot.rollKg(fish), G.Loot.rollColor(fish.rar).key);
+        St.recordCatch(fish, G.Loot.rollKg(fish), G.Loot.rollColor(fish.rar).key, offlineCtx);
       }
     });
 

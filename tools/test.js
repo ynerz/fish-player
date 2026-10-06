@@ -714,6 +714,18 @@ const ocCap = Fish.offlineCatchUp(999999, 30);
 ok(ocCap.seconds === CFG.idle.maxCatchUp, '离线补算按 idle.maxCatchUp 封顶', '实际 ' + (ocCap && ocCap.seconds));
 ok(ocCap.recent.length <= 5, '离线再久，代表渔获也不超过 5 条（播报栏不会刷屏）');
 
+G_('Fishing · 离线补算的分维计数');
+St.reset();
+const baitId = St.curBait().id;
+const byBait0 = St.get().stats.byBait[baitId] || 0;
+const oc2 = Fish.offlineCatchUp(1800, 30);
+const byBait1 = St.get().stats.byBait[baitId] || 0;
+ok(byBait1 > byBait0, '离线补算也计进「按鱼饵」分维（每日任务「用某鱼饵钓 N 条」不再停摆）',
+   `${byBait0} → ${byBait1}`);
+ok(byBait1 - byBait0 <= oc2.count && byBait1 - byBait0 >= 1, 'byBait 增量不超过总竿数且至少 1');
+ok(Object.keys(St.get().stats.byWx).length === 0 && Object.keys(St.get().stats.byTm).length === 0,
+   '离线补算不写天气 / 时段分维（离线跨很多次变天，硬记一个反而失真）');
+
 /* =========================================================
    Platform —— 输入通道
    踩过的坑：input.up 曾写成 up(el, fn)，调用方按 up(fn) 传参 →

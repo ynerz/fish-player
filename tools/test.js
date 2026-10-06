@@ -1236,6 +1236,25 @@ G_('Track · 错误采集（空壳）');
 })();
 
 /* =========================================================
+   Util —— 导出面
+   G.U 里曾躺着 rnd / irange / pick / chance / normalize 五个零调用函数：
+   它们长得像「基础设施」，读代码时会被当成常用工具，实际全项目没人用。
+   用白名单把导出面钉住：删函数要显式改这里（所以删不干净会立刻红），
+   加函数同样要显式登记（逼着加的人想清楚有没有消费方）。verify 第 ㉕ 节
+   另有一条源码级断言，扫「每个导出函数都必须有消费方」。
+   ========================================================= */
+G_('Util · 导出面（不留零消费的死函数）');
+const UTIL_KEYS = ['$', '$$', 'clamp', 'clock', 'coin', 'darken', 'dur', 'easeOut',
+  'el', 'hex2rgb', 'kg', 'lerp', 'lighten', 'mix', 'num', 'on', 'range',
+  'rgb2hex', 'rgba', 'skew', 'weighted'];
+ok(Object.keys(U).sort().join(',') === UTIL_KEYS.join(','),
+   'G.U 的导出集合与白名单完全一致（共 ' + UTIL_KEYS.length + ' 个）',
+   Object.keys(U).sort().join(','));
+['rnd', 'irange', 'pick', 'chance', 'normalize'].forEach(k => {
+  ok(U[k] === undefined, '零调用死函数 U.' + k + ' 已从导出面移除');
+});
+
+/* =========================================================
    Platform —— 输入通道
    踩过的坑：input.up 曾写成 up(el, fn)，调用方按 up(fn) 传参 →
    真正注册的是 addEventListener('pointerup', undefined)，

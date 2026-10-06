@@ -909,6 +909,46 @@ if (monOrphan.length) {
 if (!paidBad) ok(`付费内容面板的数值全部来自 config（monetization 的 ${monKeys.length} 个键都有消费方）`);
 
 
+/* ---------------- 25. util.js 的导出面里不许有「零消费」死函数 ----------------
+   `G.U` 里曾经躺着 rnd / irange / pick / chance / normalize 五个函数：
+   全项目零调用，却长得很像「基础设施」，读代码的人会以为它们是常用工具。
+   判据：**每个被导出的函数，要么在 util.js 之外被 `U.<name>` 用过，
+   要么在 util.js 内部被别处调用过**（如 hex2rgb 只服务 mix/lighten）。
+   两边都没有 = 真死代码 → 报错。新增工具只要有人用就不会误报。 */
+console.log('\n[25] util.js 导出的工具函数都必须真的有消费方');
+let utilBad = 0;
+const utilSrcRaw = fs.readFileSync(path.join(ROOT, 'src/core/util.js'), 'utf8');
+/* ⚠️ 只扫代码不扫注释：上面那段「删掉过 rnd…」的说明注释会把名字带回来 */
+const utilCode = utilSrcRaw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/* 收集 util.js 之外的全部源码：src/ + tools/ + index.html */
+const extFiles = [path.join(ROOT, 'index.html')];
+const walk = dir => fs.readdirSync(dir).forEach(n => {
+  const p = path.join(dir, n);
+  if (fs.statSync(p).isDirectory()) walk(p);
+  else if (/\.(js|html)$/.test(n)) extFiles.push(p);
+});
+walk(path.join(ROOT, 'src')); walk(path.join(ROOT, 'tools'));
+const extCode = extFiles
+  .map(p => fs.readFileSync(p, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, ''))
+  .join('\n');
+const utilFns = (utilCode.match(/function\s+([A-Za-z_$][\w$]*)\s*\(/g) || [])
+  .map(s => s.replace(/function\s+/, '').replace(/\s*\($/, ''));
+const utilExports = (utilCode.match(/return\s*\{([\s\S]*?)\n\s*\};/) || [, ''])[1];
+const utilDead = utilFns.filter(fn => {
+  if (!(new RegExp('(^|[\\s{,])' + escRe(fn) + '\\s*:').test(utilExports))) return false; // 没导出
+  const outside = new RegExp('U\\.' + escRe(fn) + '(?![A-Za-z0-9_$])').test(extCode);
+  const inside = new RegExp(escRe(fn) + '\\s*\\(')
+    .test(utilCode.replace(new RegExp('function\\s+' + escRe(fn) + '\\s*\\(', 'g'), '')); // 剥掉自己的声明
+  return !outside && !inside;
+});
+if (utilDead.length) {
+  err(`src/core/util.js 里这些导出函数全项目零调用，是死代码：${utilDead.join('、')}（删掉，或补一处真实用例）`);
+  utilBad++;
+}
+if (!utilBad) ok(`util.js 导出的 ${utilFns.filter(f => new RegExp('(^|[\\s{,])' + escRe(f) + '\\s*:').test(utilExports)).length} 个函数都有真实消费方`);
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

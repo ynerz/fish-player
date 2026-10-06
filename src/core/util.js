@@ -6,11 +6,9 @@ window.G = window.G || {};
 G.U = (function () {
 
   /* ---------------- 随机 ---------------- */
-  function rnd() { return Math.random(); }
+  /* 注：只保留真正被消费的随机工具。删掉过 rnd / irange / pick / chance / normalize
+     —— 它们全项目零调用，留着会让「看着像基础设施」的死代码越积越多（verify ㉕ 现在盯着）。 */
   function range(a, b) { return a + Math.random() * (b - a); }
-  function irange(a, b) { return Math.floor(a + Math.random() * (b - a + 1)); }
-  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-  function chance(p) { return Math.random() < p; }
 
   /* 偏向小值的随机（skew 越大越偏小） */
   function skew(min, max, k) {
@@ -31,12 +29,6 @@ G.U = (function () {
       if (r <= 0) return items[i];
     }
     return items[items.length - 1];
-  }
-
-  /* 把权重数组归一化到合计 1 */
-  function normalize(arr) {
-    var s = arr.reduce(function (a, b) { return a + b; }, 0);
-    return s <= 0 ? arr : arr.map(function (v) { return v / s; });
   }
 
   /* ---------------- 数学 ---------------- */
@@ -115,8 +107,8 @@ G.U = (function () {
   function on(node, ev, fn, opt) { if (node) node.addEventListener(ev, fn, opt); }
 
   return {
-    rnd: rnd, range: range, irange: irange, pick: pick, chance: chance,
-    skew: skew, weighted: weighted, normalize: normalize,
+    range: range,
+    skew: skew, weighted: weighted,
     clamp: clamp, lerp: lerp, easeOut: easeOut,
     hex2rgb: hex2rgb, rgb2hex: rgb2hex, mix: mix, lighten: lighten,
     darken: darken, rgba: rgba,

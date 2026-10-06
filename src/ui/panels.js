@@ -1187,13 +1187,19 @@ G.Panels = (function () {
       G.FIELDS.forEach(function (f) {
         var p = St.fieldProgress(f.id);
         var unlocked = !!s.unlocked[f.id];
-        var need = f.collectionPct >= 1 ? p.total : St.needCount(p.total, f.collectionPct || 0.8);
+        /* ⚠️ 这两行原来各留了一份「真相」：
+           · `var need = …` 算完之后从来没人用（与 v0.5.5 删掉的 maxFish 同类）；
+           · 门槛百分比写成字面量「需前置 100%」，而卡片上另一处（panels.js 的
+             `need` / fc-foot 那一带）读的是 f.collectionPct ——
+             隐藏钓场的 collectionPct 本来就是 1.0，现算一次即可。 */
+        var gatePct = Math.round((f.collectionPct || 0.8) * 100) + '%';
         var row = U.el('div', 'shop-item' + (unlocked ? '' : ''));
         row.innerHTML = '<div class="sh-ico" style="font-weight:800;color:#fff;background:' +
             rankColor(f.rank) + '">' + f.rank + '</div>' +
           '<div class="sh-main"><div class="sh-name">' + (f.hidden && !unlocked ? '？？？' : f.name) + '</div>' +
           '<div class="sh-desc">图鉴 ' + p.got + '/' + p.total + '（' + (p.pct * 100).toFixed(0) + '%）' +
-          (unlocked ? ' ｜ 已解锁' : ' ｜ ' + (f.requireFull ? '需前置 100%' : '需 ' + Math.round((f.collectionPct || 0.8) * 100) + '%')) + '</div></div>';
+          (unlocked ? ' ｜ 已解锁'
+                    : (f.requireFull ? ' ｜ 需前置 ' + gatePct : ' ｜ 需 ' + gatePct)) + '</div></div>';
         g3.appendChild(row);
       });
       root.appendChild(g3);

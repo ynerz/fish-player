@@ -1055,27 +1055,39 @@ if (docPages.length === 0) { err('没有扫到任何文档页/工具页（路径
    `estOwnHours` / `estUnlockHours` 是「从零收满要多久」的**理论值**，不随进度变化。
    原来两格直接把它当「预计收满」显示 —— 满图鉴的玩家会看到「当前钓场预计收满 2 小时」
    这种自相矛盾的数（与 ㉓ 节「体重占比 155% 上限」同一类：文案与数据对不上）。
-   顺带盯住本段里的「只算不用」局部变量（这处曾有一个查完不用的 `maxFish`）。 */
+   顺带盯住这段里的「只算不用」局部变量（这处曾有一个查完不用的 `maxFish`）。
+   ⚠️ 死变量的扫描范围从「总览」块扩到**整个统计视图** ——
+      「各钓场进度」里原来还有一个 `var need` 算完不用，正好落在旧范围之外。 */
 console.log('\n[27] 统计面板：理论时长必须标注「已收满」，且不留只算不用的局部变量');
 let statsBad = 0;
-const statsBody = (panelsSrc.match(/root\.appendChild\(U\.el\('div', 'section-title', '总览'\)\);[\s\S]*?root\.appendChild\(g1\);/) || [''])[0];
-if (!statsBody) { err('panels.js 里找不到统计面板的「总览」块'); statsBad++; }
+const statsView = (panelsSrc.match(/VIEWS\.stats = \{[\s\S]*?\n  \};/) || [''])[0];
+if (!statsView) { err('panels.js 里找不到 VIEWS.stats 整个视图'); statsBad++; }
 else {
-  if (statsBody.indexOf('estOwnHours') >= 0 || statsBody.indexOf('estUnlockHours') >= 0) {
-    if (!/pct\s*>=\s*1/.test(statsBody) || statsBody.indexOf('已收满') < 0) {
+  const overview = (statsView.match(/root\.appendChild\(U\.el\('div', 'section-title', '总览'\)\);[\s\S]*?root\.appendChild\(g1\);/) || [''])[0];
+  if (!overview) { err('panels.js 里找不到统计面板的「总览」块'); statsBad++; }
+  else if (overview.indexOf('estOwnHours') >= 0 || overview.indexOf('estUnlockHours') >= 0) {
+    if (!/pct\s*>=\s*1/.test(overview) || overview.indexOf('已收满') < 0) {
       err('统计面板把理论时长当「预计收满」显示，却没有在 100% 时改口成「已收满」');
       statsBad++;
     }
   }
-  const decls = (statsBody.match(/var\s+([A-Za-z_$][\w$]*)\s*=/g) || [])
+  /* 只扫代码不扫注释：否则上面那段「原来叫 maxFish / need」的说明会把名字带回来 */
+  const viewCode = statsView.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const decls = (viewCode.match(/var\s+([A-Za-z_$][\w$]*)\s*=/g) || [])
     .map(s => s.replace(/var\s+/, '').replace(/\s*=$/, ''));
-  const deadLocals = decls.filter(nm => (statsBody.match(new RegExp('\\b' + escRe(nm) + '\\b', 'g')) || []).length < 2);
+  const deadLocals = decls.filter(nm => (viewCode.match(new RegExp('\\b' + escRe(nm) + '\\b', 'g')) || []).length < 2);
   if (deadLocals.length) {
     err(`统计面板里这些局部变量只赋值、没有任何使用：${deadLocals.join('、')}`);
     statsBad++;
   }
+  /* 「各钓场进度」的门槛百分比同理：写死「需前置 100%」就多了一份真相，
+     隐藏钓场的 collectionPct 本来就是 1.0，现算即可。 */
+  if (/需前置\s*[\d.]+\s*%/.test(viewCode)) {
+    err('统计面板把钓场解锁门槛写死成「需前置 N%」了 —— 应读 f.collectionPct');
+    statsBad++;
+  }
 }
-if (!statsBad) ok('统计面板的理论时长会随「已收满」改口，且没有只算不用的局部变量');
+if (!statsBad) ok('统计面板的理论时长会随「已收满」改口，且没有只算不用的局部变量 / 写死的门槛百分比');
 
 
 /* ---------------- 28. 鱼饵 speed 的文案方向 ----------------

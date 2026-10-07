@@ -354,12 +354,18 @@
       dashing: !!(fsnap && fsnap.dashing),
     });
 
-    S.render(dt);
+    /* ⚠️ 失焦时**连渲染一起停**。
+       失焦 = 暂停（上面 St.tick / Weather / Goals / F.update 全都按 focused 拦住了），
+       画面本来就是静止的；原来这里无条件 `S.render(dt)`，多显示器下切到别的应用，
+       游戏还在按 60fps 重画水面 / 云 / 粒子（浏览器只在标签页不可见时才节流 rAF，
+       「窗口失焦但页面可见」不节流）—— 纯烧电。
+       回来时 focus 事件把 blurred 置回 false，下一帧照常渲染。 */
+    if (focused) S.render(dt);
 
-    if (F.getState() === 'fight') Hud.updateFight(G.Fight.snapshot());
+    if (focused && F.getState() === 'fight') Hud.updateFight(G.Fight.snapshot());
 
     hudTimer += dt;
-    if (hudTimer > 0.4) { hudTimer = 0; Hud.syncStats(); }
+    if (focused && hudTimer > 0.4) { hudTimer = 0; Hud.syncStats(); }
 
     requestAnimationFrame(loop);
   }

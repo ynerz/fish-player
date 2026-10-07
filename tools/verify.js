@@ -1526,6 +1526,39 @@ let secBad = 0;
 if (!secBad) ok(`文档里的节数与 verify.js 实际节数一致（如实写 ${(fs.readFileSync(path.join(ROOT, 'tools/verify.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').match(/console\.log\('\\n\[\d+\]/g) || []).length} 节）`);
 
 
+/* ---------------- 35. 主循环的三条守则（三条都是踩过的坑） ----------------
+   ① **失焦时不许渲染**：失焦 = 暂停（St.tick / Weather / F.update 全按 focused 拦住了），
+      画面本来就静止；原来无条件 `S.render(dt)`，切到别的应用还在 60fps 重画水面与粒子。
+      浏览器只在**标签页不可见**时节流 rAF，「窗口失焦但页面可见」不节流 → 纯烧电。
+   ② **帧率上限**：`FRAME_MIN` 锁 60fps（高刷屏原本跑满 144 帧）。
+   ③ **浏览面板不暂停钓鱼**：`paused` 只能由结算卡决定 —— 原来写成
+      `P.isCatchOpen() || P.isOpen()`，挂机时打开图鉴鱼就不咬了（挂机游戏的核心预期）。 */
+console.log('\n[35] 主循环守则：失焦不渲染 / 锁 60fps / 浏览面板不暂停钓鱼');
+let loopBad = 0;
+(function () {
+  const main = fs.readFileSync(path.join(ROOT, 'src/main.js'), 'utf8');
+  const code = main.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  if (/\n\s*S\.render\(dt\);/.test(code)) {
+    err('main.js 的主循环里 `S.render(dt)` 又变成不带条件的裸语句了 —— 失焦时还在全速重画');
+    loopBad++;
+  }
+  if (!/if\s*\(focused\)\s*S\.render\(dt\)/.test(code)) {
+    err('main.js 里找不到 `if (focused) S.render(dt)` —— 主循环的渲染守卫不见了'); loopBad++;
+  }
+  if (code.indexOf('FRAME_MIN') < 0 || !/frameAcc\s*<\s*FRAME_MIN/.test(code)) {
+    err('main.js 里没有 60fps 帧率闸门（FRAME_MIN）—— 高刷屏会空转'); loopBad++;
+  }
+  const pausedLine = (code.match(/var paused\s*=\s*[^;]+;/) || [''])[0];
+  if (!pausedLine || pausedLine.indexOf('isCatchOpen') < 0 || pausedLine.indexOf('P.isOpen()') >= 0) {
+    err(`main.js 的 paused 判定不对：「${pausedLine.trim()}」—— 只有结算卡才能暂停钓鱼` +
+        '（写成 P.isOpen() 会让挂机时一开图鉴就停摆）');
+    loopBad++;
+  }
+})();
+if (!loopBad) ok('失焦不渲染、锁 60fps、只有结算卡会暂停钓鱼（三条守则都还在）');
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

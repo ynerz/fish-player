@@ -228,9 +228,11 @@ def palette_desc(f):
             "a clearly lighter belly and a darker back." % (body_name, fin_desc))
 
 
-# 「躯干胖瘦」对哪些体型成立 —— 鳐是扁平菱形、水母是伞盖，
+# 「躯干胖瘦」（`body_ratio`）对哪些体型成立 —— 鳐是扁平菱形、水母是伞盖，
 # **没有「躯干」这回事**（实测踩过：鳐鱼提示词里冒出 `deep-bodied build`）。
-TORSO_SHAPES = ("fish", "eel", "shark", "whale", "squid", "dragon", "oarfish")
+# ⚠️ `eel` / `oarfish` 也要排除：**它们是细长形，`body_ratio` 对它们没有意义**，
+#    实测海鳗（eel）被写成「deep-bodied build」、裂空皇带（oarfish）同样 —— 荒谬。
+TORSO_SHAPES = ("fish", "shark", "whale", "squid", "dragon")
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -323,26 +325,117 @@ def name_hint(f):
     return ""
 
 
-def form_desc(f, shape):
-    """体型胖瘦 —— 用 fish.js 的 `body_ratio`（实测 0.20~0.52）驱动。
+# ── 头型 / 尾型：`tail` 字段**不可用**（实测 351/362 都是 "fan"），
+#    所以这两维走「名字线索优先、找不到用稳定随机兜底」。
+#    ⚠️ 同样是**表序即优先级**，长串在前（「鮟鱇」要在「鲇」前）。
+HEAD_HINTS = [
+    ("鮟鱇", "a very large head, nearly half the total body length"),
+    ("海豚", "a rounded beak-like snout"),
+    ("鲸",   "a huge rounded head"),
+    ("鲶",   "a large broad flat head with a wide mouth"),
+    ("鲇",   "a large broad flat head with a wide mouth"),
+    ("鳢",   "a long snake-like head"),
+    ("鳅",   "a small head with a downward mouth"),
+    ("鳗",   "a small pointed head"),
+    ("鲽",   "a small head set close to one edge of the body"),
+    ("鳎",   "a small head with both eyes on one side"),
+    ("鲀",   "a large blunt rounded head"),
+    ("鲟",   "a long pointed snout with a shovel shape"),
+    ("鲛",   "a pointed snout on a streamlined head"),
+    ("鲨",   "a pointed snout on a streamlined head"),
+]
+HEAD_RANDOM = ["a small pointed head", "a medium tapered head",
+               "a large blunt head", "a compact rounded head",
+               "an elongated head", "a deep heavy head"]
 
-    ⚠️ 必须有这一层：同一个体型下的普通鱼有 **176 条**，光靠体型模板 + 尾型，
-       它们会长得几乎一样（用户要「一张一张地做」，那就不能让 5 条一批里
-       5 条鱼是同一条）。`body_ratio` 是数据里**真实存在**的形态参数，
-       用它把「细长 / 适中 / 高背 / 圆胖」分开，同体型内部才有辨识度。
+TAIL_HINTS = [
+    ("鲹",   "a deeply forked tail on a narrow tail base"),
+    ("鲭",   "a deeply forked tail"),
+    ("沙丁", "a forked tail"),
+    ("鳐",   "a long thin whip-like tail"),
+    ("魟",   "a long thin whip-like tail"),
+    ("鲽",   "a small rounded tail fin"),
+    ("鳎",   "the dorsal and anal fins fringing the whole body instead of a distinct tail"),
+    ("鲀",   "a small rounded tail fin"),
+    ("鳗",   "the tail continuous with the dorsal and anal fins"),
+    ("鳝",   "the tail continuous with the dorsal and anal fins"),
+    ("鲟",   "a strongly asymmetrical shark-like tail"),
+    ("鲸",   "a wide horizontal fluke"),
+]
+TAIL_RANDOM = ["a forked tail", "a rounded tail fin", "a crescent tail",
+               "a fan-shaped tail", "a truncated square tail",
+               "a long trailing tail fin"]
 
-    分档边界来自实测分位数：数据里 0.20~0.52，四档大致等分。
+# 体型大小 —— 由 `maxKg` 分档（实测分布：p25=1.2 / p50=4 / p75=40 / max=20000，
+# 跨 5 个数量级，是最有效的「个体差异」维度之一）
+SIZE_BANDS = [
+    (0.5,  "a very small fish"),
+    (2.0,  "a small fish"),
+    (8.0,  "a medium-sized fish"),
+    (60.0, "a large fish"),
+    (1e9,  "a huge massive fish"),
+]
+
+
+def form_profile(f):
+    """**形态档案** —— 用户口径：「按身体特征对每条鱼先写一个描述」。
+
+    五个维度全部由 `fish.js` 的**真实数据**驱动（不是随手编的）：
+
+      | 维度 | 数据来源 |
+      |---|---|
+      | 体型大小 | `maxKg`（0.04~20000，跨 5 个数量级） |
+      | 身体比例 | `body_ratio`（0.20~0.86） |
+      | 头型 | 名字线索优先，找不到用 `stable_pick` 兜底 |
+      | 鳍 | 特征位（`spiny`/`barbels`/`lure`…）由调用方另行拼接 |
+      | 尾型 | 同上（`tail` 字段 351/362 是 `fan`，**不可用**） |
+
+    ⚠️ 五条都写进提示词会太长、稀释风格锚点，所以这里**只挑最能区分的三条**
+       （大小 / 比例 / 尾型），头型重叠时再补一条 —— 见返回值。
     """
-    if shape not in TORSO_SHAPES:
-        return ""
-    r = f.get("body_ratio") or 0.30
-    if r < 0.26:
-        return "slender elongated proportions"
-    if r < 0.34:
-        return "moderate proportions"
-    if r < 0.42:
-        return "deep-bodied build"
-    return "very deep rounded body"
+    out = []
+
+    # ① 体型大小（maxKg）
+    kg = f.get("maxKg") or 0.1
+    for lim, desc in SIZE_BANDS:
+        if kg < lim:
+            out.append(desc)
+            break
+
+    # ② 身体比例（body_ratio）—— 只对有躯干的体型
+    shape = f.get("shape", "fish")
+    if shape in TORSO_SHAPES:
+        r = f.get("body_ratio") or 0.30
+        if r < 0.26:
+            out.append("a slender elongated body")
+        elif r < 0.34:
+            out.append("a moderately proportioned body")
+        elif r < 0.42:
+            out.append("a deep-bodied build")
+        else:
+            out.append("a very deep rounded body")
+
+    # ③ 尾型（名字线索 → 随机兜底）
+    name = f.get("name", "")
+    tail = ""
+    for key, desc in TAIL_HINTS:
+        if key in name:
+            tail = desc
+            break
+    if not tail:
+        tail = stable_pick(f["id"], "tail", TAIL_RANDOM)
+    out.append(tail)
+
+    # ④ 头型 —— 名字线索能命中就写，命中不了就丢掉（少说一句好过多说一句）
+    head = ""
+    for key, desc in HEAD_HINTS:
+        if key in name:
+            head = desc
+            break
+    if head:
+        out.append(head)
+
+    return ", ".join(out)
 
 
 def build_prompt(f):
@@ -360,33 +453,22 @@ def build_prompt(f):
     spec = SHAPES.get(shape, SHAPES["fish"])
     bits = [spec["d"]]
 
-    # ① 名字族优先 —— 用户口径「符合鱼的名称一点」。科属形态比裸 body_ratio 准得多
+    # ① 名字族（科属特征）—— 只在 fish 体型生效，其余体型有专属模板
     hint = name_hint(f)
     if hint:
         bits.append(hint)
-    else:
-        # ② 名字末字是泛称「鱼」的（实测 88 条）用 body_ratio 兜底
-        fd = form_desc(f, shape)
-        if fd:
-            bits.append(fd)
 
-    # ③ 个体差异（用户口径「要有一定的随机性」+「同种加小特征区分」）——
-    #    同一个科属的两条鱼（比如两条鲷）也不能长得一模一样。
-    #    ⚠️ 只对 fish 体型加：其他体型的形态已经够独特，再叠吻 / 头会互相打架。
-    #    ⚠️ 同一个 id 结果恒定（stable_pick），否则「重出一张」会变成「换一条鱼」。
-    if shape == "fish":
-        bits.append(stable_pick(f["id"], "snout", SNOUT))
-        bits.append(stable_pick(f["id"], "head", HEAD))
-        # 体表小特征：鱼自己带 stripes / spots 时跳过（避免重复描述，见 MARKINGS 注释）
-        if not any(f.get(k) for k in MARKING_KEYS):
-            bits.append(stable_pick(f["id"], "mark", MARKINGS))
+    # ② 形态档案 —— 大小 / 比例 / 尾型 / 头型，全部由真实数据驱动
+    #    （用户口径：「按身体特征对每条鱼先写一个描述」，让鱼更好分辨）
+    bits.append(form_profile(f))
 
-    tail = TAIL.get(f.get("tail"))
-    if tail and shape in TAIL_SHAPES:          # ⚠️ 不能无条件加（坑 4）
-        bits.append("a " + tail + " tail")
+    # ③ 体表小特征（与特征位互斥，避免「带垂直条纹 + 带竖直斑纹」这种重复）
+    if shape == "fish" and not any(f.get(k) for k in MARKING_KEYS):
+        bits.append(stable_pick(f["id"], "mark", MARKINGS))
 
+    # ④ 特征位（按体型过滤）
     for key, (desc, shapes) in FEATURE.items():
-        if f.get(key) and shape in shapes:     # ⚠️ 特征位按体型过滤
+        if f.get(key) and shape in shapes:
             bits.append(desc)
 
     rar_i = min(3, f.get("rar", 0))
@@ -507,12 +589,36 @@ def write_plan(fish):
           % (total, len(bs), shots, hours))
 
 
+def write_forms(fish):
+    """输出**全量形态档案** —— 用户口径：「先按身体特征对每条鱼写一个描述」。
+
+    既给人查阅，也是生图提示词的实际来源（**同一个 `form_profile`**，不会分家）。
+    """
+    L = []
+    L.append("# 鱼形态档案（%d 条）\n" % len(fish))
+    L.append("> 由 `tools/gen-art.py --forms` 生成，**不要手改**（改逻辑请改 `form_profile()`）。")
+    L.append("> 每条鱼的形态描述从 `fish.js` 的真实数据推导：")
+    L.append("> **体型大小 ← `maxKg`** ｜ **身体比例 ← `body_ratio`** ｜ "
+             "**尾型 / 头型 ← 名字线索，找不到用稳定随机兜底**。")
+    L.append("> ⚠️ `tail` 字段**不可用**（实测 351/362 都是 `fan`），所以尾型不走它。\n")
+    L.append("| id | 名字 | 档 | 体型 | 形态描述 |")
+    L.append("|---|---|---|---|---|")
+    for f in fish:
+        L.append("| %s | %s | %s | %s | %s |" % (
+            f["id"], f["name"], RAR_CN.get(f.get("rar", 0), "?"),
+            f.get("shape", ""), form_profile(f)))
+    out = os.path.join(ROOT, "docs", "鱼形态档案.md")
+    open(out, "w", encoding="utf-8").write("\n".join(L))
+    print("形态档案已写出：%s（%d 条）" % (out, len(fish)))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--list", default="")
     ap.add_argument("--rar", type=int, default=None)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--plan", action="store_true", help="只写出分批清单 docs/生图清单.md")
+    ap.add_argument("--forms", action="store_true", help="只写出形态档案 docs/鱼形态档案.md")
     ap.add_argument("--batch", type=int, default=0, help="只出第 N 批（从 1 起，见清单）")
     ap.add_argument("--prompt-only", action="store_true", help="只打印提示词，不出图")
     ap.add_argument("--dry", default="", help="（快捷）等价于 --prompt-only --list X")
@@ -526,6 +632,9 @@ def main():
 
     if args.plan:
         write_plan(allfish); return
+
+    if args.forms:
+        write_forms(allfish); return
 
     if args.batch:
         bs = make_batches(allfish)

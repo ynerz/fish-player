@@ -177,7 +177,14 @@ G.Scene = (function () {
     S.fightFish = fish;
     S.fightRarity = fish ? fish.rar : 0;
   }
-  function endFight() { S.fightFish = null; S.floatState = 'none'; S.lineOut = 0; }
+  /* 收杆 / 上岸 / 失败 / 换场：把这一竿的水下鱼影一起收掉。
+     鱼影是「等待期」的表现，回合结束了就不该还在水里游。 */
+  function endFight() {
+    S.fightFish = null;
+    S.fishShadow = null;
+    S.floatState = 'none';
+    S.lineOut = 0;
+  }
 
   function splash(power) {
     power = power || 1;
@@ -218,7 +225,15 @@ G.Scene = (function () {
     }
   }
 
-  /* 水下鱼影 */
+  /* 水下鱼影 —— 「有东西在水下游过来」。
+     ⚠️ 本函数原来全项目零调用：`S.fishShadow` 永远是 null，
+        于是 updateShadow() 与 drawUnderwater() 里那两段鱼影代码**从来没跑过**，
+        而开发者文档 §5.1 却把它列成「供 fishing.js 调用」的接口。
+        现在由 fishing.js 在「抛竿动画结束 → 进入等待」时调一次
+        （见 fishing.js 的 case 'flying'），收杆 / 上岸 / 失败时
+        统一由 endFight() 清掉 —— 所以这里只说「显示」，不管生命周期。
+     只按体重给大小，不暴露稀有度；鱼种是真实的，但玩家在等待期
+     本来就只能看个影子，与「等得久 = 大鱼」这条既有信息口径一致。 */
   function showShadow(fish, kg) {
     if (!fish) { S.fishShadow = null; return; }
     S.fishShadow = {

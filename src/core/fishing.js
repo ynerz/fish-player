@@ -242,6 +242,11 @@ G.Fishing = (function () {
           state = 'waiting';
           waitLeft = pending.wait;
           G.Scene.beginWait();
+          /* 水下鱼影：抛竿落定后让「咬钩的那条鱼」在水下游过来 ——
+             这一段（最长 10 分钟）原来屏幕上什么都没有，只有一个浮漂在漂。
+             影子的大小只跟体重有关，不暴露稀有度，与「等得久 = 大鱼」口径一致。
+             清理由 Scene.endFight() 统一负责（上岸 / 失败 / 提前收杆 / 换场都会走到）。 */
+          G.Scene.showShadow(pending.fish, pending.kg);
           if (cb.onState) cb.onState('waiting');
         }
         break;

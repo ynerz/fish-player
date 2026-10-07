@@ -1303,6 +1303,53 @@ let loadWireBad = 0;
 if (!loadWireBad) ok('读档提示语会播出去，坏档也有留存，迁移异常被接住');
 
 
+/* ---------------- 31. 表现层接口不许「只在文档里存在」 ----------------
+   实测过的一种静默失效：`scene.js` 的 `showShadow()` + `updateShadow()` +
+   `drawUnderwater()` 里的鱼影分支一共几十行，而 `showShadow()` **全项目零调用**
+   → `S.fishShadow` 永远是 null → 那两段代码从来没跑过；
+   而开发者文档 §5.1 却把它写成「供 fishing.js 调用」的现成接口。
+   这类「文档里有、代码里没人调」的死接口不会有任何报错，只能靠断言盯。
+   这里查的是**读写闭环**：写了状态却没人读、或读的状态没人写，都算断链。 */
+console.log('\n[31] 表现层接口的接线（鱼影：写、读、收尾三处都要有人）');
+let wireBad = 0;
+(function () {
+  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const sceneCode = strip(fs.readFileSync(path.join(ROOT, 'src/render/scene.js'), 'utf8'));
+  const fishingSrc = fs.readFileSync(path.join(ROOT, 'src/core/fishing.js'), 'utf8');
+  const srcAll = (function () {
+    const out = [];
+    const walk = d => fs.readdirSync(d).forEach(n => {
+      const p = path.join(d, n);
+      if (fs.statSync(p).isDirectory()) walk(p);
+      else if (n.endsWith('.js')) out.push(fs.readFileSync(p, 'utf8'));
+    });
+    walk(path.join(ROOT, 'src'));
+    return out.join('\n');
+  })();
+
+  /* ① 有人写：showShadow() 必须在 fishing.js 里被真的调到 */
+  if (fishingSrc.indexOf('Scene.showShadow(') < 0) {
+    err('fishing.js 没有调用 G.Scene.showShadow() —— S.fishShadow 永远是 null，鱼影那几十行是死的');
+    wireBad++;
+  }
+  /* ② 有人读：写进去的状态必须在画面上被消费 */
+  if (!/if\s*\(\s*S\.fishShadow\s*\)/.test(sceneCode)) {
+    err('scene.js 里没有任何地方读 S.fishShadow —— 鱼影写了也不会出现'); wireBad++;
+  }
+  /* ③ 有人收尾：回合结束后不许留在水里 */
+  const endFightBody = (sceneCode.match(/function endFight\(\)\s*\{[\s\S]*?\n  \}/) || [''])[0];
+  if (endFightBody.indexOf('S.fishShadow') < 0) {
+    err('Scene.endFight() 没有清 S.fishShadow —— 上岸 / 收杆之后鱼影会一直留在水里'); wireBad++;
+  }
+  /* ④ 同一个坑的反面：接口既要在导出面上，也要在 src 里真的有调用方 */
+  if (!/showShadow:\s*showShadow/.test(sceneCode)) {
+    err('scene.js 没有导出 showShadow（fishing.js 调用它会直接 TypeError）'); wireBad++;
+  }
+  void srcAll;
+})();
+if (!wireBad) ok('鱼影的「写 → 读 → 收尾」三处接线都在，且 showShadow 在导出面上');
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

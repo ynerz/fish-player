@@ -263,7 +263,7 @@ G.Fishing.init({});
 const origScene = G.Scene;
 G.Scene = {
   cast() {}, beginWait() {}, bite() {}, endFight() {}, beginFight() {},
-  floatNudge() {}, setRodBend() {}, splash() {}, sparkle() {},
+  floatNudge() {}, setRodBend() {}, splash() {}, sparkle() {}, showShadow() {},
 };
 const origGen = L.generate;
 let seenOpts = null;
@@ -283,7 +283,9 @@ G_('Fishing · 提前收杆不消耗鱼饵');
 const sceneStub = {
   cast() {}, beginWait() {}, bite() {}, endFight() {}, beginFight() {},
   floatNudge() {}, setRodBend() {}, splash() {}, sparkle() {},
+  showShadow(fish, kg) { shadowSeen.push({ fish: fish, kg: kg }); },
 };
+let shadowSeen = [];
 let toastSeen = [];
 /* fishing.js 收杆时会调 G.Audio.click()；Node 里没有音频层，也给个空壳。
    ⚠️ 这个空壳**要一直留着**（不要还原成 origAudio）：
@@ -363,6 +365,25 @@ Fh.giveUp();
 Fh.giveUp();
 Fh.giveUp();
 ok(St.get().baits[paid.id] === 3, '连调三次 giveUp 也只退回一枚');
+
+/* ⑥ 等待期要叫水下鱼影
+   `S.fishShadow` 原来全项目零调用（showShadow 只有定义 + 导出），
+   于是 updateShadow() 和 drawUnderwater() 里那两段鱼影代码从来没跑过 ——
+   「文档里写着、代码里没人调」是上一批死代码的同一个坑。 */
+St.reset();
+shadowSeen = [];
+Fh = newFishing();
+Fh.cast();
+ok(shadowSeen.length === 0, '抛竿动画期间还没有鱼影（等浮漂落定才出现）');
+Fh.update(1.0);                       // flying → waiting
+ok(Fh.getState() === 'waiting', `抛竿动画走完进入等待（${Fh.getState()}）`);
+ok(shadowSeen.length === 1, '进入等待时叫一次水下鱼影');
+ok(!!(shadowSeen[0].fish && shadowSeen[0].fish.id), '鱼影带着这一竿的鱼种');
+ok(shadowSeen[0].kg > 0, `鱼影带着这一竿的体重（影子大小按体重算，kg = ${shadowSeen[0].kg}）`);
+Fh.update(0.5);
+Fh.update(0.5);
+ok(shadowSeen.length === 1, '等待期不重复叫鱼影（每竿只该叫一次）');
+Fh.giveUp();                          // 收杆回到 idle，别把状态留给下一段
 G.Scene = origScene;
 G.Audio = origAudio;
 

@@ -41,10 +41,6 @@ G.Platform = (function () {
       if (!usingMemory) { usingMemory = true; }
       mem[k] = String(v);
     },
-    remove: function (k) {
-      try { if (ls) { ls.removeItem(k); return; } } catch (e) {}
-      delete mem[k];
-    },
     /* 留给设置面板做提示：存档到底落在哪儿 */
     kind: function () { return (ls && !usingMemory) ? 'localStorage' : 'memory'; },
   };
@@ -79,9 +75,6 @@ G.Platform = (function () {
   var sys = {
     /* 设备像素比，上限 2 —— 3x 屏上按 3 倍渲染只会白白吃性能 */
     dpr: function () { return Math.min(window.devicePixelRatio || 1, 2); },
-    size: function () {
-      return { w: window.innerWidth || 800, h: window.innerHeight || 600 };
-    },
     /* 单调时钟 —— **全项目唯一的取时口径**（业务代码不许写 `performance.now()`，
        第 ㊱ 节按字面量拦）。主循环的帧间隔、水族箱动画的相位都靠它。
        ⚠️ 它必须与「帧时间戳」同源：`requestAnimationFrame` 回调收到的第一个参数

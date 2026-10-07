@@ -1574,13 +1574,68 @@ console.log('\n[32-b] 已清理过的死接口不许复活（运行时按路径�
   const REMOVED = ['Scene.state', 'Scene.resize', 'Scene.getRodTip', 'Scene.getFloat',
     'Platform.sys.isWeb', 'Platform.input.upOn', 'Loot.envWeight', 'Loot.pickInBucket',
     'Fight.isRunning', 'Audio.isEnabled', 'Audio.getVolume', 'Tutorial.isFinished',
-    'Panels.getPendingCatch', 'Panels.hideCatch', 'FishArt.paintTo', 'Hud.el'];
+    'Panels.getPendingCatch', 'Panels.hideCatch', 'FishArt.paintTo', 'Hud.el',
+    /* 平台适配层自己的两个零消费子能力（32-c 扫出来的）：删存储的入口没人用过 ——
+       `G.Track.clear()` 是「写一份空表」而不是删键，全项目没有第二处要删存储的地方。 */
+    'Platform.storage.remove', 'Platform.sys.size'];
   const at = p => p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), sandbox.G);
   const back = REMOVED.filter(p => at(p) !== undefined);
   if (back.length) {
     err(`这些死接口又被加回导出面了：${back.join('、')}（零消费的导出要删掉，别留「看着像基础设施」的 API）`);
   } else {
     ok(`${REMOVED.length} 条已知死接口在运行时确认仍然不存在`);
+  }
+})();
+
+
+/* 32-c 平台适配层的**子能力**也必须有消费方。
+   ㉜ 只扫每个模块「顶层 return 的导出块」，`G.Platform` 底下的
+   storage / audio / canvas / sys / input / clipboard / dialog 整片扫不到。
+   2026-10-08 一次全项目 API 扫描才翻出来：`storage.remove` 与 `sys.size`
+   零调用躺了很久（同期还发现 `sys.now` 零调用，但那是**真该被用的** ——
+   业务代码绕过去直接写 `performance.now()`，已收口，见 ㊱）。
+   这里在运行时把子键逐个取出来，要求在 platform.js 之外至少被提到一次。
+   ⚠️ 短于 4 个字符的键跳过（get / set / up / key / dpr）—— 它们在别处必然
+      撞名，这条网对它们只有假阴性，留着当网反而误导。 */
+console.log('\n[32-c] 平台适配层的子能力也必须有消费方');
+(function () {
+  const SUB_WHITELIST = {
+    /* 小程序端接入点：Web 端**故意**实现成 no-op，等 platform.weapp.js 去实现。
+       platform.js 的注释与开发者文档都写明了这一点。 */
+    'Platform.audio.playFile': true,
+  };
+  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const others = [];
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+      const p = path.join(ROOT, dir, n);
+      if (fs.statSync(p).isDirectory()) walk(dir + '/' + n);
+      else if (/\.js$/.test(n) && dir + '/' + n !== 'src/core/platform.js') {
+        others.push(strip(fs.readFileSync(p, 'utf8')));
+      }
+    });
+  })('src');
+  const P = sandbox.G && sandbox.G.Platform;
+  const dead = [];
+  let n = 0;
+  if (P) Object.keys(P).forEach(grp => {
+    const sub = P[grp];
+    if (!sub || typeof sub !== 'object') return;
+    Object.keys(sub).forEach(k => {
+      if (k.length < 4) return;                       // 短名字只当网用，这里刻意跳过
+      n++;
+      const path = 'Platform.' + grp + '.' + k;
+      if (SUB_WHITELIST[path]) return;
+      const re = new RegExp('(^|[^A-Za-z0-9_$])' + k.replace(/\$/g, '\\$') + '(?![A-Za-z0-9_$])');
+      if (!others.some(s => re.test(s))) dead.push(path);
+    });
+  });
+  if (!P) err('拿不到 G.Platform，32-c 没跑起来');
+  else if (dead.length) {
+    err(`平台适配层里这些子能力全项目零调用：${dead.join('、')}`
+      + '（删掉，或补一处真实用例；确实按设计不该有调用方的请加 SUB_WHITELIST 并写明理由）');
+  } else {
+    ok(`G.Platform 的 ${n} 个子能力都有真实消费方（白名单只留小程序接入点 audio.playFile）`);
   }
 })();
 

@@ -1590,26 +1590,66 @@ G_('Platform · 对话框 / 剪贴板 / 环境能力的兜底');
      '拿不到 document 时 isVisible() 默认「可见」（纯逻辑环境不会把自己误判成暂停）');
   ok(typeof P.sys.onResize === 'function', 'sys.onResize 在导出面上（渲染层不再直连 window resize）');
 
-  /* 生命周期事件（可见性 / 焦点）也必须走平台层：
-     它们此前经 U.on(window|document, ...) 裸挂 DOM —— 按名扫描 window.addEventListener
-     的规则拦不住（真正调 addEventListener 的是 U.on）。这里真注册一遍，
-     确认三个函数都把回调交到了 window 上。 */
-  ok(typeof P.sys.onVisibility === 'function' && typeof P.sys.onFocus === 'function'
-     && typeof P.sys.onBlur === 'function',
-     'sys.onVisibility / onFocus / onBlur 都在导出面上（生命周期事件不再裸挂 DOM）');
-  const prevAdd = global.addEventListener;
-  const regd = [];
-  global.addEventListener = (t) => { regd.push(t); };
+  /* ---- 注册型能力：注册了没有？回调到底挂到了哪个目标的哪个事件上？ ----
+     这一节原来只覆盖「拿不到就返回默认值」的**兜底**，注册型能力（on*）完全没人管：
+     注册没注册、挂对没挂对，只能靠人读源码。踩过的坑就在隔壁 ——
+     `input.up` 曾写成 up(el, fn)，真正注册的是 addEventListener('pointerup', undefined)，
+     「松手」永不生效且不报错。所以这里把「目标 + 事件名」写成**表**，
+     并且要求**每个 sys.on\* 都必须在这张表里** —— 将来加一个能力，忘了补断言会直接报红。 */
+  const prevWinAdd = global.addEventListener;
+  const prevDocReal = global.document;
+  const reg = [];
+  global.addEventListener = t => { reg.push('window:' + t); };
+  global.document = { readyState: 'loading', addEventListener: t => { reg.push('document:' + t); } };
+  const ON_TABLE = [
+    ['onResize', 'window:resize'],
+    ['onVisibility', 'document:visibilitychange'],   // 可见性挂在 document 上
+    ['onFocus', 'window:focus'],
+    ['onBlur', 'window:blur'],
+    ['onError', 'window:error'],                     // G.Track 的全局兜底
+    ['onRejection', 'window:unhandledrejection'],
+    ['onReady', 'document:DOMContentLoaded'],        // readyState=loading 时才挂
+  ];
+  let regBad = 0;
   try {
-    P.sys.onVisibility(() => {});
-    P.sys.onFocus(() => {});
-    P.sys.onBlur(() => {});
-  } finally { global.addEventListener = prevAdd; }
-  ok(regd.indexOf('visibilitychange') >= 0 && regd.indexOf('focus') >= 0 && regd.indexOf('blur') >= 0,
-     '三个函数都真的把回调注册到了 window（' + regd.join(' / ') + '）');
+    ON_TABLE.forEach(([fn, want]) => {
+      reg.length = 0;
+      P.sys[fn](() => {});
+      if (reg.length !== 1 || reg[0] !== want) {
+        ok(false, `sys.${fn}() 把回调挂到 ${want}`, '实际注册了 ' + (reg.join(' / ') || '（一个都没有）'));
+        regBad++;
+      } else {
+        ok(true, `sys.${fn}() 把回调挂到了 ${want}`);
+      }
+    });
+  } finally {
+    global.addEventListener = prevWinAdd;
+    global.document = prevDocReal;
+  }
+  /* 完整性：sys.on* 里的每一个都得在表里（否则「加了能力没人验」这个缺口会重开）*/
+  const onNames = Object.keys(P.sys).filter(k => /^on[A-Z]/.test(k));
+  const notCovered = onNames.filter(k => ON_TABLE.every(x => x[0] !== k));
+  ok(notCovered.length === 0, `sys 的 ${onNames.length} 个注册型能力全部有断言覆盖`,
+     '漏了 ' + notCovered.join('、') + ' —— 请补进 ON_TABLE');
+
+  /* onReady 的两条「不挂监听」分支：已就绪 / 没有 DOM → 立即执行（不许把启动卡住）*/
+  global.document = { readyState: 'complete', addEventListener: () => { throw new Error('不该挂监听'); } };
+  let readyHits = 0;
+  try { P.sys.onReady(() => { readyHits++; }); } catch (e) { readyHits = -1; }
+  ok(readyHits === 1, 'DOM 已就绪时 onReady 立即执行（不再挂 DOMContentLoaded）');
+  global.document = undefined;
+  let noDomHits = 0;
+  try { P.sys.onReady(() => { noDomHits++; }); } catch (e) { noDomHits = -1; }
+  ok(noDomHits === 1, '没有 document（Node / 小程序）时 onReady 也立即执行');
+  global.document = prevDocReal;
+
+  /* 传 null 回调也不许抛（正常环境下的注册路径不因缺参数崩掉）*/
   let lifeThrew = false;
-  try { P.sys.onVisibility(null); P.sys.onFocus(null); P.sys.onBlur(null); } catch (e) { lifeThrew = true; }
-  ok(!lifeThrew, '传 null 回调也不抛（正常环境下的注册路径不因缺参数崩掉）');
+  try {
+    ON_TABLE.forEach(([fn]) => P.sys[fn](null));
+  } catch (e) { lifeThrew = true; }
+  ok(!lifeThrew, `${ON_TABLE.length} 个注册型能力传 null 回调都不抛（缺参数不炸整块 UI）`);
+  void regBad;
 })();
 
 /* =========================================================

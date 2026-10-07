@@ -1589,6 +1589,26 @@ let loopBad = 0;
 })();
 if (!loopBad) ok('失焦不渲染、锁 60fps、只有结算卡会暂停钓鱼（三条守则都还在）');
 
+/* 35-b 每帧路径上的 UI 文案不许无条件重写 innerHTML
+   （和 ⑰ 节的「每帧不许新建渐变」同一类：不报错、只是每帧白跑一遍）。
+   踩过的：`Hud.updateFight()` 被 main.js 每帧调一次，里面四个分支各自写
+   `el.fightTip.innerHTML = …` —— 文案其实只在状态切换时才变，
+   60fps 下每帧都让浏览器把同一段 HTML 重新解析一遍。 */
+console.log('\n[35-b] 每帧走的 UI 文案要缓存（不许无条件重写 innerHTML）');
+(function () {
+  const hud = fs.readFileSync(path.join(ROOT, 'src/ui/hud.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const fn = (hud.match(/function updateFight\s*\(s\)\s*\{[\s\S]*?\n  \}/) || [''])[0];
+  if (!fn) { err('找不到 hud.js 的 updateFight()（改了名字就来更新这条断言）'); return; }
+  const writes = (fn.match(/el\.fightTip\.innerHTML\s*=/g) || []).length;
+  if (writes > 1 || fn.indexOf('fightTipCache') < 0) {
+    err(`updateFight() 里对 fightTip.innerHTML 的赋值有 ${writes} 处，且没有缓存判断 —— ` +
+        '每帧都会重写（改成：算出文案 → 变了才写）');
+    return;
+  }
+  ok('updateFight() 只在文案变化时才写 #fightTip');
+})();
+
 
 /* ---------------- 36. 平台能力只能通过 G.Platform ----------------
    硬约束第 5 条：存储 / 音频 / 画布 / 输入 / 系统信息 / 剪贴板 / 对话框

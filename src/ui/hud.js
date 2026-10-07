@@ -218,14 +218,25 @@ G.Hud = (function () {
     el.fight.classList.toggle('hidden', !v);
   }
 
+  /* 提示文案的四个分支之间来回切，而 updateFight 是**每帧**被调的
+     （main.js：`if (focused && F.getState() === 'fight') Hud.updateFight(...)`）。
+     以前无条件写 innerHTML → 浏览器每帧都把同一段 HTML 重新解析一遍（纯白跑）。
+     缓存最后一次的文案，变了才写。 */
+  var fightTipCache = '';
+
   function updateFight(s) {
     if (!fightVisible || !s) return;
     el.barProg.style.width = (s.progress01 * 100).toFixed(1) + '%';
     el.barTen.style.width = (s.tension01 * 100).toFixed(1) + '%';
-    if (s.dashing) el.fightTip.innerHTML = '<b style="color:#e8595c">鱼在发力！松手！</b>';
-    else if (s.warn > 0.4) el.fightTip.innerHTML = '<b style="color:#e8a020">要逃窜了，准备松手</b>';
-    else if (s.danger) el.fightTip.innerHTML = '<b style="color:#e8a020">张力偏高，别一直收</b>';
-    else el.fightTip.innerHTML = '按住 <kbd>空格</kbd> 或 <kbd>鼠标左键</kbd> 收线，松开放线';
+    var tip;
+    if (s.dashing) tip = '<b style="color:#e8595c">鱼在发力！松手！</b>';
+    else if (s.warn > 0.4) tip = '<b style="color:#e8a020">要逃窜了，准备松手</b>';
+    else if (s.danger) tip = '<b style="color:#e8a020">张力偏高，别一直收</b>';
+    else tip = '按住 <kbd>空格</kbd> 或 <kbd>鼠标左键</kbd> 收线，松开放线';
+    if (tip !== fightTipCache) {
+      fightTipCache = tip;
+      el.fightTip.innerHTML = tip;
+    }
   }
 
   /* ---------------- 渔获播报 ----------------

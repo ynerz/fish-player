@@ -22,10 +22,13 @@ G.Loot = (function () {
 
   /* ---------------- 颜色变异 ----------------
      概率按鱼的稀有度分档：cm.probs[rarIdx]（0=普通 … 3=传说）
-     rarIdx 缺失 / 越界时退回普通档 probs[0]。 */
+     rarIdx 缺失 / 越界时退回普通档 probs[0]。
+     ⚠️ 早年的「单值写法」`cm.prob` 已从 config 删除，这里也不再兼容 ——
+        留着那段兼容会让「读了一个不存在的字段」不报错（tools 里就栽过：
+        `sort((a,b) => a.prob - b.prob)` 变成 NaN 比较器，排序静默失效）。 */
   function colorProb(cm, rarIdx) {
-    var a = cm.probs || cm.prob || 0;
-    if (typeof a === 'number') return a;               // 兼容单值写法
+    var a = cm.probs;
+    if (!a) return 0;
     var v = a[rarIdx];
     return v == null ? a[0] : v;
   }

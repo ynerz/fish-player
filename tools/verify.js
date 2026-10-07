@@ -58,6 +58,45 @@ console.log('\n[2] 每个稀有度档位的颜色概率合计 = 100%');
   else ok(`${CFG.rarity[t].name}档 100%`);
 });
 
+/* ---------------- 2-b 颜色概率只许走 Loot.colorProb ----------------
+   配置里早年的「单值写法」`cm.prob` 已经删掉了，但代码/tools 里还留着读取它，
+   而读一个不存在的字段**不会报错**：
+     · `tools/gen-collect-time.js` 用它排序 → 比较器拿到 undefined → NaN →
+       排序完全没生效 → 《收集耗时表》把「最稀有 · 最贵」标在了**原色**那一行，
+       两个额外列也印成「该鱼原色 / 该鱼亮色」。
+   判据：src 与 tools 的 .js 里不许出现 `.prob`（`.probs` 合法），且必须是
+   `G.Loot.colorProb(...)` 取概率。只看代码不看注释。 */
+console.log('\n[2-b] 颜色概率只许走 Loot.colorProb（不得再读已删的旧单值字段）');
+(function () {
+  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const files = [];
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+      const p = path.join(ROOT, dir, n);
+      if (fs.statSync(p).isDirectory()) walk(dir + '/' + n);
+      else if (/\.js$/.test(n)) files.push(dir + '/' + n);
+    });
+  })('src');
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+      if (/\.js$/.test(n)) files.push(dir + '/' + n);
+    });
+  })('tools');
+  let pb = 0;
+  files.forEach(r => {
+    const code = strip(fs.readFileSync(path.join(ROOT, r), 'utf8'));
+    /* `.prob` 后面不能再跟字母（`.probs` / `.colorProbTotal` 都合法）。
+       ⚠️ 写成 `\.[p]rob` 而不是 `\.prob`：否则**这条断言自己的正则**就会被自己扫到
+       （本行的源码里含有 `.prob` 这几个字），自指的坑踩过一次就够了。 */
+    if (/\.[p]rob(?![A-Za-z0-9_$])/.test(code)) {
+      err(`${r} 里读了颜色表里已删除的旧「单值概率」字段（现在恒为 undefined）—— ` +
+          '读一个不存在的字段不会报错，只会静默算错；请统一用 G.Loot.colorProb(cm, rarIdx)');
+      pb++;
+    }
+  });
+  if (!pb) ok(`${files.length} 个源码 / 工具文件里都没有对已删的颜色概率旧字段的读取`);
+})();
+
 /* ---------------- 3. 档内颜色序 ---------------- */
 console.log('\n[3] 档内颜色序：原色 > 亮色 ≥ 白化 > 黄金 > 闪光');
 const byKey = {};

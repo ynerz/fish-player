@@ -73,8 +73,13 @@ function fmtNum(n) {
 
 const RAR_NAME = ['普通', '稀有', '史诗', '传说'];
 const RAR_COLOR = ['#8b98a5', '#2b8fe0', '#8b5cf6', '#e8901a'];
-/* 颜色表里最稀有 / 次稀有的颜色（用于明细表的两个额外列） */
-const RAREST = CFG.colorMorphs.slice().sort((a, b) => a.prob - b.prob);
+/* 颜色表里最稀有 / 次稀有的颜色（用于明细表的两个额外列）
+   ⚠️ 必须走 `G.Loot.colorProb()`：配置里的 `cm.prob`（单值写法）**早就删了**，
+   原来这里是 `sort((a,b) => a.prob - b.prob)` → 比较器拿到 undefined，
+   `undefined - undefined` 是 NaN → **排序完全没生效**（数组保持原顺序），
+   于是「最稀有 · 最贵」被标在了**原色**那一行，两个额外列也印成了「该鱼原色 / 该鱼亮色」。
+   不报任何错，只是把最稀有的颜色（闪光）和最贵的说反了。 */
+const RAREST = CFG.colorMorphs.slice().sort((a, b) => G.Loot.colorProb(a, 0) - G.Loot.colorProb(b, 0));
 const C_RARE = RAREST[0], C_NEXT = RAREST[1];
 
 /* ---------------- 计算 ---------------- */

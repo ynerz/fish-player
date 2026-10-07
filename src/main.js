@@ -74,7 +74,8 @@
     /* 水族箱被动收益：只静默更新数字，不闪（钱是躺着来的，闪会让人以为出错） */
     St.on('tankyield', function () { Hud.syncCoin(false); });
     St.on('eco', function () { if (P.current() === 'net') P.refresh(); });
-    St.on('reset', function () { location.reload(); });
+    /* 重置存档 → 整页重载（走适配层；面板那边只负责调 St.reset()，别重复 reload） */
+    St.on('reset', function () { G.Platform.sys.reload(); });
     St.on('goals', function () {
       Hud.setTitle(G.Goals.equipped());
       /* 徽标平时靠 0.4 秒一次的 syncStats() 顺带刷；这里补一次，
@@ -329,7 +330,7 @@
        浏览图鉴 / 商店 / 统计时挂机继续跑，否则挂机游戏的核心预期就废了。 */
     var paused = P.isCatchOpen();
 
-    var focused = document.visibilityState === 'visible' && !blurred;
+    var focused = G.Platform.sys.isVisible() && !blurred;
     if (focused) {
       St.tick(dt);
       St.tankTick(dt);         // 水族箱被动收益（内部每 30 秒结算一次）

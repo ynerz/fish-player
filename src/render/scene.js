@@ -39,7 +39,8 @@ G.Scene = (function () {
     clearGradCache();
     cv = canvas;
     ctx = cv.getContext('2d');
-    window.addEventListener('resize', resize);
+    /* 尺寸变化走适配层（小程序端是 wx.onWindowResize），别直接监听 window */
+    G.Platform.sys.onResize(resize);
     resize();
   }
 

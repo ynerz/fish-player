@@ -76,8 +76,9 @@ G.Cheat = (function () {
   }
 
   function clearSave() {
+    /* `St.reset()` 自己会 `emit('reset')`，main.js 负责重载页面 —— 这里别再加一次
+       （以前两处都调 → 双重重载，控制台里是 ERR_ABORTED）。 */
     St.reset();
-    location.reload();
   }
 
   /* ---------------- 长线目标（B5） ---------------- */
@@ -140,15 +141,12 @@ G.Cheat = (function () {
   function copyTrack() {
     if (!G.Track) return '无 Track 模块';
     var text = G.Track.dump();
-    /* 剪贴板是平台能力，但开发者面板不属于正式包（release 版会被剔掉） */
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text);
-        return '日志已复制（' + G.Track.count() + ' 条）';
-      }
-    } catch (e) {}
-    try { console.log(text); } catch (e) {}
-    return '日志已打到控制台';
+    /* 剪贴板是平台能力（开发者面板不进正式包，但同一条规矩照走 —— 免得
+       「只在 devtools 里直连浏览器 API」变成下次移植时的漏网之鱼） */
+    G.Platform.clipboard.write(text).then(function (okCopy) {
+      if (!okCopy) { try { console.log(text); } catch (e) {} }
+    });
+    return '日志已复制（' + G.Track.count() + ' 条，失败则打到控制台）';
   }
 
   /* ---------------- 面板 ---------------- */

@@ -1557,6 +1557,36 @@ G_('Platform · 输入通道的按下 / 松开');
 })();
 
 /* =========================================================
+   Platform —— 对话框 / 剪贴板 / 环境能力
+   这些在纯 Node 里都拿不到（没有 location / document / 原生 confirm），
+   正好用来验「拿不到时**必须兜底**而不是抛异常」——
+   设置面板的重置 / 导出 / 导入就是靠这层兜底才不会整块崩掉。
+   ========================================================= */
+G_('Platform · 对话框 / 剪贴板 / 环境能力的兜底');
+(function () {
+  const P = G.Platform;
+  ok(typeof P.dialog.confirm === 'function' && typeof P.dialog.prompt === 'function',
+     'dialog.confirm / dialog.prompt 都在导出面上（设置面板不再直连原生对话框）');
+  ok(P.dialog.confirm('要不要清空？') === false,
+     '拿不到原生 confirm 时按「取消」处理（返回 false，不抛异常）');
+  ok(P.dialog.prompt('粘贴存档：') === null,
+     '拿不到原生 prompt 时返回 null（导入流程安全退出）');
+
+  ok(typeof P.clipboard.write === 'function', 'clipboard.write 在导出面上（导出存档不再直连 navigator.clipboard）');
+  const pw = P.clipboard.write('{"v":5}');
+  ok(pw && typeof pw.then === 'function', 'clipboard.write 返回 Promise，调用方可以按结果改提示');
+
+  ok(typeof P.sys.reload === 'function', 'sys.reload 在导出面上');
+  let reloadThrew = false;
+  try { P.sys.reload(); } catch (e) { reloadThrew = true; }
+  ok(!reloadThrew, 'Node 环境（没有 location）调 sys.reload 不抛异常');
+
+  ok(P.sys.isVisible() === true,
+     '拿不到 document 时 isVisible() 默认「可见」（纯逻辑环境不会把自己误判成暂停）');
+  ok(typeof P.sys.onResize === 'function', 'sys.onResize 在导出面上（渲染层不再直连 window resize）');
+})();
+
+/* =========================================================
    Panels —— 面板 render 的入参兜底与「现算文案」
    panels.js 的 render 只在**运行期**碰 DOM（模块加载时不碰），所以能在 Node 里
    用最小 DOM 桩真跑一遍 —— 比「扫源码断言」可信得多：源码断言只能证明

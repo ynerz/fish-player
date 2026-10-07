@@ -8,12 +8,14 @@
    这样将来上微信小程序时，只需要再写一份 platform.weapp.js
    在 index.html（或 app.json 入口）里替换掉本文件，逻辑层一行不用改。
 
-   接口（5 组）：
-     storage  get / set / remove
-     audio    createContext()            —— 小程序要换成 wx.createInnerAudioContext
-     canvas   create(w,h)                —— 小程序要换成 wx.createOffscreenCanvas
-     sys      dpr() / size() / now()
-     input    down(el,fn) / up(fn)       —— 小程序只有 touch 事件
+   接口（7 组）：
+     storage    get / set / remove / kind
+     audio      createContext()          —— 小程序要换成 wx.createInnerAudioContext
+     canvas     create(w,h)              —— 小程序要换成 wx.createOffscreenCanvas
+     sys        dpr() / size() / now() / isVisible() / reload()
+     input      down(el,fn) / up(fn) / cancel / leave / key
+     clipboard  write(text) → Promise<boolean>   —— 小程序换成 wx.setClipboardData
+     dialog     confirm(msg) / prompt(msg,def)   —— 小程序换成 wx.showModal
    ========================================================= */
 window.G = window.G || {};
 
@@ -83,9 +85,56 @@ G.Platform = (function () {
         ? window.performance.now()
         : Date.now();
     },
+    /* 页面当前是否可见（主循环用：不可见 / 失焦都算暂停）。
+       小程序端换成 onShow / onHide 维护的一个布尔值即可。 */
+    isVisible: function () {
+      try { return !window.document || window.document.visibilityState !== 'hidden'; }
+      catch (e) { return true; }
+    },
+    /* 尺寸变化通知（渲染层靠它重算画布）。小程序端换成 wx.onWindowResize 即可。 */
+    onResize: function (fn) {
+      try { window.addEventListener('resize', fn); } catch (e) {}
+    },
+    /* 整体重载（重置存档、导入存档之后用）。
+       小程序端要换成 reLaunch / navigateTo 的等价动作 —— 所以别在业务代码里写 location.reload。 */
+    reload: function () {
+      try { window.location.reload(); } catch (e) { /* Node / 无 location 环境：忽略 */ }
+    },
     /* ⚠️ 原来的 `isWeb: true` 已删：同一个事实在顶层与这里各写了一份，
        而全项目**没有任何地方读它**（要判平台就补一个真正被消费的能力，
        别留「看着像基础设施」的字段）。 */
+  };
+
+  /* ---------------- 剪贴板 ----------------
+     导出存档用。Web 端要 navigator.clipboard（且需要用户手势），
+     小程序端换成 wx.setClipboardData。返回 Promise<boolean>，
+     调用方拿不到就自己兜底（别一味提示「已复制」——那是假的）。 */
+  var clipboard = {
+    write: function (text) {
+      try {
+        if (window.navigator && window.navigator.clipboard && window.navigator.clipboard.writeText) {
+          return window.navigator.clipboard.writeText(String(text)).then(
+            function () { return true; },
+            function () { return false; });
+        }
+      } catch (e) { /* 落到下面统一返回 false */ }
+      return Promise.resolve(false);
+    },
+  };
+
+  /* ---------------- 对话框 ----------------
+     原生 confirm / prompt 是阻塞式的，小程序端（wx.showModal）是回调式的，
+     所以统一收在这里 —— 换平台时只改这一个文件。
+     · confirm(msg)         → boolean
+     · prompt(msg, def)     → string | null（取消返回 null）
+     都带 try 兜底：拿不到就按「取消」处理，绝不让整块 UI 崩掉。 */
+  var dialog = {
+    confirm: function (msg) {
+      try { return !!window.confirm(msg); } catch (e) { return false; }
+    },
+    prompt: function (msg, def) {
+      try { return window.prompt(msg, def == null ? '' : String(def)); } catch (e) { return null; }
+    },
   };
 
   /* ---------------- 输入 ----------------
@@ -112,5 +161,7 @@ G.Platform = (function () {
     canvas: canvas,
     sys: sys,
     input: input,
+    clipboard: clipboard,
+    dialog: dialog,
   };
 })();

@@ -1512,9 +1512,11 @@ G.Panels = (function () {
       row('重置存档', '清空所有进度，重新开始。此操作不可撤销。',
         '<button class="btn-ghost danger" id="setReset">重置</button>', function (c) {
         U.on(c.querySelector('#setReset'), 'click', function () {
-          if (!confirm('确定要清空所有进度吗？此操作不可撤销。')) return;
+          if (!G.Platform.dialog.confirm('确定要清空所有进度吗？此操作不可撤销。')) return;
+          /* ⚠️ 这里**不要**再补一次 reload：`St.reset()` 内部会 `emit('reset')`，
+             main.js 订阅了这个事件并负责重载页面。以前两处都调 → 同一次点击
+             触发两次重载（playwright 里表现为 ERR_ABORTED，看着像「重置没生效」）。 */
           St.reset();
-          location.reload();
         });
       });
 
@@ -1522,21 +1524,29 @@ G.Panels = (function () {
         '<button class="btn-ghost" id="setExport">导出</button>', function (c) {
         U.on(c.querySelector('#setExport'), 'click', function () {
           var txt = JSON.stringify(St.get());
-          if (navigator.clipboard) navigator.clipboard.writeText(txt);
-          G.State.emit('toast', { text: '存档已复制到剪贴板', kind: 'good' });
+          /* 剪贴板走适配层；拿不到（无权限 / 非安全上下文）就退化成让玩家手动复制，
+             别一味提示「已复制到剪贴板」—— 那句在失败时是假的。 */
+          G.Platform.clipboard.write(txt).then(function (copied) {
+            if (copied) {
+              G.State.emit('toast', { text: '存档已复制到剪贴板', kind: 'good' });
+            } else {
+              G.Platform.dialog.prompt('浏览器不允许自动复制，请手动复制下面这段存档 JSON：', txt);
+              G.State.emit('toast', { text: '复制失败，已改为手动复制', kind: 'warn' });
+            }
+          });
         });
       });
 
       row('导入存档', '粘贴之前导出的 JSON。会覆盖当前进度，导入前请先导出备份。',
         '<button class="btn-ghost" id="setImport">导入</button>', function (c) {
         U.on(c.querySelector('#setImport'), 'click', function () {
-          var txt = window.prompt('把导出的存档 JSON 粘贴到这里：');
+          var txt = G.Platform.dialog.prompt('把导出的存档 JSON 粘贴到这里：');
           if (!txt) return;
           var r = St.importSave(txt);
           if (!r.ok) { G.Audio.deny(); G.State.emit('toast', { text: r.msg, kind: 'bad' }); return; }
           G.Audio.unlock();
           G.State.emit('toast', { text: '导入成功，正在重载…', kind: 'good' });
-          setTimeout(function () { location.reload(); }, 700);
+          setTimeout(function () { G.Platform.sys.reload(); }, 700);
         });
       });
     },

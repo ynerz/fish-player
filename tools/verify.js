@@ -1590,6 +1590,51 @@ let loopBad = 0;
 if (!loopBad) ok('失焦不渲染、锁 60fps、只有结算卡会暂停钓鱼（三条守则都还在）');
 
 
+/* ---------------- 36. 平台能力只能通过 G.Platform ----------------
+   硬约束第 5 条：存储 / 音频 / 画布 / 输入 / 系统信息 / 剪贴板 / 对话框
+   一律走 G.Platform，否则上小程序时要全项目搜替换一遍（G1 / G2 / G5 那几项就是欠账）。
+
+   踩过的：设置面板的「重置 / 导出 / 导入」直接用了 confirm / navigator.clipboard /
+   window.prompt / location.reload（连**重置都会重载两次** —— `St.reset()` 自己也
+   `emit('reset')`，main.js 已经在重载了），开发者面板同样；scene.js 直接监听
+   window resize，main.js 直接读 document.visibilityState。
+
+   判据：src 下除 platform.js 外，不许出现这些浏览器专有用法；**只看代码不看注释**
+   （注释里会写「不碰 localStorage」这类词），也不把界面文案里的字面词算进来。 */
+console.log('\n[36] 平台能力只能通过 G.Platform（不得直连浏览器专有 API）');
+let platBad = 0;
+(function () {
+  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  /* 名字 → 判据。都刻意避开「前面是 `.`」的情形（`G.Platform.dialog.confirm(` 合法）。 */
+  const FORBID = [
+    ['location.reload', /location\s*\.\s*reload\s*\(/],
+    ['navigator.clipboard', /navigator\s*\.\s*clipboard/],
+    ['window.prompt', /window\s*\.\s*prompt\s*\(/],
+    ['原生 prompt(', /(^|[^\w$.])prompt\s*\(/],
+    ['原生 confirm(', /(^|[^\w$.])confirm\s*\(/],
+    ['document.visibilityState', /document\s*\.\s*visibilityState/],
+    ['window.addEventListener(...)', /window\s*\.\s*addEventListener\s*\(/],
+    ['localStorage 读写', /\blocalStorage\s*\.\s*(get|set|remove)Item/],
+  ];
+  const rel = [];
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+      const p = path.join(ROOT, dir, n);
+      if (fs.statSync(p).isDirectory()) walk(dir + '/' + n);
+      else if (/\.js$/.test(n)) rel.push(dir + '/' + n);
+    });
+  })('src');
+  const checked = rel.filter(r => r !== 'src/core/platform.js');
+  checked.forEach(r => {
+    const code = strip(fs.readFileSync(path.join(ROOT, r), 'utf8'));
+    FORBID.forEach(pair => {
+      if (pair[1].test(code)) { err(`${r} 里直接用了「${pair[0]}」—— 平台能力必须走 G.Platform`); platBad++; }
+    });
+  });
+  if (!platBad) ok(`src 下除 platform.js 外的 ${checked.length} 个模块都没有直连浏览器专有 API`);
+})();
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

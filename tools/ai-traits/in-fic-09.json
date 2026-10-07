@@ -1,0 +1,86 @@
+{
+ "batch": 9,
+ "kind": "fictional",
+ "items": [
+  {
+   "id": "SSS01",
+   "name": "时砂小鱼",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS02",
+   "name": "溯流鲑",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS03",
+   "name": "零度蝶鱼",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS04",
+   "name": "昨日鲈",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS05",
+   "name": "遗迹鳉",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS06",
+   "name": "虚时鲳",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS07",
+   "name": "刹那鲴",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS08",
+   "name": "须臾鲹",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS09",
+   "name": "瞬息鳉",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS10",
+   "name": "一刻鲹",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  }
+ ]
+}

@@ -1,0 +1,102 @@
+{
+ "C05": {
+  "name": "中华鳑鲏",
+  "latin": "Rhodeus sinensis",
+  "form": "an oval body, a broad flattened body, small in size",
+  "fins": "",
+  "markings": "",
+  "colour": "体侧线和鱼鳍色彩鲜艳",
+  "source": "grounded",
+  "unknown": false
+ },
+ "C06": {
+  "name": "小鳈",
+  "latin": "Sarcocheilichthys parvus",
+  "form": "a small slightly elongated body, a slightly arched back, a small head, a short blunt snout, a very small inferior mouth, small eyes, a pair of very fine barbels at the corners of the mouth, a straight lateral line",
+  "fins": "a dorsal fin with no spines and long rays, its outer margin flat or slightly convex; short pectoral fins with rounded rear edges; pelvic fins set slightly behind the dorsal fin origin with rounded rear edges; an anal fin with a flat outer margin; a shallowly forked tail fin with slightly rounded lobe tips",
+  "markings": "",
+  "colour": "",
+  "source": "grounded",
+  "unknown": false
+ },
+ "C07": {
+  "name": "黑鳍鳈",
+  "latin": "Sarcocheilichthys nigripinnis",
+  "form": "a small elongated slightly compressed body, a rather short caudal peduncle, a rounded belly, a rather small head",
+  "fins": "",
+  "markings": "blotches on the upper flank, a longitudinal stripe along the flank axis",
+  "colour": "体背侧部灰黑色，腹部灰白色，腮盖、峡部、胸部等处橘黄色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "C08": {
+  "name": "棒花鱼",
+  "latin": "Abbottina rivularis",
+  "form": "a cylindrical anterior body, a flattened rounded posterior body, a flat belly, a raised back, a slightly rounded forward-projecting snout, thick developed lips, superior eyes, a wide interorbital space, small eyes, cycloid scales, a straight lateral line, no scales on the breast below the pectoral fins",
+  "fins": "",
+  "markings": "stripes on the pectoral, dorsal, anal and tail fins",
+  "colour": "胸鳍、背鳍、臀鳍、尾鳍呈现浅黄色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "C09": {
+  "name": "似鮈",
+  "latin": "",
+  "form": "",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "grounded",
+  "unknown": true
+ },
+ "C10": {
+  "name": "间下鱵",
+  "latin": "Hyporhamphus intermedius",
+  "form": "an elongated slender body, a lower jaw extended into a beak about as long as the head, a short small upper jaw with a triangular scaled tip, fine teeth on the jaws, cycloid scales, a low lateral line with an upward branch beneath the base of the pectoral fin",
+  "fins": "a dorsal fin with 13 to 16 soft rays, an anal fin with 15 to 19 soft rays set opposite and behind the dorsal fin, the anal fin origin below the first to third dorsal rays; short pectoral fins; short small pelvic fins; a shallowly forked tail fin with the lower lobe slightly longer than the upper",
+  "markings": "",
+  "colour": "",
+  "source": "grounded",
+  "unknown": false
+ },
+ "C11": {
+  "name": "光唇鱼",
+  "latin": "",
+  "form": "an elongated laterally compressed body, an inferior arcuate mouth, a straight front edge of the lower jaw, two pairs of barbels, medium-sized scales, a nearly straight lateral line",
+  "fins": "a dorsal fin with a spine bearing fine serrations on its rear edge",
+  "markings": "6 vertical bands crossing the flanks in females, a single longitudinal stripe along the mid-flank axis in males",
+  "colour": "雌性个体体侧具蓝黑色横带，雄性个体沿体侧中轴具蓝黑色纵带",
+  "source": "grounded",
+  "unknown": false
+ },
+ "C12": {
+  "name": "缨口鳅",
+  "latin": "Crossostoma davidi",
+  "form": "",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "grounded",
+  "unknown": true
+ },
+ "C13": {
+  "name": "花䱻",
+  "latin": "Hemibarbus maculatus",
+  "form": "an elongated body",
+  "fins": "a dorsal fin with a spine, short small pelvic fins, a rather short anal fin, a forked tail fin",
+  "markings": "many small spots and large blotches on the body",
+  "colour": "灰褐色或泛黄色的体色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "C14": {
+  "name": "虹鳟",
+  "latin": "Oncorhynchus mykiss",
+  "form": "a long spindle-shaped body, a laterally compressed body, a relatively large oblique terminal mouth",
+  "fins": "",
+  "markings": "spots scattered over the whole body, a band running along the lateral line to the base of the tail fin",
+  "colour": "背部和鳍呈暗绿色或褐色，体侧呈银白色",
+  "source": "grounded",
+  "unknown": false
+ }
+}

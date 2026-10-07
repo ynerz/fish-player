@@ -1,0 +1,102 @@
+{
+  "SS71": {
+    "name": "星蚀鰕虎",
+    "latin": "",
+    "form": "a small slender cylindrical body, a blunt rounded head, a large mouth, a pair of large eyes set high",
+    "fins": "a dorsal fin split into two parts, a rounded tail fin, the pelvic fins fused into a disc",
+    "markings": "a faint eclipse ring on the gill cover, a sparse line of luminous pores along the flank",
+    "colour": "靛蓝底、蚀环微光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS72": {
+    "name": "陨铁巨鲛",
+    "latin": "",
+    "form": "a stout torpedo-shaped body with angular faceted armor plates, a long pointed snout, a row of serrated teeth, five gill slits",
+    "fins": "a tall triangular dorsal fin, long angular pectoral fins, a crescent tail fin",
+    "markings": "a sparse line of luminous pores along the flank, faint crater pits scattered on the back",
+    "colour": "铁灰底、熔核橙点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS73": {
+    "name": "星核皇带",
+    "latin": "",
+    "form": "a very long slender ribbon-like body, a small blunt head, a single tapering dorsal crest running the whole back, a pair of long trailing pelvic filaments",
+    "fins": "a continuous dorsal crest of evenly spaced rays, a tiny fan-shaped tail fin",
+    "markings": "a line of evenly spaced luminous nodes along the crest, a faint halo behind the head",
+    "colour": "深靛底、核心星辉",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS74": {
+    "name": "幽蓝巨魟",
+    "latin": "",
+    "form": "a broad diamond-shaped disc with faintly faceted wing panels, a short blunt snout, a long thin whip-like tail with a serrated spine",
+    "fins": "wide angular pectoral wings, a low fin fold along the tail",
+    "markings": "a sparse arc of luminous pores along each wing edge, a faint ring centred on the disc",
+    "colour": "幽蓝底、冷光星点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS75": {
+    "name": "星陨终焉·万象鲸",
+    "latin": "",
+    "form": "a colossal rounded body with faintly faceted surface panels, a broad blunt head, a row of ventral throat grooves",
+    "fins": "a small set-back dorsal fin, wide horizontal tail flukes",
+    "markings": "a sparse scatter of luminous points across the back, a faint ringed pattern around each eye",
+    "colour": "深空靛底、万象星尘",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS76": {
+    "name": "星陨之主·天鳞",
+    "latin": "",
+    "form": "a sinuous serpentine body covered in faintly faceted overlapping scale plates, a tapered head, a pair of large rearward-swept horns, a row of luminous nodes along the spine",
+    "fins": "a low continuous dorsal crest of evenly spaced spines, a pair of long trailing whisker tendrils",
+    "markings": "a single row of evenly spaced luminous nodes along the spine, a faint halo ring behind the head",
+    "colour": "墨靛底、天鳞星辉",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS77": {
+    "name": "渊底月神·银鳐",
+    "latin": "",
+    "form": "a broad diamond-shaped disc with crisp bevelled wing panels, a short blunt snout, a long thin trailing tail",
+    "fins": "wide angular pectoral wings with gently scalloped edges, a low fin fold along the tail",
+    "markings": "a faint crescent moon arc across the disc, a sparse arc of luminous pores along each wing edge",
+    "colour": "深蓝底、月华银弧",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS78": {
+    "name": "星陨王座·裂空皇带",
+    "latin": "",
+    "form": "a very long slender ribbon-like body, a small blunt head crowned by a low faceted crest, a tall dorsal crest running the full length of the back, a pair of long trailing pelvic filaments",
+    "fins": "a continuous dorsal crest of evenly spaced rays, a tiny fan-shaped tail fin",
+    "markings": "a line of luminous nodes along the crest, a single streak splitting the dorsal crest",
+    "colour": "深空靛底、星裂银纹",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS79": {
+    "name": "深渊终章·噬星者",
+    "latin": "",
+    "form": "a sinuous serpentine body with faintly faceted plates, a broad head, a wide gaping mouth set with rows of recurved teeth, a pair of swept-back horns",
+    "fins": "a low continuous dorsal crest of evenly spaced spines, a pair of long trailing tendrils",
+    "markings": "a row of luminous nodes along the spine, a faint ring behind the head",
+    "colour": "墨黑底、噬星冷光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS80": {
+    "name": "永夜之主·虚空鲸",
+    "latin": "",
+    "form": "a colossal rounded body with faintly faceted surface panels, a broad blunt head, a row of ventral throat grooves, thin ridged jaw edges",
+    "fins": "a small set-back dorsal fin, wide horizontal tail flukes",
+    "markings": "a sparse scatter of luminous points along the flank, a faint void ring on the brow",
+    "colour": "永夜靛底、虚空星点",
+    "source": "fictional",
+    "unknown": false
+  }
+}

@@ -150,13 +150,13 @@ def report_picks(fish_all):
     dead = 0
     for tier in TIERS:
         entries = GA.pool_entries(tier)
-        total = sum(w for _t, _s, w in entries)
+        total = sum(e[3] for e in entries)
         hit = {}
         for fid in ids:
-            tag = GA.morph_pick(fid, tier)[0]
+            tag = GA.morph_pick(fid, tier)[1]      # [0]=候选键 [1]=中文标签
             hit[tag] = hit.get(tag, 0) + 1
         print("== %s（%s）" % (GA.MORPH_CN[tier], tier))
-        for tag, _sent, w in entries:
+        for _ck, tag, _sent, w in entries:
             n = hit.get(tag, 0)
             if n == 0:
                 dead += 1

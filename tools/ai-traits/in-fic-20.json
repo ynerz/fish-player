@@ -1,0 +1,78 @@
+{
+ "batch": 20,
+ "kind": "fictional",
+ "items": [
+  {
+   "id": "S48",
+   "name": "深海巨型鳐",
+   "shape": "ray",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "S50",
+   "name": "深海鳚",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "S54",
+   "name": "孔灯鱼",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "S56",
+   "name": "狼牙鲷",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "S57",
+   "name": "角高体金眼鲷",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "S59",
+   "name": "海沟幽魂·无光鲸",
+   "shape": "whale",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "S60",
+   "name": "海沟之主·深渊巨鲨",
+   "shape": "shark",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "S61",
+   "name": "幽蓝海心·鬼灯笼",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "S62",
+   "name": "海沟终焉·原始巨口鲨",
+   "shape": "shark",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  }
+ ]
+}

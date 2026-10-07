@@ -1,0 +1,86 @@
+{
+ "batch": 3,
+ "kind": "fictional",
+ "items": [
+  {
+   "id": "SS21",
+   "name": "寂静鲳",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS22",
+   "name": "霜鳞鲑",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS23",
+   "name": "幻影鲽",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS24",
+   "name": "星屑海马",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS25",
+   "name": "陨光鮟鱇",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS26",
+   "name": "幽蓝鳞鲀",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS27",
+   "name": "星砂鲽",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS28",
+   "name": "陨纹金枪",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS29",
+   "name": "夜穹旗鱼",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS30",
+   "name": "星耀鲹",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  }
+ ]
+}

@@ -1,0 +1,86 @@
+{
+ "batch": 6,
+ "kind": "fictional",
+ "items": [
+  {
+   "id": "SS51",
+   "name": "裂空皇带鱼",
+   "shape": "oarfish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS52",
+   "name": "渊眼巨鲨",
+   "shape": "shark",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS53",
+   "name": "陨落鲸",
+   "shape": "whale",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS54",
+   "name": "原初海蛇",
+   "shape": "eel",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS55",
+   "name": "星陨巨鱿",
+   "shape": "squid",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS56",
+   "name": "虚空水母王",
+   "shape": "jelly",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS57",
+   "name": "陨铁巨口鲨",
+   "shape": "shark",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS58",
+   "name": "星蚀鳐王",
+   "shape": "ray",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS59",
+   "name": "陨光海龙",
+   "shape": "dragon",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS60",
+   "name": "陨铁鲹",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  }
+ ]
+}

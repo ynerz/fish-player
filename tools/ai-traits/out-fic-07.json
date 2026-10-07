@@ -1,0 +1,102 @@
+{
+  "SS61": {
+    "name": "星脉鳉",
+    "latin": "",
+    "form": "a small slender cylindrical body, a slightly flattened head, a small upturned mouth",
+    "fins": "a short rounded dorsal fin, a rounded tail fin",
+    "markings": "a single luminous vein-like line running along the flank",
+    "colour": "深靛底、脉光微点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS62": {
+    "name": "虚空鲽",
+    "latin": "",
+    "form": "an oval body with a subtly flattened profile, a small head, a small terminal mouth, both eyes set close together",
+    "fins": "a long dorsal fin fringing the back, a rounded tail fin",
+    "markings": "a sparse scatter of luminous pores across the body, a faint void patch near the tail",
+    "colour": "灰蓝底、虚空微光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS63": {
+    "name": "幽蓝鳀",
+    "latin": "",
+    "form": "a small slender body with a slightly rounded belly, a large mouth extending past the eye, a pointed snout",
+    "fins": "a short dorsal fin, a forked tail fin",
+    "markings": "a single faint line of luminous pores along the flank, a thin streak behind the gill cover",
+    "colour": "幽蓝底、冷光银线",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS64": {
+    "name": "星屑鲱",
+    "latin": "",
+    "form": "an elongated slender body with a slightly rounded belly, a small head, a short snout, a terminal mouth",
+    "fins": "a short dorsal fin at the middle of the back, a forked tail fin",
+    "markings": "a sparse scatter of luminous points along the flank, a faint line down the middle",
+    "colour": "深靛底、星屑亮点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS65": {
+    "name": "陨砂鲈",
+    "latin": "",
+    "form": "an elongated laterally compressed body with faintly grainy faceted scales, a pointed head, a large oblique mouth, the lower jaw slightly protruding",
+    "fins": "a dorsal fin with a deep notch, a slightly forked tail fin",
+    "markings": "a sparse scatter of granular luminous dots along the flank, a faint line of pores",
+    "colour": "砂褐底、陨粒微光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS66": {
+    "name": "微弱鲳",
+    "latin": "",
+    "form": "a deep oval laterally compressed body with crisp bevelled edges, a small blunt head, a small mouth",
+    "fins": "a long dorsal fin, a deeply forked tail fin",
+    "markings": "a sparse row of faint luminous pores along the flank",
+    "colour": "浅银底、微光点纹",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS67": {
+    "name": "暗礁鲷",
+    "latin": "",
+    "form": "a deep oval laterally compressed body with faintly faceted scales, a large head, a pointed snout, a small mouth",
+    "fins": "a long dorsal fin with a spiny front section, a forked tail fin",
+    "markings": "a faint line of luminous pores along the flank, a single spot at the base of the tail",
+    "colour": "暗蓝底、礁石微光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS68": {
+    "name": "星陨鳗",
+    "latin": "",
+    "form": "a long slender band-like body with faint ringed segmentation, a small pointed head, a wide mouth",
+    "fins": "a continuous low dorsal fin joined to the tail fin",
+    "markings": "a row of evenly spaced luminous nodes along the back, a faint line along the flank",
+    "colour": "深靛底、星点连线",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS69": {
+    "name": "陨落魟",
+    "latin": "",
+    "form": "a broad diamond-shaped disc with faintly faceted wing panels, a short blunt snout, a long thin trailing tail",
+    "fins": "wide angular pectoral wings, a low fin fold along the tail",
+    "markings": "a sparse scatter of luminous points across the wings, a faint streak trailing behind the disc",
+    "colour": "陨灰底、星痕微光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS70": {
+    "name": "虚空鲳",
+    "latin": "",
+    "form": "a deep oval laterally compressed body with crisp bevelled edges, a small blunt head, a small mouth",
+    "fins": "a long dorsal fin, a deeply forked tail fin",
+    "markings": "a faint void-like ring on each flank, a sparse row of luminous pores",
+    "colour": "深空蓝底、虚空留白",
+    "source": "fictional",
+    "unknown": false
+  }
+}

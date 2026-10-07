@@ -1,0 +1,86 @@
+{
+ "batch": 16,
+ "kind": "fictional",
+ "items": [
+  {
+   "id": "SSS71",
+   "name": "前尘鳉",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS72",
+   "name": "后时鰕虎",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS73",
+   "name": "拾光鲹",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS74",
+   "name": "逆旅鲽",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS75",
+   "name": "流年鲻",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS76",
+   "name": "空洞鳕",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS77",
+   "name": "寂时鲹",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS78",
+   "name": "时间鲟",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS79",
+   "name": "溯流皇带",
+   "shape": "oarfish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS80",
+   "name": "逆熵鳐",
+   "shape": "ray",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  }
+ ]
+}

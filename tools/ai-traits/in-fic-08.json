@@ -1,0 +1,86 @@
+{
+ "batch": 8,
+ "kind": "fictional",
+ "items": [
+  {
+   "id": "SS71",
+   "name": "星蚀鰕虎",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS72",
+   "name": "陨铁巨鲛",
+   "shape": "shark",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS73",
+   "name": "星核皇带",
+   "shape": "oarfish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS74",
+   "name": "幽蓝巨魟",
+   "shape": "ray",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS75",
+   "name": "星陨终焉·万象鲸",
+   "shape": "whale",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS76",
+   "name": "星陨之主·天鳞",
+   "shape": "dragon",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS77",
+   "name": "渊底月神·银鳐",
+   "shape": "ray",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS78",
+   "name": "星陨王座·裂空皇带",
+   "shape": "oarfish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS79",
+   "name": "深渊终章·噬星者",
+   "shape": "dragon",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS80",
+   "name": "永夜之主·虚空鲸",
+   "shape": "whale",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  }
+ ]
+}

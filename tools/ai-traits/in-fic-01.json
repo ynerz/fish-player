@@ -1,0 +1,86 @@
+{
+ "batch": 1,
+ "kind": "fictional",
+ "items": [
+  {
+   "id": "SS01",
+   "name": "星磷鱼",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS02",
+   "name": "陨铁鲷",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS03",
+   "name": "真空鳐",
+   "shape": "ray",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS04",
+   "name": "深海星鳗",
+   "shape": "eel",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS05",
+   "name": "冷光鮟鱇",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS06",
+   "name": "幽蓝水母",
+   "shape": "jelly",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS07",
+   "name": "陨尘鲳",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS08",
+   "name": "暗星鲷",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS09",
+   "name": "星尘鳀",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SS10",
+   "name": "陨砾鲹",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  }
+ ]
+}

@@ -1,0 +1,102 @@
+{
+  "SSS01": {
+    "name": "时砂小鱼",
+    "latin": "",
+    "form": "a small spindle-shaped body with soft bevelled edges, a blunt conical head, a small terminal mouth, a gently curved lateral line, a short slender caudal peduncle",
+    "fins": "a short dorsal fin set far back, a rounded tail fin, small rounded pectoral fins",
+    "markings": "faint concentric rings along the flanks",
+    "colour": "沙金半透明底、乳白年轮纹",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS02": {
+    "name": "溯流鲑",
+    "latin": "",
+    "form": "an elongated fusiform body with a slightly arched back, a pointed snout, a terminal mouth, the lower jaw slightly hooked, cycloid scales, a straight complete lateral line, a narrow caudal peduncle",
+    "fins": "a short-based dorsal fin, a small fleshy adipose fin, a slightly forked tail fin, pointed pectoral fins",
+    "markings": "a line of short vertical dashes along the flank",
+    "colour": "铁青背、逆行水流白腹",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS03": {
+    "name": "零度蝶鱼",
+    "latin": "",
+    "form": "a deep diamond-shaped laterally compressed body with crisp bevelled edges, a small pointed head, a short tubular snout, a small mouth, a continuous dorsal profile, a short compressed caudal peduncle",
+    "fins": "a long dorsal fin joined to the anal fin by a thin membrane, a rounded tail fin, fan-shaped pectoral fins",
+    "markings": "two narrow vertical bands crossing the flanks, a single band through the eye",
+    "colour": "霜白底、冰青竖带",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS04": {
+    "name": "昨日鲈",
+    "latin": "",
+    "form": "a stout oval body with a straight upper profile, a large head, a slightly concave forehead, a wide terminal mouth, the lower jaw projecting slightly, ctenoid scales, a gently arched lateral line",
+    "fins": "a dorsal fin with a deep notch between the spiny and soft parts, a slightly concave tail fin, fan-shaped pectoral fins",
+    "markings": "a faint horizontal band along the middle of the flank, scattered marks on the gill cover",
+    "colour": "褪色褐金、旧纸白边缘",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS05": {
+    "name": "遗迹鳉",
+    "latin": "",
+    "form": "a small cylindrical body with a flat-topped head, a short blunt snout, an upturned small mouth, an eroded scalloped edge to the gill cover, cycloid scales, a gently curved lateral line",
+    "fins": "a long continuous dorsal fin with a rounded outline, a rounded tail fin, small rounded pectoral fins",
+    "markings": "a row of short vertical notches along the upper flank",
+    "colour": "砂岩灰褐、风化白斑",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS06": {
+    "name": "虚时鲳",
+    "latin": "",
+    "form": "a deep oval laterally compressed body with smooth bevelled edges, a small blunt head, a short snout, a small terminal mouth, the upper jaw slightly longer than the lower, a slender compressed caudal peduncle",
+    "fins": "a long dorsal fin, a matching long anal fin, a deeply forked tail fin, long slender pectoral fins",
+    "markings": "a faint vertical shadow band behind the gill cover",
+    "colour": "墨青灰蓝、虚白高光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS07": {
+    "name": "刹那鲴",
+    "latin": "",
+    "form": "an elongated slightly compressed body with a gently convex back, a conical head, a short blunt snout, a small inferior mouth with a thin lower lip, cycloid scales, a complete lateral line, a long caudal peduncle",
+    "fins": "a short dorsal fin with a smooth outline, a deeply forked tail fin, long pointed pectoral fins",
+    "markings": "a row of small paired spots along the lateral line",
+    "colour": "琥珀褐、微光白点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS08": {
+    "name": "须臾鲹",
+    "latin": "",
+    "form": "a fusiform slender body with a rounded belly, a pointed conical head, a small terminal mouth, the upper jaw slightly longer than the lower, small cycloid scales, a slightly curved lateral line, a narrow compressed caudal peduncle",
+    "fins": "a long dorsal fin with a low anterior lobe, a deeply forked tail fin, long sickle-shaped pectoral fins",
+    "markings": "a row of small scutes along the caudal peduncle, short diagonal stripes on the upper flank",
+    "colour": "银灰蓝背、微金侧线",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS09": {
+    "name": "瞬息鳉",
+    "latin": "",
+    "form": "a small slender cylindrical body with a flattened dorsal profile, a rounded head, a short blunt snout, an upturned small mouth, cycloid scales, a gently curved lateral line, a slender caudal peduncle",
+    "fins": "a long dorsal fin set far back, a rounded tail fin, small rounded pectoral fins",
+    "markings": "a row of tiny irregular flecks along the flank",
+    "colour": "浅琥珀半透明、瞬息白闪",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS10": {
+    "name": "一刻鲹",
+    "latin": "",
+    "form": "a moderately elongated fusiform body with a slightly arched back, a pointed snout, a small terminal mouth, small cycloid scales, a curved lateral line, a narrow caudal peduncle",
+    "fins": "a long dorsal fin with a pointed anterior lobe, a deeply forked tail fin, long pointed pectoral fins",
+    "markings": "a single short vertical tick band behind the head",
+    "colour": "青灰底、细微刻度纹",
+    "source": "fictional",
+    "unknown": false
+  }
+}

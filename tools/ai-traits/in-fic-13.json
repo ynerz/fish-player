@@ -1,0 +1,86 @@
+{
+ "batch": 13,
+ "kind": "fictional",
+ "items": [
+  {
+   "id": "SSS41",
+   "name": "逆流龙鱼",
+   "shape": "dragon",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS42",
+   "name": "残时皇带",
+   "shape": "oarfish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS43",
+   "name": "虚时鮟鱇",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS44",
+   "name": "千面章鱼",
+   "shape": "squid",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS45",
+   "name": "逆空鲛",
+   "shape": "shark",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS46",
+   "name": "溯光鲹",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS47",
+   "name": "旧日水母",
+   "shape": "jelly",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS48",
+   "name": "影时鲽",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS49",
+   "name": "回环鳕",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS50",
+   "name": "沉默巨口鳗",
+   "shape": "eel",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  }
+ ]
+}

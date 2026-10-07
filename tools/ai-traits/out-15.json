@@ -1,0 +1,102 @@
+{
+  "S21": {
+    "name": "巨型等足虫",
+    "latin": "",
+    "form": "a broad flattened body, a shield-like segmented carapace, seven pairs of legs, large compound eyes, two pairs of antennae, a fan-shaped tail",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  },
+  "S22": {
+    "name": "管虫",
+    "latin": "",
+    "form": "a smooth cylindrical body, a funnel-shaped feathery gill crown at the front end, a head modified into a tentacle crown, the body attached to rock or sand, no mouth and no digestive system",
+    "fins": "",
+    "markings": "",
+    "colour": "肉头部分呈红色，栖管呈白色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S23": {
+    "name": "深海虾虎",
+    "latin": "",
+    "form": "an elongated slender body, a large head, a blunt snout, large eyes, a terminal mouth, ctenoid scales",
+    "fins": "two dorsal fins, the pelvic fins joined into a disc under the throat, a rounded tail fin",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  },
+  "S24": {
+    "name": "无光鳕",
+    "latin": "",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": true
+  },
+  "S25": {
+    "name": "鮟鱇鱼",
+    "latin": "",
+    "form": "a large broad depressed head, a huge mouth, backward-curved teeth, loose scaleless skin, a fishing lure on the head, gill openings behind the pectoral-fin base, a stout body tapering to the tail",
+    "fins": "a dorsal fin with the front rays forming a lure, small pectoral fins, pelvic fins set forward under the throat",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  },
+  "S26": {
+    "name": "角鮟鱇",
+    "latin": "",
+    "form": "a rounded globose body, a large head, a huge mouth with long sharp teeth, a fishing lure on the snout, loose scaleless skin, small eyes",
+    "fins": "small pectoral fins, a small dorsal fin, pelvic fins set under the throat",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  },
+  "S27": {
+    "name": "树须鱼",
+    "latin": "",
+    "form": "a short body, smooth skin, many barbels on the lower jaw branching like tree roots, a short illicium set behind the tip of the snout, a nearly horizontal mouth cleft, no second dorsal spine, no fleshy flap on the back, 4 to 5 branchiostegal rays",
+    "fins": "a dorsal fin with 3 rays, an anal fin with 2 to 4 rays",
+    "markings": "",
+    "colour": "",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S28": {
+    "name": "深海章鱼",
+    "latin": "",
+    "form": "a rounded bag-like body, eight arms, a large head, large eyes, no internal shell",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  },
+  "S29": {
+    "name": "吸血乌贼",
+    "latin": "",
+    "form": "a small gelatinous body, eight arms joined by a webbed cloak-like membrane, a pair of small fins on top of the body, large eyes, rows of fleshy spines on the arms",
+    "fins": "a pair of small rounded fins on the upper body",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  },
+  "S30": {
+    "name": "幽灵蛸",
+    "latin": "Vampyroteuthis infernalis",
+    "form": "a small gelatinous body, a webbed cloak-like membrane connecting all the arms, dozens of fleshy projections on the arms, large eyes",
+    "fins": "",
+    "markings": "",
+    "colour": "大红眼睛，黑色斗篷",
+    "source": "grounded",
+    "unknown": false
+  }
+}

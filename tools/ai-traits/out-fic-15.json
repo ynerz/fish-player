@@ -1,0 +1,102 @@
+{
+  "SSS61": {
+    "name": "残响龙鱼",
+    "latin": "",
+    "form": "a narrow elongated skull with a crest of ribbed plates, a long tapered snout, a pair of thin whisker-like barbels, layered plates along the underside",
+    "fins": "a long trailing dorsal fin, fan-like pectoral fins, a whip-like tail fin",
+    "markings": "echoing wave bands repeating along the flank",
+    "colour": "暗青底、残响白",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS62": {
+    "name": "空之翼鳐",
+    "latin": "",
+    "form": "a wide flat diamond disc with thin translucent wing margins, a small pointed snout, a long thread-like tail with a single spine",
+    "fins": "broad wing-like pectoral fins swept back, a small slender dorsal fin",
+    "markings": "sparse scattered points on the disc, a hollow oval void on the back",
+    "colour": "虚空蓝底、星点白",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS63": {
+    "name": "时光巨口鲨",
+    "latin": "",
+    "form": "a bulky body with a huge gaping mouth, an oversized blunt head, rows of tiny teeth, overlapping ring plates on the flank",
+    "fins": "a rounded dorsal fin, broad pectoral fins, a crescent tail fin",
+    "markings": "soft ring bands along the flank, a single line of dots behind the gill slits",
+    "colour": "墨蓝底、时光灰",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS64": {
+    "name": "时痕鲽",
+    "latin": "",
+    "form": "a flattened oval body, both eyes on the upper side, a small curved mouth, a thin fringed fin margin",
+    "fins": "a long dorsal fin along the upper edge, an anal fin along the lower edge, a rounded tail fin",
+    "markings": "a mosaic of patches with worn edges, a single scratch-like line behind the eye",
+    "colour": "砂褐底、时痕灰",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS65": {
+    "name": "逆光鳕",
+    "latin": "",
+    "form": "an elongated body with a slightly arched back, a moderate head, a small chin barbel, a clear lateral line",
+    "fins": "three dorsal fins, two anal fins, a slightly forked tail fin",
+    "markings": "a row of luminous pores along the lateral line, a faint rim behind the gill cover",
+    "colour": "背光墨底、逆光银",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS66": {
+    "name": "纪年鲹",
+    "latin": "",
+    "form": "a streamlined spindle body with a keeled belly, a small head, a terminal mouth, small scales",
+    "fins": "a long low dorsal fin, a deeply forked tail fin, a row of finlets behind the fins",
+    "markings": "stacked year-ring arcs along the flank, a single dot near the tail base",
+    "colour": "青银底、纪年褐",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS67": {
+    "name": "溯时鲻",
+    "latin": "",
+    "form": "an elongated rounded body, a broad flattened head, a small terminal mouth, a short caudal peduncle",
+    "fins": "two separate dorsal fins, a forked tail fin, long pectoral fins",
+    "markings": "faint longitudinal lines along the flank, a single ring behind the eye",
+    "colour": "灰青底、溯痕银",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS68": {
+    "name": "残页鲷",
+    "latin": "",
+    "form": "a deep oval body with a steep forehead, a small mouth, a large eye, a narrow caudal peduncle",
+    "fins": "a long dorsal fin with a spiny front, a rounded tail fin, long pectoral fins",
+    "markings": "irregular angular patches like torn edges, a single band near the tail base",
+    "colour": "豆褐底、残页黄",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS69": {
+    "name": "空页鲈",
+    "latin": "",
+    "form": "a moderately elongated body with a slightly concave forehead, a large mouth, a short snout, a gently curved lateral line",
+    "fins": "a dorsal fin with a deep notch, a slightly forked tail fin, small pectoral fins",
+    "markings": "a broad blank area on the flank with faint edge lines, a single dot behind the eye",
+    "colour": "素白底、空页灰",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS70": {
+    "name": "遗忘鲳",
+    "latin": "",
+    "form": "a deep oval body with a keeled belly, a small blunt head, a small mouth, a short caudal peduncle",
+    "fins": "a long low dorsal fin, a matching anal fin, a deeply forked tail fin",
+    "markings": "faint fading bands along the flank, a dissolving patch behind the gill cover",
+    "colour": "雾灰底、褪色银",
+    "source": "fictional",
+    "unknown": false
+  }
+}

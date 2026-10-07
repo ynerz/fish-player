@@ -1,0 +1,102 @@
+{
+  "B33": {
+    "name": "湖心巨鲤",
+    "latin": "",
+    "form": "a deep oval body with a rounded belly, a large blunt head, a small terminal mouth, two pairs of long barbels at the mouth corners, large cycloid scales",
+    "fins": "a long-based dorsal fin, a short anal fin, a large forked tail fin",
+    "markings": "a line of raised scales along the flank",
+    "colour": "湖心青灰底、金边大鳞，须端浅银",
+    "source": "fictional",
+    "unknown": false
+  },
+  "B34": {
+    "name": "百斤鳡王",
+    "latin": "",
+    "form": "a long slender pike-like body, a pointed conical head, a large terminal mouth, the lower jaw slightly protruding, rows of sharp teeth, small scales",
+    "fins": "a long dorsal fin, pointed pectoral fins, a deeply forked tail fin",
+    "markings": "a faint line along the mid-flank",
+    "colour": "水虎青底、背脊深纹，牙口惨白",
+    "source": "fictional",
+    "unknown": false
+  },
+  "A46": {
+    "name": "白浪之神·大青针",
+    "latin": "",
+    "form": "a very long slender needle-like body, jaws drawn out into a long thin beak lined with fine teeth, small set eyes, a straight lateral line",
+    "fins": "small set-back pectoral fins, a dorsal fin set far back near the tail, a slightly forked tail fin",
+    "markings": "a thin line running along the flank",
+    "colour": "白浪银底、背线深青，针吻冷白",
+    "source": "fictional",
+    "unknown": false
+  },
+  "S01": {
+    "name": "深海鳕",
+    "latin": "",
+    "form": "an elongated body tapering to a slim tail stock, a large head, a blunt snout, a small barbel under the chin, small cycloid scales",
+    "fins": "three separate dorsal fins, two anal fins, a slightly forked tail fin",
+    "markings": "a line running along the mid-flank",
+    "colour": "冷灰底、腹部浅白，须端深色",
+    "source": "fictional",
+    "unknown": false
+  },
+  "S06": {
+    "name": "深海鲷",
+    "latin": "",
+    "form": "a laterally compressed deep body, a steep forehead, a small terminal mouth, a large eye, ctenoid scales",
+    "fins": "a long dorsal fin with a distinct spiny front section, a short anal fin, a forked tail fin",
+    "markings": "a small blotch at the base of the tail fin",
+    "colour": "深海墨青底、背棘冷金，腹面浅灰",
+    "source": "fictional",
+    "unknown": false
+  },
+  "S08": {
+    "name": "幽灵鳍鱼",
+    "latin": "",
+    "form": "a slender soft body, a small blunt head, a small mouth, thin translucent fins draped like loose cloth",
+    "fins": "long translucent dorsal and anal fins draped along the body, small pectoral fins, a rounded tail fin",
+    "markings": "faint seams between the fin membranes",
+    "colour": "幽影深青底、鳍缘透明，光点稀疏",
+    "source": "fictional",
+    "unknown": false
+  },
+  "S17": {
+    "name": "深海水母",
+    "latin": "",
+    "form": "a rounded blunt dome bell, a thin even margin, dense short tentacles set close around the rim, four abbreviated oral arms",
+    "fins": "",
+    "markings": "evenly spaced luminous pores along the bell margin",
+    "colour": "深青灰底、伞缘冷白，触手淡蓝",
+    "source": "fictional",
+    "unknown": false
+  },
+  "S24": {
+    "name": "无光鳕",
+    "latin": "",
+    "form": "a moderately proportioned body, a large head, a blunt snout, a small chin barbel, small scales, low sensory pores along the head",
+    "fins": "three separate dorsal fins, two anal fins, a slightly forked tail fin",
+    "markings": "a line of sensory pores along the head and flank",
+    "colour": "无光黑蓝底、哑光，须端深灰",
+    "source": "fictional",
+    "unknown": false
+  },
+  "S39": {
+    "name": "黑柔骨鱼",
+    "latin": "Malacosteus niger",
+    "form": "a slender dark body, a large head, extremely long jaws forming an open gape with no floor to the mouth, fang-like teeth of mixed size, small eyes, naked scaleless skin",
+    "fins": "small pectoral fins, a dorsal fin set far back on the body, an anal fin set opposite the dorsal, a small forked tail fin",
+    "markings": "a row of luminous pores along the flank, a large luminous patch below the eye",
+    "colour": "通体漆黑，眼下发光器深红，体侧光点稀疏",
+    "source": "model",
+    "unknown": false
+  },
+  "S40": {
+    "name": "深海水母王",
+    "latin": "",
+    "form": "a huge flattened dome bell, a thick folded margin, very long trailing tentacles grouped in a few thick clusters, four long frilled oral arms",
+    "fins": "",
+    "markings": "a ring of luminous pores along the bell margin, faint radial seams across the dome",
+    "colour": "王青蓝底、伞缘熔金，触手冷白",
+    "source": "fictional",
+    "unknown": false
+  }
+}

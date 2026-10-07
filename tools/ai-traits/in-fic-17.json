@@ -1,0 +1,86 @@
+{
+ "batch": 17,
+ "kind": "fictional",
+ "items": [
+  {
+   "id": "SSS81",
+   "name": "空时鲛",
+   "shape": "shark",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS82",
+   "name": "千年魟",
+   "shape": "ray",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS83",
+   "name": "时纱水母",
+   "shape": "jelly",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS84",
+   "name": "虚年章鱼",
+   "shape": "squid",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS85",
+   "name": "逆旅鮟鱇",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS86",
+   "name": "纪元巨鲨",
+   "shape": "shark",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS87",
+   "name": "时光巨龙",
+   "shape": "dragon",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS88",
+   "name": "千年巨鲸",
+   "shape": "whale",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS89",
+   "name": "逆流皇带",
+   "shape": "oarfish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS90",
+   "name": "时之褶皱·空鲸",
+   "shape": "whale",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  }
+ ]
+}

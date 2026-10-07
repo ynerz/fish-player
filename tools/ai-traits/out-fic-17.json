@@ -1,0 +1,102 @@
+{
+  "SSS81": {
+    "name": "空时鲛",
+    "latin": "",
+    "form": "a long tapered snout on a streamlined head, narrow angular jaws lined with even needle teeth, five slim parallel gill slits, a low even keel along the flank, matte crystalline hide with crisp facet cuts",
+    "fins": "a tall triangular dorsal fin, a matched pair of swept pectoral fins, a crescent tail fin with a long upper lobe",
+    "markings": "a single row of evenly spaced luminous pores along the flank",
+    "colour": "深靛底、冷银棱面，尾缘一线冷光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS82": {
+    "name": "千年魟",
+    "latin": "",
+    "form": "a wide diamond disc with evenly stepped edges, a pair of short cephalic lobes at the snout, layered ridge rings across the back, a long thin whip-like tail",
+    "fins": "broad wing-like pectoral fins fused to the disc, a small dorsal fin near the tail base",
+    "markings": "concentric growth rings radiating across the disc, a row of sparse luminous pores along the wing margin",
+    "colour": "琥珀褐底、年轮状浅层，边缘冷金线",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS83": {
+    "name": "时纱水母",
+    "latin": "",
+    "form": "a domed translucent bell with a thin layered rim, four evenly spaced tentacle clusters around the margin, a central trailing veil of long ribbon tentacles",
+    "fins": "",
+    "markings": "a ring of luminous pores along the bell margin, faint concentric seams across the dome",
+    "colour": "薄纱白、冷浆色伞心，触手尾端淡蓝",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS84": {
+    "name": "虚年章鱼",
+    "latin": "",
+    "form": "a long slender mantle tapering to a faceted rear tip, triangular side fins running along the mantle, eight arms of even length set in a ring, two long trailing feeding tentacles",
+    "fins": "triangular side fins with straight bevelled edges along the mantle",
+    "markings": "a single row of luminous pores down the rear mantle, faint ringed seams on each arm",
+    "colour": "虚空灰蓝底、棱面反光，腕足环纹冷白",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS85": {
+    "name": "逆旅鮟鱇",
+    "latin": "",
+    "form": "a very deep rounded body, a very large head, a wide upward-gaping mouth, small eyes set high, a curved lure rod rising over the snout",
+    "fins": "small rounded pectoral fins, a short dorsal fin, a rounded tail fin",
+    "markings": "a luminous tip on the snout lure, rows of sensory pores along the head and jaw",
+    "colour": "暗褐底、苔绿斑驳，诱饵一点冷青",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS86": {
+    "name": "纪元巨鲨",
+    "latin": "",
+    "form": "a heavy streamlined head, a long tapered snout, wide jaws lined with even triangular teeth, five long gill slits, a low keel along the flank, smooth matte hide",
+    "fins": "a tall triangular dorsal fin, long swept pectoral fins, a crescent tail fin with a long upper lobe",
+    "markings": "faint layered ridge lines banding the flanks",
+    "colour": "深蓝黑底、纪元铜锈边，通体冷光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS87": {
+    "name": "时光巨龙",
+    "latin": "",
+    "form": "a serpentine body with evenly spaced dorsal spines along the ridge, a pair of swept-back head horns, two long barbels trailing from the jaw, glass-like scales in overlapping rows",
+    "fins": "a continuous low dorsal crest of thin rays, a pair of narrow pectoral fins, a long tapering tail fin",
+    "markings": "a double row of luminous nodes down the spine",
+    "colour": "墨蓝底、时光琥珀纹，脊线冷金",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS88": {
+    "name": "千年巨鲸",
+    "latin": "",
+    "form": "a vast rounded head with a gentle forehead, deep parallel throat pleats running back along the belly, small set eyes, a heavy body tapering to the tail stock",
+    "fins": "long slim pectoral flippers, a small set-back dorsal fin, a wide notched horizontal fluke",
+    "markings": "ringed growth lines across the head shield, a row of pores along the jaw line",
+    "colour": "暗青灰底、千年年轮浅圈，腹面冷银",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS89": {
+    "name": "逆流皇带",
+    "latin": "",
+    "form": "a small pointed head, a short blunt snout, a small forward dorsal fin, a pair of long trailing pelvic-fin rays, crest rays evenly spaced and tapering toward the tail",
+    "fins": "a full-length dorsal crest of thin rays, long trailing pelvic-fin rays, a small tail fin",
+    "markings": "a single row of luminous pores along the flank",
+    "colour": "银粉底、逆流冷光脊，全长星屑线",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS90": {
+    "name": "时之褶皱·空鲸",
+    "latin": "",
+    "form": "an immense smooth body wrapped in deep layered folds along the throat and belly, a heavy rounded head, extra overlapping pleat layers, a slim dorsal fin set far back",
+    "fins": "long slim pectoral flippers, a small set-back dorsal fin, a wide notched horizontal fluke",
+    "markings": "layered fold lines along the belly, a row of pores along the jaw line",
+    "colour": "墨青底、层叠褶皱暗金边，深渊冷白",
+    "source": "fictional",
+    "unknown": false
+  }
+}

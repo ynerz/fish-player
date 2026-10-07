@@ -1,0 +1,102 @@
+{
+  "SS01": {
+    "name": "星磷鱼",
+    "latin": "",
+    "form": "a slender diamond-sectioned body, a small pointed head, a large oblique mouth, crisply bevelled scale edges, a narrow caudal peduncle",
+    "fins": "a long trailing dorsal crest, a translucent fan-shaped tail fin, slender filamentous pelvic fins",
+    "markings": "a sparse line of luminous points along the flank, a single glowing patch behind the eye",
+    "colour": "深靛底、磷青点、星屑银辉",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS02": {
+    "name": "陨铁鲷",
+    "latin": "",
+    "form": "a deep diamond-shaped body with crisp faceted plates, a short blunt snout, a small terminal mouth, a high arched back, a compact head",
+    "fins": "a spined dorsal fin with even triangular peaks, a deeply forked tail fin",
+    "markings": "a cluster of pitted craters along the upper flank, a single streak at the base of the tail",
+    "colour": "铁灰底、熔痕铜、暗紫高光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS03": {
+    "name": "真空鳐",
+    "latin": "",
+    "form": "a broad diamond-shaped disc, a wide wing-like pectoral margin with clean cut edges, a short tail, a pair of small cephalic horns, a slight forward sweep",
+    "fins": "a slender whip-like tail with a low dorsal ridge, barely visible pelvic fins",
+    "markings": "a clear unmarked gap across the disc centre, a fine rim line tracing the wing edge",
+    "colour": "墨蓝底、虚空留白、边缘银线",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS04": {
+    "name": "深海星鳗",
+    "latin": "",
+    "form": "a ribbon-like body with a diamond cross-section, a slender tapering head, a small mouth, a row of minute luminous nodes down the midline",
+    "fins": "a low continuous dorsal ridge merging with the tail fin, small rounded pectoral fins",
+    "markings": "a single row of faint nodes along the flank, a break in the ridge behind the head",
+    "colour": "靛黑底、星芒银点、腹部微光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS05": {
+    "name": "冷光鮟鱇",
+    "latin": "",
+    "form": "a stout rounded body, a large head, a wide gaping mouth with small even teeth, a short lure stalk rising from the snout, loose matte skin",
+    "fins": "a low dorsal fin, small rounded pectoral fins, a rounded tail fin",
+    "markings": "a single luminous tip at the end of the lure, a faint spot behind the eye",
+    "colour": "冷灰底、幽蓝冷光、喉部暗影",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS06": {
+    "name": "幽蓝水母",
+    "latin": "",
+    "form": "a shallow dome-shaped bell with evenly scalloped rim segments, four grouped trailing tentacle clusters, a short core stalk",
+    "fins": "",
+    "markings": "a ring of luminous points around the bell rim, faint radial seams on the dome",
+    "colour": "幽蓝底、冷银边缘、深空暗心",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS07": {
+    "name": "陨尘鲳",
+    "latin": "",
+    "form": "a deep oval body, a small head, a short blunt snout, a small mouth, fine points fused into faceted scales",
+    "fins": "a long low dorsal fin, a slightly forked tail fin, small pectoral fins",
+    "markings": "a loose trail of tiny craters along the flank, a short streak near the gill cover",
+    "colour": "烟灰底、尘金微粒、暗铜高光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS08": {
+    "name": "暗星鲷",
+    "latin": "",
+    "form": "a deep compressed oval body, a steep forehead, a small mouth, a large eye, a row of recessed luminous pits along the back",
+    "fins": "a spined dorsal fin with even triangular peaks, a slightly forked tail fin",
+    "markings": "a cluster of luminous pits along the upper flank, a single band crossing the nape",
+    "colour": "墨黑底、内敛星点、冷银扣边",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS09": {
+    "name": "星尘鳀",
+    "latin": "",
+    "form": "a slender spindle-shaped body, a pointed snout, a large mouth, a single fine line of glowing specks along the midline, a narrow caudal peduncle",
+    "fins": "a short dorsal fin set far back, a deeply forked tail fin, small pectoral fins",
+    "markings": "an even row of glowing specks along the midline, a faint spot at the tail base",
+    "colour": "浅靛底、星尘白点、银灰腹面",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS10": {
+    "name": "陨砾鲹",
+    "latin": "",
+    "form": "a fusiform streamlined body with faceted flank plates, a small head, a blunt snout, a terminal mouth",
+    "fins": "a long dorsal fin, a deeply forked tail fin, a row of finlets behind the dorsal and anal fins",
+    "markings": "a broken line of gravel-like nicks along the flank, a single notch above the pectoral base",
+    "colour": "砾褐底、陨灰斑块、冷铁反光",
+    "source": "fictional",
+    "unknown": false
+  }
+}

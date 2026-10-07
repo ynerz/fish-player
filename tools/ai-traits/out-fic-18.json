@@ -1,0 +1,102 @@
+{
+  "SSS91": {
+    "name": "纪元龙鱼",
+    "latin": "",
+    "form": "a serpentine body, a row of evenly spaced dorsal spines, a crest of thin blades along the nape, a pair of short barbels under the jaw, resinous scales",
+    "fins": "a continuous low dorsal crest, a pair of narrow pectoral fins, a long tapering tail fin",
+    "markings": "a row of luminous nodes along the spine, a single seam line down the flank",
+    "colour": "暗青底、纪元琥珀脊，鳞缘冷金",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS92": {
+    "name": "时之终点·无相鲲",
+    "latin": "",
+    "form": "a vast rounded body, a smooth featureless head, eyes reduced to faint marks, deep parallel throat pleats, a silhouette deliberately kept simple",
+    "fins": "long slim pectoral flippers, a small set-back dorsal fin, a broad horizontal fluke",
+    "markings": "a single faint seam line running along the flank",
+    "colour": "无相灰白底、极简，边缘虚空淡青",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS93": {
+    "name": "初源之影·混沌",
+    "latin": "",
+    "form": "a serpentine body carrying an uneven assembly of features, a ridge of irregular dorsal spines, twin coiled horns, mismatched scale plating along the back",
+    "fins": "a ragged dorsal crest of uneven rays, a pair of asymmetric pectoral fins",
+    "markings": "scattered faceted plates along the back",
+    "colour": "混沌青褐底、拼接质感，杂色棱面",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS94": {
+    "name": "终焉纪元·忘川",
+    "latin": "",
+    "form": "a long lean streamlined body, a narrow tapered snout, underslung jaws set with rows of even teeth, five long gill slits, smooth matte hide",
+    "fins": "a tall dorsal fin, long swept pectoral fins, a crescent tail fin with a long upper lobe",
+    "markings": "a single band crossing the mid-body, a row of luminous pores along the flank",
+    "colour": "忘川灰蓝底、冷潮线，牙列象牙白",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS95": {
+    "name": "时之尽头·无相巨鲲",
+    "latin": "",
+    "form": "a vast rounded body, a smooth featureless head, eyes reduced to faint marks, deep parallel throat pleats, a compact set-back dorsal fin",
+    "fins": "slim pectoral flippers, a small set-back dorsal fin, a broad notched horizontal fluke",
+    "markings": "concentric seam lines across the head",
+    "colour": "尽头灰底、层叠冷纹，边缘虚空青",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS96": {
+    "name": "创世之鳞",
+    "latin": "",
+    "form": "a serpentine body armored in large overlapping faceted scales, a row of evenly spaced dorsal spines, a pair of short forward-swept horns",
+    "fins": "a continuous low dorsal crest, a pair of narrow pectoral fins, a long tapering tail fin",
+    "markings": "overlapping scale rows across the flank, a single row of luminous nodes along the spine",
+    "colour": "创世青金底、层鳞棱面，脊线冷光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS97": {
+    "name": "终末渔者之影",
+    "latin": "",
+    "form": "a slender elongated body, a blunt upright head, a small terminal mouth, a row of thin whisker-like barbels under the jaw, long trailing dorsal and pelvic filaments",
+    "fins": "a long trailing dorsal filament, narrow pectoral fins, a forked tail fin",
+    "markings": "a tattered fringe along the lower flank",
+    "colour": "影灰底、渔者冷线，边缘褪色",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS98": {
+    "name": "纪元终焉·空之鲸",
+    "latin": "",
+    "form": "a vast smooth body tapering to a narrow tail stock, a heavy rounded head, deep throat pleats, long slim pectoral flippers",
+    "fins": "long slim pectoral flippers, a small set-back dorsal fin, a wide notched horizontal fluke",
+    "markings": "a row of pores along the jaw line, faint seam lines across the head",
+    "colour": "空灰蓝底、纪元冷白腹，深渊青光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS99": {
+    "name": "最初之鳞·混沌",
+    "latin": "",
+    "form": "a coiled serpentine body, a ragged dorsal ridge of uneven plates, a pair of backward-swept horns, rows of exposed fangs along both jaws",
+    "fins": "a continuous low dorsal crest, a pair of narrow pectoral fins",
+    "markings": "uneven plate rows across the back, a row of luminous nodes along the spine",
+    "colour": "初源灰白底、混沌杂纹，牙棘冷白",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS100": {
+    "name": "终焉之影·忘川",
+    "latin": "",
+    "form": "a massive deep-bodied form, a broad head with a short tapered snout, wide jaws, five long gill slits, a low keel along the flank",
+    "fins": "a tall dorsal fin, long swept pectoral fins, a strongly curved tail fin with a long upper lobe",
+    "markings": "a faint vertical band behind the gill slits",
+    "colour": "终末墨蓝底、微光鳞面，尾缘冷白",
+    "source": "fictional",
+    "unknown": false
+  }
+}

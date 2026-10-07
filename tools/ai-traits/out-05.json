@@ -1,0 +1,102 @@
+{
+  "B01": {
+    "name": "鲢鱼",
+    "latin": "Hypophthalmichthys molitrix",
+    "form": "a laterally compressed body, small eyes set low on the head, a wide terminal mouth, the lower jaw slightly upturned, no barbels, a keeled belly from between the pectoral fin bases to the anus",
+    "fins": "the pectoral fins reaching only to the origin of the pelvic fins",
+    "markings": "",
+    "colour": "体呈银白色，各鳍灰白色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "B02": {
+    "name": "鳙鱼",
+    "latin": "Hypophthalmichthys nobilis",
+    "form": "a deep laterally compressed body, a large head, a large terminal mouth, small eyes set low on the head, no barbels, a keeled belly",
+    "fins": "a long dorsal fin, a deeply forked tail fin",
+    "markings": "irregular blotches scattered along the flanks",
+    "colour": "背部暗黑色，体侧散布不规则斑块，腹部银白色",
+    "source": "model",
+    "unknown": false
+  },
+  "B03": {
+    "name": "草鱼",
+    "latin": "Ctenopharyngodon idella",
+    "form": "an elongated cylindrical body, no ventral keel, a terminal arcuate mouth, no barbels, a blunt head, a short blunt snout, widely spaced eyes, medium-sized round scales",
+    "fins": "short pectoral fins, a dorsal fin without a spine, a slightly forked tail fin",
+    "markings": "",
+    "colour": "体茶黄色，背部青灰，腹部灰白，胸鳍、腹鳍灰黄色，其他各鳍淡灰色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "B04": {
+    "name": "鲮鱼",
+    "latin": "Cirrhinus molitorella",
+    "form": "a spindle-shaped laterally compressed body, a rounded belly, the back slightly elevated in front of the dorsal fin, a short head, eyes set on the sides and widely spaced, a small inferior mouth shaped as a horizontal slit, two pairs of barbels with the rostral pair stouter, medium-sized scales, a long caudal peduncle",
+    "fins": "a deeply forked tail fin",
+    "markings": "a diamond-shaped blotch above and behind the pectoral fin base, a spot at the base of the tail fin in juveniles",
+    "colour": "体上部青灰色，腹部银白色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "B05": {
+    "name": "罗非鱼",
+    "latin": "Oreochromis mossambicus",
+    "form": "an oval body, a rather large head, a short caudal peduncle, large cycloid scales",
+    "fins": "",
+    "markings": "blotches along the flanks",
+    "colour": "雄鱼繁殖期体色蓝黑色，仅头下侧和鳃盖后缘白色，背鳍和尾鳍边缘红色明显，胸鳍淡红色；雌鱼体色灰黄色，背鳍和尾鳍略呈红色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "B06": {
+    "name": "鳊鱼",
+    "latin": "Parabramis pekinensis",
+    "form": "a deep laterally compressed body, a small laterally compressed head, a terminal mouth, the upper jaw slightly longer than the lower, no barbels",
+    "fins": "a dorsal fin with a stout spine, a long anal fin with 29 to 33 branched rays, a deeply forked tail fin",
+    "markings": "",
+    "colour": "体背及头部背面青灰色，体侧银灰色，腹部银白色，各鳍边缘灰色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "B07": {
+    "name": "鲂鱼",
+    "latin": "",
+    "form": "a flattened oval laterally compressed body, a high back, a large upward-slanting mouth, the lower jaw protruding, a caudal peduncle longer than or equal to its height",
+    "fins": "a dorsal fin with a smooth stout spine longer than the head, a row of spiny bony plates along the base of the dorsal and anal fins",
+    "markings": "a blotch on the upper middle of the flank, rows of stripes running along the flanks",
+    "colour": "体背及两侧青灰色、银灰色，腹部银白，体侧呈现一行行紫黑色条纹",
+    "source": "grounded",
+    "unknown": false
+  },
+  "B08": {
+    "name": "银鲴",
+    "latin": "Xenocypris argentea",
+    "form": "an elongated laterally compressed body, a small hammer-shaped head, an inferior mouth, a thin horny edge on the front of the lower jaw, no barbels, rather large eyes set high on the sides",
+    "fins": "",
+    "markings": "a patch on the gill cover",
+    "colour": "体背部灰黑色，腹部及体下侧银白色，鳃盖有明显的橘黄色斑块",
+    "source": "grounded",
+    "unknown": false
+  },
+  "B09": {
+    "name": "黄尾鲴",
+    "latin": "",
+    "form": "a thin axillary scale that does not reach the anus",
+    "fins": "pectoral fins with one stout spine and 15 to 16 rays reaching the front of the pelvic fin origin, an anal fin with three stout spines and 9 to 11 rays, a forked tail fin",
+    "markings": "",
+    "colour": "",
+    "source": "grounded",
+    "unknown": false
+  },
+  "B10": {
+    "name": "赤眼鳟",
+    "latin": "Squaliobarbus curriculus",
+    "form": "an elongated cylindrical body, the posterior part somewhat flattened, a conical head, a blunt snout, no ventral keel, a terminal arcuate mouth, two pairs of tiny vestigial barbels on the upper jaw, medium-sized eyes set near the tip of the snout, large round scales, a straight lateral line running to the middle of the caudal peduncle",
+    "fins": "a short dorsal fin without a spine, a short anal fin below and behind the dorsal fin, a deeply forked tail fin",
+    "markings": "a row of spots along the flanks formed by a spot at the base of each scale",
+    "colour": "眼上半部具红斑，体背青灰色，腹部银白色",
+    "source": "grounded",
+    "unknown": false
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "SSS71": {
+    "name": "前尘鳉",
+    "latin": "",
+    "form": "a small elongated body with a flattened top, a broad rounded head, an upturned mouth, no lateral line",
+    "fins": "a long dorsal fin, a rounded tail fin, short pectoral fins",
+    "markings": "a band of scattered dust-like specks along the flank",
+    "colour": "尘灰底、微光点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS72": {
+    "name": "后时鰕虎",
+    "latin": "",
+    "form": "a small stout body, a large blunt head, a wide mouth, fused pelvic fins forming a disc, no lateral line",
+    "fins": "two dorsal fins, a rounded tail fin, fused pelvic fins forming a sucking disc",
+    "markings": "a few faint vertical bands along the flank, a single ring near the tail base",
+    "colour": "砂灰底、后时青",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS73": {
+    "name": "拾光鲹",
+    "latin": "",
+    "form": "a streamlined spindle body with a keeled belly, a small pointed head, a terminal mouth",
+    "fins": "a long low dorsal fin, a deeply forked tail fin, a row of finlets behind the dorsal and anal fins",
+    "markings": "a row of luminous pores along the flank, a single bright node behind the eye",
+    "colour": "深靛底、拾光金",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS74": {
+    "name": "逆旅鲽",
+    "latin": "",
+    "form": "a flattened oval body, both eyes on one side, a small twisted mouth, a thin wavy fin margin",
+    "fins": "a long dorsal fin along the upper edge, an anal fin along the lower edge, a rounded tail fin",
+    "markings": "an irregular mosaic of worn patches, a single line across the tail base",
+    "colour": "土褐底、旅痕灰",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS75": {
+    "name": "流年鲻",
+    "latin": "",
+    "form": "an elongated rounded body, a broad flat head, a small terminal mouth, a short caudal peduncle",
+    "fins": "two separate dorsal fins, a forked tail fin, long pectoral fins",
+    "markings": "faint longitudinal lines along the flank, a row of thin rings near the gill cover",
+    "colour": "青灰底、流年银",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS76": {
+    "name": "空洞鳕",
+    "latin": "",
+    "form": "an elongated body with a slightly arched back, a moderate head, a small chin barbel, a clear lateral line",
+    "fins": "three dorsal fins, two anal fins, a slightly forked tail fin",
+    "markings": "a hollow oval gap on each flank, a sparse line of dots above the lateral line",
+    "colour": "虚白底、空洞黑",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS77": {
+    "name": "寂时鲹",
+    "latin": "",
+    "form": "a streamlined spindle body with a keeled belly, a small head, a high-set eye, a short snout",
+    "fins": "a long low dorsal fin, a deeply forked tail fin, a row of finlets",
+    "markings": "a single stilled wave line along the flank, a faint ring near the tail base",
+    "colour": "铅灰底、寂时白",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS78": {
+    "name": "时间鲟",
+    "latin": "",
+    "form": "an elongated body with five rows of bony scutes along the back and flanks, a long flattened snout, a small inferior mouth, four barbels before the mouth",
+    "fins": "a dorsal fin set far back, a tail fin with a long upper lobe, small pectoral fins",
+    "markings": "even rows of scute plates along the body, a single line of dots near the gill cover",
+    "colour": "青灰底、年轮铜",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS79": {
+    "name": "溯流皇带",
+    "latin": "",
+    "form": "a narrow ribbon-like body, a small upturned head, a fan crest of soft rays on the nape, a chain of eroded ring segments",
+    "fins": "a continuous dorsal crest along the back, long oar-like pelvic fins, a tiny tail fin",
+    "markings": "broken ring segments along the flank, a single stilled ripple behind the gill cover",
+    "colour": "银青底、溯流霜",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS80": {
+    "name": "逆熵鳐",
+    "latin": "",
+    "form": "a broad diamond-shaped disc with angular facet edges, a short blunt snout, a long thin tail with a single spine",
+    "fins": "broad wing-like pectoral fins with crisp corners, a small dorsal fin near the tail base",
+    "markings": "a spiral line coiling across the disc, a single ring at the center of the back",
+    "colour": "冷靛底、逆熵银",
+    "source": "fictional",
+    "unknown": false
+  }
+}

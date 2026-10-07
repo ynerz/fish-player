@@ -1,0 +1,102 @@
+{
+  "A07": {
+    "name": "银鲳",
+    "latin": "Pampus argenteus",
+    "form": "a laterally compressed body, arched dorsal and ventral margins, the body highest at the front of the dorsal fin and sloping toward the snout, a short caudal peduncle, the snout and upper jaw slightly protruding, a short blunt rounded snout, a single closely set row of fine teeth on both jaws, no teeth on the vomer, palatine or tongue",
+    "fins": "",
+    "markings": "",
+    "colour": "背部淡墨青色，腹部白色，具银白色光泽",
+    "source": "grounded",
+    "unknown": false
+  },
+  "A08": {
+    "name": "刺鲳",
+    "latin": "",
+    "form": "an elongated oval body, laterally compressed, bluntly rounded dorsal and ventral margins, a small head, the dorsal profile of the head convex and the sides flat, the head length about 4.2-4.6 times the snout length",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "grounded",
+    "unknown": false
+  },
+  "A09": {
+    "name": "鳀鱼",
+    "latin": "Engraulis japonicus",
+    "form": "an elongated slender body, slightly laterally compressed, a short blunt snout shorter than the eye, a large inferior mouth, the upper jaw longer than the lower, cycloid scales, no lateral line",
+    "fins": "a short dorsal fin, small pectoral fins set low on the sides, a forked tail fin",
+    "markings": "a longitudinal band along the flank",
+    "colour": "体背青绿色，体侧及腹部银白色，体侧有一条银白色纵带",
+    "source": "model",
+    "unknown": false
+  },
+  "A10": {
+    "name": "小黄鱼",
+    "latin": "",
+    "form": "an elongated laterally compressed body, arched dorsal and ventral margins, a slender caudal peduncle, a large head with well-developed mucous cavities, a large terminal oblique mouth, both jaws equal in length, small sharp teeth, no teeth on the vomer, palatine or tongue, cycloid scales on the head and front of the body, ctenoid scales on the rear of the body, a large otolith",
+    "fins": "the soft dorsal, anal and caudal fins covered with small cycloid scales",
+    "markings": "",
+    "colour": "体背侧黄褐色，腹侧金黄色，各鳍灰黄色，唇橘红色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "A11": {
+    "name": "梅童鱼",
+    "latin": "",
+    "form": "a nearly rectangular laterally compressed body, the body length about 3.1 times the body depth, a slender caudal peduncle, a large blunt rounded head",
+    "fins": "a wedge-shaped tail fin",
+    "markings": "",
+    "colour": "体上部灰黑色，腹部及两侧下部金黄色，鳃盖上部黑色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "A12": {
+    "name": "黄姑鱼",
+    "latin": "Nibea albiflora",
+    "form": "an elongated laterally compressed body, a slightly arched back, a medium-sized laterally compressed head, a short blunt snout slightly protruding, a large oblique mouth, the upper jaw slightly longer than the lower, ctenoid scales on the body, small cycloid scales on the front of the head, naked cheeks, a curved lateral line reaching almost to the end of the tail fin",
+    "fins": "",
+    "markings": "wavy stripes running diagonally forward and downward",
+    "colour": "背灰橙色，腹部银白色，背鳍棘上部暗褐色，鳍条边缘黑色，胸鳍、腹鳍和臀鳍橙黄色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "A13": {
+    "name": "白姑鱼",
+    "latin": "Pennahia argentata",
+    "form": "a croaker of the family Sciaenidae, a body reaching about 40 cm in length",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "grounded",
+    "unknown": false
+  },
+  "A14": {
+    "name": "海鳗",
+    "latin": "Muraenesox cinereus",
+    "form": "a nearly cylindrical trunk, a laterally compressed tail, the body length about 20 times the body depth and about 6.6 times the head length, naked skin with no scales, conspicuous lateral line pores",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "grounded",
+    "unknown": false
+  },
+  "A15": {
+    "name": "星鳗",
+    "latin": "Astroconger myriaster",
+    "form": "an elongated cylindrical body, naked skin with no scales, smooth skin, a complete lateral line running along and above the midline, a conical head, widely spaced concave eyes, a long pointed snout with a tapering tip, small teeth in two rows on each jaw, a broad tongue with a free front end",
+    "fins": "a dorsal fin starting above and behind the pectoral fins, an anal fin located behind the anus",
+    "markings": "",
+    "colour": "",
+    "source": "grounded",
+    "unknown": false
+  },
+  "A16": {
+    "name": "鲽鱼",
+    "latin": "",
+    "form": "a strongly laterally compressed flat body, both eyes on the upper side of the head, a small head, a small mouth, ctenoid scales, a straight lateral line",
+    "fins": "a long dorsal fin, a long anal fin, a small tail fin",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  }
+}

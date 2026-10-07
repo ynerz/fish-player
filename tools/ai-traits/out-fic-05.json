@@ -1,0 +1,102 @@
+{
+  "SS41": {
+    "name": "幽暗龙鱼",
+    "latin": "",
+    "form": "a sinuous ribbon-like body with faintly faceted scales, a narrow wedge-shaped head, a pair of swept-back horn-like crests, sparse luminous pores spaced evenly along the spine",
+    "fins": "a low continuous dorsal crest of evenly spaced spines, a pair of long trailing pelvic tendrils",
+    "markings": "a single row of evenly spaced luminous nodes along the flank, a faint chevron pattern behind the eye",
+    "colour": "墨靛底、幽蓝微光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS42": {
+    "name": "陨核鲽",
+    "latin": "",
+    "form": "an oval body with a subtly faceted surface, a compact head, a small terminal mouth, a dimpled crater-like pit set at the centre of each flank",
+    "fins": "a short rounded dorsal fin, a small fan-shaped tail fin",
+    "markings": "a cluster of evenly spaced luminous pores radiating from a central pit",
+    "colour": "焦褐底、熔金裂点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS43": {
+    "name": "虚光鮟鱇",
+    "latin": "",
+    "form": "a rounded stout body, a broad flat head, a large gaping mouth, a single curved lure stalk rising from the snout, a row of slender recurved teeth",
+    "fins": "a small rounded dorsal fin, a fan-shaped tail fin, fleshy limb-like pectoral fins",
+    "markings": "a single luminous lure at the tip of the snout, a faint line of pores along the flank",
+    "colour": "炭灰底、幽绿磷光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS44": {
+    "name": "暗物质魟",
+    "latin": "",
+    "form": "a broad diamond-shaped disc with crisp bevelled wing edges, a blunt rounded snout, a long slender whip-like tail, a single small dorsal spine near the tail base",
+    "fins": "wide angular pectoral wings with faintly faceted leading edges, a low fin fold along the tail",
+    "markings": "a sparse arc of luminous pores tracing each wing edge, a single void-like ring centred on the disc",
+    "colour": "黑紫底、空无深渊感",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS45": {
+    "name": "星陨鳐",
+    "latin": "",
+    "form": "a broad diamond-shaped disc with faintly faceted wing panels, a short blunt snout, a long thin trailing tail",
+    "fins": "angular pectoral wings with gently scalloped edges, a low fin fold along the tail",
+    "markings": "a sparse scatter of luminous points across the wings, a faint streak trailing behind the disc",
+    "colour": "深靛底、星屑银点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS46": {
+    "name": "虚空鲛",
+    "latin": "",
+    "form": "a torpedo-shaped body with faintly faceted flank plates, a long pointed snout, a row of slender recurved teeth, five gill slits",
+    "fins": "a tall triangular dorsal fin, long swept-back pectoral fins",
+    "markings": "a single row of evenly spaced luminous pores along the flank, faint void bands crossing the flank",
+    "colour": "深空蓝底、冷白星点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS47": {
+    "name": "陨星鲟",
+    "latin": "",
+    "form": "a long spindle-shaped body with rows of angular scute plates, a conical snout, a small inferior mouth, four barbels before the mouth",
+    "fins": "a dorsal fin set far back, a heterocercal tail fin",
+    "markings": "five rows of faceted scutes running along the body, a sparse line of luminous pores along the flank",
+    "colour": "岩灰底、星斑微光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS48": {
+    "name": "星屑章鱼",
+    "latin": "",
+    "form": "a slender tapered mantle with faintly faceted panels, a rounded head with two large eyes, eight short arms and two long tentacles",
+    "fins": "a pair of small triangular fins at the mantle tip",
+    "markings": "a sparse scatter of luminous chromatophore dots across the mantle, a faint ringed pattern around each eye",
+    "colour": "深紫底、星屑白点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS49": {
+    "name": "星陨旗鱼",
+    "latin": "",
+    "form": "an elongated torpedo-shaped body with crisp bevelled edges, a long pointed bill, a short blunt head",
+    "fins": "a very tall sail-like first dorsal fin, a long slender pelvic fin, a crescent tail fin",
+    "markings": "a row of faint vertical bars along the flank, a single line of luminous pores tracing the bill",
+    "colour": "午夜蓝底、星尘银纹",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS50": {
+    "name": "星核龙鱼",
+    "latin": "",
+    "form": "a sinuous serpentine body with faintly faceted scales, a tapered head, a pair of rearward-swept horns, a single luminous core node at the throat",
+    "fins": "a low continuous dorsal crest of evenly spaced spines, a pair of long trailing whisker tendrils",
+    "markings": "a row of evenly spaced luminous nodes along the spine, a halo ring behind the head",
+    "colour": "深靛底、核心金辉",
+    "source": "fictional",
+    "unknown": false
+  }
+}

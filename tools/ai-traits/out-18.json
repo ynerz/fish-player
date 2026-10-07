@@ -1,0 +1,102 @@
+{
+  "S51": {
+    "name": "黑口鱼",
+    "latin": "",
+    "form": "a body covered with scales, teeth in several rows on both jaws",
+    "fins": "the dorsal fin origin in front of the anal fin origin, the first pectoral fin ray not elongated into a filament",
+    "markings": "",
+    "colour": "",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S52": {
+    "name": "巨尾鱼",
+    "latin": "",
+    "form": "an elongated laterally compressed body of medium size, a large head, a medium-sized snout protruding at the front with the snout length about equal to the eye diameter, a large oblique mouth with the upper jaw extending below the eye and the lower jaw slightly protruding beyond the upper, villiform tooth bands on both jaws, thin cycloid scales that shed easily, a complete lateral line",
+    "fins": "a single dorsal fin in front of the middle with 12 to 13 soft rays and an adipose fin behind it, an anal fin base about equal to the dorsal fin base with 12 to 13 soft rays, elongated pectoral fins reaching the anus, a forked tail fin",
+    "markings": "rows of photophores along the flanks, the belly and the isthmus",
+    "colour": "",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S53": {
+    "name": "褶胸鱼",
+    "latin": "",
+    "form": "a small extremely laterally compressed body that is narrow and linear when viewed from above, a straight back, a very prominent belly giving a stone-axe profile in side view, large eyes, a superior mouth, a trunk slightly taller than long",
+    "fins": "a posteriorly placed dorsal fin, a long forked tail fin with rays of equal length, very large pectoral fins",
+    "markings": "a lateral pigment stripe on the head and upper side, a wide band along the edge of the base of the tail fin",
+    "colour": "体色朴素单纯，鱼鳍透明",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S54": {
+    "name": "孔灯鱼",
+    "latin": "",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": true
+  },
+  "S55": {
+    "name": "大鳍后肛鱼",
+    "latin": "Macropinna microstoma",
+    "form": "a deep stout body, a transparent fluid-filled head, large tubular eyes directed upward, a small mouth at the tip of the snout",
+    "fins": "large pectoral fins, small dorsal and anal fins set far back near the tail",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  },
+  "S56": {
+    "name": "狼牙鲷",
+    "latin": "",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": true
+  },
+  "S57": {
+    "name": "角高体金眼鲷",
+    "latin": "",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": true
+  },
+  "S58": {
+    "name": "海沟幽灵·大王乌贼",
+    "latin": "Architeuthis dux",
+    "form": "a huge body with a mantle about 4 m long, long arms and two long feeding tentacles reaching 10 m or more",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S59": {
+    "name": "海沟幽魂·无光鲸",
+    "latin": "",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": true
+  },
+  "S60": {
+    "name": "海沟之主·深渊巨鲨",
+    "latin": "",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": true
+  }
+}

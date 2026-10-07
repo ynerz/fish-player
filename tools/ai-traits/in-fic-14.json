@@ -1,0 +1,86 @@
+{
+ "batch": 14,
+ "kind": "fictional",
+ "items": [
+  {
+   "id": "SSS51",
+   "name": "星轨魟",
+   "shape": "ray",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS52",
+   "name": "时刻鲳",
+   "shape": "fish",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS53",
+   "name": "时间龙鱼",
+   "shape": "dragon",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS54",
+   "name": "终焉鲨",
+   "shape": "shark",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS55",
+   "name": "永恒鲸",
+   "shape": "whale",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS56",
+   "name": "原初蛇颈龙",
+   "shape": "whale",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS57",
+   "name": "星尘巨魟",
+   "shape": "ray",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS58",
+   "name": "时光褶皱·虚空鲸",
+   "shape": "whale",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS59",
+   "name": "纪元褶皱·深渊鲸",
+   "shape": "whale",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  },
+  {
+   "id": "SSS60",
+   "name": "逆熵巨鱿",
+   "shape": "squid",
+   "maxKg": 0,
+   "bodyRatio": 0,
+   "ref": ""
+  }
+ ]
+}

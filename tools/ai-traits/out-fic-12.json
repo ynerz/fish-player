@@ -1,0 +1,102 @@
+{
+  "SSS31": {
+    "name": "遗光鲹",
+    "latin": "",
+    "form": "a fusiform body with a rounded belly, a pointed conical head, a small terminal mouth, cycloid scales, a slightly curved lateral line, a narrow compressed caudal peduncle",
+    "fins": "a long dorsal fin with a low anterior lobe, a deeply forked tail fin, long sickle-shaped pectoral fins",
+    "markings": "a row of small scutes along the caudal peduncle, a few luminous points on the upper flank",
+    "colour": "暗金灰、余光亮点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS32": {
+    "name": "空时鳕",
+    "latin": "",
+    "form": "an elongated slightly compressed body, a large head, a short blunt snout, a terminal mouth, a single chin barbel, small cycloid scales, a curved lateral line, a narrow caudal peduncle",
+    "fins": "three separate dorsal fins, two separate anal fins, a slightly rounded tail fin, pointed pectoral fins",
+    "markings": "a faint marbled pattern along the upper flank, sparse luminous pores on the head",
+    "colour": "空青灰、虚空微光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS33": {
+    "name": "逆时鳗",
+    "latin": "",
+    "form": "a slender ribbon-like body of oval cross-section, a small pointed head, a short tapered snout, a small terminal mouth, minute embedded scales, a row of short ring marks along the flank",
+    "fins": "a low continuous dorsal fin fusing with the tail fin, no pectoral fins",
+    "markings": "a row of short concentric ring marks along the flank",
+    "colour": "逆流墨青、环纹微光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS34": {
+    "name": "千年纪鱼",
+    "latin": "",
+    "form": "an oval laterally compressed body with a slightly arched back, a medium-sized head, a short blunt snout, a small terminal mouth, cycloid scales, a complete lateral line, a narrow caudal peduncle",
+    "fins": "a long dorsal fin with low spines, a slightly forked tail fin, fan-shaped pectoral fins",
+    "markings": "a series of thin stacked rings along the flank",
+    "colour": "纪年褐、层叠年轮",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS35": {
+    "name": "虚空旗鱼",
+    "latin": "",
+    "form": "an elongated fusiform body with a long slender bill, a pointed conical head, a small mouth, small embedded scales, a straight lateral line, a narrow keeled caudal peduncle",
+    "fins": "a tall sail-like dorsal fin, a deeply forked tail fin, long slender pectoral fins",
+    "markings": "a row of short vertical bars along the flank",
+    "colour": "虚空深蓝、星屑切面",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS36": {
+    "name": "纪元鲟",
+    "latin": "",
+    "form": "an elongated cylindrical body with a flattened snout, a long pointed rostrum, a small inferior mouth, four barbels before the mouth, a row of bony scutes along the back, a short caudal peduncle",
+    "fins": "a dorsal fin set far back, a heterocercal tail fin, large pectoral fins",
+    "markings": "a row of angular scutes along the back and flank",
+    "colour": "纪元灰褐、骨甲浅缘",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS37": {
+    "name": "黄昏鳐",
+    "latin": "",
+    "form": "a flat diamond-shaped disc with a gently scalloped wing margin, a short blunt snout, a pair of small eyes set close together, a slender whip-like tail",
+    "fins": "large wing-like pectoral fins fused to the head, a low ridge running along the tail",
+    "markings": "a soft gradient of fine points spreading from the disc center",
+    "colour": "黄昏紫灰、暮色渐层",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS38": {
+    "name": "暗物质水母",
+    "latin": "",
+    "form": "a smooth hemispherical bell of translucent glass-like membrane, a gently scalloped bell margin, tentacles arranged in two distinct even rows, a short central stalk",
+    "fins": "",
+    "markings": "a single dense knot of luminous points at the bell center",
+    "colour": "暗物质墨黑、核心亮点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS39": {
+    "name": "回响鲷",
+    "latin": "",
+    "form": "a deep oval laterally compressed body with a steep forehead, a large blunt head, a small mouth, the upper jaw slightly longer than the lower, ctenoid scales, a complete lateral line, a narrow caudal peduncle",
+    "fins": "a single long dorsal fin with low spines, a slightly forked tail fin, long pointed pectoral fins",
+    "markings": "a series of nested arcs echoing across the flank",
+    "colour": "回响灰褐、银白弧线",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS40": {
+    "name": "时空褶皱·空棘鱼",
+    "latin": "",
+    "form": "a stout oval body with a thick rounded head, a blunt snout, a large terminal mouth, cosmoid scales, a straight lateral line, a thick fleshy caudal peduncle",
+    "fins": "a single dorsal fin, a large rounded tail fin with a central lobe, thick fleshy lobe-like pectoral fins",
+    "markings": "a scattering of folded patches along the flank",
+    "colour": "褶皱深橄榄、时间层叠",
+    "source": "fictional",
+    "unknown": false
+  }
+}

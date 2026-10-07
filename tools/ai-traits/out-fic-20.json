@@ -1,0 +1,92 @@
+{
+  "S48": {
+    "name": "深海巨型鳐",
+    "latin": "",
+    "form": "a very wide diamond disc with a broad wing span, a pair of short cephalic lobes, a long thin whip-like tail, smooth matte skin",
+    "fins": "broad wing-like pectoral fins fused to the disc, a small dorsal fin near the tail base",
+    "markings": "a sparse row of luminous pores along the wing margin",
+    "colour": "深海底栖灰褐底、翼缘微光，腹面浅",
+    "source": "fictional",
+    "unknown": false
+  },
+  "S50": {
+    "name": "深海鳚",
+    "latin": "",
+    "form": "a slender elongated body, a blunt rounded head, a small terminal mouth, large eyes set high, no barbels, naked skin with no scales",
+    "fins": "a long continuous dorsal fin with a shallow notch, a long anal fin, small pectoral fins",
+    "markings": "faint vertical bars crossing the flank",
+    "colour": "海底泥青底、腹部浅，眼周深色",
+    "source": "fictional",
+    "unknown": false
+  },
+  "S54": {
+    "name": "孔灯鱼",
+    "latin": "",
+    "form": "a small compact body, a large head, a short blunt snout, large eyes, a large luminous organ set below the eye",
+    "fins": "a short dorsal fin, a short anal fin, small pectoral fins, a slightly forked tail fin",
+    "markings": "a row of luminous pores along the flank, a luminous patch below the eye",
+    "colour": "深蓝底、眼下灯点冷青，体侧星屑",
+    "source": "fictional",
+    "unknown": false
+  },
+  "S56": {
+    "name": "狼牙鲷",
+    "latin": "",
+    "form": "a deep laterally compressed body, a large head, a moderate eye, a row of exposed fangs along both jaws, ctenoid scales",
+    "fins": "a spiny dorsal fin with stout front spines, a short anal fin with two spines, a forked tail fin",
+    "markings": "a line of pores along the head, a blotch at the base of the tail fin",
+    "colour": "深鲷青底、棘缘冷金，牙列象牙白",
+    "source": "fictional",
+    "unknown": false
+  },
+  "S57": {
+    "name": "角高体金眼鲷",
+    "latin": "",
+    "form": "a deep diamond-shaped body, a steep forehead with a short frontal crest, a very large eye, a small terminal mouth, ctenoid scales",
+    "fins": "a long spiny dorsal fin, a short anal fin, a forked tail fin",
+    "markings": "a row of raised spines along the back, a spot at the base of the tail fin",
+    "colour": "深海青底、大眼冷金环，背棘浅灰",
+    "source": "fictional",
+    "unknown": false
+  },
+  "S59": {
+    "name": "海沟幽魂·无光鲸",
+    "latin": "",
+    "form": "a massive rounded body, a broad blunt head, deep parallel throat pleats, a smooth matte hide that barely reflects light",
+    "fins": "long slim pectoral flippers, a small set-back dorsal fin, a wide notched horizontal fluke",
+    "markings": "a sparse scattering of faint luminous points across the back",
+    "colour": "幽魂墨黑底、几乎无光，腹面深灰",
+    "source": "fictional",
+    "unknown": false
+  },
+  "S60": {
+    "name": "海沟之主·深渊巨鲨",
+    "latin": "",
+    "form": "a massive heavy body, a broad streamlined head with a short tapered snout, wide jaws lined with rows of triangular teeth, five long gill slits",
+    "fins": "a tall triangular dorsal fin, long swept pectoral fins, a crescent tail fin with a long upper lobe",
+    "markings": "faint ridge lines banding the flanks",
+    "colour": "深渊漆黑底、吸光哑面，牙列冷白",
+    "source": "fictional",
+    "unknown": false
+  },
+  "S61": {
+    "name": "幽蓝海心·鬼灯笼",
+    "latin": "",
+    "form": "a very deep rounded body, a very large head, an enormous upward-gaping mouth, extremely long fangs, a large bulbous lure hanging on a long rod over the snout",
+    "fins": "small rounded pectoral fins, a short dorsal fin, a rounded tail fin",
+    "markings": "a large luminous lure over the snout, a row of pores along the jaw",
+    "colour": "幽蓝黑底、诱饵冷蓝光，牙尖惨白",
+    "source": "fictional",
+    "unknown": false
+  },
+  "S62": {
+    "name": "海沟终焉·原始巨口鲨",
+    "latin": "",
+    "form": "a massive deep body, a broad head with a short tapered snout, an enormous gape mouth reaching far back, small teeth in many rows, five long gill slits",
+    "fins": "a rounded dorsal fin set far back, large swept pectoral fins, a long crescent tail fin",
+    "markings": "a row of luminous pores along the flank",
+    "colour": "终焉墨青底、巨口冷白内衬，背脊深纹",
+    "source": "fictional",
+    "unknown": false
+  }
+}

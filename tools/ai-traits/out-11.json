@@ -1,0 +1,102 @@
+{
+ "A27": {
+  "name": "大黄鱼",
+  "latin": "Larimichthys crocea",
+  "form": "a blunt pointed snout, an oblique mouth, the lower jaw slightly protruding, small scales with 8-9 rows between the dorsal fin origin and the lateral line",
+  "fins": "an elongated pointed tail fin, somewhat wedge-shaped",
+  "markings": "",
+  "colour": "体黄褐色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A28": {
+  "name": "鮸鱼",
+  "latin": "",
+  "form": "no barbel on the chin, small eyes set high on the sides, a large terminal oblique mouth with both jaws about equal in length, canine-like teeth on both jaws, cycloid scales from the snout to the gill cover and ctenoid scales behind, a large gill opening",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A29": {
+  "name": "牙鲆",
+  "latin": "",
+  "form": "mainly cycloid scales, scales on the tail fin, 1-2 rows of scales on the left side of the dorsal and anal fins, no scales on the snout, jaws or interorbital space, a lateral line with about 108-120 scales, 11+25-28 vertebrae",
+  "fins": "a dorsal fin starting on the right side of the snout in front of the upper eye, an anal fin starting below the base of the pectoral fins and similar in shape to the dorsal fin, short pelvic fins at the throat, pectoral fins on the outer side",
+  "markings": "a pupil-sized spot at the middle of the lateral line and around its front end, ring-shaped markings or spots on other parts",
+  "colour": "无眼侧白色，鱼鳍淡黄色，胸鳍有黄褐色横细点纹",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A30": {
+  "name": "许氏平鲉",
+  "latin": "",
+  "form": "low dorsal ridges on the head ending in a sharp spine at the rear, a wide flat interorbital space about equal to the eye diameter, no scales on the jaws, preorbital or gill cover, three blunt spines on the lower edge of the preorbital, slender gill rakers, bands of fine teeth on the jaws, vomer and palatine",
+  "fins": "a dorsal fin with 13-14 spines",
+  "markings": "",
+  "colour": "",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A31": {
+  "name": "鬼鲉",
+  "latin": "",
+  "form": "a smooth scaleless body, a stout front part, a medium-length broad head slightly flattened, small round eyes, a wide deeply sunken interorbital space, a long broad rounded snout, teeth on the upper and lower jaws and vomer but none on the palatine, a broad thick tongue, a wide gill opening, well-developed pseudobranch, no nasal spines, 27-29 vertebrae, no swim bladder",
+  "fins": "a broad pectoral fin, spines on the fins and head bearing venom glands, an elongated rounded tail fin about as long as the body depth",
+  "markings": "mottling and spots scattered over the body, spots scattered on the tail fin",
+  "colour": "体黑褐色，腹膜白色，鳍黑褐色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A32": {
+  "name": "鲬鱼",
+  "latin": "Platycephalus indicus",
+  "form": "an elongated depressed body, a large flattened head, eyes set on the upper side of the head, a large mouth, ctenoid scales",
+  "fins": "two dorsal fins, a rounded tail fin, large pectoral fins",
+  "markings": "",
+  "colour": "体背黄褐色具暗色斑纹，腹部浅色",
+  "source": "model",
+  "unknown": false
+ },
+ "A33": {
+  "name": "鱿鱼",
+  "latin": "",
+  "form": "a small head, a somewhat elongated conical body, eight arms each with two rows of suckers, two tentacles each with four rows of suckers",
+  "fins": "two muscular fins joined at the rear of the body into a diamond shape",
+  "markings": "",
+  "colour": "皮肤下有黑色、黄色和红色色素细胞，可变换体色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A34": {
+  "name": "金枪鱼",
+  "latin": "",
+  "form": "a spindle-shaped body, a medium-sized mouth, the upper jaw not covered by the preorbital, sharp conical teeth on the jaws, teeth on the vomer and palatine, small cycloid scales on the body with larger scales on the chest, a slender caudal peduncle with three longitudinal ridges on each side",
+  "fins": "two dorsal fins set close together, small finlets behind the dorsal and anal fins, 30-36 pectoral fin rays, small pelvic fin processes split into two lobes, a crescent-shaped tail fin",
+  "markings": "",
+  "colour": "",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A35": {
+  "name": "旗鱼",
+  "latin": "Istiophorus platypterus",
+  "form": "an elongated fusiform body, a very long slender rounded bill, a huge sail-like first dorsal fin, a narrow caudal peduncle with two keels, a slender crescent-shaped tail",
+  "fins": "a huge sail-like first dorsal fin, a slender crescent-shaped tail fin",
+  "markings": "",
+  "colour": "",
+  "source": "model",
+  "unknown": false
+ },
+ "A36": {
+  "name": "剑鱼",
+  "latin": "Xiphias gladius",
+  "form": "an elongated cylindrical body, a long flattened sword-like snout, no teeth in adults, naked skin without scales in adults",
+  "fins": "two dorsal fins, long pectoral fins, a large crescent-shaped tail fin",
+  "markings": "",
+  "colour": "体背暗褐色至蓝灰色，腹部银白色",
+  "source": "model",
+  "unknown": false
+ }
+}

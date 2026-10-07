@@ -254,6 +254,16 @@ def is_blocked(doc):
 ALIAS_MARKS = ("又名", "又称", "亦称", "俗称", "别名", "也叫", "又叫")
 
 
+# ⛔ **页面自证也不采的反例**（附理由，防止以后有人「顺手」把它挪出去）。
+#    判据不是「页面有没有自称」，而是「中文正名到底指谁」。
+ALIAS_DENY = {
+    "灯笼鱼": "中文正名「灯笼鱼」= **灯笼鱼科 Myctophidae**（带发光器的小型深海鱼）。"
+              "而 `深海鮟鱇` 页面自称「俗称灯笼鱼」—— 那是**另一种鱼**（鮟鱇目）。"
+              "收了会让 S02 与 S25 鮟鱇鱼 / S26 角鮟鱇 的形态撞车，"
+              "而这两个名字本来要靠形状区分 → **宁可留空**。",
+}
+
+
 def self_declared_alias(name, summary):
     """页面是否**自己声明**了「又称 `<name>`」。
 
@@ -263,6 +273,8 @@ def self_declared_alias(name, summary):
          它属于另一个名字「金鲫鱼」。**这正是 `鲫鱼` 会被误判成 `金鱼` 的那条路径**，
          一条宽松的子串判定会把它放进来。
     """
+    if name in ALIAS_DENY:
+        return False
     for m in ALIAS_MARKS:
         if re.search(re.escape(m) + r"[\s、，,（(]*" + re.escape(name), summary):
             return True

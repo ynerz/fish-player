@@ -1,0 +1,102 @@
+{
+  "C15": {
+    "name": "褐鳟",
+    "latin": "Salmo trutta",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "grounded",
+    "unknown": true
+  },
+  "C16": {
+    "name": "溪石斑",
+    "latin": "",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": true
+  },
+  "C17": {
+    "name": "唇䱻",
+    "latin": "Hemibarbus labeo",
+    "form": "a rather large head, large eyes, an inferior horseshoe-shaped mouth, developed gill rakers, small scales, a complete lateral line",
+    "fins": "the last unbranched dorsal fin ray soft; no spine in the pectoral fins; pelvic fins set slightly behind the dorsal fin origin; a rather long anal fin reaching almost to the base of the tail fin; a deeply forked tail fin",
+    "markings": "",
+    "colour": "",
+    "source": "grounded",
+    "unknown": false
+  },
+  "C18": {
+    "name": "吻鰕虎",
+    "latin": "",
+    "form": "an elongated body, a nearly cylindrical anterior part, a laterally compressed posterior part, a large slightly flattened head, a terminal mouth, several rows of small teeth at the front of the jaws, no canine teeth, a well-developed free tongue with a rounded tip, two separate nostrils on each side",
+    "fins": "two separate dorsal fins set close together, the first dorsal fin made up entirely of spines, the left and right pelvic fins fused into an oval suction disc on the belly, a rounded tail fin",
+    "markings": "irregular worm-like lines on the head, 4 to 6 oblique stripes running down and forward on the cheek, 6 to 7 irregular blotches along the flanks, a spot above the base of the pectoral fin, stripes made of spots on the dorsal and tail fins",
+    "colour": "体背淡黄色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "C19": {
+    "name": "白甲鱼",
+    "latin": "Onychostoma simum",
+    "form": "a spindle-shaped laterally compressed body, a short broad head, a blunt forward-projecting snout, a rather wide arcuate mouth, a naked lower jaw with a sharp horny front edge, a complete lateral line, a rather high caudal peduncle",
+    "fins": "",
+    "markings": "",
+    "colour": "背部为黄褐色，腹部灰白色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "C20": {
+    "name": "山女鳟",
+    "latin": "Oncorhynchus masou",
+    "form": "an elongated laterally compressed body, small scales covering the body except the head, relatively large eyes, a protruding beak-like snout, a terminal mouth, upper and lower jaws not meeting",
+    "fins": "a dorsal fin set far back, short small pectoral fins, pelvic fins set far from the pectoral fins, a crescent-shaped tail fin",
+    "markings": "8 to 10 elongated oval blotches along the lateral line",
+    "colour": "体背呈暗青色，腹部呈银白色，体侧沿侧线分布着紫黑色斑纹",
+    "source": "grounded",
+    "unknown": false
+  },
+  "C21": {
+    "name": "台湾铲颌鱼",
+    "latin": "",
+    "form": "a moderately elongated body about three to four times as long as deep, a head about one fifth of the body length, a snout about one third of the head length, a caudal peduncle about twice as long as deep, 45 to 47 scales along the lateral line",
+    "fins": "a dorsal fin with 4 spines and 8 soft rays, an anal fin with 3 spines and 5 soft rays, pectoral fins with 14 to 16 rays, pelvic fins with 2 spines and 8 to 9 rays",
+    "markings": "",
+    "colour": "",
+    "source": "grounded",
+    "unknown": false
+  },
+  "C22": {
+    "name": "中华刺鳅",
+    "latin": "",
+    "form": "a pointed elongated head, a long pointed snout tip, round large protruding eyes, a spine in front of the eye, small scales covering the body, 29 to 36 spines along the back, 3 sharp spines behind the genital opening",
+    "fins": "the dorsal, anal and tail fins joined continuously",
+    "markings": "several longitudinal rows of markings on the body, a broad margin along the lower lobe of the anal fin, a stripe at the outermost edge",
+    "colour": "臀鳍下叶边缘有明显的深黑色边裙，最边缘有1条金黄色彩带",
+    "source": "grounded",
+    "unknown": false
+  },
+  "C23": {
+    "name": "福建小鳔鮈",
+    "latin": "Microphysogobio fukiensis",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "grounded",
+    "unknown": true
+  },
+  "C24": {
+    "name": "溪灵·金线鲃",
+    "latin": "",
+    "form": "an elongated laterally compressed body, a pointed slender snout, eyes set at the middle of the sides of the head, many sensory pores on the head forming lines, enlarged scales along the lateral line",
+    "fins": "a forked tail fin, a dorsal fin with a serrated bony spine, the outer margin of the dorsal fin slightly concave or truncate, the last unbranched dorsal ray thick and hard at the base with a serrated rear edge and a soft segmented tip, the dorsal fin origin slightly behind the pelvic fin origin",
+    "markings": "a row of round spots along the lateral line, lines on the head formed by sensory pores",
+    "colour": "身体呈黄褐色，背部略呈青灰色，各鳍均为金黄色，沿着侧线有一列褐色的圆斑",
+    "source": "grounded",
+    "unknown": false
+  }
+}

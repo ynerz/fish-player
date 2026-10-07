@@ -1,0 +1,102 @@
+{
+  "SSS21": {
+    "name": "年轮鲷",
+    "latin": "",
+    "form": "a deep oval laterally compressed body with a steep forehead, a large blunt head, a small mouth, ctenoid scales, a complete lateral line, a narrow caudal peduncle",
+    "fins": "a single long dorsal fin with low spines, a slightly forked tail fin, long pointed pectoral fins",
+    "markings": "a series of concentric rings spreading from the flank, a spot at the base of the tail",
+    "colour": "木褐年轮、浅金底",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS22": {
+    "name": "未时鰕虎",
+    "latin": "",
+    "form": "an elongated cylindrical body with a slightly depressed head, a broad blunt snout, a large terminal mouth, the eyes set high and close together, cycloid scales, no lateral line, a slender caudal peduncle",
+    "fins": "two separate dorsal fins, the first with thin spines, a rounded tail fin, broad rounded pectoral fins",
+    "markings": "a row of small square blocks along the upper flank",
+    "colour": "未时琥珀褐、细砂白",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS23": {
+    "name": "星轨鳗",
+    "latin": "",
+    "form": "a slender ribbon-like body of rounded cross-section, a small pointed head, a short tapered snout, a small terminal mouth, minute embedded scales, a row of subtle luminous pores along the flank",
+    "fins": "a low continuous dorsal fin fusing with the tail fin, no pectoral fins",
+    "markings": "a line of evenly spaced luminous points along the flank",
+    "colour": "深靛底、星轨银点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS24": {
+    "name": "虚空鲽",
+    "latin": "",
+    "form": "a deep oval laterally compressed body with a low head, both eyes set close together near the upper edge, a small mouth, a curved lateral line, a short caudal peduncle",
+    "fins": "a long dorsal fin running the full length of the body, a matching long anal fin, a rounded tail fin",
+    "markings": "a scattering of sparse luminous points across the upper surface",
+    "colour": "虚空墨蓝、稀疏星点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS25": {
+    "name": "昨日鲹",
+    "latin": "",
+    "form": "a fusiform body with a rounded belly, a pointed conical head, a small terminal mouth, cycloid scales, a slightly curved lateral line, a narrow compressed caudal peduncle",
+    "fins": "a long dorsal fin with a low anterior lobe, a deeply forked tail fin, long sickle-shaped pectoral fins",
+    "markings": "a row of small scutes along the caudal peduncle, a faint diagonal stripe on the upper flank",
+    "colour": "褪色蓝灰、昨日金线",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS26": {
+    "name": "远景鲳",
+    "latin": "",
+    "form": "a deep oval laterally compressed body with smooth bevelled edges, a small blunt head, a short snout, a small terminal mouth, a slender compressed caudal peduncle",
+    "fins": "a long dorsal fin, a matching long anal fin, a deeply forked tail fin, long slender pectoral fins",
+    "markings": "a single thin vertical band crossing the flank",
+    "colour": "远景青灰、地平线白",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS27": {
+    "name": "回响鲻",
+    "latin": "",
+    "form": "an elongated cylindrical body with a slightly flattened back, a small conical head, a short blunt snout, a small inferior mouth, cycloid scales, a faint incomplete lateral line, a slender caudal peduncle",
+    "fins": "two separate short dorsal fins, a forked tail fin, pointed pectoral fins set high on the flank",
+    "markings": "a row of faint longitudinal lines along the flank",
+    "colour": "灰青底、回响银线",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS28": {
+    "name": "初光鲻",
+    "latin": "",
+    "form": "an elongated cylindrical body with a slightly flattened back, a small conical head, a short blunt snout, a small inferior mouth, cycloid scales, a faint incomplete lateral line, a slender caudal peduncle",
+    "fins": "two separate short dorsal fins, a forked tail fin, pointed pectoral fins set high on the flank",
+    "markings": "a row of faint luminous points along the upper flank",
+    "colour": "初光青白、第一道光金",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS29": {
+    "name": "遗迹鳐",
+    "latin": "",
+    "form": "a flat diamond-shaped disc with a gently scalloped wing margin, a short blunt snout, a pair of small eyes set close together, a slender whip-like tail",
+    "fins": "large wing-like pectoral fins fused to the head, a low ridge running along the tail",
+    "markings": "eroded angular patches scattered across the disc",
+    "colour": "石灰褐、风化浅缘",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS30": {
+    "name": "尘光水母",
+    "latin": "",
+    "form": "a smooth hemispherical bell of translucent glass-like membrane, a gently scalloped bell margin, tentacles arranged in two distinct even rows, a short central stalk",
+    "fins": "",
+    "markings": "a ring of sparse luminous points around the bell margin",
+    "colour": "尘灰蓝、微光星屑点",
+    "source": "fictional",
+    "unknown": false
+  }
+}

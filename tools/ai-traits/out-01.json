@@ -1,0 +1,102 @@
+{
+ "D01": {
+  "name": "麦穗鱼",
+  "latin": "Pseudorasbora parva",
+  "form": "a slightly depressed anterior body, a small superior mouth with a nearly vertical gape, thin lips, no barbels",
+  "fins": "a dorsal fin with soft unbranched rays and no spines, the dorsal fin origin slightly behind the pelvic fin origin, short small pectoral and pelvic fins, a forked tail fin",
+  "markings": "crescent-shaped marks along the rear edge of the scales, a longitudinal band along the flank in juveniles",
+  "colour": "体背部灰黑色，腹部银白色；腹膜银灰色而有小黑点；幼鱼体侧常有暗色纵带",
+  "source": "grounded",
+  "unknown": false
+ },
+ "D02": {
+  "name": "白条",
+  "latin": "Hemiculter leucisculus",
+  "form": "an elongated laterally compressed body, a slightly arched back, a small pointed head, an upward-directed mouth, no barbels, cycloid scales, a complete lateral line, a narrow caudal peduncle",
+  "fins": "a short dorsal fin with a spine, a deeply forked tail fin",
+  "markings": "",
+  "colour": "体背青灰色，体侧及腹部银白色",
+  "source": "model",
+  "unknown": false
+ },
+ "D03": {
+  "name": "鲫鱼",
+  "latin": "Carassius auratus",
+  "form": "a deep laterally compressed body, a slightly arched back, a small head, a short blunt snout, a terminal mouth, no barbels, cycloid scales, a complete lateral line",
+  "fins": "a long dorsal fin with a stout serrated spine, a deeply forked tail fin",
+  "markings": "",
+  "colour": "体背灰黑色，体侧银灰色，腹部白色",
+  "source": "model",
+  "unknown": false
+ },
+ "D04": {
+  "name": "泥鳅",
+  "latin": "Misgurnus anguillicaudatus",
+  "form": "an elongated body with a cylindrical anterior part and a laterally compressed posterior part, a pointed head, five pairs of barbels, small degenerate eyes",
+  "fins": "",
+  "markings": "",
+  "colour": "体背部及两侧深灰色，腹部灰白色或浅黄色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "D05": {
+  "name": "鳑鲏",
+  "latin": "",
+  "form": "a small body, a small mouth, no barbels at the corners of the mouth, an incomplete lateral line, no ventral keel, a short caudal peduncle",
+  "fins": "a forked tail fin",
+  "markings": "a longitudinal band along the caudal peduncle",
+  "colour": "体侧尾柄处有深色纵带",
+  "source": "grounded",
+  "unknown": false
+ },
+ "D06": {
+  "name": "食蚊鱼",
+  "latin": "Gambusia affinis",
+  "form": "an elongated slightly compressed body, a short broad head, a flattened anterior head, a short snout, large eyes, a wide flat interorbital space, a small superior mouth with a horizontal gape, no barbels, cycloid scales on head and body, no lateral line, a broad long flattened caudal peduncle",
+  "fins": "small pectoral and pelvic fins, the pelvic fins set very close to the anal fin, a large dorsal fin, a large rounded tail fin, the third to fifth anal fin rays elongated into a rod-shaped gonopodium in males",
+  "markings": "",
+  "colour": "体色青灰",
+  "source": "grounded",
+  "unknown": false
+ },
+ "D07": {
+  "name": "塘鳢",
+  "latin": "",
+  "form": "an elongated stout body, a large broad flat head, a wide short snout, medium-sized scales, no lateral line",
+  "fins": "",
+  "markings": "3 to 4 irregular vertical bands crossing the flanks, markings on the head and underside, banded fins",
+  "colour": "体色黑褐，各鳍有淡黄色和黑色相间的条纹",
+  "source": "grounded",
+  "unknown": false
+ },
+ "D08": {
+  "name": "小龙虾",
+  "latin": "",
+  "form": "",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "model",
+  "unknown": true
+ },
+ "D09": {
+  "name": "黄颡鱼",
+  "latin": "Pelteobagrus fulvidraco",
+  "form": "a large flat head, a short snout, a large inferior mouth, four pairs of barbels, naked skin with no scales, a complete lateral line",
+  "fins": "",
+  "markings": "three interrupted bands along the flanks",
+  "colour": "体背部黑褐色，体侧黄色，腹部淡黄色，各鳍灰黑色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "D10": {
+  "name": "小鲤鱼",
+  "latin": "Cyprinus carpio",
+  "form": "a deep laterally compressed body, a slightly arched back, a moderate-sized head, a short blunt snout, a terminal mouth, two pairs of barbels, cycloid scales, a complete lateral line",
+  "fins": "a long dorsal fin with a stout serrated spine, a deeply forked tail fin",
+  "markings": "",
+  "colour": "体背灰黑或黄褐色，体侧金黄色，腹部白色",
+  "source": "model",
+  "unknown": false
+ }
+}

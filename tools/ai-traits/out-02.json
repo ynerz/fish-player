@@ -1,0 +1,102 @@
+{
+  "D11": {
+    "name": "黄鳝",
+    "latin": "Monopterus albus",
+    "form": "an elongated cylindrical eel-like body, a short stout head, small eyes, a relatively large mouth, smooth scaleless skin, the left and right gill openings merged into a single V-shaped opening on the underside of the head",
+    "fins": "no pectoral or pelvic fins in adults, the dorsal and anal fins reduced to low skin folds",
+    "markings": "irregular markings on the underside, small spots on the body",
+    "colour": "体背灰黑色，腹部灰白色，有黑色点斑",
+    "source": "grounded",
+    "unknown": false
+  },
+  "D12": {
+    "name": "青虾虎",
+    "latin": "Ptereleotris heteroptera",
+    "form": "an elongated oval body",
+    "fins": "",
+    "markings": "a prominent spot on the tail fin",
+    "colour": "体色淡蓝色或绿色，尾巴上带有很明显的黑斑",
+    "source": "grounded",
+    "unknown": false
+  },
+  "D13": {
+    "name": "金鲫",
+    "latin": "",
+    "form": "a spindle-shaped body, a deep laterally compressed body, medium-sized scales, cycloid scales except on the head, a complete straight lateral line",
+    "fins": "pelvic fins set slightly ahead of the dorsal fin origin, pelvic fins similar in shape to the pectoral fins, a deeply forked tail fin with rounded lobe tips",
+    "markings": "",
+    "colour": "体背部灰黑色、微绿，体侧银灰色或带黄绿色，腹部白色，背鳍和尾鳍与背部同色，胸、腹和臀鳍灰色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "D14": {
+    "name": "老塘草鱼",
+    "latin": "Ctenopharyngodon idella",
+    "form": "an elongated body, an almost cylindrical anterior part, a laterally compressed tail region, a rounded belly, no ventral keel, a broad medium-sized head, a slightly flattened anterior head, a short blunt snout, medium-sized cycloid scales, a lateral line curved anteriorly and straight posteriorly",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "grounded",
+    "unknown": false
+  },
+  "D15": {
+    "name": "圆尾斗鱼",
+    "latin": "Macropodus ocellatus",
+    "form": "a body covered with scales, cycloid scales on the head, ctenoid scales on the flanks",
+    "fins": "long large dorsal and anal fins, pelvic fins set below the pectoral region, a rounded tail fin; in mature males the posterior rays of the dorsal and anal fins are longer",
+    "markings": "vertical bands crossing the flanks",
+    "colour": "身体呈黑褐色，腹鳍呈灰褐色，胸鳍为淡黄色，奇鳍为微红色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "D16": {
+    "name": "塘主的大青鱼",
+    "latin": "Mylopharyngodon piceus",
+    "form": "an elongated body, a slightly compressed body, a rounded belly, no ventral keel, a broad blunt head, a terminal mouth, no barbels, large cycloid scales, a complete lateral line",
+    "fins": "a long dorsal fin with no spines, a forked tail fin",
+    "markings": "",
+    "colour": "体背青黑色，体侧青灰色，腹部灰白色",
+    "source": "model",
+    "unknown": false
+  },
+  "C01": {
+    "name": "溪哥",
+    "latin": "",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "grounded",
+    "unknown": true
+  },
+  "C02": {
+    "name": "马口鱼",
+    "latin": "Opsariichthys bidens",
+    "form": "an elongated slightly compressed body, a hump behind the head, a narrow caudal peduncle, a rounded belly, a large rounded head, a short broad snout with a pointed tip, a large wide terminal mouth sloping downward, a pair of short barbels at the corners of the mouth, fine small scales",
+    "fins": "the first to fourth branched anal fin rays elongated in males, nuptial tubercles on the head, pectoral and anal fins in the breeding season",
+    "markings": "over ten bands crossing the flanks",
+    "colour": "雄性体背部灰黑色，腹部银白色，胸鳍橙黄色；雌性身体无蓝色条纹",
+    "source": "grounded",
+    "unknown": false
+  },
+  "C03": {
+    "name": "宽鳍鱲",
+    "latin": "Zacco platypus",
+    "form": "an elongated laterally compressed body, a pointed head, a terminal mouth, no barbels, medium-sized scales, a complete lateral line",
+    "fins": "a forked tail fin",
+    "markings": "bands crossing the flanks",
+    "colour": "体侧具垂直条纹，繁殖期雄鱼体色鲜艳，颊部及体侧有粉红及蓝色条纹",
+    "source": "model",
+    "unknown": false
+  },
+  "C04": {
+    "name": "拉氏鱥",
+    "latin": "Rhynchocypris lagowskii",
+    "form": "a subterminal mouth, medium-sized eyes, very small scales, a complete lateral line",
+    "fins": "a short small dorsal fin, oval pectoral fins, a slightly concave tail fin",
+    "markings": "irregular small spots scattered on the flanks, a spot at the base of the tail",
+    "colour": "体背部呈灰黄色，腹部呈白色",
+    "source": "grounded",
+    "unknown": false
+  }
+}

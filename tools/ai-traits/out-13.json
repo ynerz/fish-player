@@ -1,0 +1,102 @@
+{
+  "S01": {
+    "name": "深海鳕",
+    "latin": "",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": true
+  },
+  "S02": {
+    "name": "灯笼鱼",
+    "latin": "",
+    "form": "a slender elongated body, a large head, a large eye, a terminal mouth, cycloid scales, a complete lateral line",
+    "fins": "a dorsal fin, a small adipose fin, a forked tail fin",
+    "markings": "rows of round photophores along the belly and flanks",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  },
+  "S03": {
+    "name": "鼬鳚",
+    "latin": "",
+    "form": "an elongated eel-like body, a tapering tail, a small head, a blunt snout, small eyes, a terminal mouth, small cycloid scales, a complete lateral line",
+    "fins": "a long dorsal fin, a long anal fin, the dorsal and anal fins joined continuously to the tail fin, pelvic fins set far forward under the throat",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  },
+  "S04": {
+    "name": "银斧鱼",
+    "latin": "",
+    "form": "a deep laterally compressed body, a thin hatchet-shaped body, a short head, a steep forehead, large tubular upward-directed eyes, a small mouth",
+    "fins": "a dorsal fin, an anal fin, small pectoral fins, a forked tail fin",
+    "markings": "rows of photophores along the belly",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  },
+  "S05": {
+    "name": "帆蜥鱼",
+    "latin": "Alepisaurus",
+    "form": "a slender elongated body, a ribbon-shaped body, a large head, a large mouth, a deep mouth cleft, large canine teeth, a short snout",
+    "fins": "a long high sail-like dorsal fin, a medium-sized adipose fin, an anal fin at the rear of the body, low pectoral fins with elongated spear-shaped front rays, small pelvic fins, a deeply forked tail fin with the upper lobe drawn out into filaments",
+    "markings": "",
+    "colour": "头部及体背部蓝青色，体侧和腹部银灰色，具有珍珠光泽",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S06": {
+    "name": "深海鲷",
+    "latin": "",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": true
+  },
+  "S07": {
+    "name": "管眼鱼",
+    "latin": "Macropinna microstoma",
+    "form": "a small rounded body, a transparent dome-like head, tubular eyes, upward-directed eyes that can rotate",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S08": {
+    "name": "幽灵鳍鱼",
+    "latin": "",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": true
+  },
+  "S09": {
+    "name": "黑叉齿鱼",
+    "latin": "",
+    "form": "an elongated slender body, a large head, a very large mouth, sharp recurved teeth, naked skin with no scales, small eyes, a long tapering tail",
+    "fins": "a long dorsal fin, a long anal fin, small pectoral fins, a forked tail fin",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  },
+  "S10": {
+    "name": "尖牙鱼",
+    "latin": "",
+    "form": "a large ridged head, a body tapering sharply from behind the head to the caudal peduncle, small eyes, a large mouth, sharp teeth, rough skin, overlapping scale rows along the lateral line",
+    "fins": "a dorsal fin with no spines and 17 to 20 soft rays, an anal fin with no spines and 7 to 9 soft rays",
+    "markings": "a blotch on the belly",
+    "colour": "成体深棕至黑色；幼体浅灰色，腹部有暗色鳞片构成的黑斑",
+    "source": "grounded",
+    "unknown": false
+  }
+}

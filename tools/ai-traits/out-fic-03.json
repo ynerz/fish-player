@@ -1,0 +1,102 @@
+{
+  "SS21": {
+    "name": "寂静鲳",
+    "latin": "",
+    "form": "a deep oval body, a small head, a short blunt snout, a small mouth, a still even surface with faint packed ring seams",
+    "fins": "a long low dorsal fin, a deeply forked tail fin, small pectoral fins",
+    "markings": "a set of still concentric rings across the flank, a single resting ripple band near the nape",
+    "colour": "静灰底、年轮暗线、冷银腹面",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS22": {
+    "name": "霜鳞鲑",
+    "latin": "",
+    "form": "a streamlined spindle-shaped body, a small head, a short snout, a terminal mouth, crystalline scales with clean cut edges",
+    "fins": "a short dorsal fin, a slightly forked tail fin, small pectoral fins",
+    "markings": "an even row of frost-like facet points along the flank, a faint arc above the lateral line",
+    "colour": "冰蓝底、霜晶银面、脊线冷白",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS23": {
+    "name": "幻影鲽",
+    "latin": "",
+    "form": "a flattened oval body, both eyes on one side, a small upturned mouth, a translucent body with faint sheen, a low even fringe along the margin",
+    "fins": "a long dorsal fin and anal fin fringing the body, a rounded tail fin",
+    "markings": "a soft diffuse outline along the flank, faint bands crossing the eyed side",
+    "colour": "雾蓝底、幻影灰晕、鳍缘透明",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS24": {
+    "name": "星屑海马",
+    "latin": "",
+    "form": "an upright narrow body with evenly ringed segments, a long tubular snout, a small mouth, a curled tail, a row of tiny luminous specks",
+    "fins": "a small dorsal fin, tiny pectoral fins, no tail fin",
+    "markings": "an even row of luminous specks along the ringed segments, a spot behind the eye",
+    "colour": "暗金底、星屑银点、环纹冷灰",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS25": {
+    "name": "陨光鮟鱇",
+    "latin": "",
+    "form": "a stout rounded body with faceted bump plates, a large head, a wide gaping mouth with even teeth, a slender lure rising from the snout",
+    "fins": "a low dorsal fin, small rounded pectoral fins, a rounded tail fin",
+    "markings": "a single glowing bead at the lure tip, a faint seam along the jaw",
+    "colour": "深褐底、陨光青点、吻前微荧",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS26": {
+    "name": "幽蓝鳞鲀",
+    "latin": "",
+    "form": "a deep angular oval body with faceted plate scales, a large head, a small terminal mouth, a stout dorsal spine, a pointed snout",
+    "fins": "a dorsal fin with a stout front spine, a rounded tail fin, small pectoral fins",
+    "markings": "a band across the eye, a faint seam along the flank plates",
+    "colour": "幽蓝底、暗青棱面、眼周冷线",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS27": {
+    "name": "星砂鲽",
+    "latin": "",
+    "form": "a flattened oval body, both eyes on one side, a small mouth, fine grains fused into a faceted eyed-side skin",
+    "fins": "a long dorsal fin and anal fin fringing the body, a rounded tail fin",
+    "markings": "a scatter of luminous grains across the eyed side, a faint arc behind the head",
+    "colour": "砂褐底、星砂银粒、盲侧苍白",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS28": {
+    "name": "陨纹金枪",
+    "latin": "",
+    "form": "a robust spindle-shaped body, a pointed head, a large mouth, fine faceted scales, a row of finlets behind the dorsal and anal fins",
+    "fins": "a long dorsal fin, a deeply forked tail fin, a row of finlets",
+    "markings": "broken crater-like streaks along the flank, a single seam near the gill cover",
+    "colour": "铁蓝底、陨纹铜斑、腹部冷银",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS29": {
+    "name": "夜穹旗鱼",
+    "latin": "",
+    "form": "a slender spindle-shaped body, a long pointed bill, a small mouth, a row of luminous pits along the flank",
+    "fins": "a tall sail-like dorsal fin with even upright spines, a deeply forked tail fin, slender pelvic fins",
+    "markings": "a row of luminous pits along the flank, a faint line behind the eye",
+    "colour": "夜蓝底、穹顶银线、鳍膜幽光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS30": {
+    "name": "星耀鲹",
+    "latin": "",
+    "form": "a moderately deep fusiform body, a steep forehead, a small mouth, a compact head, faceted flank plates",
+    "fins": "a dorsal fin with a deep notch, a deeply forked tail fin, a row of finlets behind the dorsal and anal fins",
+    "markings": "a scatter of luminous points along the upper flank, a spot on the gill cover",
+    "colour": "银蓝底、星耀白点、背缘深靛",
+    "source": "fictional",
+    "unknown": false
+  }
+}

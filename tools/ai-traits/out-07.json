@@ -1,0 +1,102 @@
+{
+ "B21": {
+  "name": "鳡鱼",
+  "latin": "Elopichthys bambusa",
+  "form": "a large terminal mouth with the cleft reaching below the eye, a bony knob at the front of the lower jaw, small eyes, fine scales",
+  "fins": "pectoral fins not reaching the pelvic fins, pelvic fins not reaching the anal fin, a deeply forked tail fin",
+  "markings": "",
+  "colour": "体微黄，腹部银白色，背鳍、尾鳍青灰色，其余各鳍黄色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "B22": {
+  "name": "鲶鱼",
+  "latin": "",
+  "form": "an elongated scaleless body, a large flattened head, a large mouth, small eyes, long barbels at the corners of the mouth",
+  "fins": "a long anal fin, a rounded tail fin",
+  "markings": "",
+  "colour": "体灰褐色，腹部灰白色",
+  "source": "model",
+  "unknown": false
+ },
+ "B23": {
+  "name": "青鱼",
+  "latin": "Mylopharyngodon piceus",
+  "form": "a cylindrical body, a slightly pointed broad flat head, a rounded belly with no ventral keel, the posterior part slightly laterally compressed",
+  "fins": "",
+  "markings": "",
+  "colour": "体色青黑，背部较深，腹部较淡",
+  "source": "grounded",
+  "unknown": false
+ },
+ "B24": {
+  "name": "刺鲃",
+  "latin": "",
+  "form": "an elongated laterally compressed body, a conical head, an inferior mouth, two pairs of barbels, medium-sized scales, a complete lateral line",
+  "fins": "a dorsal fin with a stout spine",
+  "markings": "",
+  "colour": "体背青黑色，腹部灰白色",
+  "source": "model",
+  "unknown": false
+ },
+ "B25": {
+  "name": "大口鲶",
+  "latin": "Silurus meridionalis",
+  "form": "a smooth scaleless body, a broad flattened head, a thick short trunk, a long flattened tail, skin rich in mucus, small eyes, a large mouth with the cleft reaching or passing below the middle of the eye, two pairs of barbels in adults and three pairs in juveniles",
+  "fins": "rough pectoral fins without a serrated notch, an anal fin continuous with the tail fin, a tail fin with the upper lobe longer than the lower",
+  "markings": "small spots on the belly",
+  "colour": "",
+  "source": "grounded",
+  "unknown": false
+ },
+ "B26": {
+  "name": "鳜鱼",
+  "latin": "Siniperca chuatsi",
+  "form": "a deep laterally compressed body, a large mouth, the lower jaw protruding beyond the upper",
+  "fins": "",
+  "markings": "irregular blotches along the flanks",
+  "colour": "体黄绿色，体侧有不规则暗棕色斑块，腹部灰白",
+  "source": "grounded",
+  "unknown": false
+ },
+ "B27": {
+  "name": "大眼鳜",
+  "latin": "Siniperca kneri",
+  "form": "an elongated laterally compressed body, the chest and belly outlines curved, round scales, the head and back outlines raised, a large terminal slightly oblique mouth, small scales on the gill cover",
+  "fins": "",
+  "markings": "an oblique band crossing the eye on each side of the head, a band from the top of the head to the front of the dorsal fin, irregular spots and stripes all over the flanks, four saddle-shaped blotches along the base of the dorsal fin, rows of spots on the dorsal and tail fins",
+  "colour": "体侧棕黄色、灰黄或灰白，腹部灰白色，斑点和条纹呈棕褐色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "B28": {
+  "name": "长吻鮠",
+  "latin": "Leiocassis longirostris",
+  "form": "a spindle-shaped body, a rounded belly, a laterally compressed tail, smooth scaleless skin, a straight lateral line, well-developed mucus glands",
+  "fins": "a dorsal fin with two spines and 6 to 7 rays, an anal fin with 14 to 18 rays, pectoral fins with one spine and 9 rays, pelvic fins with 6 rays",
+  "markings": "",
+  "colour": "",
+  "source": "grounded",
+  "unknown": false
+ },
+ "B29": {
+  "name": "中华倒刺鲃",
+  "latin": "",
+  "form": "an elongated laterally compressed body, the back elevated in a curve, a conical head, eyes set on the sides and widely spaced, a subinferior mouth, a blunt snout protruding slightly forward, two pairs of barbels, larger scales, a complete lateral line",
+  "fins": "",
+  "markings": "flank scales with distinct margins",
+  "colour": "身体背部青黑色，腹部灰白色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "B30": {
+  "name": "胭脂鱼",
+  "latin": "Myxocyprinus asiaticus",
+  "form": "a laterally compressed deep body, the back particularly elevated at the origin of the dorsal fin, a small head, a rounded blunt snout",
+  "fins": "",
+  "markings": "three forward-slanting transverse bands in juveniles, a single longitudinal band in adults",
+  "colour": "幼鱼体色淡灰褐色并有3条黑色横带；成鱼雄鱼粉红色并有1条胭脂红色纵带，雌鱼暗红色纵带呈紫红色",
+  "source": "grounded",
+  "unknown": false
+ }
+}

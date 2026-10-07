@@ -1,0 +1,102 @@
+{
+  "SS51": {
+    "name": "裂空皇带鱼",
+    "latin": "",
+    "form": "a very long slender ribbon-like body, a small head with a blunt snout, a single tapering dorsal crest running the full length of the back, a pair of short trailing pelvic filaments",
+    "fins": "a continuous dorsal crest of evenly spaced rays, a tiny fan-shaped tail fin",
+    "markings": "a faint line of luminous pores along the flank, a single streak splitting the dorsal crest",
+    "colour": "深空银底、裂光白纹",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS52": {
+    "name": "渊眼巨鲨",
+    "latin": "",
+    "form": "a torpedo-shaped body with angular faceted flank plates, a long pointed snout, a single large eye set high on the head, five gill slits",
+    "fins": "a tall triangular dorsal fin, a crescent tail fin with a long upper lobe",
+    "markings": "a single luminous ring encircling each eye, a sparse line of pores along the flank",
+    "colour": "渊黑底、幽蓝瞳环",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS53": {
+    "name": "陨落鲸",
+    "latin": "",
+    "form": "a massive rounded body, a broad blunt head, a row of ventral throat grooves, thin ridged jaw edges",
+    "fins": "a small set-back dorsal fin, wide horizontal tail flukes",
+    "markings": "a sparse scatter of luminous pores along the flank, a faint ring pattern around the eye",
+    "colour": "星灰底、陨尘微光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS54": {
+    "name": "原初海蛇",
+    "latin": "",
+    "form": "a long cylindrical band-like body with subtle ringed segmentation, a small blunt head, a wide gaping mouth, a ring of short recurved teeth",
+    "fins": "a continuous low dorsal fin joined to the tail fin",
+    "markings": "closely stacked faint ring bands along the body, an eroded fringe along the belly line",
+    "colour": "岩褐底、年轮叠纹",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS55": {
+    "name": "星陨巨鱿",
+    "latin": "",
+    "form": "a large slender tapered mantle with faintly faceted panels, a broad head with two large eyes, eight arms and two long tentacles",
+    "fins": "a pair of broad triangular fins spanning the rear of the mantle",
+    "markings": "a sparse scatter of luminous points across the mantle, a faint ring around each eye",
+    "colour": "深紫底、星屑冷光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS56": {
+    "name": "虚空水母王",
+    "latin": "",
+    "form": "a wide translucent bell with faintly faceted radial ribs, a scalloped bell margin, four long trailing oral arms, a fringe of evenly spaced fine tentacles",
+    "fins": "",
+    "markings": "a ring of evenly spaced luminous pores around the bell margin, a faint cross pattern on the bell roof",
+    "colour": "空透底、虚空微光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS57": {
+    "name": "陨铁巨口鲨",
+    "latin": "",
+    "form": "a stout torpedo-shaped body with angular faceted plates, a long pointed snout, an enormous gaping mouth, five gill slits",
+    "fins": "a tall triangular dorsal fin, long angular pectoral fins",
+    "markings": "a sparse line of luminous pores along the flank, faint crater-like pits scattered on the back",
+    "colour": "铁灰底、熔星褐点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS58": {
+    "name": "星蚀鳐王",
+    "latin": "",
+    "form": "a broad diamond-shaped disc with crisp bevelled wing panels, a short blunt snout, a long thin whip-like tail with a serrated spine",
+    "fins": "wide angular pectoral wings, a low fin fold along the tail",
+    "markings": "a faint eclipse ring centred on the disc, a sparse arc of luminous points along each wing edge",
+    "colour": "深靛底、蚀环微光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS59": {
+    "name": "陨光海龙",
+    "latin": "",
+    "form": "a sinuous slender body with faintly faceted ring segments, a long tapered snout, a pair of small swept-back horns",
+    "fins": "a low continuous dorsal crest, a pair of long ribbon-like trailing tendrils",
+    "markings": "a row of evenly spaced luminous nodes along the spine, a faint halo behind the head",
+    "colour": "深青底、陨光星点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS60": {
+    "name": "陨铁鲹",
+    "latin": "",
+    "form": "an elongated laterally compressed body with crisp bevelled edges, a steep forehead, a pointed snout, a terminal mouth",
+    "fins": "a dorsal fin with a short spiny front section, a deeply forked tail fin",
+    "markings": "a faint line of luminous pores along the flank, a single spot at the base of the tail",
+    "colour": "铁灰底、星点银光",
+    "source": "fictional",
+    "unknown": false
+  }
+}

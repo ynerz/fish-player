@@ -1,0 +1,102 @@
+{
+  "S11": {
+    "name": "后肛鱼",
+    "latin": "",
+    "form": "a short deep body, a flattened head and belly, a body shaped like an iron, tubular eyes set vertically, a small mouth, a bare scaleless head, large thin cycloid scales on the flanks and belly",
+    "fins": "a dorsal fin at the rear of the back, a small adipose fin between the dorsal fin and the tail fin, a reduced short anal fin just before the lower tail fin, pectoral fins on a stalk-like base, large pelvic fins just below and in front of the dorsal-fin origin, a tail fin divided into upper and lower parts",
+    "markings": "",
+    "colour": "身体呈褐色，头部侧面带有金属光泽",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S12": {
+    "name": "深海狗母鱼",
+    "latin": "",
+    "form": "a slightly elongated spindle-shaped body, a nearly cylindrical front, a laterally compressed rear, a flattened head, a pointed snout, large eyes, a wide mouth, the upper jaw extending back beyond the rear edge of the eye",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S13": {
+    "name": "囊鳃鳗",
+    "latin": "",
+    "form": "a very elongated slender body, a filamentous eel-like body, a laterally compressed body, a short snout, the upper jaw longer than the lower, a huge sac-like mouth, the mouth cleft extending well behind the eye, long slender teeth in the jaws, a lateral line without pores, naked skin with no scales",
+    "fins": "a dorsal fin starting near the front fifth of the body, an anal fin, pectoral fins with 28 to 41 rays, no pelvic fins, the tail ends of the dorsal and anal fins sometimes drawn out into filaments",
+    "markings": "",
+    "colour": "体柔软，呈黑色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S14": {
+    "name": "深海鳐",
+    "latin": "",
+    "form": "a flattened diamond-shaped disc formed by the pectoral fins, a slender tail, a broad flattened head, the mouth and gill slits on the underside, large spiracles behind the eyes, thorny skin",
+    "fins": "the pectoral fins fused with the head to form the disc, small pelvic fins, a slender tail with a small fin fold",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  },
+  "S15": {
+    "name": "深海鲽",
+    "latin": "",
+    "form": "a flat oval body, both eyes on one side of the head, a small head, a small mouth, a laterally compressed body lying on one side",
+    "fins": "a long dorsal fin along the upper edge, a long anal fin along the lower edge, a rounded tail fin",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  },
+  "S16": {
+    "name": "灯塔水母",
+    "latin": "",
+    "form": "a small bell-shaped transparent body, the bell diameter and height about equal, 90 to 150 tentacles around the bell margin, round tentacle bulbs arranged in 2 to 3 rows, a manubrium hanging from the center of the underside, a velum at the bell margin",
+    "fins": "",
+    "markings": "",
+    "colour": "身体透明；性腺略带红色，胃囊呈鲜艳的红色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S17": {
+    "name": "深海水母",
+    "latin": "",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": true
+  },
+  "S18": {
+    "name": "栉水母",
+    "latin": "Ctenophora",
+    "form": "a gelatinous translucent body, a spherical melon-shaped oval or flattened band-like body, thick jelly, two long tentacles with adhesive cells, a balance organ at the opposite pole, biradial symmetry",
+    "fins": "",
+    "markings": "eight longitudinal rows of comb plates running along the body",
+    "colour": "胶质厚而透明",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S19": {
+    "name": "海猪",
+    "latin": "",
+    "form": "a plump oval gelatinous body, several pairs of tubular feet on the underside, no distinct head, a soft body",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  },
+  "S20": {
+    "name": "海蛇尾",
+    "latin": "",
+    "form": "a small central disc, five long slender flexible arms, the arms sharply set off from the disc",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  }
+}

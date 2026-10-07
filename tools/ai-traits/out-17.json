@@ -1,0 +1,102 @@
+{
+  "S41": {
+    "name": "皇带鱼",
+    "latin": "Regalecus glesne",
+    "form": "an elongated ribbon-like laterally compressed body, a horse-like head, a short blunt snout slightly longer than the eye diameter, medium-sized eyes set high and lateral near the snout, a small terminal mouth slanting upward and lacking teeth on the jaws and palate, naked skin with no scales, many irregular small granular bumps along the flanks",
+    "fins": "a single long dorsal fin with 400 to 450 rays, the front 10 to 12 rays elongated into filaments",
+    "markings": "stripes and spots along the body",
+    "colour": "体色银亮，具黑色条纹和斑点，且有蓝色条纹",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S42": {
+    "name": "巨口鲨",
+    "latin": "",
+    "form": "a subcylindrical anterior body, a large wide long blunt head, a very short snout broadly rounded in dorsal view, a huge terminal mouth, a laterally compressed caudal peduncle with no lateral keels",
+    "fins": "soft fins, large narrow elongated pectoral fins, a broom-shaped tail fin with a long upper lobe only slightly upturned",
+    "markings": "",
+    "colour": "前部体色呈棕黑色，腹部偏白色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S43": {
+    "name": "格陵兰鲨",
+    "latin": "Somniosus microcephalus",
+    "form": "a stout heavy cylindrical body, a short blunt rounded snout, small eyes, a small mouth near the tip of the snout, a short caudal peduncle without a keel",
+    "fins": "small rounded pectoral fins, two small dorsal fins set far back near the tail, no anal fin, a nearly symmetrical tail fin",
+    "markings": "",
+    "colour": "灰褐色至黑褐色，腹部颜色较浅",
+    "source": "model",
+    "unknown": false
+  },
+  "S44": {
+    "name": "大王酸浆鱿",
+    "latin": "Mesonychoteuthis hamiltoni",
+    "form": "a large heavy cylindrical mantle, a huge head, very large eyes, eight arms and two long tentacles armed with hooks",
+    "fins": "a pair of large muscular fins at the rear of the mantle",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  },
+  "S45": {
+    "name": "小头睡鲨",
+    "latin": "Somniosus microcephalus",
+    "form": "a stout heavy cylindrical body, a short blunt rounded snout, small eyes, a small mouth near the tip of the snout, a short caudal peduncle without a keel",
+    "fins": "small rounded pectoral fins, two small dorsal fins set far back near the tail, no anal fin, a nearly symmetrical tail fin",
+    "markings": "",
+    "colour": "灰褐色至黑褐色，腹部颜色较浅",
+    "source": "model",
+    "unknown": false
+  },
+  "S46": {
+    "name": "太平洋睡鲨",
+    "latin": "",
+    "form": "a stout nearly cylindrical body, a short conical blunt snout, the preoral snout length about equal to the mouth width, slender long upper teeth and shorter slanted lower teeth with overlapping bases",
+    "fins": "two small dorsal fins with no spines, the distance between the dorsal fin bases 45 to 53 percent of the total length, pectoral fins with broad rounded tips, a short asymmetrical tail fin",
+    "markings": "small spots on the back",
+    "colour": "鱼鳍成蓝黑色中带不均匀的灰粉红色；通常覆盖着深棕色的黏膜；吻部下侧、上唇和嘴深色具有光泽",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S47": {
+    "name": "尖吻鲭鲨",
+    "latin": "Isurus oxyrinchus",
+    "form": "a spindle-shaped body, a pointed snout, long awl-shaped teeth",
+    "fins": "a triangular dorsal fin, a large crescent-shaped tail fin",
+    "markings": "",
+    "colour": "身体上部呈深金属蓝色，腹部呈银白色，侧面有非常明显的颜色分界线",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S48": {
+    "name": "深海巨型鳐",
+    "latin": "",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": true
+  },
+  "S49": {
+    "name": "北极霞水母",
+    "latin": "Cyanea capillata",
+    "form": "a large bell-shaped body with a bell margin diameter of 30 to 80 cm, many long trailing tentacles",
+    "fins": "",
+    "markings": "",
+    "colour": "伞形边缘小于12厘米的小型个体通常是黄色或粉红色；12厘米到45厘米之间的是红色或黄褐色；45厘米以上的呈深棕红色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S50": {
+    "name": "深海鳚",
+    "latin": "",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": true
+  }
+}

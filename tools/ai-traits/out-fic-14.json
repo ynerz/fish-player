@@ -1,0 +1,102 @@
+{
+  "SSS51": {
+    "name": "星轨魟",
+    "latin": "",
+    "form": "a broad diamond-shaped disc with a crisp bevelled margin, a slightly protruding snout tip, a row of luminous pores along each wing edge, a long whip-like tail",
+    "fins": "wing-like pectoral fins with a straight leading edge, a small dorsal fin near the tail base",
+    "markings": "even arcs of dots sweeping across the disc, a single bright node at the center of the back",
+    "colour": "深靛底、星屑银点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS52": {
+    "name": "时刻鲳",
+    "latin": "",
+    "form": "a deep oval body with a keeled belly, a small blunt head, a small terminal mouth, a short caudal peduncle",
+    "fins": "a long low dorsal fin, a matching anal fin, a deeply forked tail fin, short pectoral fins",
+    "markings": "a fine grid of parallel lines across the flank, a single ring near the gill cover",
+    "colour": "霜银底、时分刻线",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS53": {
+    "name": "时间龙鱼",
+    "latin": "",
+    "form": "a flattened angular head, a pair of antler-like horns, a single row of ring plates along the belly, a pair of jointed barbels at the mouth",
+    "fins": "a long ribbon-like dorsal fin, long trailing pectoral fins, a tapered tail fin",
+    "markings": "stacked chevron bands along the flank, a single loop near the tail",
+    "colour": "古铜底、年轮纹",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS54": {
+    "name": "终焉鲨",
+    "latin": "",
+    "form": "a heavy deep-chested build, a blunt squared snout, rows of small serrated teeth, gill slits ringed by eroded grooves",
+    "fins": "a tall triangular dorsal fin, long falcate pectoral fins, a crescent tail fin",
+    "markings": "worn longitudinal grooves along the flank, a broken band at the tail base",
+    "colour": "焦黑底、余烬红边",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS55": {
+    "name": "永恒鲸",
+    "latin": "",
+    "form": "a broad rounded head with a gentle dome, deep parallel throat grooves, a heavy tapering rear, a ringed ridge along the back",
+    "fins": "long slender pectoral fins, a broad notched tail fluke",
+    "markings": "faint concentric rings over the crown, a long stilled crease along the flank",
+    "colour": "深灰蓝底、霜白颊",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS56": {
+    "name": "原初蛇颈龙",
+    "latin": "",
+    "form": "a small pointed head atop a long thick neck, a rounded barrel torso, deep short throat grooves, a heavy short rear taper",
+    "fins": "a pair of broad paddle-like flippers, a small low dorsal ridge",
+    "markings": "a row of fossil-like imprints along the flank, faint joint rings on the neck",
+    "colour": "岩灰底、骨白纹",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS57": {
+    "name": "星尘巨魟",
+    "latin": "",
+    "form": "a huge diamond-shaped disc with faceted plate edges, a row of glowing nodes along the wing rim, a single horn-like snout ridge, a long thin tail",
+    "fins": "broad wing-like pectoral fins with crisp angular tips",
+    "markings": "sparse scattered points across the disc, a band of dots along the wing edge",
+    "colour": "玄黑底、星尘白",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS58": {
+    "name": "时光褶皱·虚空鲸",
+    "latin": "",
+    "form": "a massive oval body with deep folded pleats along the flank, a smooth domed head, a long narrow jaw, a short rear taper",
+    "fins": "long curving pectoral fins, a wide tail fluke",
+    "markings": "layered fold lines across the flank, a single hollow ring on the crown",
+    "colour": "虚空黑底、褶皱银",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS59": {
+    "name": "纪元褶皱·深渊鲸",
+    "latin": "",
+    "form": "a heavy broad body with stacked layered ridges along the back, a blunt squared head, a deep-set small eye",
+    "fins": "short broad pectoral fins, a large notched tail fluke",
+    "markings": "terraced ridge lines along the back, a single eye-like ring behind the head",
+    "colour": "深渊靛底、纪元铜",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS60": {
+    "name": "逆熵巨鱿",
+    "latin": "",
+    "form": "a long tapered mantle with reversed overlapping scales, a smooth matte surface, ten arms of graded length, a pair of long filaments",
+    "fins": "a pair of triangular fins flaring from the mantle tip",
+    "markings": "descending chevrons along the mantle, a ring of dots at the arm bases",
+    "colour": "冷灰底、逆熵蓝",
+    "source": "fictional",
+    "unknown": false
+  }
+}

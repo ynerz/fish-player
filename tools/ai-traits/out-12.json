@@ -1,0 +1,102 @@
+{
+ "A37": {
+  "name": "龙趸石斑",
+  "latin": "Epinephelus lanceolatus",
+  "form": "a stout elongated body, a very large head, a large mouth, the lower jaw slightly protruding, small ctenoid scales",
+  "fins": "a long dorsal fin, a rounded tail fin, large rounded pectoral fins",
+  "markings": "spots scattered over the head and body",
+  "colour": "体褐色或灰褐色，布满暗色斑点",
+  "source": "model",
+  "unknown": false
+ },
+ "A38": {
+  "name": "宝石石斑",
+  "latin": "Epinephelus areolatus",
+  "form": "a stout oblong body, a large head, a large mouth, the lower jaw slightly protruding, small ctenoid scales",
+  "fins": "a long dorsal fin, a rounded tail fin, large rounded pectoral fins",
+  "markings": "spots scattered over the head and body",
+  "colour": "体浅褐色，密布褐色斑点",
+  "source": "model",
+  "unknown": false
+ },
+ "A39": {
+  "name": "河鲀",
+  "latin": "",
+  "form": "a rounded body slightly laterally compressed, the trunk tapering toward the rear, small spines on the skin",
+  "fins": "small pectoral fins, no pelvic fins, a dorsal fin set far back, a broad tail fin",
+  "markings": "spots on the body, 4-6 broad transverse bands",
+  "colour": "体背茶褐色，具黑斑和4-6条暗褐色宽横纹，体侧下方黄色，腹面白色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A40": {
+  "name": "翻车鱼",
+  "latin": "Mola mola",
+  "form": "a laterally compressed body, nearly circular in side view, a short small head, very small eyes, a blunt rounded snout, a very small mouth, thick lips",
+  "fins": "short pectoral fins, no pelvic fins, an anal fin opposite and similar in shape to the dorsal fin, no true tail fin, a wavy-edged clavus",
+  "markings": "",
+  "colour": "",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A41": {
+  "name": "角箱鲀",
+  "latin": "",
+  "form": "a rectangular box-like body, a short deep head square in side view, large eyes set high on the sides, a small low mouth, hexagonal bony plates fused into a body armour, a dorsal ridge projecting slightly outward at the middle, a prominent ventral ridge ending in a long backward-projecting spine, sides concave inward",
+  "fins": "",
+  "markings": "round spots on the body, spots on the tail fin",
+  "colour": "体黄褐色，腹部白色，具褐色圆斑，尾鳍有暗色斑点",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A42": {
+  "name": "斑鰶",
+  "latin": "",
+  "form": "a laterally compressed elongated oval body, a small mouth with no teeth, a belly keel, no scutes in front of the dorsal fin",
+  "fins": "the last dorsal fin ray extended into a filament",
+  "markings": "a large blotch behind the gill cover, spots on the body, a spot above the pectoral fin",
+  "colour": "体银灰色，具黑斑，鳃盖后方有一块大黑绿斑，胸鳍上方有一黑斑",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A43": {
+  "name": "日本鳀",
+  "latin": "",
+  "form": "an elongated slender body slightly laterally compressed, a short blunt snout shorter than the eye, a thin adipose eyelid covering the eye and raised in the middle, a large inferior mouth, the upper jaw longer than the lower, two accessory upper jaws, small teeth on both jaws and the tongue, medium-sized easily shed cycloid scales covering the body except the head, no lateral line",
+  "fins": "a dorsal fin origin behind and above the pelvic fins near the middle of the body, a narrow long anal fin starting behind and below the dorsal fin, pectoral fins set low on the sides, small pelvic fins, a forked tail fin with two nearly equal lobes",
+  "markings": "a longitudinal band along the flank",
+  "colour": "背部绿色，两侧及腹部银白色，体侧有一条黑色纵带",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A44": {
+  "name": "断崖之王·巨型石斑",
+  "latin": "",
+  "form": "a stout elongated body, a very large head, a large mouth, the lower jaw slightly protruding, small ctenoid scales",
+  "fins": "a long dorsal fin, a rounded tail fin, large rounded pectoral fins",
+  "markings": "spots scattered over the head and body",
+  "colour": "体褐色或灰褐色，布满暗色斑点",
+  "source": "model",
+  "unknown": false
+ },
+ "A45": {
+  "name": "黑潮之王·蓝鳍金枪",
+  "latin": "",
+  "form": "a fusiform body, a large head, a medium-sized mouth, small scales on the body, a slender caudal peduncle with three longitudinal ridges on each side",
+  "fins": "two dorsal fins, small finlets behind the dorsal and anal fins, long pectoral fins, a crescent-shaped tail fin",
+  "markings": "",
+  "colour": "体背深蓝色，腹部银白色",
+  "source": "model",
+  "unknown": false
+ },
+ "A46": {
+  "name": "白浪之神·大青针",
+  "latin": "",
+  "form": "",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "model",
+  "unknown": true
+ }
+}

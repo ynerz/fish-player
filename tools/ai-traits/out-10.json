@@ -1,0 +1,102 @@
+{
+ "A17": {
+  "name": "舌鳎",
+  "latin": "",
+  "form": "a tongue-shaped laterally compressed elongated body, ctenoid scales on the eyed side, cycloid or weakly ctenoid scales on the blind side, three lateral lines on the eyed side, no lateral line on the blind side, a short head with the head depth greater than its length, a blunt rounded arched snout, small eyes on the left side of the head, the upper eye not reaching the dorsal edge",
+  "fins": "the dorsal and anal fins continuously joined to the tail fin, no pectoral fins, fin rays all unbranched, pelvic fins only on the eyed side joined by a membrane to the anal fin, a pointed tip on the tail fin",
+  "markings": "",
+  "colour": "有眼侧褐色或深褐色，无眼侧白色或灰色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A18": {
+  "name": "六线鱼",
+  "latin": "Hexagrammos otakii",
+  "form": "a greenling of the family Hexagrammidae, the genus Hexagrammos",
+  "fins": "",
+  "markings": "several lateral lines along the flanks",
+  "colour": "",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A19": {
+  "name": "黑鲪",
+  "latin": "Sebastes schlegelii",
+  "form": "a stout oblong body, a large head bearing spines, a large mouth, ctenoid scales",
+  "fins": "a long dorsal fin with stout spines, a rounded tail fin, large pectoral fins",
+  "markings": "",
+  "colour": "体呈灰褐色至黑褐色",
+  "source": "model",
+  "unknown": false
+ },
+ "A20": {
+  "name": "赤点石斑",
+  "latin": "Epinephelus akaara",
+  "form": "a stout oblong body, a large head, a large mouth, the lower jaw slightly protruding, small ctenoid scales",
+  "fins": "a long dorsal fin, a rounded tail fin, large rounded pectoral fins",
+  "markings": "spots scattered over the head and body",
+  "colour": "体棕褐色，密布橙红色小斑点",
+  "source": "model",
+  "unknown": false
+ },
+ "A21": {
+  "name": "真鲷",
+  "latin": "Pagrus major",
+  "form": "an elongated oval body, a large head, medium-sized eyes set high on the sides, a narrow rounded convex interorbital space, a medium-sized mouth, weakly ctenoid scales",
+  "fins": "",
+  "markings": "irregular spots scattered along the back near the lateral line",
+  "colour": "体淡红色或棕色，稍带绿色光泽，腹部银色，侧线附近背部散布宝石蓝色小斑点，腹鳍边缘黑色，尾鳍末端有一窄黑边",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A22": {
+  "name": "海鲈",
+  "latin": "",
+  "form": "an elongated slightly laterally compressed body, the lower jaw slightly longer than the upper, a serrated rear edge on the preoperculum with several forward-pointing spines on its lower border, a spine at the rear corner of the operculum, small ctenoid scales",
+  "fins": "two dorsal fins joined at the base, a rather small first anal spine, a stronger second anal spine",
+  "markings": "spots on the flanks and on the spiny part of the dorsal fin",
+  "colour": "体上部灰绿色，下部灰白色，体侧及背鳍棘部有黑色或灰色斑点",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A23": {
+  "name": "鲯鳅",
+  "latin": "Coryphaena hippurus",
+  "form": "a slender body with a narrow back, a bony crest on the forehead of adult males",
+  "fins": "a deeply forked tail fin",
+  "markings": "",
+  "colour": "头和背部蓝紫色，腹部灰白色带金色光泽",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A24": {
+  "name": "章鱼",
+  "latin": "",
+  "form": "a rounded bulbous mantle, a large head with prominent eyes, eight arms each with two rows of suckers, no internal shell",
+  "fins": "",
+  "markings": "",
+  "colour": "体色可变，通常为红褐色或灰褐色",
+  "source": "model",
+  "unknown": false
+ },
+ "A25": {
+  "name": "马鲛",
+  "latin": "",
+  "form": "an elongated laterally compressed body, a slender tail, three longitudinal ridges on each side of the caudal peduncle with the central ridge longest and highest, fine scales with larger scales above the pectoral fins, an irregular wavy lateral line",
+  "fins": "",
+  "markings": "spots scattered along the flanks",
+  "colour": "",
+  "source": "grounded",
+  "unknown": false
+ },
+ "A26": {
+  "name": "蓝点马鲛",
+  "latin": "",
+  "form": "an elongated laterally compressed body, a slender tail, three longitudinal ridges on each side of the caudal peduncle with the central ridge longest and highest, fine scales with larger scales above the pectoral fins, an irregular wavy lateral line",
+  "fins": "",
+  "markings": "spots scattered along the flanks",
+  "colour": "",
+  "source": "grounded",
+  "unknown": false
+ }
+}

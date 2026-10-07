@@ -1,0 +1,102 @@
+{
+  "SS31": {
+    "name": "虚空鳗",
+    "latin": "",
+    "form": "a slender ribbon-like body with a diamond cross-section, a small pointed head, a short mouth, spaced luminescent nodes down the midline",
+    "fins": "a continuous low dorsal ridge merging with the tail fin, small pectoral fins",
+    "markings": "a single row of luminous nodes along the flank, an unmarked gap behind the head",
+    "colour": "虚空黑底、节点银蓝、边缘消隐",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS32": {
+    "name": "陨光海蛇",
+    "latin": "",
+    "form": "an elongated cylindrical body with a diamond cross-section, a small blunt head, a short mouth, faceted belly plates",
+    "fins": "no pectoral fins, a low ridge along the tail",
+    "markings": "a line of luminous nodes along the flank, a band crossing the nape",
+    "colour": "铁灰底、陨光青点、腹部暗铜",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS33": {
+    "name": "星云鳐",
+    "latin": "",
+    "form": "a broad diamond-shaped disc, wide wing-like pectoral margins, a short tail, a pair of small cephalic horns, a soft trailing wing edge",
+    "fins": "a slender tail with a low dorsal ridge, small pelvic fins",
+    "markings": "a soft drifting cloud of luminous points across the disc, a fine rim line along the wing edge",
+    "colour": "深紫底、星云银雾、翼缘冷光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS34": {
+    "name": "渊影鲛",
+    "latin": "",
+    "form": "a deep torpedo-shaped body, a long pointed snout, a row of even triangular teeth, five gill slits, a keeled flank",
+    "fins": "a low second dorsal fin, a crescent-shaped tail fin, long pectoral fins",
+    "markings": "a faint sheen line along the flank, a single mark at the gill slits",
+    "colour": "渊黑底、影银侧线、背鳍深灰",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS35": {
+    "name": "深星章鱼",
+    "latin": "",
+    "form": "an elongated mantle with a diamond cross-section, a pair of triangular side fins, a compact head, four arm pairs in even grouping, a row of luminous pores on the mantle",
+    "fins": "a pair of triangular side fins running along the mantle",
+    "markings": "a row of luminous pores along the mantle, a faint seam behind the eye",
+    "colour": "深靛底、星点幽蓝、外套膜冷光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS36": {
+    "name": "陨落灯笼",
+    "latin": "",
+    "form": "a stout rounded body with faceted plates, a large head, a wide mouth, a short chin barbel ending in a single bead, a blunt snout",
+    "fins": "a low dorsal fin, small rounded pectoral fins, a rounded tail fin",
+    "markings": "a single glowing bead at the barbel tip, a faint seam along the jaw",
+    "colour": "暗褐底、陨落橙点、喉部幽光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS37": {
+    "name": "星蚀鲷",
+    "latin": "",
+    "form": "a deep oval body, a steep forehead, a small mouth, a large eye, a raised ridge along the back",
+    "fins": "a spined dorsal fin with even triangular peaks, a slightly forked tail fin",
+    "markings": "a ring-shaped eclipse mark behind the eye, a faint band crossing the nape",
+    "colour": "墨蓝底、蚀环银边、背部暗影",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS38": {
+    "name": "虚时鲳",
+    "latin": "",
+    "form": "a deep oval body, a small head, a short blunt snout, a small mouth, a still even surface with faint set ring seams",
+    "fins": "a long low dorsal fin, a deeply forked tail fin, small pectoral fins",
+    "markings": "a set of frozen ripple bands across the flank, a single ring near the nape",
+    "colour": "灰蓝底、凝时暗环、腹部冷银",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS39": {
+    "name": "碎陨皇带",
+    "latin": "",
+    "form": "an extremely long ribbon-like body with a diamond cross-section, a small blunt head, a short mouth, a trailing crest of even spaced rays along the back, a row of luminous pores at the crest base",
+    "fins": "a low crest of even rays along the entire back, tiny pectoral fins, a small fan tail fin",
+    "markings": "a scatter of broken luminous fragments along the flank, a fine seam at the crest base",
+    "colour": "深靛底、碎陨银屑、脊冠冷光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS40": {
+    "name": "星纱水母",
+    "latin": "",
+    "form": "a wide sheer bell with evenly spaced rim lobes, a ring of luminous nodes just inside the rim, four grouped trailing tentacles",
+    "fins": "",
+    "markings": "a ring of luminous nodes inside the bell rim, faint radial seams on the dome",
+    "colour": "深靛底、星纱银雾、伞缘微光",
+    "source": "fictional",
+    "unknown": false
+  }
+}

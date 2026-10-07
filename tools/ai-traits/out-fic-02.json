@@ -1,0 +1,102 @@
+{
+  "SS11": {
+    "name": "星纹鲷",
+    "latin": "",
+    "form": "a deep oval body, a steep forehead, a small mouth, a large eye, a row of evenly spaced luminous pores along the flank",
+    "fins": "a spined dorsal fin with even triangular peaks, a slightly forked tail fin",
+    "markings": "thin even lines radiating from the eye, a single luminous pore at each line end",
+    "colour": "深蓝底、星线银纹、眼周微光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS12": {
+    "name": "陨星鲈",
+    "latin": "",
+    "form": "a moderately deep oval body, a large head, a wide mouth, a slightly protruding lower jaw, faceted plates over the nape",
+    "fins": "a dorsal fin with a deep notch, a slightly forked tail fin",
+    "markings": "a scatter of star-like punctures along the upper flank, a blotch at the base of the tail",
+    "colour": "铁青底、星芒白点、腹侧冷银",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS13": {
+    "name": "微光鳕",
+    "latin": "",
+    "form": "an elongated cylindrical body, a long tapering head, a small mouth with a single barbel, a low continuous dorsal ridge",
+    "fins": "a long low dorsal fin, a long anal fin, a rounded tail fin",
+    "markings": "a fine line of dim glowing points along the midline, a short seam behind the gill cover",
+    "colour": "冷褐底、微荧青线、腹部霜白",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS14": {
+    "name": "星屑鰕虎",
+    "latin": "",
+    "form": "a small stout body, a large blunt head, a wide mouth, fused pelvic fins forming a disc, a row of tiny luminous specks along the flank",
+    "fins": "a dorsal fin split into two parts, a rounded tail fin, pectoral fins with even rays",
+    "markings": "a loose row of luminous specks along the flank, a spot on the gill cover",
+    "colour": "砂青底、星屑银点、头部暗纹",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS15": {
+    "name": "陨砂鳉",
+    "latin": "",
+    "form": "a small slender body, a flattened head, an upturned mouth, fine grains fused into a smooth faceted skin",
+    "fins": "a short dorsal fin set far back, a rounded tail fin, small pectoral fins",
+    "markings": "a fine gravel-like speckling along the flank, a short streak above the eye",
+    "colour": "砂金底、陨灰微粒、眼顶暗线",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS16": {
+    "name": "幽星鲽",
+    "latin": "",
+    "form": "a flattened oval body, both eyes on one side, a small upturned mouth, a low even fringe along the body margin, a row of glowing pits on the eyed side",
+    "fins": "a long dorsal fin and anal fin fringing the body, a rounded tail fin",
+    "markings": "a line of glowing pits along the eyed side, a faint arc behind the head",
+    "colour": "深褐底、星点微光、鳍缘冷灰",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS17": {
+    "name": "星尘水母",
+    "latin": "",
+    "form": "a wide flat bell with evenly spaced rim lobes, a central disc of fused points, four grouped trailing tentacles",
+    "fins": "",
+    "markings": "a broad ring of luminous points just inside the bell rim, faint radial seams",
+    "colour": "墨蓝底、星尘白点、伞心微荧",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS18": {
+    "name": "陨石鳃",
+    "latin": "",
+    "form": "a deep angular body with faceted plates, a large head, a wide mouth, a row of short gill slits, a heavy blunt snout",
+    "fins": "a spined dorsal fin with even peaks, a slightly forked tail fin",
+    "markings": "a cluster of pitted craters over the gill cover, a single seam at the tail base",
+    "colour": "石黑底、熔铜斑、冷铁高光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS19": {
+    "name": "夜辉鳗",
+    "latin": "",
+    "form": "a slender ribbon-like body with a diamond cross-section, a small pointed head, a short mouth, a row of minute luminous nodes down the midline",
+    "fins": "a continuous low dorsal ridge merging with the tail fin, small pectoral fins",
+    "markings": "a single row of luminous nodes along the flank, a faint break in the ridge behind the head",
+    "colour": "靛夜底、幽辉银点、腹缘冷光",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SS20": {
+    "name": "碎星魟",
+    "latin": "",
+    "form": "a broad diamond-shaped disc, wide wing-like pectoral margins, a short tail, a pair of small cephalic horns, a soft forward sweep",
+    "fins": "a slender tail with a low dorsal ridge, small pelvic fins",
+    "markings": "a scatter of broken luminous fragments across the disc, a fine rim line along the wing edge",
+    "colour": "墨蓝底、碎星银屑、翼缘冷线",
+    "source": "fictional",
+    "unknown": false
+  }
+}

@@ -1,0 +1,102 @@
+{
+  "SSS41": {
+    "name": "逆流龙鱼",
+    "latin": "",
+    "form": "a flattened wedge-shaped head, a prismatic horn crest, ringed segmented plates along the flank, a pair of long jointed barbels curving back, evenly spaced dorsal spines shrinking toward the tail",
+    "fins": "long trailing pectoral fins, a thin ribbon-like tail fin",
+    "markings": "concentric ring bands along the flanks, a single luminous arc at the base of the tail",
+    "colour": "深墨底、琥珀年轮",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS42": {
+    "name": "残时皇带",
+    "latin": "",
+    "form": "a narrow ribbon-like head with a small upturned snout, a translucent domed cranium, a fan-shaped crest of soft rays rising from the nape, a chain of eroded ring segments along the flank",
+    "fins": "a continuous dorsal crest running the full length of the back, a pair of long oar-like pelvic fins, a tiny rounded tail fin",
+    "markings": "a series of broken ring segments along the flank, a single stilled ripple line near the gill cover",
+    "colour": "灰青底、锈蚀环纹",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS43": {
+    "name": "虚时鮟鱇",
+    "latin": "",
+    "form": "a bulky rounded body with a smooth matte surface, a broad flattened head, an upturned wide mouth, small eyes set high, a slender rod-like lure rising from the snout",
+    "fins": "a small rounded dorsal fin, short rounded pectoral fins, a rounded tail fin",
+    "markings": "a faint grid of fine lines across the back, a single ring around the eye",
+    "colour": "烟灰底、初雪白点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS44": {
+    "name": "千面章鱼",
+    "latin": "",
+    "form": "a spindle-shaped mantle with overlapping layered rings, a smooth matte surface, eight arms of graded length fanned at even intervals, a single long filamentous tentacle",
+    "fins": "a pair of small triangular fins set midway along the mantle",
+    "markings": "stacked layer lines across the mantle, a ring of faint pits at the arm bases",
+    "colour": "铅灰底、层叠年轮",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS45": {
+    "name": "逆空鲛",
+    "latin": "",
+    "form": "a slender elongated build with a strongly tapered rear, a row of broad saw-toothed teeth, five long gill slits, fused ring plates along the flank",
+    "fins": "a crescent-shaped tail fin with a long upper lobe, long narrow pectoral fins",
+    "markings": "faint concentric growth rings along the flank, a single line of dots below the gill slits",
+    "colour": "铁青底、霜白腹",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS46": {
+    "name": "溯光鲹",
+    "latin": "",
+    "form": "a streamlined spindle-shaped body with a keeled belly, a small pointed head, a terminal mouth, a gently curved lateral line, small cycloid scales",
+    "fins": "a long low dorsal fin, a deeply forked tail fin, a row of small finlets behind the dorsal and anal fins",
+    "markings": "a row of evenly spaced luminous pores along the flank, faint vertical hairlines near the head",
+    "colour": "暗蓝底、星屑银点",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS47": {
+    "name": "旧日水母",
+    "latin": "",
+    "form": "a flattened bell with a scalloped rim, a ring of evenly spaced luminous nodes at the bell margin, four short oral arms, thin tentacles gathered into bundles",
+    "fins": "",
+    "markings": "concentric rings across the bell, faint radial spokes from the center",
+    "colour": "雾白底、褪色青环",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS48": {
+    "name": "影时鲽",
+    "latin": "",
+    "form": "a strongly flattened oval body, both eyes on one side, a small twisted mouth, a thin wavy margin along the fin edge",
+    "fins": "a long dorsal fin fringing the upper margin, a matching anal fin along the lower margin, a rounded tail fin",
+    "markings": "an irregular mosaic of patches over the eyed side, a faint ring near the tail base",
+    "colour": "烟影底、褪色赭斑",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS49": {
+    "name": "回环鳕",
+    "latin": "",
+    "form": "an elongated body that curls into a gentle spiral, a rounded head, a small barbel at the chin, fine cycloid scales",
+    "fins": "three separate dorsal fins, two anal fins, a rounded tail fin",
+    "markings": "a loop of concentric arcs along the flank, a single dot near the gill cover",
+    "colour": "青灰底、年轮褐",
+    "source": "fictional",
+    "unknown": false
+  },
+  "SSS50": {
+    "name": "沉默巨口鳗",
+    "latin": "",
+    "form": "a compressed band-like body, a gaping oversized mouth reaching far behind the eye, a blunt rounded snout, no pectoral fins",
+    "fins": "a continuous dorsal fin joined to the anal and tail fin",
+    "markings": "a single stilled wave line running the length of the flank",
+    "colour": "墨黑底、冷灰纹",
+    "source": "fictional",
+    "unknown": false
+  }
+}

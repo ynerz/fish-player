@@ -1,0 +1,102 @@
+{
+ "B11": {
+  "name": "大眼华鳊",
+  "latin": "Sinibrama macrops",
+  "form": "a laterally compressed slightly elongated body, the back slightly elevated, a small head, no barbels, large eyes, a short blunt snout, a keeled belly from the pelvic fin base to the anus, medium-sized scales, a complete lateral line",
+  "fins": "a forked tail fin",
+  "markings": "",
+  "colour": "体背部青灰色，体侧及腹面灰白色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "B12": {
+  "name": "似鳊",
+  "latin": "",
+  "form": "a laterally compressed body, a relatively high back, a rounded belly, a very narrow ventral keel from the pelvic fin base to the anus, a short head, a rounded blunt snout, a small inferior mouth with a transverse slit, thin lips, larger scales, a slender axillary scale at the pelvic fin base",
+  "fins": "a dorsal fin with a smooth stout spine shorter than the head",
+  "markings": "",
+  "colour": "体背部和体上侧灰褐色，体下侧和腹部银白色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "B13": {
+  "name": "中华细鲫",
+  "latin": "Aphyocypris chinensis",
+  "form": "larger scales, an incomplete lateral line reaching only to above the middle of the pectoral fins",
+  "fins": "longer pectoral fins reaching the origin of the pelvic fins, pelvic fins reaching the anus, a relatively long anal fin without a spine, a forked tail fin with two lobes about equal in length",
+  "markings": "a broad longitudinal stripe from above the gill cover to the middle of the caudal peduncle base, a narrower stripe along the middle of the back from the top of the head to the base of the tail fin",
+  "colour": "体背部深黑色，腹部灰白色，背鳍、腹鳍和臀鳍微黄色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "B14": {
+  "name": "麦鲮",
+  "latin": "",
+  "form": "an elongated spindle-shaped body, slightly laterally compressed, body depth about equal to head length, round medium-sized scales, a complete lateral line",
+  "fins": "",
+  "markings": "",
+  "colour": "身体上部青灰色，腹侧银白色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "B15": {
+  "name": "鲈鲤",
+  "latin": "Percocypris pingi",
+  "form": "an elongated laterally compressed body, a large pointed head, a large terminal mouth, small eyes, small scales",
+  "fins": "a forked tail fin",
+  "markings": "spots scattered along the flanks",
+  "colour": "体背青灰色，体侧具斑块，腹部灰白色",
+  "source": "model",
+  "unknown": false
+ },
+ "B16": {
+  "name": "鲤鱼",
+  "latin": "Cyprinus carpio",
+  "form": "no teeth in the jaws, pharyngeal teeth in the throat used for chewing",
+  "fins": "",
+  "markings": "",
+  "colour": "体背灰黑或黄褐色，体侧带金黄色，腹部灰白色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "B17": {
+  "name": "鲈鱼",
+  "latin": "Lateolabrax maculatus",
+  "form": "an elongated slightly laterally compressed body, the lower jaw slightly longer than the upper, small ctenoid scales",
+  "fins": "two dorsal fins joined at the base, an anal fin with a smaller first spine and a stronger second spine",
+  "markings": "spots on the flanks and on the spinous part of the dorsal fin",
+  "colour": "体上部灰绿色，下部灰白色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "B18": {
+  "name": "翘嘴鲌",
+  "latin": "Culter alburnus",
+  "form": "a slender laterally compressed willow-leaf-shaped body, a medium-sized head, an incomplete ventral keel from the pelvic fin base to the anus, a relatively long caudal peduncle, small cycloid scales, a complete lateral line",
+  "fins": "",
+  "markings": "",
+  "colour": "体背浅棕色，体侧银灰色，腹面银白色，背鳍、尾鳍淡红色",
+  "source": "grounded",
+  "unknown": false
+ },
+ "B19": {
+  "name": "蒙古鲌",
+  "latin": "Culter mongolicus",
+  "form": "an elongated laterally compressed body, a pointed head, an upturned mouth, an incomplete ventral keel, small scales, a complete lateral line",
+  "fins": "a forked tail fin",
+  "markings": "",
+  "colour": "体背灰褐色，腹部银白色",
+  "source": "model",
+  "unknown": false
+ },
+ "B20": {
+  "name": "黑鱼",
+  "latin": "Channa argus",
+  "form": "a stout elongated body, cylindrical in front and laterally compressed behind, a large pointed head flattened in front and slightly raised behind, a short blunt snout, a large mouth with the cleft slightly oblique and extending to below the rear edge of the eye, the lower jaw slightly protruding, small eyes set high and forward on the head",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "grounded",
+  "unknown": false
+ }
+}

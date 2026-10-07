@@ -1,0 +1,102 @@
+{
+  "S31": {
+    "name": "皱鳃鲨",
+    "latin": "",
+    "form": "an eel-like body, six gill slits on each side with frilled and overlapping gill septa, a very short snout, a wide mouth set at the front, teeth of the same shape in both jaws with three long cusps each, nostrils on the lower side of the head, a spiracle",
+    "fins": "a small leaf-shaped dorsal fin positioned between the pelvic-fin base and behind the anal fin, an anal fin larger than the dorsal fin, small paddle-shaped pectoral fins",
+    "markings": "",
+    "colour": "",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S32": {
+    "name": "雪茄达摩鲨",
+    "latin": "Isistius brasiliensis",
+    "form": "a small spindle-shaped body, a short snout, a horizontal mouth with a well-developed upper lip, hooked teeth in the upper jaw and large upright overlapping teeth in the lower jaw",
+    "fins": "small pectoral fins, pelvic fins taller than the two dorsal fins, no anal fin, a short broad broom-shaped tail fin",
+    "markings": "a transverse band crossing the belly between the gill openings in front of the pectoral fins",
+    "colour": "体背暗褐色，腹部浅褐色或淡白色；鳍褐色，胸鳍、背鳍和腹鳍具淡白色边缘",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S33": {
+    "name": "六鳃鲨",
+    "latin": "Hexanchus griseus",
+    "form": "a long stout body, a short blunt snout, a large curved mouth, six pairs of gill slits set obliquely and wide, large eyes",
+    "fins": "an anal fin smaller than the dorsal fin, the anal-fin origin below the rear part of the dorsal-fin base",
+    "markings": "",
+    "colour": "体色从背面灰黑色到巧克力棕色不等，腹部为灰白色；眼为萤光绿色",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S34": {
+    "name": "深海龙鱼",
+    "latin": "Grammatostomias flagellibarba",
+    "form": "a small elongated body, a large head, a huge mouth, sharp nail-like teeth in the upper and lower jaws, small sharp teeth on the upper jaw and tongue, tubular eyes, entirely scaleless skin",
+    "fins": "",
+    "markings": "two rows of luminous photophores along the flanks, a luminous lure on the barbel of the lower jaw",
+    "colour": "",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S35": {
+    "name": "深海银鲛",
+    "latin": "",
+    "form": "an elongated tapering body, a large head with a blunt snout, large eyes, smooth scaleless skin, the gill slits covered by a single operculum",
+    "fins": "two dorsal fins with a stout spine in front of the first, large wing-like pectoral fins, a long whip-like tail",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  },
+  "S36": {
+    "name": "单棘魨",
+    "latin": "",
+    "form": "a laterally compressed elongated body, a small pointed head, a small terminal mouth, leathery skin with small scales, a prominent first dorsal spine above the eye",
+    "fins": "a first dorsal fin reduced to a single stout spine, a second dorsal fin, a small anal fin, a rounded tail fin",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": false
+  },
+  "S37": {
+    "name": "蓝环章鱼",
+    "latin": "Hapalochlaena maculosa",
+    "form": "a small rounded body, eight arms, a body covered in small spots",
+    "fins": "",
+    "markings": "rings around the eye spots, rings on the arms, spots covering the whole body",
+    "colour": "通常呈深棕色、深黄色或棕褐色，眼斑周围具有鲜艳的彩虹蓝色环纹，全身布满青蓝色斑点",
+    "source": "grounded",
+    "unknown": false
+  },
+  "S38": {
+    "name": "巨口鳗",
+    "latin": "",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": true
+  },
+  "S39": {
+    "name": "黑柔骨鱼",
+    "latin": "",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": true
+  },
+  "S40": {
+    "name": "深海水母王",
+    "latin": "",
+    "form": "",
+    "fins": "",
+    "markings": "",
+    "colour": "",
+    "source": "model",
+    "unknown": true
+  }
+}

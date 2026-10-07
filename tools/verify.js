@@ -1492,6 +1492,40 @@ let shapeBad = 0;
 if (!shapeBad) ok(`文档里的体型数量与出图工具的覆盖都等于代码里的 ${Object.keys(G.FISH.reduce((a, f) => (a[f.shape] = 1, a), {})).length} 种`);
 
 
+/* ---------------- 34. 文档里写的「自检 N 节」必须就是本文件的节数 ----------------
+   开发者文档 §8 出现过「数据自检 29 节」、GDD §目录树 写着「自检 15 节」，
+   而本文件早就不是这个数了 —— 每加一节就过期一次，而且没人会去核对。
+   这里改成现算：数一遍本文件里的 `console.log('\n[N] …')`，与文档里的措辞比对。
+   测试的「项数」同理不再写进文档（加一条断言就漂），只说「以输出为准」。 */
+console.log('\n[34] 文档里写的自检节数 == 本文件真实的节数');
+let secBad = 0;
+(function () {
+  const self = fs.readFileSync(path.join(ROOT, 'tools/verify.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  const real = (self.match(/console\.log\('\\n\[\d+\]/g) || []).length;
+  const docs = ['docs/开发者文档.md', 'docs/GDD.md', 'docs/说明书.html', 'README.md'];
+  let found = 0;
+  docs.forEach(rel => {
+    const p = path.join(ROOT, rel);
+    if (!fs.existsSync(p)) return;
+    const txt = fs.readFileSync(p, 'utf8');
+    const hits = [];
+    (txt.match(/自检\s*\d+\s*节/g) || []).forEach(h => hits.push(h));
+    (txt.match(/\d+\s*节一致性断言/g) || []).forEach(h => hits.push(h));
+    hits.forEach(h => {
+      found++;
+      const n = parseInt(h.replace(/[^\d]/g, ''), 10);
+      if (n !== real) {
+        err(`${rel} 写着「${h}」，而 tools/verify.js 实际有 ${real} 节`);
+        secBad++;
+      }
+    });
+  });
+  if (!found) { err('四份文档里都找不到「自检 N 节」的描述（改了措辞就来更新这条断言）'); secBad++; }
+})();
+if (!secBad) ok(`文档里的节数与 verify.js 实际节数一致（如实写 ${(fs.readFileSync(path.join(ROOT, 'tools/verify.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').match(/console\.log\('\\n\[\d+\]/g) || []).length} 节）`);
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

@@ -1419,8 +1419,7 @@ G.Scene = (function () {
 
   /* ---------------- 取用 ---------------- */
   function setRodBend(v) { S.rodBend = v; }
-  function getRodTip() { return { x: rodTipX(), y: rodTipY() }; }
-  function getFloat() { return { x: floatX(), y: surfaceY() }; }
+  /* ⚠️ getRodTip() / getFloat() 已删：全项目零调用（场景内部直接用 rodTipX()/floatX()）。 */
 
   return {
     init: init, render: render, resize: resize,
@@ -1428,7 +1427,7 @@ G.Scene = (function () {
     cast: cast, beginWait: beginWait, bite: bite, floatNudge: floatNudge,
     beginFight: beginFight, endFight: endFight,
     splash: splash, sparkle: sparkle, showShadow: showShadow,
-    setRodBend: setRodBend, getRodTip: getRodTip, getFloat: getFloat,
+    setRodBend: setRodBend,
     state: S,
   };
 })();

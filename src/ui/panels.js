@@ -1777,15 +1777,14 @@ G.Panels = (function () {
     hideCatch();
     if (onDone) onDone('sell', info);
   }
-  function getPendingCatch() { return pendingCatch; }
-
+  /* ⚠️ `getPendingCatch()` 已删：全项目零调用（结算卡的 payload 只有本模块用）。 */
   return {
     init: init, open: open, close: close, refresh: refresh, isOpen: isOpen,
     current: currentView,
     setOnClose: setOnClose,
-    showCatch: showCatch, hideCatch: hideCatch, isCatchOpen: isCatchOpen,
+    showCatch: showCatch, isCatchOpen: isCatchOpen,
+    /* hideCatch 是内部实现（fire() / dismissCatch 用），不导出 */
     initCatchButtons: initCatchButtons, dismissCatch: dismissCatch,
-    getPendingCatch: getPendingCatch,
     VIEWS: VIEWS,
   };
 })();

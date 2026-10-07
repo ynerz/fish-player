@@ -83,7 +83,9 @@ G.Platform = (function () {
         ? window.performance.now()
         : Date.now();
     },
-    isWeb: true,
+    /* ⚠️ 原来的 `isWeb: true` 已删：同一个事实在顶层与这里各写了一份，
+       而全项目**没有任何地方读它**（要判平台就补一个真正被消费的能力，
+       别留「看着像基础设施」的字段）。 */
   };
 
   /* ---------------- 输入 ----------------
@@ -96,7 +98,6 @@ G.Platform = (function () {
        「松手」这个动作**永远不会生效**：按住能收线、松开不收线，
        张力必然拉满断线，且不报任何错。任何平台实现都必须保持 up(fn)。 */
     up: function (fn) { window.addEventListener('pointerup', fn); },
-    upOn: function (el, fn) { el.addEventListener('pointerup', fn); },
     cancel: function (el, fn) { el.addEventListener('pointercancel', fn); },
     /* 指针划出元素也要放开 —— 否则按住按钮拖出去会一直「收线」 */
     leave: function (el, fn) { el.addEventListener('pointerleave', fn); },
@@ -111,6 +112,5 @@ G.Platform = (function () {
     canvas: canvas,
     sys: sys,
     input: input,
-    isWeb: true,
   };
 })();

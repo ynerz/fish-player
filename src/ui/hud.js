@@ -246,7 +246,7 @@ G.Hud = (function () {
     while (el.catchLog.children.length > 9) el.catchLog.removeChild(el.catchLog.lastChild);
   }
 
-  function clearCatchLog() { if (el.catchLog) el.catchLog.innerHTML = ''; }
+  /* ⚠️ `clearCatchLog()` 已删：全项目零调用（换钓场 / 清档都会整页刷新）。 */
 
   /* ---------------- 提示 ---------------- */
   function toast(o) {
@@ -262,7 +262,7 @@ G.Hud = (function () {
     setAction: setAction, showBite: showBite, showFight: showFight, updateFight: updateFight,
     toast: toast, setField: setField, setWeather: setWeather,
     setTitle: setTitle, syncTitle: syncTitle, syncGoalBadge: syncGoalBadge,
-    pushCatch: pushCatch, clearCatchLog: clearCatchLog,
+    pushCatch: pushCatch,
     el: el,
   };
 })();

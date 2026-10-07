@@ -1783,6 +1783,32 @@ G_('Audio · 环境音的开启 / 停止');
   G.Audio = audioStub;   // 还原成空壳：后面还有 resolve() 的定时器会调它
 })();
 
+/* =========================================================
+   模块导出面 · 清掉的零消费死接口不许悄悄回来
+   第 ㉕ 节用白名单钉住了 `G.U`；本轮把同一件事扩到**全部模块**：
+   verify 第 ㉜ 节从源码层扫「每个导出都要有消费方」，这里再从运行期
+   把这一轮删掉的那批逐个点名（删函数要显式改这里，所以删不干净会立刻红）。
+   `G.Hud` / `G.Scene` / `G.FishArt` 没在 Node 里加载，它们的死接口由 ㉜ 节管。
+   ========================================================= */
+G_('模块导出面 · 清掉的零消费接口不许回来');
+[
+  ['G.Platform', 'isWeb'],            // 同一个事实顶层与 sys 各写一份、都没人读
+  ['G.Platform.sys', 'isWeb'],
+  ['G.Platform.input', 'upOn'],       // 未文档化、全项目零调用（up 才是松手通道）
+  ['G.Loot', 'envWeight'],            // 只是 rollFish 的内部实现
+  ['G.Loot', 'pickInBucket'],
+  ['G.Fight', 'isRunning'],
+  ['G.Goals', 'today'],               // weekOf / week 有人用，today 没有
+  ['G.Tutorial', 'isFinished'],
+  ['G.Audio', 'isEnabled'],
+  ['G.Audio', 'getVolume'],
+  ['G.Panels', 'getPendingCatch'],
+  ['G.Panels', 'hideCatch'],          // 内部实现（fire / dismissCatch 用）
+].forEach(([hostPath, key]) => {
+  const host = hostPath.split('.').reduce((o, k) => (o == null ? o : o[k]), global);
+  ok(!!host && host[key] === undefined, `${hostPath}.${key} 已从导出面移除（零消费死接口）`);
+});
+
 /* ---------- 汇总 ---------- */
 console.log('\n' + '='.repeat(52));
 if (fail) { console.log(`\u2716 测试未通过：${pass} 通过 / ${fail} 失败\n`); process.exit(1); }

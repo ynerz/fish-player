@@ -161,7 +161,8 @@ G.Loot = (function () {
 
   return {
     rollKg: rollKg, rollColor: rollColor, colorByKey: colorByKey,
-    envWeight: envWeight, pickInBucket: pickInBucket,
+    /* ⚠️ `envWeight` / `pickInBucket` 只是 `rollFish` 的内部实现（天气偏好加成
+       与档内抽鱼），不该出现在导出面上 —— 全项目零外部调用。 */
     colorProb: colorProb, colorProbTotal: colorProbTotal,
     rarityWeights: rarityWeights, rollFish: rollFish,
     biteTime: biteTime, price: price, generate: generate, tankYield: tankYield,

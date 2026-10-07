@@ -154,7 +154,6 @@ G.Fight = (function () {
 
   function end() { F = null; }
   function get() { return F; }
-  function isRunning() { return !!F && !F.over; }
 
   /* 供 UI：张力占比、安全线、进度 */
   function snapshot() {
@@ -172,7 +171,7 @@ G.Fight = (function () {
 
   return {
     begin: begin, update: update, end: end, get: get,
-    isRunning: isRunning, snapshot: snapshot, drainEvents: drainEvents,
+    snapshot: snapshot, drainEvents: drainEvents,
     SAFE: SAFE,
   };
 })();

@@ -74,13 +74,14 @@ G.Audio = (function () {
       if (!enabled) API.stopAmbience();
       else if (ambGain) API.startAmbience();
     },
-    isEnabled: function () { return enabled; },
+    /* ⚠️ `isEnabled()` / `getVolume()` 已删：全项目零调用（开关状态只有 UI 在读，
+       而 UI 读的是存档里的 settings）。返回值为「看着像基础设施」的 getter 最容易
+       长成死代码，verify 第 ㉜ 节会盯着。 */
 
     setVolume: function (v) {
       vol = G.U.clamp(v, 0, 1);
       if (master) master.gain.value = vol;
     },
-    getVolume: function () { return vol; },
 
     /* 抛竿：挥竿风切 + 落水 */
     cast: function () {

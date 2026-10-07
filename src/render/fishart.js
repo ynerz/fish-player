@@ -61,8 +61,6 @@ G.FishArt = (function () {
   var ST = STYLES.flat;
 
   function setStyle(key) { ST = STYLES[key] || STYLES.flat; return ST; }
-  function getStyle() { return ST; }
-  function listStyles() { return Object.keys(STYLES).map(function (k) { return STYLES[k]; }); }
 
   /* 描边宽度统一出口 */
   function LWM(min, v) { return Math.max(min, v) * (ST.lineScale || 1); }
@@ -825,30 +823,18 @@ G.FishArt = (function () {
     ctx.restore();
   }
 
-  /* 画在指定 canvas 上（自适应尺寸，用于图鉴 / 结算卡） */
-  function paintTo(canvas, fish, opt) {
-    opt = opt || {};
-    var dpr = G.Platform.sys.dpr();
-    var w = canvas.clientWidth || canvas.width;
-    var h = canvas.clientHeight || canvas.height;
-    canvas.width = Math.max(1, Math.round(w * dpr));
-    canvas.height = Math.max(1, Math.round(h * dpr));
-    var ctx = canvas.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
+  /* 画在指定 canvas 上（自适应尺寸）—— 已删：图鉴 / 结算卡实际都自己建 ctx
+     再调 draw()（它们各自的背景不一样），这个函数全项目零调用。 */
 
-    // 背景光
-    var gr = ctx.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, Math.max(w, h) * 0.7);
-    gr.addColorStop(0, 'rgba(255,255,255,.9)');
-    gr.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = gr;
-    ctx.fillRect(0, 0, w, h);
+  /* ⚠️ `paintTo()` / `palette()` / `getStyle()` / `listStyles()` 已删（v0.5.8）：
+     · `paintTo(canvas, fish, opt)` 开发者文档 §5.2 说它「用于图鉴 / 结算卡」，
+       但两处实际都自己建 ctx 再调 `draw()`（图鉴要画水波背景、结算卡要画渐变），
+       `paintTo` 全项目零调用 —— 是「文档里有、代码里没人调」的死接口。
+     · `palette()` 只在 `draw()` 内部用（`var p = palette(fish, opt)`），
+       不该出现在导出面上。
+     · `getStyle()` / `listStyles()` 零调用（出图工具走的是 `STYLES[key]` 与 `setStyle`）。
+     verify 第 ㉜ 节会扫全部模块的导出面，防止这类接口再长出来。 */
 
-    var L = Math.min(w * 0.68, h * 1.55);
-    draw(ctx, fish, w * 0.5, h * 0.5, L, opt);
-    return ctx;
-  }
-
-  return { draw: draw, drawSilhouette: drawSilhouette, paintTo: paintTo, palette: palette,
-           setStyle: setStyle, getStyle: getStyle, listStyles: listStyles, STYLES: STYLES };
+  return { draw: draw, drawSilhouette: drawSilhouette,
+           setStyle: setStyle, STYLES: STYLES };
 })();

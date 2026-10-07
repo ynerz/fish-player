@@ -226,7 +226,7 @@ G.Tutorial = (function () {
     active: active,
     stepIndex: function () { return St.get().tut.step; },
     stepCount: function () { return steps().length; },
-    /* 调试用：开发者面板 / 控制台里可以直接跳到最后一步 */
-    isFinished: function () { return !!St.get().tut.done; },
+    /* ⚠️ 原来的 `isFinished()`（调试用）已删：全项目零调用。
+       要看是否学完，读存档的 `G.State.get().tut.done` 即可。 */
   };
 })();

@@ -515,7 +515,7 @@ G.Goals = (function () {
   }
 
   return {
-    init: init, tick: tick, today: todayKey, week: weekKey, weekOf: weekOf,
+    init: init, tick: tick, week: weekKey, weekOf: weekOf,
     day: function () { return St.get().daily; },
     weekBoard: function () { return St.get().weekly; },
     quests: quests, claim: claim, claimAll: claimAll,

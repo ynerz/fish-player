@@ -1350,6 +1350,90 @@ let wireBad = 0;
 if (!wireBad) ok('鱼影的「写 → 读 → 收尾」三处接线都在，且 showShadow 在导出面上');
 
 
+/* ---------------- 32. 导出面上的「零消费」死函数（全部模块） ----------------
+   第 ㉕ 节只扫了 `util.js`。实测**每个模块都积了一批**：G.U 那次删掉 5 个之后，
+   别处又长出 `Platform.input.upOn`（未文档化、无人调用）、`Platform.isWeb`（同一个
+   事实在顶层与 sys 里各写了一份、都没人读）、`Loot.envWeight / pickInBucket`
+   （只在 loot.js 内部用，不该出现在导出面上）、`Scene.getRodTip / getFloat`、
+   `Track.kinds`（与 count() 完全同义的重复接口）、`Hud.clearCatchLog`、
+   `FishArt.paintTo`（开发者文档 §5.2 说它给图鉴 / 结算卡用，实际那两处都直接调
+   `G.FishArt.draw`，所以它零调用）…… 全是同一类：**看着像基础设施，实际没人用**。
+   判据（比 ㉕ 更宽松，避免误报）：某个导出名在**它自己文件之外**的
+   `src/` `tools/` `docs/` `index.html` 里一次都没出现过 → 报错。
+   白名单只留「按设计就不该被代码调用」的：控制台 API 与将来接外部服务的接入点。 */
+console.log('\n[32] 所有模块的导出面：除白名单外，每个导出都要有消费方');
+let deadExportBad = 0;
+(function () {
+  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const collect = (dir, re, out) => fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+    const p = path.join(ROOT, dir, n);
+    if (fs.statSync(p).isDirectory()) collect(dir + '/' + n, re, out);
+    else if (re.test(n)) out.push(dir + '/' + n);
+  });
+  const rel = [];
+  collect('src', /\.js$/, rel);
+  collect('tools', /\.(js|html)$/, rel);
+  collect('docs', /\.html$/, rel);
+  rel.push('index.html');
+  const code = {};
+  rel.forEach(r => { code[r] = strip(fs.readFileSync(path.join(ROOT, r), 'utf8')); });
+
+  /* 「按设计就没有代码消费方」的名单：模块 → 允许零调用的导出名 */
+  const WHITELIST = {
+    /* G.Cheat.* 是**控制台 API**（开发者文档 §11 逐条列着），只在手动调试时敲，
+       代码里当然不会有人调。同理 mount() 由自身 boot() 触发。 */
+    'src/ui/devtools.js': ['unlockAll', 'fillBook', 'fillColors', 'addCoin', 'setPlayTime',
+      'clearSave', 'finishQuests', 'addMedals', 'addEco', 'allDecors',
+      'dumpTrack', 'trackCount', 'mount'],
+    /* G.Track 的「将来接外部服务」接入点：文档 §16.4 明确说上线时才实现 flush。 */
+    'src/core/track.js': ['flush', 'onFlush', 'dumpJson'],
+    /* 定点调试用（按 key 强制天气 / 时段，复现某个环境下的数值），文档 §11 已列。 */
+    'src/core/weather.js': ['set'],
+  };
+
+  /* 从模块里取出「顶层 return 的导出块」。两种写法都认：
+       `return { ... };`（多数模块）与 `var API = { ... }; return API;`（audio.js） */
+  function exportKeys(txt) {
+    let m = [...txt.matchAll(/^  return \{/gm)];
+    let start = -1;
+    if (m.length) start = m[m.length - 1].index + '  return {'.length;
+    else {
+      m = [...txt.matchAll(/^  var API = \{/gm)];
+      if (m.length) start = m[m.length - 1].index + '  var API = {'.length;
+    }
+    if (start < 0) return [];
+    const end = txt.indexOf('};', start);
+    if (end < 0) return [];
+    const block = txt.slice(start, end);
+    const keys = [];
+    (block.match(/(^|[\s{,])([A-Za-z_$][\w$]*)\s*:/g) || []).forEach(s => {
+      const k = s.replace(/^[\s{,]+/, '').replace(/\s*:$/, '');
+      if (keys.indexOf(k) < 0) keys.push(k);
+    });
+    return keys;
+  }
+
+  let checked = 0, modCount = 0;
+  rel.filter(r => r.startsWith('src/') && r.endsWith('.js')).forEach(r => {
+    const keys = exportKeys(code[r]);
+    if (!keys.length) return;
+    checked += keys.length;
+    modCount++;
+    const allow = WHITELIST[r] || [];
+    const dead = keys.filter(k => {
+      if (allow.indexOf(k) >= 0) return false;
+      const re = new RegExp('(^|[^A-Za-z0-9_$])' + k.replace(/\$/g, '\\$') + '(?![A-Za-z0-9_$])');
+      return !rel.some(g => g !== r && re.test(code[g]));
+    });
+    if (dead.length) {
+      err(`${r} 的导出里这些名字全项目零调用：${dead.join('、')}（删掉，或补一处真实用例；确实不该有调用方的请加白名单并写明理由）`);
+      deadExportBad++;
+    }
+  });
+  if (!deadExportBad) ok(`${modCount} 个模块共 ${checked} 个导出都有真实消费方，白名单只留控制台 API 与外部上报接入点`);
+})();
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

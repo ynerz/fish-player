@@ -1434,6 +1434,64 @@ let deadExportBad = 0;
 })();
 
 
+/* ---------------- 33. 体型数量：文档 / 出图工具必须与代码一致 ----------------
+   代码里是 **9 种**（`TPL.fish / eel / ray / squid / jelly / oarfish / shark / whale / dragon`），
+   而 GDD 两处 + 开发者文档一处都写着「10 种体型」，开发者文档 §5.2 自己又写着 9 ——
+   同一份文档里两个数字打架，而且**没有任何报错**。
+   出图工具更狠：`tools/style-preview.html` 的标题是「全形态总览（6 风格 × 10 种体型）」，
+   但 `SHAPES` 里列的 11 条鱼只有 fish / eel / jelly 三种体型 —— 漏了 6 种还叫「全形态」。
+   判据（都是现算，不写死 9）：① 「N 体型 / N 种体型」的 N 必须等于 fish.js 里的体型数
+                              ② 出图工具的代表鱼必须覆盖全部体型 */
+console.log('\n[33] 体型数量：文档文案与出图工具的覆盖都要与 fishart.js 一致');
+let shapeBad = 0;
+(function () {
+  const shapeSet = {};
+  G.FISH.forEach(f => { shapeSet[f.shape] = true; });
+  const shapes = Object.keys(shapeSet).sort();
+  const n = shapes.length;
+
+  /* ① 文案里的数字
+     ⚠️ `.html` 里的 `<script>` 也是代码：必须**先剥掉块注释**再匹配 ——
+        第一版没剥，结果把 style-preview.html 里那句「标题说全形态、实际漏了 6 种体型」
+        的说明注释当成了正文（自己把自己喂饱 → 假报红）。 */
+  const docs = ['docs/GDD.md', 'docs/开发者文档.md', 'docs/说明书.html', 'README.md',
+                'tools/style-preview.html'];
+  docs.forEach(rel => {
+    const p = path.join(ROOT, rel);
+    if (!fs.existsSync(p)) return;
+    let txt = fs.readFileSync(p, 'utf8');
+    if (/\.html$/.test(rel)) txt = txt.replace(/\/\*[\s\S]*?\*\//g, '');
+    (txt.match(/\d+\s*种?体型/g) || []).forEach(hit => {
+      const num = parseInt(hit, 10);
+      if (num !== n) {
+        err(`${rel} 写着「${hit}」，而 src/render/fishart.js 只有 ${n} 种体型（${shapes.join(' / ')}）`);
+        shapeBad++;
+      }
+    });
+  });
+
+  /* ② 出图工具的代表鱼覆盖 */
+  const previewSrc = fs.readFileSync(path.join(ROOT, 'tools/style-preview.html'), 'utf8');
+  const arr = (previewSrc.match(/var SHAPES\s*=\s*\[([\s\S]*?)\];/) || [, ''])[1];
+  const ids = (arr.match(/'([A-Z]+\d+)'/g) || []).map(s => s.replace(/'/g, ''));
+  if (!ids.length) { err('style-preview.html 里找不到 SHAPES 代表鱼列表'); shapeBad++; }
+  const miss = shapes.filter(sh => !ids.some(id => G.FISH_ID[id] && G.FISH_ID[id].shape === sh));
+  if (miss.length) {
+    err(`tools/style-preview.html 的「全形态总览」漏了 ${miss.length} 种体型：${miss.join(' / ')}` +
+        `（标题写着「全形态」，实际只有 ${shapes.length - miss.length} 种）`);
+    shapeBad++;
+  }
+  const badId = ids.filter(id => !G.FISH_ID[id]);
+  if (badId.length) { err(`style-preview.html 的代表鱼里有不存在的 id：${badId.join(' / ')}`); shapeBad++; }
+  const uniq = {};
+  ids.forEach(id => { if (G.FISH_ID[id]) uniq[G.FISH_ID[id].shape] = 1; });
+  if (Object.keys(uniq).length !== ids.length) {
+    warn(`style-preview 的代表鱼里有重复体型（${ids.length} 条鱼只覆盖 ${Object.keys(uniq).length} 种）`);
+  }
+})();
+if (!shapeBad) ok(`文档里的体型数量与出图工具的覆盖都等于代码里的 ${Object.keys(G.FISH.reduce((a, f) => (a[f.shape] = 1, a), {})).length} 种`);
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

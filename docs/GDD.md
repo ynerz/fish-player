@@ -356,7 +356,7 @@
 > 是**开发期候选方案，不是玩家功能** ——
 > 不给玩家任何切换入口，写文档、做功能时都不要当卖点。
 > 开发期想看对比：控制台 `G.FishArt.setStyle('bold')`；
-> 出图用 `tools/style-preview.html`（6 风格 × 10 种体型的对照表）。
+> 出图用 `tools/style-preview.html`（6 风格 × 9 种体型的对照表）。
 
 | 风格 | key | 特征 | 状态 |
 |---|---|---|---|
@@ -394,7 +394,7 @@ src/core/weather.js           天气 + 时段（影响稀有档权重与稀有�
 src/core/fishing.js           钓鱼主循环状态机 + 离线补算
 src/core/goals.js             每日任务 / 成就 / 称号的判定与结算
 src/core/track.js             错误采集（空壳：环形缓冲 + 可导出文本，不接外部服务）
-src/render/fishart.js         参数化鱼类绘制器（10 种体型 × 6 套候选画风，默认 flat）
+src/render/fishart.js         参数化鱼类绘制器（9 种体型 × 6 套候选画风，默认 flat）
 src/render/scene.js           Canvas 场景渲染（渐变缓存 + 装饰绘制）
 src/ui/hud.js                 顶栏、底栏、按钮、提示、拉扯 UI、渔获播报
 src/ui/panels.js              钓场/图鉴/商店/鱼护/目标/统计/设置/结算卡

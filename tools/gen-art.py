@@ -284,13 +284,23 @@ NAME_HINTS = [
     ("鲂",   "laterally compressed diamond-shaped body with a small head"),
 ]
 
-# ── 个体差异（用户口径：「要有一定的随机性」）──
+# ── 个体差异（用户口径：「要有一定的随机性」+「同种生图时加一些小特征来区分」）──
 # ⚠️ 随机必须**可复现**：用鱼 id 派生哈希，同一条鱼每次出图结果一样。
 #    用真随机会让「重出一张」变成「换一条鱼」，清单和 manifest 立刻失真。
 SNOUT = ["short snout", "pointed snout", "blunt rounded snout",
          "slightly upturned mouth", "downward-facing mouth"]
 HEAD = ["small head", "medium head", "large head"]
 FINBUILD = ["modest fins", "well-developed fins", "long trailing fins"]
+# 体表小特征 —— 用户口径「同种（同科属）的鱼要能区分」。
+# ⚠️ 与 FEATURE 的特征位**互斥**：鱼本身带 `stripes` / `spots` 时跳过这里，
+#    否则会出现「带垂直条纹 + 带竖直斑纹」这种重复描述。
+MARKINGS = ["a dark lateral line running along the body",
+            "a faint scattering of small dots",
+            "subtle vertical barring on the flanks",
+            "a single dark spot near the tail base",
+            "a clean plain unmarked body",
+            "a slightly darker patch behind the gill cover"]
+MARKING_KEYS = ("stripes", "spots")
 
 
 def stable_pick(fid, salt, options):
@@ -357,13 +367,16 @@ def build_prompt(f):
         if fd:
             bits.append(fd)
 
-    # ③ 个体差异（用户口径「要有一定的随机性」）——
+    # ③ 个体差异（用户口径「要有一定的随机性」+「同种加小特征区分」）——
     #    同一个科属的两条鱼（比如两条鲷）也不能长得一模一样。
     #    ⚠️ 只对 fish 体型加：其他体型的形态已经够独特，再叠吻 / 头会互相打架。
     #    ⚠️ 同一个 id 结果恒定（stable_pick），否则「重出一张」会变成「换一条鱼」。
     if shape == "fish":
         bits.append(stable_pick(f["id"], "snout", SNOUT))
         bits.append(stable_pick(f["id"], "head", HEAD))
+        # 体表小特征：鱼自己带 stripes / spots 时跳过（避免重复描述，见 MARKINGS 注释）
+        if not any(f.get(k) for k in MARKING_KEYS):
+            bits.append(stable_pick(f["id"], "mark", MARKINGS))
 
     tail = TAIL.get(f.get("tail"))
     if tail and shape in TAIL_SHAPES:          # ⚠️ 不能无条件加（坑 4）

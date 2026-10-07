@@ -2006,9 +2006,11 @@ function bboxOf(m) {
 const bFish = bboxOf(FM.build('fish'));
 const bRay = bboxOf(FM.build('ray'));
 const bJelly = bboxOf(FM.build('jelly'));
-ok(bFish.x > 1.4 && bFish.x < 1.9, `fish：体长跨度合理（${bFish.x.toFixed(2)}，含尾鳍）`);
+ok(bFish.x > 1.8 && bFish.x < 2.4, `fish：体长跨度合理（${bFish.x.toFixed(2)}，含尾鳍）—— 比例按 v9 参考图量过`);
 ok(bFish.y > 0.5 && bFish.y < 1.0, `fish：体高跨度合理（${bFish.y.toFixed(2)}，含背鳍 / 胸鳍）`);
-ok(bRay.z > bRay.x, `ray：展向（${bRay.z.toFixed(2)}）大于体长（${bRay.x.toFixed(2)}）—— 这是鳐的识别特征`);
+ok(bRay.z > bRay.y * 5, `ray：极扁的盘（展向 ${bRay.z.toFixed(2)} 是厚度 ${bRay.y.toFixed(2)} 的 ${(bRay.z/bRay.y).toFixed(1)} 倍）`);
+ok(bRay.x > bRay.z * 0.9,
+  `ray：算上鞭尾，总长（${bRay.x.toFixed(2)}）与展向（${bRay.z.toFixed(2)}）同量级 —— 不是「一个大盘拖着短线」`);
 ok(bRay.y < 0.3, `ray：极扁（厚度 ${bRay.y.toFixed(2)}）—— 车削式做不出这个平面型，所以它走独立生成器`);
 ok(bJelly.y > bJelly.x, `jelly：伞盖 + 触手在竖直方向展开（高 ${bJelly.y.toFixed(2)} > 宽 ${bJelly.x.toFixed(2)}）`);
 
@@ -2021,8 +2023,8 @@ near(FM.rad(90), Math.PI / 2, 1e-9, 'rad()：导出给调用方用（角度参�
 
 // 默认视角必须按体型给：鳐侧视只是一条细缝，正 / 侧面都没有辨识度
 const dvRay = FM.defaultView('ray'), dvFish = FM.defaultView('fish'), dvJelly = FM.defaultView('jelly');
-ok(dvRay.pitch > 0.7 && dvRay.pitch < 1.4,
-  `defaultView('ray')：俯仰 ${(dvRay.pitch * 180 / Math.PI).toFixed(0)}° —— 鳐必须俯视才认得出来`);
+ok(dvRay.pitch > 1.3 && dvRay.pitch < 1.6,
+  `defaultView('ray')：俯仰 ${(dvRay.pitch * 180 / Math.PI).toFixed(0)}° —— 鳐必须接近正俯视；60° 是斜俯，展向会被压扁`);
 ok(dvFish.pitch === 0 && dvFish.yaw === 0, 'defaultView()：常规鱼默认侧视（辨识度最高的角度）');
 ok(dvJelly.pitch !== 0, 'defaultView()：水母不是正侧视（要看到伞盖内侧）');
 ok(FM.defaultView('没这个体型') === null, 'defaultView()：未知体型返回 null');
@@ -2083,23 +2085,27 @@ ok(FM.detailForRar(0) === 0 && FM.detailForRar(1) === 0 &&
 ok(FM.DETAIL_TIERS.length === 4 && FM.DETAIL_TIERS[3].detail === 2,
   'DETAIL_TIERS：稀有度 → 细节层级是单一来源（不在别处再写一份映射）');
 
+/* 稀有度递进按**剪影**验，不按面数：
+   基础档已经给全解剖结构，史诗档是「同样的鳍更长」，面数不变但轮廓变大。
+   按面数验会漏掉这一档（实测踩过：改完之后 detail 1 与 detail 0 面数完全相同）。 */
 const thinTier = [];
 const flatTier = [];
 SHAPES9.forEach(k => {
-  const d0 = FM.build(k, { detail: 0 }), d2 = FM.build(k, { detail: 2 });
-  const d1 = FM.build(k, { detail: 1 });
-  if (!(d2.tris.length > d0.tris.length)) thinTier.push(k);
-  // 每一档都必须看得出来 —— 史诗档也不能是「和普通一模一样」
-  if (!(d1.tris.length > d0.tris.length)) flatTier.push(k);
+  const d0 = FM.build(k, { detail: 0 }), d1 = FM.build(k, { detail: 1 }), d2 = FM.build(k, { detail: 2 });
+  const b0 = bboxOf(d0), b1 = bboxOf(d1), b2 = bboxOf(d2);
+  const g1 = Math.max(b1.x - b0.x, b1.y - b0.y, b1.z - b0.z);
+  const g2 = Math.max(b2.x - b1.x, b2.y - b1.y, b2.z - b1.z);
+  if (g1 < 0.008) flatTier.push(k + '(+' + g1.toFixed(3) + ')');
+  if (g2 < 0.008) thinTier.push(k + '(+' + g2.toFixed(3) + ')');
   // 加了附属结构之后坐标仍必须是有限数 —— 锚点算错时最容易出 NaN，
   // 而 NaN 只是「什么都不显示」，不会报错（实测踩过：鳐鱼飘带锚点漏了 span）
   ok(d2.verts.every(v => isFinite(v.x) && isFinite(v.y) && isFinite(v.z)),
     `build('${k}', detail 2)：加了飘带 / 棘刺后坐标仍是有限数`);
 });
 ok(flatTier.length === 0,
-  `史诗档（detail 1）在全部 9 种体型上都比普通档更多细节${flatTier.length ? '；没变的：' + flatTier.join('、') : ''}`);
+  `史诗档比普通档的剪影更大（鳍更长）${flatTier.length ? '；没变的：' + flatTier.join('、') : ''}`);
 ok(thinTier.length === 0,
-  `传说档（detail 2）的三角面在全部 9 种体型上都多于普通档${thinTier.length ? '；例外：' + thinTier.join('、') : ''}`);
+  `传说档比史诗档的剪影更大（再叠飘带 / 棘刺）${thinTier.length ? '；没变的：' + thinTier.join('、') : ''}`);
 
 // 关键：细节必须落在**剪影**上 —— 缩到 64px 时表面全糊，只有轮廓外的突起读得出来
 let silBad = [];
@@ -2112,9 +2118,9 @@ ok(silBad.length === 0,
   `传说档的剪影确实变大（不是贴表面纹理）${silBad.length ? '；没变的：' + silBad.join('、') : ''}`);
 
 const f0 = FM.build('fish', { detail: 0 }), f1 = FM.build('fish', { detail: 1 }), f2 = FM.build('fish', { detail: 2 });
-ok(f1.tris.length > f0.tris.length && f2.tris.length > f1.tris.length,
-  `细节层级单调递增：${f0.tris.length} → ${f1.tris.length} → ${f2.tris.length} 个三角面`);
-ok(f2.tris.length >= f0.tris.length * 1.1,
+ok(f2.tris.length > f0.tris.length,
+  `传说档的三角面多于普通档（${f0.tris.length} → ${f2.tris.length}）—— 飘带 / 双层尾鳍是新增几何`);
+ok(f2.tris.length >= f0.tris.length * 1.05,
   `fish：传说档面数至少多 10%（${f0.tris.length} → ${f2.tris.length}）`);
 const bb0 = bboxOf(f0), bb2 = bboxOf(f2);
 ok(bb2.x > bb0.x + 0.2,

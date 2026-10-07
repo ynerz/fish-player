@@ -190,7 +190,7 @@ G.FishMesh = (function () {
       whip: p.whip, span: p.span, chord: p.chord, thick: p.thick,
       chordAt: chordAt, sweepAt: sweepAt,
       // ★ 鳐的默认视角必须是俯视：侧视下它只是一条细缝，正面认不出是鳐
-      defYaw: 0, defPitch: rad(60)
+      defYaw: 0, defPitch: rad(88)   // 接近正俯视：60° 是斜俯，展向会被压扁
     };
   }
 
@@ -222,51 +222,57 @@ G.FishMesh = (function () {
   /* ========================================================================
    * 体型表
    * ====================================================================== */
+  /* 体型参数表。
+     ⚠️ 比例是**从 v9 参考图量出来的**（`docs/images/v9-ref/`），不是拍脑袋：
+     用同一套轮廓测量脚本量参考图和本模块的出图，逐项对齐宽高比与宽度剖面。
+     v9 参考宽高比：fish 2.59 / shark 3.29 / ray 1.66 / squid 2.35 / jelly 0.54 / dragon 3.14 */
   var TYPES = {
     fish: tubeX({
-      label: '通用鱼形', stations: 12, segments: 9, x0: -0.78, len: 1.42,
-      prof: function (t) { return pow(Math.sin(PI * pow(t, 0.62)), 0.75); },
-      h: 0.34, w: 0.20, caudal: 0.28, dorsal: 0.17, pectoral: true, belly: 0.34
+      label: '通用鱼形', stations: 13, segments: 9, x0: -0.86, len: 1.70,
+      prof: function (t) { return pow(Math.sin(PI * pow(t, 0.58)), 0.52); },
+      h: 0.325, w: 0.20, caudal: 0.34, dorsal: 0.19, pectoral: true, belly: 0.34
     }),
     eel: tubeX({
       label: '鳗鱼', stations: 16, segments: 8, x0: -0.72, len: 1.52,
       prof: function (t) { return 0.66 * pow(Math.sin(PI * (0.08 + 0.84 * t)), 0.34); },
-      h: 0.135, w: 0.115, caudal: 0.13, dorsal: 0, pectoral: false, ribbon: true, belly: 0
+      h: 0.155, w: 0.125, caudal: 0.13, dorsal: 0, pectoral: false, ribbon: true, belly: 0
     }),
     shark: tubeX({
-      label: '鲨鱼', stations: 12, segments: 9, x0: -0.86, len: 1.64, arch: 0.03,
-      prof: function (t) { return pow(Math.sin(PI * pow(t, 0.45)), 0.58); },
-      h: 0.30, w: 0.24, caudal: 0.34, dorsal: 0.26, pectoral: true, belly: 0.30
+      label: '鲨鱼', stations: 13, segments: 9, x0: -0.94, len: 2.00, arch: 0.03,
+      prof: function (t) { return pow(Math.sin(PI * pow(t, 0.40)), 0.42); },
+      h: 0.285, w: 0.23, caudal: 0.34, dorsal: 0.26, pectoral: true, belly: 0.30
     }),
     ray: rayBody({
       label: '鳐鱼', stations: 14, segments: 12,
-      span: 0.74, chord: 0.62, thick: 0.10, sweep: 0.34, head: 0.10, whip: 0.62
+      span: 0.80, chord: 0.60, thick: 0.105, sweep: 0.36, head: 0.11, whip: 0.86
     }),
     squid: tubeX({
-      label: '鱿鱼', stations: 12, segments: 9, x0: -0.62, len: 1.30,
-      prof: function (t) { return pow(Math.sin(PI * (0.06 + 0.88 * t)), 0.42) * 0.95; },
-      h: 0.19, w: 0.19, caudal: 0, dorsal: 0, pectoral: false,
-      mantleFin: 0.24, tentacles: 8, belly: 0
+      label: '鱿鱼', stations: 12, segments: 9, x0: -0.52, len: 1.02,
+      // 峰值前移：真鱿鱼最粗的地方在**头后不远**，不是身体正中
+      prof: function (t) { return pow(Math.sin(PI * (0.42 + 0.53 * t)), 0.45) * 0.96; },
+      h: 0.30, w: 0.30, caudal: 0, dorsal: 0, pectoral: false,
+      mantleFin: 0.32, tentacles: 8, belly: 0
     }),
     jelly: jellyBody({
-      label: '水母', stations: 9, segments: 14, y0: -0.26, len: 0.56, rad: 0.40,
-      tentacles: 11
+      label: '水母', stations: 9, segments: 14, y0: -0.30, len: 0.56, rad: 0.38,
+      tentacles: 16
     }),
     oarfish: tubeX({
-      label: '皇带鱼', stations: 18, segments: 8, x0: -0.86, len: 1.76,
+      label: '皇带鱼', stations: 18, segments: 8, x0: -0.90, len: 1.80,
       prof: function (t) { return 0.5 * pow(Math.sin(PI * (0.05 + 0.9 * t)), 0.30) + 0.06; },
       h: 0.115, w: 0.075, caudal: 0.11, dorsal: 0, pectoral: true,
       crest: { from: 0.06, to: 0.94, h: 0.13 }, belly: 0
     }),
     whale: tubeX({
-      label: '鲸鱼', stations: 13, segments: 10, x0: -0.76, len: 1.52, arch: 0.02,
-      prof: function (t) { return pow(Math.sin(PI * pow(t, 0.42)), 0.52); },
-      h: 0.42, w: 0.34, caudal: 0, fluke: 0.36, dorsal: 0.10, pectoral: true, belly: 0.42
+      label: '鲸鱼', stations: 13, segments: 10, x0: -0.80, len: 1.70, arch: 0.02,
+      prof: function (t) { return pow(Math.sin(PI * pow(t, 0.40)), 0.50); },
+      h: 0.38, w: 0.30, caudal: 0, fluke: 0.36, dorsal: 0.10, pectoral: true, belly: 0.42
     }),
     dragon: tubeX({
-      label: '龙鱼', stations: 15, segments: 9, x0: -0.76, len: 1.46,
-      prof: function (t) { return pow(Math.sin(PI * (0.05 + 0.9 * t)), 0.60); },
-      h: 0.20, w: 0.145, caudal: 0.30, dorsal: 0, pectoral: false,
+      label: '龙鱼', stations: 15, segments: 9, x0: -0.80, len: 1.60,
+      // 头部不能太细：v9 的长身鱼吻端也有 0.49 的宽度剖面
+      prof: function (t) { return pow(Math.sin(PI * (0.36 + 0.62 * t)), 0.55); },
+      h: 0.235, w: 0.165, caudal: 0.34, dorsal: 0, pectoral: false,
       ribbon: true, ridge: 0.13, barbels: 2, belly: 0.12
     })
   };
@@ -289,10 +295,21 @@ G.FishMesh = (function () {
   /* ========================================================================
    * 附属结构（鳍 / 棘 / 须 / 触手 / 尾鞭）
    * ====================================================================== */
+  /** 稀有度 → 鳍的缩放系数（单一来源：addFins 与 addWhip 都用它） */
+  function finScale(detail) {
+    return detail >= 2 ? 1.34 : (detail >= 1 ? 1.17 : 1);
+  }
+
   function addFins(api, c, detail) {
+    /* 稀有度 → 鳍的「飘逸程度」。
+       基础档就把完整解剖结构给全（背/胸/腹/臀/尾鳍），
+       史诗档是**同样的鳍更长更飘**，传说档才加飘带 / 双层尾鳍 / 棘刺这些装饰。
+       —— 把基础器官藏到稀有度后面是错的：v9 的普通鱼本来就有全套鱼鳍。 */
+    var fk = finScale(detail);
+
     // —— 竖直尾鳍
     if (c.caudal > 0) {
-      var xT = c.xAt(1), yT = c.yAt(1), k = c.caudal;
+      var xT = c.xAt(1), yT = c.yAt(1), k = c.caudal * fk;
       fanFin(api, 1,
         [xT + 0.01, yT, 0],
         [xT + k, yT + k * 0.95, 0], [xT + k * 0.62, yT + k * 0.18, 0],
@@ -309,7 +326,7 @@ G.FishMesh = (function () {
 
     // —— 水平尾鳍（鲸的尾叶是横的，不是竖的）
     if (c.fluke > 0) {
-      var xF = c.xAt(1), yF = c.yAt(1), f = c.fluke;
+      var xF = c.xAt(1), yF = c.yAt(1), f = c.fluke * fk;
       fanFin(api, 1,
         [xF + 0.01, yF, 0],
         [xF + f * 0.95, yF, f * 0.72], [xF + f * 0.5, yF, f * 0.16],
@@ -320,7 +337,7 @@ G.FishMesh = (function () {
     if (c.dorsal > 0) {
       var t0 = 0.34, tm = 0.5, t1 = 0.70;
       var a = api.push(c.xAt(t0), c.yAt(t0) + c.hAt(t0), 0, t0, 1);
-      var b = api.push(c.xAt(tm), c.yAt(tm) + c.hAt(tm) + c.dorsal, 0, tm, 1);
+      var b = api.push(c.xAt(tm), c.yAt(tm) + c.hAt(tm) + c.dorsal * fk, 0, tm, 1);
       var d = api.push(c.xAt(t1), c.yAt(t1) + c.hAt(t1), 0, t1, 1);
       api.tri(a, b, d);
     }
@@ -400,7 +417,7 @@ G.FishMesh = (function () {
         for (var s3 = 0; s3 <= 5; s3++) {
           var u3 = s3 / 5;
           ptsB.push([
-            c.xAt(0.04) - u3 * 0.34 * scale,
+            c.xAt(0.04) - u3 * 0.16 * scale,
             c.yAt(0) - u3 * u3 * 0.16 * scale,
             sgnq * (0.02 + u3 * 0.16)
           ]);
@@ -410,8 +427,30 @@ G.FishMesh = (function () {
       }
     }
 
-    /* —— 传说专属（detail 2）：腹鳍 + 侧鳍飘带 —— */
     if (c.noFins) return;                       // 水母这类没有鱼鳍的体型直接跳过
+
+    // —— 腹鳍（一对）：基础就带。v9 的**普通鱼**本来就有完整鱼鳍，
+    //    把基础解剖结构藏到稀有度后面是错的 —— 稀有度该加的是「装饰」，不是「器官」
+    (function () {
+      var tp = 0.58, rx = c.xAt(tp), ry = c.yAt(tp);
+      var hy = c.hAt(tp), hz = c.wAt(tp);
+      var k = fk;
+      [1, -1].forEach(function (sgn) {
+        var g0 = api.push(rx - 0.02, ry - hy * 0.70, sgn * hz * 0.70, tp, -1);
+        var g1 = api.push(rx - 0.18 * k, ry - hy * (1.45 * k), sgn * (hz + 0.08 * k), tp, -1);
+        var g2 = api.push(rx + 0.14, ry - hy * (1.00 * k), sgn * (hz + 0.04 * k), tp, -1);
+        api.tri(g0, g1, g2);
+      });
+      // —— 臀鳍：也是基础结构（v9 的鱼腹侧后方都有一片）
+      var ta = 0.74, ax = c.xAt(ta), ay = c.yAt(ta);
+      var ahy = c.hAt(ta), ahz = c.wAt(ta);
+      var a0 = api.push(ax - 0.13, ay - ahy * 1.0, 0, ta, -1);
+      var a1 = api.push(ax + 0.02, ay - ahy * (1.20 + 0.60 * fk), 0, ta, -1);
+      var a2 = api.push(ax + 0.15, ay - ahy * 0.95, 0, ta, -1);
+      api.tri(a0, a1, a2);
+    })();
+
+    /* —— 传说专属（detail 2）：侧鳍飘带 —— */
     if (detail >= 2) {
       [1, -1].forEach(function (sgn) {
         var tpv = 0.58, rxp = c.xAt(tpv), ryp = c.yAt(tpv);
@@ -421,25 +460,16 @@ G.FishMesh = (function () {
         var e2 = api.push(rxp + 0.16, ryp - hyp * 1.05, sgn * (hzp + 0.06), tpv, -1);
         api.tri(e0, e1, e2);
       });
-    } else if (detail >= 1) {
-      // 史诗：只加一对素净的腹鳍
-      var tpv1 = 0.58, rxp1 = c.xAt(tpv1), ryp1 = c.yAt(tpv1);
-      var hyp1 = c.hAt(tpv1), hzp1 = c.wAt(tpv1);
-      [1, -1].forEach(function (sgn) {
-        var g0 = api.push(rxp1 - 0.02, ryp1 - hyp1 * 0.75, sgn * hzp1 * 0.7, tpv1, -1);
-        var g1 = api.push(rxp1 - 0.16, ryp1 - hyp1 * 1.4, sgn * (hzp1 + 0.07), tpv1, -1);
-        var g2 = api.push(rxp1 + 0.12, ryp1 - hyp1 * 1.0, sgn * (hzp1 + 0.04), tpv1, -1);
-        api.tri(g0, g1, g2);
-      });
     }
   }
 
-  function addWhip(api, c) {
+  function addWhip(api, c, fk) {
+    fk = fk || 1;                       // 长尾鞭也要跟着稀有度变长，否则鳐鱼那一档看不出来
     var pts = [], hw = [];
     var x0 = c.xAt(1), y0 = c.yAt(1);
     for (var s = 0; s <= 6; s++) {
       var u = s / 6;
-      pts.push([x0 + c.whip * u, y0 - 0.10 * u * u, 0]);
+      pts.push([x0 + c.whip * fk * u, y0 - 0.10 * u * u, 0]);
       hw.push(0.020 * (1 - u * 0.86));
     }
     strip(api, pts, hw, function () { return [0, 0, 1]; }, 1);
@@ -449,7 +479,7 @@ G.FishMesh = (function () {
     // 稀有度在触手类体型（水母 / 鱿鱼）上只能靠触手表达：
     // 史诗 +2 根，传说再 +4 根并且拉长 —— 否则这两档在它们身上完全看不出来
     var n = c.tentacles + (detail >= 2 ? 4 : (detail >= 1 ? 2 : 0));
-    var lenK = detail >= 2 ? 1.38 : 1;
+    var lenK = detail >= 2 ? 1.38 : (detail >= 1 ? 1.16 : 1);
     // ⚠️ 触手的方向按体型分：水母（脊柱沿 y）朝下挂；鱿鱼朝**前**伸。
     //    一开始两种都写成朝下，结果鱿鱼看着像两块薄片 —— 方向错了，形态就全错。
     var forward = c.axis !== 'y';
@@ -464,7 +494,7 @@ G.FishMesh = (function () {
         var u = s / 7;
         var spread = radAt0 * 0.86 * (1 - u * 0.32);
         pts.push([
-          forward ? x0 + dx * spread * 0.5 - 0.66 * lenK * u : x0 + dx * spread,
+          forward ? x0 + dx * spread * 0.5 - 0.36 * lenK * u : x0 + dx * spread,
           forward ? y0 + dz * spread * 0.5 - 0.10 * u * u * lenK
                   : y0 - 0.78 * lenK * u,
           forward ? dz * spread * 0.5 : dz * spread
@@ -517,7 +547,7 @@ G.FishMesh = (function () {
     }
 
     addFins(api, c, detail);
-    if (c.whip) addWhip(api, c);
+    if (c.whip) addWhip(api, c, finScale(detail));
     if (c.tentacles) addTentacles(api, c, detail);
     // 传说专属：外沿飘带（挂在外沿才改得动剪影，缩到 64px 还看得见）
     if (detail >= 2) addStreamers(api, c, c.whip || c.fluke ? 0.52 : 0.46);

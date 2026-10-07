@@ -18,3 +18,8 @@ tools/output/
 
 # ---- 助手本地工作区（存档记忆等，不入库）----
 .workbuddy/
+
+# AI 生成的美术素材（体积大、可由 tools/ 的脚本复现，不进版本库）
+# 保留 manifest.json —— 它记录提示词/种子/参数，是「来源可复现」的凭据
+assets/cards/*.png
+assets/cards/_superseded/

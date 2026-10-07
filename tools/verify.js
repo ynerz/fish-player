@@ -42,6 +42,40 @@ const ok   = m => console.log('  \u2714 ' + m);
 const err  = m => { errors++; console.log('  \u2716 ' + m); };
 const warn = m => { warns++; console.log('  \u26a0 ' + m); };
 
+/* ---------- 源码文本比对：折行不敏感的两个助手 ----------
+   🔴 踩过的坑（第 33-f 节）：按**原文子串**比对的断言会被「折行」误伤。
+   源码里一句长字符串经常被排版成两行（JS 与 Python 都同理，Python 还有
+   「引号 换行 引号」的隐式拼接）。这时子串在原文字面里**根本连不上**，
+   于是断言报「这句话被删了」—— 可它想抓的其实是**内容被改**。
+   折行属于排版，与内容无关，不该影响判定；这类误报攒多了，门禁就被当噪音无视
+   （真出问题时反而没人看）。
+   → 凡拿**散文式**文本（含空格 / 连续汉字 / 长句）去比对源码的，
+     一律走 `has()` / `idx()`，不要裸写 `indexOf()`。第 ㊳ 节会盯住这条。
+   · flat(t)    先把隐式拼接接回去（`"` + 换行 + `"` → 空），再把所有空白压成单个空格
+   · idx(t, n)  == flat(t).indexOf(flat(n))
+   · has(t, n)  == idx(t, n) >= 0
+   ⚠️ 结构锚点（`'\n  }'`、带 `start` 偏移的 slice/indexOf、正则）**不要**过 flat ——
+      它们本来就依赖换行与位置。 */
+function flat(t) { return String(t).replace(/"\s*"/g, '').replace(/\s+/g, ' '); }
+function idx(t, n) { return flat(t).indexOf(flat(n)); }
+function has(t, n) { return idx(t, n) >= 0; }
+/* 需要**原始偏移**（要拿去 slice）时用 at()：返回位置，词与词之间允许任意空白
+   （含换行）。⚠️ 不能拿 idx() 的返回值去 slice —— 那是压平之后的坐标，
+   和原文偏移对不上（栽过一次：第 33-c / 33-f 节当场读歪，报「少了 build_prompt(」）。 */
+function at(t, phrase) {
+  const re = new RegExp(String(phrase)
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    .replace(/ /g, '\\s+'));
+  const m = re.exec(String(t));
+  return m ? m.index : -1;
+}
+/* 判据：这个 needle 属于「会被折行影响」的散文式吗？
+   含反斜杠转义 = 结构锚点；纯标识符 / 路径（无空格、汉字 <4 个）不受折行影响。 */
+function isProseNeedle(n) {
+  if (/\\/.test(n)) return false;
+  return /\s/.test(n) || (n.match(/[\u4e00-\u9fff]/g) || []).length >= 4;
+}
+
 /* ---------------- 1. 稀有度权重合计 ---------------- */
 console.log('\n[1] 各钓场稀有度权重合计 = 100%');
 G.FIELDS.forEach(f => {
@@ -958,12 +992,12 @@ else {
      否则断言会被自己的说明文字绊倒 */
   const showCatchCode = showCatchBody
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-  if (showCatchCode.indexOf('体长') >= 0) {
+  if (has(showCatchCode, '体长')) {
     err('结算卡又写「体长」了 —— 这一行算的是体重占常规上限的比例，游戏里根本没有体长数据');
     catchBad++;
   }
   if (showCatchCode.indexOf('maxKg') < 0) { err('结算卡不再对比同种的体重上限了'); catchBad++; }
-  if (showCatchCode.indexOf('巨物') < 0) {
+  if (!has(showCatchCode, '巨物')) {
     err('结算卡没有标注「巨物」—— 3% 概率的巨物会显示成「155% 上限」，自相矛盾'); catchBad++;
   }
 }
@@ -1143,7 +1177,7 @@ else {
   const overview = (statsView.match(/root\.appendChild\(U\.el\('div', 'section-title', '总览'\)\);[\s\S]*?root\.appendChild\(g1\);/) || [''])[0];
   if (!overview) { err('panels.js 里找不到统计面板的「总览」块'); statsBad++; }
   else if (overview.indexOf('estOwnHours') >= 0 || overview.indexOf('estUnlockHours') >= 0) {
-    if (!/pct\s*>=\s*1/.test(overview) || overview.indexOf('已收满') < 0) {
+    if (!/pct\s*>=\s*1/.test(overview) || !has(overview, '已收满')) {
       err('统计面板把理论时长当「预计收满」显示，却没有在 100% 时改口成「已收满」');
       statsBad++;
     }
@@ -1185,7 +1219,7 @@ const wordMods = [];
 wordMods.forEach(m => {
   const code = fs.readFileSync(path.join(ROOT, m), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-  if (code.indexOf('上鱼速度') >= 0) {
+  if (has(code, '上鱼速度')) {
     err(`${m} 里又把鱼饵 speed 写成「上鱼速度」了 —— 它乘的是咬口时间，越小越快，方向会说反`);
     baitWordBad++;
   }
@@ -1206,12 +1240,12 @@ if (baitTimeHits < 2) {
 }
 /* 消耗口径同理：只写「每抛一竿消耗一个」而不提「提前收杆退回」，
    与 v0.5.7 的实现（以及 GDD §6.1 / 说明书）不一致 —— 玩家会以为收杆也亏饵。 */
-if (panelsCode.indexOf('提前收杆') < 0) {
+if (!has(panelsCode, '提前收杆')) {
   err('panels.js 的鱼饵消耗说明没提「提前收杆退饵」，与 v0.5.7 的口径不一致'); baitWordBad++;
 }
 ['docs/GDD.md', 'docs/说明书.html'].forEach(f => {
   const t = fs.readFileSync(path.join(ROOT, f), 'utf8');
-  if (t.indexOf('上鱼速度') >= 0) { err(`${f} 的鱼饵表还写着「上鱼速度」`); baitWordBad++; }
+  if (has(t, '上鱼速度')) { err(`${f} 的鱼饵表还写着「上鱼速度」`); baitWordBad++; }
 });
 if (!baitWordBad) ok('商店 / GDD / 说明书都按「咬口时间」表述（越小越快），方向不再说反');
 
@@ -1220,7 +1254,7 @@ if (!baitWordBad) ok('商店 / GDD / 说明书都按「咬口时间」表述（�
    而 GDD / 开发者文档 / README **三份各写了一遍** —— 正是「同一件事被写 N 遍」的高危型。 */
 let impWordBad = 0;
 const impDocs = ['docs/GDD.md', 'docs/开发者文档.md', 'README.md'].filter(f =>
-  fs.readFileSync(path.join(ROOT, f), 'utf8').indexOf('从剪贴板导入') >= 0);
+  has(fs.readFileSync(path.join(ROOT, f), 'utf8'), '从剪贴板导入'));
 if (impDocs.length) {
   err(`文档里的存档导入措辞与实现不符（实际是粘进对话框，不读剪贴板）：${impDocs.join('、')}`);
   impWordBad++;
@@ -1285,7 +1319,7 @@ if (panelsSrc.indexOf('maxCatchUp') < 0) {
   if (/\b80\s*%/.test(code)) {
     err('panels.js 里又把钓场解锁门槛写死成「80%」了 —— 应走 fieldGateText() 现算'); copyNumBad++;
   }
-  if (code.indexOf('七个钓场') >= 0) {
+  if (has(code, '七个钓场')) {
     err('panels.js 里把钓场数量写死成「七个钓场」了 —— 应读 G.FIELDS.length'); copyNumBad++;
   }
   const gateHits = (code.match(/fieldGateText/g) || []).length;
@@ -1339,7 +1373,7 @@ console.log('\n[29-b] 生态值颜色系数：独立配置，不许从售价倍�
 (function () {
   const st = fs.readFileSync(path.join(ROOT, 'src/core/state.js'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-  const fn = st.slice(st.indexOf('function ecoValue'));
+  const fn = st.slice(at(st, 'function ecoValue'));
   const body = fn.slice(0, fn.indexOf('\n  }'));
   if (body.indexOf('valueMul') >= 0) {
     err('state.js 的 ecoValue() 又去读 valueMul 了 —— 售价倍率一改，生态值会被连锁放大（曾放大到 15.4 倍）');
@@ -1394,7 +1428,7 @@ let loadWireBad = 0;
     loadWireBad++;
   }
   const loadBody = (stateCode.match(/function load\(\)\s*\{[\s\S]*?\n  \}/) || [''])[0];
-  if (loadBody.indexOf('migrate(') < 0 || loadBody.indexOf('try {') < 0 || loadBody.indexOf('catch') < 0) {
+  if (loadBody.indexOf('migrate(') < 0 || !has(loadBody, 'try {') || loadBody.indexOf('catch') < 0) {
     err('load() 没有把 migrate() 包在 try / catch 里（读档失败就会白屏）'); loadWireBad++;
   }
 })();
@@ -1683,7 +1717,7 @@ console.log('\n[33-c] 五档提示词必须复用母版骨架，只换颜色句'
   if (!/def build_morph_prompt/.test(src)) {
     err('gen-art.py 里没有 build_morph_prompt() —— 五档提示词没走「复用母版骨架」那条路'); return;
   }
-  const body = src.slice(src.indexOf('def build_morph_prompt'));
+  const body = src.slice(at(src, 'def build_morph_prompt'));
   const fn = body.slice(0, body.indexOf('\ndef ', 10));
   const miss = ['build_prompt(', 'palette_desc(', '.replace('].filter(k => fn.indexOf(k) < 0);
   if (miss.length) {
@@ -1833,7 +1867,7 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
       + '颜色句出现了第二份拷贝，两份必然漂开'); return;
   }
   /* ①b 池子里只许有「候选键 + 权重」，不许出现句子原文（连续三个英文单词 = 抄了原文） */
-  const poolStart = src.indexOf('MORPH_POOL = {');
+  const poolStart = at(src, 'MORPH_POOL = {');
   const poolBody = src.slice(poolStart, src.indexOf('\n}', poolStart));
   if ((poolBody.match(/\(\s*"[a-z]+\/\d+"\s*,\s*\d+\s*\)/g) || []).length < 4) {
     err('MORPH_POOL 里没有找到 ≥4 个 `("候选键", 权重)` 元组 —— 池子结构不对'); return;
@@ -1847,7 +1881,7 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
     err('check_pools() 没定义或**没在模块加载时被调用** —— 权重 ≤0 / 候选键写错会静默通过'); return;
   }
   /* ③ 可复现：必须 md5，不许内置 hash() */
-  const pk = src.slice(src.indexOf('def morph_pick'));
+  const pk = src.slice(at(src, 'def morph_pick'));
   const pickFn = pk.slice(0, pk.indexOf('\ndef ', 10));
   if (!/hashlib\.md5/.test(pickFn)) {
     err('morph_pick() 没有用 hashlib.md5 —— 抽样不可复现，跨进程会变'); return;
@@ -1857,17 +1891,16 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
       + '每次进程启动结果都不一样，manifest 与磁盘上的图会对不上'); return;
   }
   /* ④ 基准句逐档在册 ——
-     ⚠️ 比对前要先把**跨行的字符串隐式拼接**接回去（`.replace(/"\s*"/g, '')` 去掉
-        「引号 换行 引号」），否则只要某句被折成两行，这条检查就会误报「被删了」，
-        而它想抓的其实是「句子本身被改了」。折行与内容无关，不该影响判定。 */
-  const flat = src.replace(/"\s*"/g, '').replace(/\s+/g, ' ');
+     比对照走顶部共用的 flat()/has()（第 ㊳ 节盯着这条）：
+     否则只要某句被折成两行，这条检查就会误报「被删了」，
+     而它想抓的其实是「句子本身被改了」。折行与内容无关，不该影响判定。 */
   const BASE = {
     bright: 'from magenta and orange through yellow and cyan to blue and violet',
     albino: 'pale creamy white body, soft pink translucent fins, pale pink eye',
     golden: 'rich brass and gold tones, brilliant golden sheen, high luminance',
     shiny: 'star-shaped sparkle highlights, prismatic sheen',
   };
-  const miss = Object.keys(BASE).filter(k => flat.indexOf(BASE[k]) < 0);
+  const miss = Object.keys(BASE).filter(k => !has(src, BASE[k]));
   if (miss.length) {
     err(`基准颜色句被删了或改动了：${miss.join('、')} —— 池子第 0 项引用的就是它们，不许动`);
     return;
@@ -2071,6 +2104,54 @@ console.log('\n[37] 读 config 的键必须真的存在（读不存在的键不�
   } else {
     ok(`${files.length} 个文件里的 ${checked} 处 config 取值路径全部存在`);
   }
+})();
+
+
+/* ---------------- 38. 源码子串比对必须折行不敏感 ----------------
+   第 33-f 节踩过的坑的**通用化**：本文件大量断言靠「源码里还有没有这句话」
+   来判红。一旦被比对的那句话在源码里**被折成两行**（或 Python 的「引号 换行
+   引号」隐式拼接），裸 `indexOf` 就再也找不到它 → 报「这句话被删了」。
+   内容是好的，红的却是排版 —— 这类误报攒多了，门禁就成了没人看的噪音。
+   所以定一条机械规则，而不是靠自觉：
+     **散文式 needle（含空格 / 连续 ≥4 个汉字）不许出现在 `indexOf(` / `includes(`
+       的字面量里** —— 它必须走顶部共用的 `has()` / `idx()`（布尔判断）
+       或 `at()`（要拿原始偏移去 slice）。
+   豁免（判据见 isProseNeedle）：含反斜杠转义的是**结构锚点**（`'\n  }'`），
+   纯标识符 / 路径 / 表达式（无空格、汉字 <4）折不了行，裸比无妨。
+   ⚠️ 自指风险：本节只扫**剥掉注释后**的代码 —— 否则上面这段说明里的示例
+      会把自己喂饱（这个坑在 ㉓ / 33-f 已经栽过两次）。 */
+console.log('\n[38] 源码子串比对必须走 has()/idx()/at()（折行不许误报）');
+(function () {
+  const self = fs.readFileSync(path.join(ROOT, 'tools/verify.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const re = /\.(?:indexOf|includes)\(\s*(['"])((?:[^'"\\]|\\.)*?)\1/g;
+  const bad = [];
+  let m;
+  while ((m = re.exec(self))) {
+    if (isProseNeedle(m[2])) bad.push(m[2]);
+  }
+  if (bad.length) {
+    bad.forEach(n => err(`源码子串比对用了裸 indexOf/includes：\`${n}\` —— `
+      + `它会被折行误伤，改走 has() / idx()（布尔）或 at()（要 slice）`));
+  } else {
+    ok('本文件的源码子串比对全部折行不敏感（散文式 needle 无一裸比）');
+  }
+
+  /* 行为自检：光有规则不够 —— 还得证明 has() 真的接得住折行，
+     而**旧的裸 indexOf 在同样输入下确实找不到**（否则规则只是装饰）。
+     ⚠️ 这里必须用变量传 needle（`NEEDLE`），不能写字面量 ——
+        否则本节自己的两条「反例」会被上一段扫描当成违规，自己把自己报红
+        （自指型断言的老坑，㉓ / 33-f 都栽过）。 */
+  const NEEDLE = 'alpha beta gamma delta';
+  const LINE_BREAK = 'const A = 1;  // alpha beta\ngamma delta';
+  const PY_CONCAT = 'const B = "alpha beta "\n    "gamma delta";';
+  if (!has(LINE_BREAK, NEEDLE) || !has(PY_CONCAT, NEEDLE)) {
+    err('has() 没能接回折行 / 隐式拼接 —— 第 ㊳ 节的规则形同虚设'); return;
+  }
+  if (LINE_BREAK.indexOf(NEEDLE) >= 0 || PY_CONCAT.indexOf(NEEDLE) >= 0) {
+    err('用例本身就没有折行，这条行为自检证明不了任何事（改了用例请同步改判据）'); return;
+  }
+  ok('has() 实测能接回「折行」与「引号 换行 引号」隐式拼接（裸 indexOf 在同样输入下找不到）');
 })();
 
 

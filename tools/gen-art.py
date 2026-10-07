@@ -521,8 +521,13 @@ def pick(fish, args):
 # ────────────────────────────────────────────────────────────────────────────
 BATCH_SIZE = {0: 5, 1: 5, 2: 2, 3: 1}
 RAR_CN = {0: "普通", 1: "稀有", 2: "史诗", 3: "传说"}
-# 单张出图耗时实测：cfg=3.0 每步跑两次前向 ≈ 55s（cfg=1 时约 28s）
-SEC_PER_SHOT = 55
+# 出图耗时**实测**（2026-10-07，RTX 5060 Laptop，模型已热）：
+#   母版 = 文生图 cfg=3.0（每步两次前向）≈ 55s
+#   档位 = 图生图 cfg=1.0 ≈ 20s
+# ⚠️ 别再用「单张 55s × 条数」估总时间 —— 每条鱼现在是 6 张（1 母版 + 5 档），
+#    按旧口径会把工期低估 3 倍（清单头部因此长期写着 6.4 小时，实际 ≈ 15.6 小时）。
+SEC_PER_MASTER = 55
+SEC_PER_MORPH = 20
 # 传说鱼的迭代轮数 —— 是**评审次数**，不是机器时间（见清单文档里的说明）
 LEGEND_ROUNDS = 3
 
@@ -542,19 +547,43 @@ def make_batches(fish):
     return out
 
 
+def morph_keys():
+    """5 档的键名（normal/bright/albino/golden/shiny）—— **从 `gen-morph.py` 读，不在这里再写一份**。
+
+    为什么绕一下：本项目反复栽在「同一件事写两遍，改了一处漏另一处」（见 MEMORY.md）。
+    清单勾选要按这 5 个键名找文件，若在这里硬编码一份，将来加/改档位必然分家。
+    ⚠️ 解析失败**直接报错**，不要静默降级 —— 静默降级会让清单又变回「只查母版」而不自知。
+    """
+    p = os.path.join(ROOT, "tools", "gen-morph.py")
+    src = open(p, encoding="utf-8").read()
+    m = re.search(r"^MORPHS\s*=\s*\[(.*?)^\]", src, re.S | re.M)
+    if not m:
+        sys.exit("gen-art.py：解析不出 gen-morph.py 的 MORPHS（清单勾选依赖它）")
+    keys = re.findall(r'\(\s*"([a-z_]+)"\s*,', m.group(1))
+    if len(keys) < 5:
+        sys.exit("gen-art.py：MORPHS 只解析出 %d 档，expected >= 5" % len(keys))
+    return keys
+
+
 def write_plan(fish):
     """生成 docs/生图清单.md —— 带勾选框，供逐批执行与追踪"""
     bs = make_batches(fish)
     total = sum(len(b) for b in bs)
     legend = sum(1 for f in fish if f["rar"] == 3)
-    shots = total + legend * (LEGEND_ROUNDS - 1)     # 传说多打的轮次
-    hours = shots * SEC_PER_SHOT / 3600.0
+    nk = len(morph_keys())
+    # 每条鱼 = 1 张母版 + nk 张图生图（见 gen-morph.py）
+    shots = total * (1 + nk) + legend * (LEGEND_ROUNDS - 1) * (1 + nk)
+    secs = shots * (SEC_PER_MASTER + nk * SEC_PER_MORPH) / (1 + nk)
 
     L = []
     L.append("# 图鉴卡面生图清单（%d 条鱼 / %d 批）\n" % (total, len(bs)))
-    L.append("> 生成管道 `tools/gen-art.py`（提示词 / 种子 / 参数落进 `assets/cards/manifest.json`，可复现）")
-    L.append("> 执行：`python tools/gen-art.py --batch N`　·　全量重跑：`--list` 指定或去掉 `--batch`")
-    L.append("> 出图后跑 `python tools/paint-card.py --all` 派生 5 档颜色（纯 CPU，不用 AI）\n")
+    L.append("> ① `python tools/gen-art.py --list <id>` 出**原色母版** → `assets/cards/<id>.png`")
+    L.append("> ② `python tools/gen-morph.py --list <id> --skip-existing` 出 **%d 档**（图生图）→ "
+             "`assets/cards/<id>-<档>.png`" % nk)
+    L.append("> ③ `python tools/check-cards.py` 验收。提示词 / 种子 / 参数落进 "
+             "`assets/cards/manifest.json`，可复现。")
+    L.append("> ⚠️ 勾选 = **母版 + %d 档全部存在**才算完成（自动检测，见 `write_plan()`）；" % nk)
+    L.append("> 只有母版的鱼**不再**算完成 —— 否则下一轮会跳过它，档位图再也没人补。\n")
     L.append("**分批策略**（用户 2026-10-07 口径）：普通 / 稀有 5 条一批 · 史诗 2 条 · 传说 1 条。")
     L.append("传说「一次一张 + 多轮优化到符合名字与体型」，所以单批条数最少、迭代轮数最多。\n")
     L.append("| 项 | 数 |")
@@ -562,8 +591,10 @@ def write_plan(fish):
     L.append("| 鱼种总数 | %d |" % total)
     L.append("| 批次数 | **%d** |" % len(bs))
     L.append("| 传说鱼 | %d 条，每条按 %d 轮迭代（评审轮次） |" % (legend, LEGEND_ROUNDS))
-    L.append("| 出图张数（含传说迭代） | ≈ %d |" % shots)
-    L.append("| 纯机器时间 | ≈ **%.1f 小时**（按单张 %ds 估） |" % (hours, SEC_PER_SHOT))
+    L.append("| 出图张数（含传说迭代） | ≈ **%d**（每条 %d 张：1 母版 + %d 档） |" % (shots, 1 + nk, nk))
+    L.append("| 单条耗时 | ≈ **%d s**（母版 %ds + %d × 图生图 %ds） |"
+             % (SEC_PER_MASTER + nk * SEC_PER_MORPH, SEC_PER_MASTER, nk, SEC_PER_MORPH))
+    L.append("| 纯机器时间 | ≈ **%.1f 小时** |" % (secs / 3600.0))
     L.append("")
     L.append("⚠️ 真正的瓶颈不是机器时间，是**评审次数**：%d 批，每批都要「看图 → 判断合格 / 重出」。" % len(bs))
     L.append("传说那 %d 条尤其 ——每条 %d 轮，就是 %d 次判断。\n" % (legend, LEGEND_ROUNDS, legend * LEGEND_ROUNDS))
@@ -574,11 +605,18 @@ def write_plan(fish):
 
     for i, b in enumerate(bs, 1):
         names = "、".join("%s %s" % (f["id"], f["name"]) for f in b)
-        # **只信自动检测**：本批母版全都存在才算完成。
+        # **只信自动检测**：母版 + 5 档**全都存在**才算完成。
         # ⚠️ 不要读回历史勾选再取或 —— 本轮踩过：口径变更时把旧图移走重跑，
         #    清单却因为「历史勾选还在」显示已完成，会骗过下一轮的执行者。
         #    勾选必须反映**磁盘实际状态**。
-        have = all(os.path.exists(os.path.join(OUT, f["id"] + ".png")) for f in b)
+        # 🔴 2026-10-07 修正：原来只看母版 `<id>.png`，于是
+        #    「有母版、但 5 档还没出」的批次会被打勾 —— A02 / A05 就是这么漏掉的：
+        #    清单说 001 批已完成，实际它们只有母版，下一轮直接跳到 002 批，
+        #    这两条鱼的档位图**再也没人补**。交付物是 6 张图，检测条件也必须覆盖 6 张。
+        def complete(f):
+            return all(os.path.exists(os.path.join(OUT, "%s%s.png" % (f["id"], sfx)))
+                       for sfx in ("",) + tuple("-" + k for k in morph_keys()))
+        have = all(complete(f) for f in b)
         mark = "[x]" if have else "[ ]"
         L.append("| %s | %03d | %s | %d | %s |" % (mark, i, RAR_CN[b[0]["rar"]], len(b), names))
     L.append("")
@@ -586,7 +624,53 @@ def write_plan(fish):
     open(out, "w", encoding="utf-8").write("\n".join(L))
     print("清单已写出：%s" % out)
     print("共 %d 条 / %d 批；含传说迭代约 %d 张，纯机器时间 ≈ %.1f 小时"
-          % (total, len(bs), shots, hours))
+          % (total, len(bs), shots, secs / 3600.0))
+
+
+def write_prompts(fish):
+    """导出**全量提示词表**（供人工审阅）—— 用户口径：「先写好每个鱼的提示词让我看一下」。
+
+    ⚠️ 这里用的就是 `build_prompt()` **本体**，不是另写一份 ——
+       否则「给人看的」和「实际出图用的」会分家，审阅就失去意义。
+    """
+    L = []
+    L.append("# 鱼提示词表（%d 条）\n" % len(fish))
+    L.append("> 由 `tools/gen-art.py --prompts` 生成，**不要手改**（改口径请改 `build_prompt()`）。")
+    L.append("> 每条鱼的提示词由**同一份代码**产出，与实际出图逐字一致。")
+    L.append("> 结构：`BASE + 形态句 + 构图句 + 颜色句 + LIGHT + GEOM + BG`，"
+             "其中 `LIGHT` / `GEOM` / `BG` 三段是**固定常量**（见 §后附）。\n")
+    L.append("**固定段落**（每条鱼都一样，表中不再重复）：\n")
+    L.append("```")
+    L.append("LIGHT = " + LIGHT.strip())
+    L.append("GEOM  = " + GEOM.strip())
+    L.append("BG    = " + BG.strip())
+    L.append("```\n")
+    L.append("下表列出**每条鱼独有的部分**（体型 + 形态 + 特征 + 颜色 + 构图）。\n")
+    L.append("| id | 名字 | 档 | 体型 | 形态与特征 | 构图与稀有度 | 颜色句 |")
+    L.append("|---|---|---|---|---|---|---|")
+    for f in fish:
+        shape = f.get("shape", "fish")
+        spec = SHAPES.get(shape, SHAPES["fish"])
+        bits = [spec["d"]]
+        h = name_hint(f)
+        if h:
+            bits.append(h)
+        bits.append(form_profile(f))
+        if shape == "fish" and not any(f.get(k) for k in MARKING_KEYS):
+            bits.append(stable_pick(f["id"], "mark", MARKINGS))
+        for key, (desc, shapes) in FEATURE.items():
+            if f.get(key) and shape in shapes:
+                bits.append(desc)
+        rar_i = min(3, f.get("rar", 0))
+        extra = ", extra spines and streamers" if (rar_i == 3 and shape in SPINE_SHAPES) else ""
+        rar = RARITY[rar_i].format(fin=spec["fin"], extra=extra)
+        frame = "full side view, whole body visible, facing left, centered with generous margin, " + rar
+        L.append("| %s | %s | %s | %s | %s | %s | %s |" % (
+            f["id"], f["name"], RAR_CN.get(f.get("rar", 0), "?"), shape,
+            ", ".join(bits), frame, palette_desc(f)))
+    out = os.path.join(ROOT, "docs", "鱼提示词表.md")
+    open(out, "w", encoding="utf-8").write("\n".join(L))
+    print("提示词表已写出：%s（%d 条）" % (out, len(fish)))
 
 
 def write_forms(fish):
@@ -619,6 +703,7 @@ def main():
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--plan", action="store_true", help="只写出分批清单 docs/生图清单.md")
     ap.add_argument("--forms", action="store_true", help="只写出形态档案 docs/鱼形态档案.md")
+    ap.add_argument("--prompts", action="store_true", help="只写出提示词表 docs/鱼提示词表.md")
     ap.add_argument("--batch", type=int, default=0, help="只出第 N 批（从 1 起，见清单）")
     ap.add_argument("--prompt-only", action="store_true", help="只打印提示词，不出图")
     ap.add_argument("--dry", default="", help="（快捷）等价于 --prompt-only --list X")
@@ -635,6 +720,9 @@ def main():
 
     if args.forms:
         write_forms(allfish); return
+
+    if args.prompts:
+        write_prompts(allfish); return
 
     if args.batch:
         bs = make_batches(allfish)

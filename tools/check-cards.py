@@ -17,10 +17,15 @@
     ⑥ 主色   —— 只报告不判定：母版是「自然配色」，本来就不等于 config 的色值
 
 用法：
-  python tools/check-cards.py                 # 查全部母版
-  python tools/check-cards.py A01 A02 A03     # 查指定几条
+  python tools/check-cards.py                 # 查全部卡片（母版 + 5 档）
+  python tools/check-cards.py A01 A02         # 查指定几条（含它们的 5 档）
+  python tools/check-cards.py A01 A01-golden  # 也可以直接点名某一张
 
 ⚠️ 解释器：系统 conda 的 python（有 PIL）
+
+⚠️ 2026-10-07 修正：原来只扫母版（`MASTER_RE`），于是**1810 张档位图没人验收** ——
+   而档位图现在是**独立图生图**（`gen-morph.py`），不是从母版算出来的，
+   它们出错的方式（写实金鱼 / 背景漂移 / 裁切）和母版完全一样，必须一起进验收。
 """
 import os, re, sys
 
@@ -29,7 +34,8 @@ from PIL import Image, ImageChops
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CARDS = os.path.join(ROOT, "assets", "cards")
 
-MASTER_RE = re.compile(r"^[A-Z]+\d+\.png$")     # 母版 = <id>.png，排除 -normal 等派生图
+MASTER_RE = re.compile(r"^[A-Z]+\d+\.png$")     # 母版 = <id>.png
+MORPH_RE = re.compile(r"^[A-Z]+\d+-[a-z_]+\.png$")   # 档位 = <id>-<档>.png（图生图独立产出）
 
 MASK_THRESH = 20          # 与背景色的差异超过它才算主体（与 paint-card.py 同口径）
 BG_TOL = 26               # 四角之间允许的最大通道差
@@ -107,10 +113,11 @@ def main():
     if args:
         files = [os.path.join(CARDS, a + ".png") for a in args]
     else:
-        files = sorted(os.path.join(CARDS, f) for f in os.listdir(CARDS) if MASTER_RE.match(f))
+        files = sorted(os.path.join(CARDS, f) for f in os.listdir(CARDS)
+                       if MASTER_RE.match(f) or MORPH_RE.match(f))
 
     if not files:
-        print("assets/cards/ 下没有母版（<id>.png）"); return
+        print("assets/cards/ 下没有卡片（<id>.png / <id>-<档>.png）"); return
 
     rows, fails = [], []
     for p in files:
@@ -143,16 +150,16 @@ def main():
             fails.append((r["id"], hard))
         rows.append(r)
 
-    print("%-8s %6s %7s %6s %6s %7s  %s" % ("id", "占比", "宽高比", "重心", "背腹", "主色", "判定"))
+    print("%-12s %6s %7s %6s %6s %7s  %s" % ("id", "占比", "宽高比", "重心", "背腹", "主色", "判定"))
     print("-" * 78)
     for r in rows:
         if not r["ok"]:
-            print("%-8s  %s" % (r["id"], "、".join(r["reasons"]))); continue
+            print("%-12s  %s" % (r["id"], "、".join(r["reasons"]))); continue
         hard = [x for x in r["reasons"] if not x.startswith("提示")]
         soft = r.get("soft") or []
         mark = "FAIL" if hard else ("warn" if soft else "ok")
         note = "、".join(hard + soft)
-        print("%-8s %5.0f%% %7.2f %6.2f %+6.1f  #%02x%02x%02x  %-4s %s"
+        print("%-12s %5.0f%% %7.2f %6.2f %+6.1f  #%02x%02x%02x  %-4s %s"
               % (r["id"], r["area"] * 100, r["wh"], r["cx"], r["lit"],
                  r["rgb"][0], r["rgb"][1], r["rgb"][2], mark, note))
 

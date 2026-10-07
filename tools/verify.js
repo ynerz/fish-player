@@ -1619,6 +1619,32 @@ let structBad = 0;
 })();
 
 
+/* ---------------- 33-c. 图生图必须挂 pe_i2i 文本编码器（挂错只是「所有鱼长得一样」） ----------------
+   2026-10-07 实测撞出：5 档图改成独立出图（图生图）后，`gen-morph.py` 挂的是
+   **文生图**用的 `qwen3vl_8b_...`，喂进去的 `images.image_1` 被**静默丢弃**。
+   表现极其隐蔽：不报错、成品也「像条鱼」，prompt 里那句
+   "Keep the same shape, pose and framing as the reference image." 还让构图看着确实一致 ——
+   但四条**不同**的母版（A01/A02/A04/A05）产出的 5 档图**两两逐像素相同**，
+   ComfyUI 输出目录里的哈希按 5 个一循环。肉眼评审根本看不出来。
+   唯一可靠的症状是「跨鱼比同一档位的像素哈希」，所以这里改成**静态盯住接线**。
+   官方 2.1 Image Edit 模板里挂了两个 CLIPLoader，图生图那路才是 pe_i2i。 */
+console.log('\n[33-c] 图生图必须挂 pe_i2i 文本编码器（挂成文生图的那个 = 参考图被静默丢弃）');
+(function () {
+  const p = path.join(ROOT, 'tools/gen-morph.py');
+  if (!fs.existsSync(p)) { warn('tools/gen-morph.py 不存在，跳过'); return; }
+  /* 先剥注释 —— 文件头的说明里也会出现模型名，不剥会自己把自己喂饱 */
+  const src = fs.readFileSync(p, 'utf8').replace(/#[^\n]*/g, '');
+  const m = src.match(/^CLIP\s*=\s*"([^"]+)"/m);
+  if (!m) { err('tools/gen-morph.py 里找不到 `CLIP = "..."` 常量（改了写法就来更新这条断言）'); return; }
+  if (!/pe_i2i/.test(m[1])) {
+    err(`tools/gen-morph.py 的 CLIP 是 \`${m[1]}\` —— 图生图必须用 pe_i2i 那个编码器。`
+      + `挂成文生图的 qwen3vl_8b 会让参考图被静默丢弃：所有鱼的同一档位逐像素完全相同`);
+    return;
+  }
+  ok(`gen-morph.py 的 CLIP = ${m[1]}`);
+})();
+
+
 /* ---------------- 34. 文档里写的「自检 N 节」必须就是本文件的节数 ----------------
    开发者文档 §8 出现过「数据自检 29 节」、GDD §目录树 写着「自检 15 节」，
    而本文件早就不是这个数了 —— 每加一节就过期一次，而且没人会去核对。

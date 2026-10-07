@@ -32,12 +32,24 @@ COMFY_INPUT = r"D:/Comfy-Desktop/ComfyUI-Shared/input"
 COMFY_OUTPUT = r"D:/Comfy-Desktop/ComfyUI-Shared/output"
 
 UNET = "qwen_image_2.1_int8_convrot.safetensors"
-CLIP = "qwen3vl_8b_int8_convrot.safetensors"
+# 🔴 铁律 3（2026-10-07 实测撞出）：图生图**必须**用 pe_i2i 这个文本编码器。
+#    官方 2.1 Image Edit 模板里挂了**两个** CLIPLoader ——
+#      `qwen3vl_8b_int8_convrot`        = 文生图用，**喂进去的 images.image_1 会被静默丢弃**
+#      `qwen3.5_9b_..._pe_i2i`          = 图生图用，参考图靠它进模型
+#    挂错的表现**极隐蔽**：不报错、出图也「像条鱼」，但**所有鱼的同一档位逐像素相同**
+#    （实测 A01/A02/A04/A05 四条不同母版 → 5 档图两两完全一致，ComfyUI 输出的哈希按 5 个一循环）。
+#    prompt 里那句 "Keep the same shape, pose and framing as the reference image."
+#    会让成品看起来「构图确实一致」，从而骗过肉眼。**判别方法：跨鱼比同一档位的像素哈希。**
+CLIP = "qwen3.5_9b_qwen_image_2.1_pe_i2i.int8_convrot.safetensors"
 VAE = "qwen_image_2.1_vae_bf16.safetensors"
 
 SEED = 20261007
 STEPS = 25
-RESOLUTION = 768          # 与母版短边一致
+# ⚠️ **必须是 0**：0 = 「潜变量取参考图自己的尺寸（对齐到 32 的倍数）」→ 出图 = 母版的 1152×768。
+#    写 768 时该节点会按 `sqrt(res²·ratio)` 反算，得到的是 768×768 的方图 ——
+#    不但与母版 / `docs/images/标准/` 的 3:2 不一致，还会把鱼的鳍尾裁到画面外
+#    （check-cards 实测：768 方图那批全部「贴边裁切」FAIL）。
+RESOLUTION = 0
 DENOISE = 1.0             # ⚠️ 必须是 1.0，见文件头铁律 1
 W, H = 1152, 768
 
@@ -73,9 +85,15 @@ def build_workflow(ref_name, prompt, seed):
         "4": {"class_type": "VAELoader", "inputs": {"vae_name": VAE}},
         "10": {"class_type": "LoadImage", "inputs": {"image": ref_name, "upload": "image"}},
         "5": {"class_type": "TextEncodeQwenImage21",
+              # 🔴 铁律 4：`images` 是 **Autogrow** 输入，API 里的键名是**点号扁平名**
+              #    `images.image_1` —— 写成 `"images": {"image_1": [...]}` 这种嵌套字典
+              #    会被**静默丢弃**（节点收到的 images 是空的）。
+              #    症状：`latent_w/latent_h` 退化成 `resolution`（方图），参考图完全不进模型。
+              #    见 comfy_api/latest/_io.py 的 `Autogrow._expand_schema_for_dynamic()`
+              #    → `finalize_prefix()` 用 "." 拼名字。
               "inputs": {"clip": ["3", 0], "prompt": prompt, "negative_prompt": "",
                          "resolution": RESOLUTION,
-                         "images": {"image_1": ["10", 0]}, "vae": ["4", 0]}},
+                         "images.image_1": ["10", 0], "vae": ["4", 0]}},
         "7": {"class_type": "KSampler",
               "inputs": {"model": ["2", 0], "seed": seed, "steps": STEPS, "cfg": 1.0,
                          "sampler_name": "euler", "scheduler": "simple",

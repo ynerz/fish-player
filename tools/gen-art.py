@@ -192,37 +192,40 @@ def base_color(name):
     return name.strip()
 
 
-WARM_HUES = ("red", "orange", "golden yellow", "yellow green")
-COOL_HUES = ("teal", "sky blue", "blue", "violet")
+def luma(hexstr):
+    """感知亮度（ITU-R BT.709）—— 用来判断 body/accent 谁深谁浅"""
+    h = (hexstr or "").lstrip("#")
+    if len(h) != 6:
+        return 0.5
+    r, g, b = (int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
 def palette_desc(f):
-    """颜色句 —— **只给色调倾向与明暗结构，不锁具体颜色**。
+    """颜色句 —— 用**该鱼自己的色名**。
 
-    ⚠️ v10 首版用精确色名锁色（`muted pale sky blue body with darker fins`），两个后果：
-       ① `color_name` 粒度粗，362 条里大量鱼撞成同一句（D01 / D16 一模一样）
-       ② 把模型锁进「按字面配色」，自然度下降 —— v8/v9 用的是
-          `natural realistic colouring for this species, muted natural palette`，
-          同样是「自然配色」，图明显更好看
+    用户口径（2026-10-07）：「**鱼的原色提示词要使用鱼本来的颜色和特征**」。
 
-    ⚠️ 而且**卡面成品颜色由 `tools/paint-card.py` 的渐变映射决定，那一层只吃灰度**
-       （AI 出什么色都会被覆盖）。所以在这里锁色对成品毫无影响，白牺牲自然度。
+    ⚠️ 但**保留「natural realistic colouring」这句**，不写死色值 —— 原因有两条：
+       ① 文生图**控不住精确颜色**（实测三条灰蓝色的鱼被画成同一个浅蓝），
+          写死只会让它「装作」服从，反而降低自然度
+       ② 卡面成品的颜色**由 `paint-card.py` 的渐变映射决定，那一层只吃灰度** ——
+          母版这里锁不锁色对成品毫无影响，所以让母版自然一点更好看
 
-    ⚠️ 唯一必须保住的是**背腹明暗层次** —— 渐变映射的前提就是「背部暗、腹部亮」。
+    ⚠️ 唯一必须保住的是**背腹明暗层次**（`clearly lighter belly and darker back`）——
+       渐变映射的前提就是「背部暗、腹部亮」。
     """
-    b = base_color(color_name(f["body"]))
-    if b in WARM_HUES:
-        tone = "warm earthy tones"
-    elif b in COOL_HUES:
-        tone = "cool silvery tones"
-    elif b == "green":
-        tone = "greenish tones"
-    elif b in ("magenta", "pink"):
-        tone = "rosy warm tones"
+    body_name = color_name(f["body"])
+    accent_name = color_name(f["accent"])
+    if base_color(body_name) == base_color(accent_name) or \
+            abs(luma(f["body"]) - luma(f["accent"])) < 0.04:
+        # 撞名 / 明度接近：只说主色 + 明暗关系，否则会拼出「同色的身子和鳍」
+        fin = "darker" if luma(f["accent"]) <= luma(f["body"]) else "lighter"
+        fin_desc = fin + " fins"
     else:
-        tone = "muted neutral tones"
-    return ("natural realistic colouring with a clearly lighter belly and a darker back, "
-            + tone + ".")
+        fin_desc = accent_name + " fins"
+    return ("natural realistic colouring, %s body with %s, "
+            "a clearly lighter belly and a darker back." % (body_name, fin_desc))
 
 
 # 「躯干胖瘦」对哪些体型成立 —— 鳐是扁平菱形、水母是伞盖，

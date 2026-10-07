@@ -14,10 +14,12 @@
   python tools/prompt-ab.py --list A03 --master       # 补一张「原色」参照图（对照表会用）
   python tools/prompt-ab.py --list A03 --sheet-only   # 只重拼对照表（**需 conda python**）
   python tools/prompt-ab.py --picks                   # 不出图：打印 362 条鱼抽到的分布
+  python tools/prompt-ab.py --matrix                  # 拼**跨体型总览**（一行一体型 / 一列一套句子）
 
 产物（全部在 `docs/images/prompt-ab/`，不进成品目录）：
   <id>-<候选键去斜杠>.png   如 `A03-bright-1.png` 对应候选键 `bright/1`
   <id>-<档>-sheet.png       对照表：原色 + 该档每套句子，每格带编号与短标签（池子模式还带权重）
+  shapes-<档>-sheet.png     **跨体型总览**：行 = 9 个体型的代表鱼（`SHAPE_SAMPLES`），列 = 该档每套句子
 
 ⚠️ **两个解释器**（本项目的老规矩，见 `.workbuddy/memory/MEMORY.md`）：
   · 出图 / `--picks`：managed python（本文件只用标准库 + 复用 `gen-art.py`）
@@ -44,6 +46,29 @@ def _load_genart():
 
 GA = _load_genart()
 TIERS = list(GA.MORPH_ORDER)
+
+# ────────────────────────────────────────────────────────────────────────────
+# 跨体型复核用的**代表鱼**：9 个体型各一条（低稀有度优先 —— 稀有档会给提示词叠
+# 「华丽长鳍」，那层噪音对「颜色句适不适配这个身体」没帮助）。
+#
+# 为什么非要做跨体型复核：颜色句是**全身改写**，而它在不同身体上的表现不一样 ——
+# 水母是半透明的钟罩、鳐是一整块大平面、鱿鱼是胴体 + 触手、龙鱼是细长蛇形身，
+# 金银/金属反光/彩虹渐变在这几种身上最容易翻车（鱼型上完全看不出来）。
+# 顺序：先跑和鱼型差别最大的，最可能出问题的先落袋。
+# ────────────────────────────────────────────────────────────────────────────
+SHAPE_SAMPLES = [
+    ("fish",    "A03"),      # 黑鲷（基准体型，单鱼对拍也是它）
+    ("jelly",   "S16"),      # 灯塔水母
+    ("ray",     "S14"),      # 深海鳐
+    ("squid",   "A33"),      # 鱿鱼
+    ("dragon",  "SS41"),     # 幽暗龙鱼
+    ("eel",     "A14"),      # 海鳗
+    ("oarfish", "SS39"),     # 碎陨皇带
+    ("shark",   "S31"),      # 皱鳃鲨
+    ("whale",   "SS53"),     # 陨落鲸
+]
+SHAPE_CN = {"fish": "鱼型", "jelly": "水母", "ray": "鳐", "squid": "鱿鱼", "dragon": "龙鱼",
+            "eel": "鳗", "oarfish": "皇带", "shark": "鲨", "whale": "鲸"}
 
 
 def sel_entries(tier, use_candidates):
@@ -77,9 +102,23 @@ def run_t2i(prompt, dst):
     return True
 
 
+def _fonts():
+    """加载中文字体（对照表 / 矩阵都要）。没有就用 PIL 的默认位图字体兜底。"""
+    from PIL import ImageFont
+    for cand in ("C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/msyhbd.ttc",
+                 "C:/Windows/Fonts/simhei.ttf"):
+        if os.path.exists(cand):
+            try:
+                return ImageFont.truetype(cand, 22), ImageFont.truetype(cand, 30)
+            except Exception:
+                pass
+    f = ImageFont.load_default()
+    return f, f
+
+
 def make_sheet(fid, tier, name, entries, use_candidates):
     """拼一张对照表：左上「原色」，其余是各套句子。需要 PIL。"""
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageDraw
 
     cells = [("原色", os.path.join(OUT, "%s-master.png" % fid))]
     for i, (_ck, tag, _sent, w, seg) in enumerate(entries, 1):
@@ -95,17 +134,7 @@ def make_sheet(fid, tier, name, entries, use_candidates):
     H = PAD + 64 + rows * (CH + BAR + PAD)
     sheet = Image.new("RGB", (W, H), (24, 26, 30))
     d = ImageDraw.Draw(sheet)
-    font = font_big = None
-    for cand in ("C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/msyhbd.ttc",
-                 "C:/Windows/Fonts/simhei.ttf"):
-        if os.path.exists(cand):
-            try:
-                font, font_big = ImageFont.truetype(cand, 22), ImageFont.truetype(cand, 30)
-                break
-            except Exception:
-                pass
-    if font is None:
-        font = font_big = ImageFont.load_default()
+    font, font_big = _fonts()
 
     d.text((PAD + 2, 16), "%s %s  ·  %s 档%s" % (fid, name, GA.MORPH_CN[tier],
                                                  "候选总表" if use_candidates else "正式池子"),
@@ -131,6 +160,63 @@ def make_sheet(fid, tier, name, entries, use_candidates):
 
     dst = os.path.join(OUT, "%s-%s-sheet%s.png" % (fid, tier, "-cand" if use_candidates else ""))
     sheet.save(dst)
+    return dst
+
+
+def make_matrix(tier, fish_all):
+    """**跨体型总览**：一行一个体型、一列一套句子（第一列是「原色」参照）。
+
+    比「每个体型四张对照表」好用得多 —— 颜色句适不适配某个身体，是**竖着看**出来的：
+    同一句在金鱼身上好看，在水母身上可能整条糊掉，横排对照表里看不见这件事。
+    缺图的行/列会留空并标出来，方便只跑了一半就先看。
+    """
+    from PIL import Image, ImageDraw
+
+    entries = sel_entries(tier, False)
+    need_segs = [seg for _ck, _t, _s, _w, seg in entries]
+    rows, skipped = [], []
+    for sh, fid in SHAPE_SAMPLES:
+        if fid not in fish_all:
+            continue
+        # ⚠️ 只收录**这一档的图全齐**的体型 —— 半拉子行会让人误判「这套句子在这个体型上不行」，
+        #    其实只是还没出到。缺谁要打出来，不能默默少一行。
+        if all(os.path.exists(img_path(fid, s)) for s in need_segs) and \
+           os.path.exists(os.path.join(OUT, "%s-master.png" % fid)):
+            rows.append((sh, fid, fish_all[fid]["name"]))
+        else:
+            skipped.append("%s/%s" % (SHAPE_CN.get(sh, sh), fid))
+    if not rows:
+        return "（%s 档还没有任何一个体型出齐，先跳过）" % tier
+
+    LW, CW, CH, PAD = 132, 330, 220, 8
+    cols = [("原色", None)] + [(tag, seg) for _ck, tag, _s, _w, seg in entries]
+    W = PAD + LW + len(cols) * (CW + PAD)
+    H = PAD + 58 + len(rows) * (CH + PAD)
+    sheet = Image.new("RGB", (W, H), (22, 24, 28))
+    d = ImageDraw.Draw(sheet)
+    font, font_big = _fonts()
+
+    d.text((PAD + 2, 12), "%s 档  ·  跨体型复核（%d/%d 个体型，一行一个体型 / 一列一套句子）"
+           % (GA.MORPH_CN[tier], len(rows), len(SHAPE_SAMPLES)),
+           fill=(238, 240, 244), font=font_big)
+    for ci, (tag, seg) in enumerate(cols):
+        label = "原色" if seg is None else "%d %s (w%d)" % (ci, tag, entries[ci - 1][3])
+        d.text((PAD + LW + ci * (CW + PAD) + 4, 40), label[:34], fill=(190, 196, 206), font=font)
+
+    for ri, (sh, fid, name) in enumerate(rows):
+        y = PAD + 58 + ri * (CH + PAD)
+        d.text((PAD + 4, y + 8), SHAPE_CN.get(sh, sh), fill=(226, 230, 238), font=font_big)
+        d.text((PAD + 4, y + 44), "%s %s" % (fid, name[:6]), fill=(140, 146, 156), font=font)
+        for ci, (_tag, seg) in enumerate(cols):
+            x = PAD + LW + ci * (CW + PAD)
+            path = os.path.join(OUT, "%s-master.png" % fid) if seg is None else img_path(fid, seg)
+            sheet.paste(Image.open(path).convert("RGB").resize((CW, CH), Image.LANCZOS), (x, y))
+            d.rectangle([x, y, x + CW, y + CH], outline=(96, 104, 120) if ci == 0 else (66, 70, 78))
+
+    dst = os.path.join(OUT, "shapes-%s-sheet.png" % tier)
+    sheet.save(dst)
+    if skipped:
+        print("   （这些体型还没出齐，本次未收录：%s）" % "、".join(skipped))
     return dst
 
 
@@ -176,6 +262,8 @@ def main():
     ap.add_argument("--master", action="store_true", help="补一张原色参照图")
     ap.add_argument("--sheet-only", action="store_true",
                     help="不重新出图，只重拼对照表（需 conda python）")
+    ap.add_argument("--matrix", action="store_true",
+                    help="拼**跨体型总览**（一行一个体型、一列一套句子；需 conda python）")
     ap.add_argument("--picks", action="store_true",
                     help="不出图：打印 362 条鱼按当前池子抽到的分布")
     args = ap.parse_args()
@@ -192,8 +280,13 @@ def main():
         report_picks(fish_all)
         return
 
+    if args.matrix:
+        for t in tiers:
+            print("跨体型总览 %s → %s" % (t, make_matrix(t, fish_all)))
+        return
+
     if not args.list:
-        sys.exit("要么给 --list <鱼 id>，要么给 --picks")
+        sys.exit("要么给 --list <鱼 id>，要么给 --picks / --matrix")
     ids = [x.strip() for x in args.list.split(",") if x.strip()]
     want = set(int(x) for x in args.variants.split(",") if x.strip()) if args.variants else None
 

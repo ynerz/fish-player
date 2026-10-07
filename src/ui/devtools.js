@@ -206,8 +206,7 @@ G.Cheat = (function () {
   function boot() {
     var q = location.search || '', h = location.hash || '';
     if (/[?&]dev\b/.test(q) || /dev/.test(h)) {
-      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount);
-      else mount();
+      G.Platform.sys.onReady(mount);   // 启动时机走平台层（第 ㊱ 节盯字面量位置）
     }
   }
   boot();

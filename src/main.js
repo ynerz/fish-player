@@ -383,9 +383,7 @@
     }
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', safeBoot);
-  } else {
-    safeBoot();
-  }
+  /* 启动时机也走平台层：Web 端是 DOMContentLoaded，小程序端是直接调 ——
+     业务代码里不再出现 document.readyState / addEventListener（第 ㊱ 节盯）。 */
+  G.Platform.sys.onReady(safeBoot);
 })();

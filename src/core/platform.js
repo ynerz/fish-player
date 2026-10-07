@@ -13,7 +13,8 @@
      audio      createContext()          —— 小程序要换成 wx.createInnerAudioContext
      canvas     create(w,h)              —— 小程序要换成 wx.createOffscreenCanvas
      sys        dpr() / size() / now() / isVisible() / reload()
-                onResize(fn) / onVisibility(fn) / onFocus(fn) / onBlur(fn)
+                onReady(fn) / onResize(fn) / onVisibility(fn) / onFocus(fn) / onBlur(fn)
+                onError(fn) / onRejection(fn)
      input      down(el,fn) / up(fn) / cancel / leave / key
      clipboard  write(text) → Promise<boolean>   —— 小程序换成 wx.setClipboardData
      dialog     confirm(msg) / prompt(msg,def)   —— 小程序换成 wx.showModal
@@ -95,6 +96,31 @@ G.Platform = (function () {
     /* 尺寸变化通知（渲染层靠它重算画布）。小程序端换成 wx.onWindowResize 即可。 */
     onResize: function (fn) {
       try { window.addEventListener('resize', fn); } catch (e) {}
+    },
+    /* 首次启动：DOM 就绪后跑一次 `fn`（main.js 的 boot / devtools 的挂载都走它）。
+       ⚠️ 业务代码里不许再写 `document.readyState` / `DOMContentLoaded` —— 第 ㊱ 节会拦。
+       没有 DOM（Node / 小程序）或已经就绪时**立即执行**，不把启动卡住。 */
+    onReady: function (fn) {
+      /* 非函数直接忽略，但**不静默** —— 写成 `onReady(boot())`（多打一对括号）
+         会让启动永不发生，那是本项目最难查的一类白屏，所以要在控制台喊一声。 */
+      if (typeof fn !== 'function') {
+        try { console.error('[Platform] sys.onReady 需要一个函数，收到 ' + typeof fn); } catch (e) {}
+        return;
+      }
+      var d = null;
+      try { d = window.document; } catch (e) { d = null; }
+      if (!d || d.readyState !== 'loading') { fn(); return; }
+      try { d.addEventListener('DOMContentLoaded', fn); }
+      catch (e) { fn(); }          /* 挂不上就别卡住启动 */
+    },
+    /* 全局错误钩子（G.Track 用）。
+       ⚠️ 用 addEventListener 而不是 `window.onerror =`，避免覆盖别人的处理器。 */
+    onError: function (fn) {
+      try { window.addEventListener('error', fn); } catch (e) {}
+    },
+    /* 未处理的 Promise 拒绝（同一个错误采集点，小程序端要另找等价事件） */
+    onRejection: function (fn) {
+      try { window.addEventListener('unhandledrejection', fn); } catch (e) {}
     },
     /* 页面可见性变化（主循环暂停 / 恢复、离线补算都靠它）。
        小程序端换成 onShow / onHide 维护的一个布尔值即可。

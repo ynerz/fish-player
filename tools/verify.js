@@ -2028,6 +2028,9 @@ let platBad = 0;
     ['U.on(window, 生命周期事件)', /U\s*\.\s*on\s*\(\s*window\s*,\s*(['"])(?:resize|visibilitychange|blur|focus|orientationchange)\1/],
     ['U.on(document, 生命周期事件)', /U\s*\.\s*on\s*\(\s*document\s*,\s*(['"])(?:resize|visibilitychange|blur|focus|orientationchange)\1/],
     ['document.hidden', /(^|[^\w$.])document\s*\.\s*hidden/],
+    /* 启动时机也收进平台层（sys.onReady）：业务代码不再自己判 readyState */
+    ['document.readyState', /document\s*\.\s*readyState/],
+    ['DOMContentLoaded 字面量', /(['"])DOMContentLoaded\1/],
   ];
   const rel = [];
   (function walk(dir) {
@@ -2044,7 +2047,35 @@ let platBad = 0;
       if (pair[1].test(code)) { err(`${r} 里直接用了「${pair[0]}」—— 平台能力必须走 G.Platform`); platBad++; }
     });
   });
-  if (!platBad) ok(`src 下除 platform.js 外的 ${checked.length} 个模块都没有直连浏览器专有 API`);
+
+  /* ── 机械规则：管住「挂监听」这个动作的**字面量出现位置** ──────────────
+     上面那套按名枚举天生有**封装绕过口**（2026-10-08 才发现）：真正调
+     addEventListener 的是 `U.on`，于是按名扫 `window.addEventListener` 一条也
+     拦不住，main.js / hud.js 四处生命周期事件裸挂 DOM 很久没人发现。
+     与其继续枚举「绕过它的写法」（U.once / U.bind / U.delegate…枚举不完），
+     不如反过来：**字面量只许出现在平台层本体**。约定成一张白名单，
+     任何新增文件、任何新增包装器都会让这张表对不上 → 立刻报红。
+        · src/core/platform.js —— 平台层本体，字面量都该在这儿（不设上限）
+        · src/core/util.js     —— `U.on` 是唯一的通用 DOM 事件包装器，**恰好 1 处**
+          （元素级点击这类事件换平台时随 UI 层一起重写，见文档 §13，故予豁免）
+     ⚠️ 已知残余缺口：写成 `node['addEventListener'](...)` 能绕过（那是刻意规避，
+        不是顺手写错）。白名单条目写少于实际也会报红 —— 免得豁免悄悄过期、
+        下次有人照着它继续加。 */
+  const ADD_EV_ALLOW = { 'src/core/util.js': 1 };
+  rel.forEach(r => {
+    if (r === 'src/core/platform.js') return;
+    const n = (strip(fs.readFileSync(path.join(ROOT, r), 'utf8')).match(/addEventListener\s*\(/g) || []).length;
+    const allow = ADD_EV_ALLOW[r] || 0;
+    if (n > allow) {
+      err(`${r} 里出现了 ${n} 处 addEventListener 字面量（白名单只允许 ${allow} 处）—— `
+        + `新加的监听要么走 G.Platform，要么先想清楚为什么必须在这儿`); platBad++;
+    } else if (n < allow) {
+      err(`${r} 的白名单写着 ${allow} 处 addEventListener，实际只有 ${n} 处 —— `
+        + `豁免条目过期了，请从第 ㊱ 节的 ADD_EV_ALLOW 里删掉它`); platBad++;
+    }
+  });
+  if (!platBad) ok(`src 下除 platform.js 外的 ${checked.length} 个模块都没有直连浏览器专有 API；`
+    + 'addEventListener 字面量只出现在 platform.js 与 util.js（U.on，恰 1 处）');
 })();
 
 

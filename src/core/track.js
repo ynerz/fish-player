@@ -226,15 +226,16 @@ G.Track = (function () {
     load();                       // 先把上次会话的日志接回来，再挂全局兜底
     if (T.captureGlobal === false) return restored;
     try {
-      var w = window;
-      /* 用 addEventListener 而不是 onerror=，避免覆盖别人的处理器 */
-      w.addEventListener('error', function (e) {
+      /* 全局钩子一律走平台层 —— Web 端是 window 的 error / unhandledrejection，
+         换平台时只改 platform.js（第 ㊱ 节盯「字面量只许出现在 platform.js」）。 */
+      var sys = window.G.Platform.sys;
+      sys.onError(function (e) {
         var err = e && e.error;
         record('error', 'window.onerror',
           (e && e.message) || (err && err.message) || 'unknown error',
           { src: e && e.source, line: e && e.lineno, col: e && e.colno }, err);
       });
-      w.addEventListener('unhandledrejection', function (e) {
+      sys.onRejection(function (e) {
         var r = e && e.reason;
         record('error', 'unhandledrejection',
           (r && r.message) || String(r), null, r);

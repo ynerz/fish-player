@@ -514,9 +514,8 @@ G.Panels = (function () {
 
       /* ---- 搜索 + 只看未收集 ---- */
       var tools = U.el('div', 'book-tools');
-      var inp = document.createElement('input');
+      var inp = U.el('input', 'bk-search');
       inp.type = 'search';
-      inp.className = 'bk-search';
       inp.placeholder = '搜索鱼名…';
       inp.value = bookFilter.q || '';
       /* 只重绘列表，不重绘整个面板 —— 否则输入框会失焦 */

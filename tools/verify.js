@@ -1215,6 +1215,22 @@ if (panelsCode.indexOf('提前收杆') < 0) {
 });
 if (!baitWordBad) ok('商店 / GDD / 说明书都按「咬口时间」表述（越小越快），方向不再说反');
 
+/* 存档导入：实现是「弹一个输入框让玩家自己粘贴」（panels.js → G.Platform.dialog.prompt），
+   **全程没读剪贴板**。文档里写「从剪贴板导入」会让玩家以为要先把内容放进剪贴板；
+   而 GDD / 开发者文档 / README **三份各写了一遍** —— 正是「同一件事被写 N 遍」的高危型。 */
+let impWordBad = 0;
+const impDocs = ['docs/GDD.md', 'docs/开发者文档.md', 'README.md'].filter(f =>
+  fs.readFileSync(path.join(ROOT, f), 'utf8').indexOf('从剪贴板导入') >= 0);
+if (impDocs.length) {
+  err(`文档里的存档导入措辞与实现不符（实际是粘进对话框，不读剪贴板）：${impDocs.join('、')}`);
+  impWordBad++;
+}
+if (panelsCode.indexOf('dialog.prompt') < 0) {
+  err('panels.js 的存档导入没走 G.Platform.dialog.prompt —— 上面那条文档口径依赖它');
+  impWordBad++;
+}
+if (!impWordBad) ok('存档导入的措辞与实现一致（导出到剪贴板 / 粘进对话框导入，不读剪贴板）');
+
 
 /* ---------------- 29. 界面里的文案数值与配色常量都要单一来源 ----------------
    项目硬约束：「平衡数值全部集中在 `src/data/config.js`，逻辑里不许写死数值」。

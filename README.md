@@ -126,7 +126,7 @@ gen-fish.py → solve-drop.js → balance.js → verify.js → gen-collect-time.
 ## 存档
 
 保存在浏览器 `localStorage`（键 `fishplayer.save.v1`，另有 `.bak` 备份）。
-设置面板可导出到剪贴板，也可从剪贴板导入（导入前会做字段校验与版本迁移）。
+设置面板可一键导出到剪贴板；导入则是把导出的 JSON 粘进对话框（不读剪贴板；导入前会做字段校验与版本迁移）。
 清浏览器缓存会丢档。
 
 存档结构版本号在 `src/core/state.js` 的 `SAVE_V`；改存档字段时要 +1 并在 `migrate()` 里加分支。

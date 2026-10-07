@@ -23,6 +23,8 @@ tools/output/
 # 保留 manifest.json —— 它记录提示词/种子/参数，是「来源可复现」的凭据
 assets/cards/*.png
 assets/cards/_superseded/
+# 生图中间产物：五档出图先落 RGB 到 _tmp/，抠完即删（中途被打断就会留在盘上）
+assets/cards/_tmp/
 
 # Python 字节码缓存
 __pycache__/

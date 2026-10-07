@@ -169,16 +169,13 @@ G.Cheat = (function () {
   ];
 
   function mount() {
-    if (document.getElementById('devBar')) return;
-    var bar = document.createElement('div');
-    bar.id = 'devBar';
-    bar.className = 'dev-bar collapsed';   // 默认收起：十几颗按钮全展开会遮住画面底部
-    var log = document.createElement('span');
-    log.className = 'dev-log';
-    log.textContent = 'DEV';
+    /* DOM 一律走 U.$ / U.el（同 ㊱ 节的字面量口径：裸 document.* 只许留在平台层与 util.js） */
+    if (U.$('#devBar')) return;
+    var bar = U.el('div', 'dev-bar collapsed');
+    bar.id = 'devBar';                     // 默认收起：十几颗按钮全展开会遮住画面底部
+    var log = U.el('span', 'dev-log', 'DEV');
     /* 展开 / 收起。收起状态下只剩「工具」这一颗按钮，不再挡场景 */
-    var toggle = document.createElement('button');
-    toggle.className = 'dev-btn dev-toggle';
+    var toggle = U.el('button', 'dev-btn dev-toggle');
     function setCollapsed(v) {
       bar.classList.toggle('collapsed', v);
       toggle.textContent = v ? '工具 ▸' : '工具 ▾';
@@ -187,9 +184,7 @@ G.Cheat = (function () {
     toggle.onclick = function () { setCollapsed(!bar.classList.contains('collapsed')); };
     bar.appendChild(toggle);
     BTNS.forEach(function (b) {
-      var btn = document.createElement('button');
-      btn.className = 'dev-btn';
-      btn.textContent = b[0];
+      var btn = U.el('button', 'dev-btn', b[0]);
       if (b[0] === '清档重开') btn.classList.add('danger');
       btn.onclick = function () {
         var r = b[1]();
@@ -199,7 +194,7 @@ G.Cheat = (function () {
       bar.appendChild(btn);
     });
     bar.appendChild(log);
-    document.body.appendChild(bar);
+    U.$('body').appendChild(bar);
     console.log('[devtools] 开发者面板已挂载（默认收起）。控制台可用 G.Cheat.*');
   }
 

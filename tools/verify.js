@@ -2139,6 +2139,47 @@ let platBad = 0;
     + 'addEventListener 字面量只出现在 platform.js 与 util.js（U.on，恰 1 处）');
 })();
 
+/* ---------------- 36-b. `document.*` 的字面量同样只管位置 ----------------
+   上面那套「按名枚举」漏掉了最常见的一族：直接用 `document.createElement` /
+   `document.getElementById` / `document.body` 建 DOM。它既不碰 localStorage 也不碰
+   visibilityState，所以一条 FORBID 都命中不了 —— 但同一份代码的别处一律走 `U.$` / `U.el`。
+   踩过的：`src/ui/devtools.js` 六处裸调 `document.*`（同一文件里的面板逻辑却全走 U.el），
+   靠人读代码才发现；2026-10-08 的一次全项目统计才把它翻出来。
+   与 `addEventListener` 同型处理：**字面量只许出现在平台层与 `util.js`（DOM 助手本体）**。
+   白名单条目写多写少都报红 —— 免得豁免过期，或有人照着它继续加。
+   ⚠️ 已知网眼（与 36-a 同）：绕开 `.` 的写法（`document['body']`）扫不到；那是刻意规避。 */
+console.log('\n[36-b] `document.*` 字面量只许出现在 platform.js 与 util.js');
+let docLitBad = 0;
+(function () {
+  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const rel = [];
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+      const p = path.join(ROOT, dir, n);
+      if (fs.statSync(p).isDirectory()) walk(dir + '/' + n);
+      else if (/\.js$/.test(n)) rel.push(dir + '/' + n);
+    });
+  })('src');
+  const DOC_ALLOW = { 'src/core/util.js': 1 };   // U.el 的 createElement（U.$ / U.$$ 走 (root||document) 不计数）
+  let live = 0;
+  rel.forEach(r => {
+    if (r === 'src/core/platform.js') return;
+    const n = (strip(fs.readFileSync(path.join(ROOT, r), 'utf8')).match(/\bdocument\s*\./g) || []).length;
+    const allow = DOC_ALLOW[r] || 0;
+    if (n > allow) {
+      err(`${r} 里出现了 ${n} 处裸 document.* 字面量（白名单只允许 ${allow} 处）—— `
+        + `建 / 查 DOM 请走 U.$ / U.el，除非先想清楚为什么必须在这儿`);
+      docLitBad++;
+    } else if (n < allow) {
+      err(`${r} 的白名单写着 ${allow} 处 document.* 字面量，实际只有 ${n} 处 —— `
+        + `豁免条目过期了，请从第 36-b 节的 DOC_ALLOW 里删掉它`);
+      docLitBad++;
+    }
+    live += n;
+  });
+  if (!docLitBad) ok(`裸 document.* 字面量只剩 util.js 的 ${live} 处（平台层之外无其他直连）`);
+})();
+
 
 /* ---------------- 37. 读 config 的键必须真的存在 ----------------
    踩过的（同一个根因的另一半）：`tools/gen-collect-time.js` 读 `cm.prob`

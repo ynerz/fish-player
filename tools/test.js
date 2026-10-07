@@ -2061,8 +2061,15 @@ ok(hueOrange(pB.bands[0]),
   '彩虹的**起点**用本鱼自己的色相（橙鱼的带首仍是暖色）—— 同类之间才有区分度');
 ok(pG.rimK > pB.rimK,
   `黄金的边缘光强度必须压过亮色（亮 ${pB.rimK} < 金 ${pG.rimK}）—— 价格梯度的视觉契约`);
-ok(satOf(pA.back) < satOf(pN.back) * 0.45,
-  `白化档把饱和压得很低（${satOf(pN.back).toFixed(2)} → ${satOf(pA.back).toFixed(2)}）—— 手段 = 去色`);
+// 白化 = 去色，但要**分开判身体与鳍**（用户口径「颜色要稍微区分一点点」）：
+//   · 身体（belly）必须真的去色 —— 这才是「白化」的定义
+//   · 鳍（back）允许带**淡粉**（v8 标准的「白身 + 淡粉鳍」），所以只要求它**比原色淡**
+// ⚠️ 初版拿 back 一刀切（要求 < 原色 × 0.45），粉比例一提到 0.70 就报红，
+//    但那是**口径变了**不是 bug —— 断言得跟着口径走。
+ok(satOf(pA.belly) < satOf(pN.belly) * 0.45,
+  `白化档把**身体**的饱和压得很低（${satOf(pN.belly).toFixed(2)} → ${satOf(pA.belly).toFixed(2)}）—— 手段 = 去色`);
+ok(satOf(pA.back) < satOf(pN.back),
+  `白化档的鳍仍比原色淡（${satOf(pN.back).toFixed(2)} → ${satOf(pA.back).toFixed(2)}），但保留淡粉 —— 方向不反转`);
 ok(pG.metallic === 1 && pS.metallic === 0,
   '黄金 = 换材质（metallic 1）；闪光不是金属（手段必须互不重叠）');
 ok(pS.spin === 1 && pS.sparkle === 1 && pG.sparkle === 0 && pA.sparkle === 0,

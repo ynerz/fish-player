@@ -24,7 +24,7 @@
   python tools/paint-card.py --all               # 全部已有母版的鱼
   python tools/paint-card.py --list D01 --morph golden   # 只出一档
 """
-import argparse, json, os, subprocess, sys
+import argparse, hashlib, json, os, random, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CARDS = os.path.join(ROOT, "assets", "cards")
@@ -33,7 +33,7 @@ PY = r"C:/Users/15001/miniconda3/python.exe"
 NODE = "node"
 
 try:
-    from PIL import Image, ImageChops, ImageFilter, ImageOps
+    from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 except ImportError:
     print("需要 Pillow —— 请用系统 conda 的 python 运行：%s" % PY)
     sys.exit(1)
@@ -44,12 +44,13 @@ except ImportError:
 MASK_THRESH = 20      # 与背景色的差异超过它才算主体
 MASK_FEATHER = 1.4    # 边缘羽化，避免锯齿硬边
 
-# ⚠️ 母版是「暗底 + 边缘光」，灰度整体偏暗（这是为深色卡面选的照明，不是失误）。
-#    直接拿它做渐变映射，**大片身体会被压进暗段** —— albino 档最明显：
-#    整条鱼落在「淡粉」那一段，出来是一条粉鱼，而不是 v8 那种「白身 + 粉鳍」。
-#    所以先做一次伽马提亮，把中调推到中高段，让 back 色只落在**真正暗的地方**
-#    （鳍、暗面、外轮廓）。0.62 是实测值：再低身体会过曝丢结构，再高粉压不下去。
-GAMMA = 0.62
+# ⚠️ 母版是「暗底 + 边缘光」，灰度整体偏暗。初版加了一道伽马提亮（0.62）想把中调推上去，
+#    结果**整体过曝**：黄金档尤其明显 —— 本该是「深金 → 亮金 → 白热高光」的金属，
+#    被推成了「一片发白的淡黄」，跟标准图差得最远。
+#    实测对拍 0.62 / 0.85 / 1.0：**1.0（不提亮）在三档上都最好**，
+#    而且黄金档的暗部层次只有不提亮才保得住。
+#    所以这里保留这条通路但默认关闭 —— 需要时（例如某批母版确实过暗）再调。
+GAMMA = 1.0
 
 # 构图归一后的统一占比：主体**最长边**占画面的比例。
 # ⚠️ 为什么必须做：不做的话 362 条鱼在图鉴列表里大小差很多 ——
@@ -166,19 +167,78 @@ def apply_palette(gray, pal):
     return ImageOps.colorize(gray, to255(pal["back"]), to255(pal["belly"]))
 
 
-def paint_one(src, dst, pal, bg=None):
+def add_specular(rgb, gray, thresh=118, gain=2.2):
+    """**镜面高光层** —— 黄金档靠它出「大片反光」，否则只是「黄色的鱼」。
+
+    ⚠️ 为什么必须有：渐变映射只能给「深金 → 浅金」，**做不出「白热高光」**。
+       实测对比标准图，缺了这一层时黄金档完全没有金属感（像塑料）。
+    做法：灰度高端（> thresh）线性推到亮，叠一层**略暖的白**。
+    ⚠️ `thresh` 必须按**母版的实际灰度分布**定，不能凭感觉：
+       本批母版的 5%~95% 分位是 **22~176**，初版取 165 时只有 ~5% 的像素能触发，
+       出图几乎看不出高光。118 大致是分位 70% 左右，覆盖面才够。
+    """
+    hi = gray.point(lambda p: int(min(255, max(0, p - thresh) * gain)))
+    warm = Image.merge('RGB', [hi,
+                               hi.point(lambda p: int(p * 0.96)),
+                               hi.point(lambda p: int(p * 0.84))])
+    return ImageChops.add(rgb, warm)
+
+
+def add_sparkles(rgb, mask, seed, count=200):
+    """**星点层** —— 闪光档靠它出「闪烁感」。
+
+    ⚠️ 必须有：标准图的闪光档是「虹彩 + 密集星点」，纯靠颜色映射只能得到一片白。
+    ⚠️ **尺寸要按输出分辨率定**：图是 1152×768，但卡面在 UI 里只显示 ~380px 宽，
+       所以星点必须画得**比"看起来合适"更大**（6~16px），否则缩放后一个都看不见
+       ——初版画的 2~5px 在缩略图里完全消失。
+    ⚠️ 用**稳定随机**（种子来自鱼 id）—— 同一条鱼每次出图星点位置一样，可复现。
+    """
+    rnd = random.Random(hashlib.md5(str(seed).encode('utf-8')).hexdigest())
+    w, h = rgb.size
+    px = mask.load()
+    draw = ImageDraw.Draw(rgb)
+    placed, tries = 0, 0
+    while placed < count and tries < count * 60:
+        tries += 1
+        x, y = rnd.randrange(8, w - 8), rnd.randrange(8, h - 8)
+        if not px[x, y]:
+            continue
+        # 避开最外圈（那里是边缘光）
+        if not (px[x - 6, y] and px[x + 6, y] and px[x, y - 6] and px[x, y + 6]):
+            continue
+        placed += 1
+        s = rnd.randint(6, 16)
+        col = rnd.choice([(255, 255, 255), (255, 250, 215), (205, 232, 255)])
+        draw.line([(x - s, y), (x + s, y)], fill=col, width=2)
+        draw.line([(x, y - s), (x, y + s)], fill=col, width=2)
+        if s >= 10:      # 大星点画四个小斜角，更像星芒
+            q = max(2, s // 3)
+            draw.line([(x - q, y - q), (x + q, y + q)], fill=col, width=1)
+            draw.line([(x - q, y + q), (x + q, y - q)], fill=col, width=1)
+    return rgb
+
+
+def paint_one(src, dst, pal, morph, bg=None):
     im = Image.open(src).convert("RGB")
 
     # ① 灰度 → 输入曲线归一 → 上色（彩虹档走多色标，其余走两色）
     gray = tone_normalize(im.convert("L"))
     colored = apply_palette(gray, pal)
 
-    # ② 抠主体：与背景色差异超阈值的算主体
+    # ③ 抠主体：与背景色差异超阈值的算主体
     base = bg or bg_color(im)
     diff = ImageChops.difference(im, Image.new("RGB", im.size, base)).convert("L")
     mask = diff.point(lambda p: 255 if p > MASK_THRESH else 0, "L")
     mask = mask.filter(ImageFilter.MaxFilter(3))          # 膨胀，吃掉主体外圈
     mask = mask.filter(ImageFilter.GaussianBlur(MASK_FEATHER))
+
+    # ④ **叠加层** —— 渐变映射做不出来的「材质与光效」
+    #    ⚠️ 这两层是「成品不像标准」的主因：标准里黄金有镜面反光、闪光有星点，
+    #       而纯颜色映射只能给出一块平色。必须在**上色之后、合成之前**叠。
+    if morph == "golden":
+        colored = add_specular(colored, gray)
+    elif morph == "shiny":
+        colored = add_sparkles(colored, mask, src)
 
     # ③ 构图归一 + 合成到透明底
     out = normalize_frame(colored, mask)
@@ -220,7 +280,7 @@ def main():
         for k in keys:
             p = info["morphs"][k]
             dst = os.path.join(CARDS, "%s-%s.png" % (fid, k))
-            px = paint_one(src, dst, p)
+            px = paint_one(src, dst, p, k)
             n += 1
             print("  %s %-6s → %s  (主体 %d px)" % (fid, k, os.path.basename(dst), px))
     print("\n共 %d 张" % n)

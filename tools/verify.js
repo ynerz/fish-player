@@ -493,7 +493,19 @@ if (!/zoneSafe[\s\S]{0,200}G\.Fight\.SAFE/.test(hudSrcSafe) ||
     !/dangerMark[\s\S]{0,200}G\.Fight\.SAFE/.test(hudSrcSafe)) {
   err('hud.js 没有把 G.Fight.SAFE 写进安全区带 / 危险标（改了 config 界面不跟着变）'); safeBad++;
 }
-if (!safeBad) ok(`安全线 ${(safeR * 100).toFixed(0)}% 只存在于 config.js，CSS 里没有第二份`);
+/* 两个「张力判定窗口」必须同族：触顶多久断线（snapGrace）与贴地多久脱钩（slackGrace）
+   是同一类手感参数，理应都在 `config.fight` 里。
+   踩过的坑：snapGrace 原来放在 `config.misc`（注释写「断线缓冲」），
+   调张力手感时要在两个段落里各翻一个值 —— 而且谁也不会想到去 misc 找它。 */
+['snapGrace', 'slackGrace'].forEach(k => {
+  if (CFG.fight[k] == null) {
+    err(`CFG.fight.${k} 不存在 —— 张力判定窗口应集中在 config.fight 里`); safeBad++;
+  }
+  if (CFG.misc[k] != null) {
+    err(`CFG.misc.${k} 又出现了（张力判定窗口不该散在 misc 里）`); safeBad++;
+  }
+});
+if (!safeBad) ok(`安全线 ${(safeR * 100).toFixed(0)}% 只存在于 config.js，CSS 里没有第二份；两个张力判定窗口同族在 config.fight`);
 
 
 /* ---------------- 14. 数值链幂等：fish.js 必须已归一化 ----------------

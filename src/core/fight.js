@@ -119,7 +119,7 @@ G.Fight = (function () {
     if (F.tension >= F.tensionMax) {
       F.tension = F.tensionMax;
       F.snapTimer += dt;
-      if (F.snapTimer >= CFG.misc.snapGrace) return finish('snap');
+      if (F.snapTimer >= CFG.fight.snapGrace) return finish('snap');
     } else {
       F.snapTimer = 0;
     }

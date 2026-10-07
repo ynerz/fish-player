@@ -93,6 +93,10 @@ G.CONFIG = {
     slackGrace     : 1.6,   // 张力 < slackSoft 持续超过这个秒数 → 脱钩
     slackSoft      : 6,     // 判定为「松线」的张力阈值
     dashWarnLead   : 0.55,  // 逃窜前多久给预警（秒）
+    /* 张力触顶后还能撑多久算断线（秒）—— 与上面的 slackGrace 是同一族判定窗口。
+       原来它放在 misc 里（注释写「断线缓冲」），与 slackGrace 分居两处，
+       调手感时要在两个段落里各找一个值。 */
+    snapGrace      : 0.45,
     /* 张力安全线（占比）—— HUD 里绿色安全区带的宽度、红色危险线
        的位置都由这个值算出来，不要再往 CSS 里写死 78%。 */
     safeRatio      : 0.78,
@@ -380,8 +384,6 @@ G.CONFIG = {
     biteWindow: { common:1.6, rare:1.5, epic:1.4, legend:1.2 },
     // 自动保存间隔（秒）
     autoSaveInterval: 10,
-    // 长按收线的张力「过载」缓冲：张力到达上限后还能撑多久算断线
-    snapGrace: 0.45,
 
     /* ---- 下面是原先散落在逻辑代码里的手感参数，统一收到这里 ---- */
     flyTime       : 0.85,      // 抛竿动画时长（秒）

@@ -1122,6 +1122,92 @@
   ],
   "steps": 25
  },
+ "C13": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "morphVariant": {
+   "albino": "暖调象牙",
+   "bright": "全息镭射膜",
+   "golden": "24K 镜面",
+   "shiny": "星点（基准）"
+  },
+  "morphs": {
+   "albino": {
+    "candidate": "albino/3",
+    "label": "暖调象牙",
+    "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, an elongated body, a dorsal fin with a spine, short small pelvic fins, a rather short anal fin, a forked tail fin, round spots on the body. full side view, whole body visible, facing left, centered with generous margin, slightly longer fins. warm ivory albino colouring, creamy off-white body, soft beige shading in the shadow, pearlescent coating over the facets, translucent fins with a pale rosy edge, coral pink eye. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Finely faceted low-poly surface, a dense triangular polygon mesh covering the body, crisp visible polygon edges, flat shading per facet with subtle tone variation between neighbouring facets, no texture, no gradients. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark."
+   },
+   "bright": {
+    "candidate": "shiny/3",
+    "label": "全息镭射膜",
+    "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, an elongated body, a dorsal fin with a spine, short small pelvic fins, a rather short anal fin, a forked tail fin, round spots on the body. full side view, whole body visible, facing left, centered with generous margin, slightly longer fins. holographic foil coating over the body, faint rainbow glints appearing only in the bright highlights, crisp pinpoint specular flashes, chrome-edged facets, the deep base colour kept in the shadow. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Finely faceted low-poly surface, a dense triangular polygon mesh covering the body, crisp visible polygon edges, flat shading per facet with subtle tone variation between neighbouring facets, no texture, no gradients. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark."
+   },
+   "golden": {
+    "candidate": "golden/2",
+    "label": "24K 镜面",
+    "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, an elongated body, a dorsal fin with a spine, short small pelvic fins, a rather short anal fin, a forked tail fin, round spots on the body. full side view, whole body visible, facing left, centered with generous margin, slightly longer fins. mirror-polished twenty-four-karat gold body, sharp brilliant specular reflections across the facets, crisp golden rim light, flawless polished metal finish, maximum brilliance. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Finely faceted low-poly surface, a dense triangular polygon mesh covering the body, crisp visible polygon edges, flat shading per facet with subtle tone variation between neighbouring facets, no texture, no gradients. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark."
+   },
+   "shiny": {
+    "candidate": "shiny/1",
+    "label": "星点（基准）",
+    "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, an elongated body, a dorsal fin with a spine, short small pelvic fins, a rather short anal fin, a forked tail fin, round spots on the body. full side view, whole body visible, facing left, centered with generous margin, slightly longer fins. iridescent shimmering body covered in sparkling glittering speckles, bright specular glints, star-shaped sparkle highlights, prismatic sheen. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Finely faceted low-poly surface, a dense triangular polygon mesh covering the body, crisp visible polygon edges, flat shading per facet with subtle tone variation between neighbouring facets, no texture, no gradients. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark."
+   }
+  },
+  "name": "花䱻",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, an elongated body, a dorsal fin with a spine, short small pelvic fins, a rather short anal fin, a forked tail fin, round spots on the body. full side view, whole body visible, facing left, centered with generous margin, slightly longer fins. natural realistic colouring, muted golden yellow body with darker fins, a clearly lighter belly and a darker back. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Finely faceted low-poly surface, a dense triangular polygon mesh covering the body, crisp visible polygon edges, flat shading per facet with subtle tone variation between neighbouring facets, no texture, no gradients. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 1,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "C14": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "morphVariant": {
+   "albino": "大理石白",
+   "bright": "极光薄膜",
+   "golden": "古铜暗金",
+   "shiny": "星点（基准）"
+  },
+  "morphs": {
+   "albino": {
+    "candidate": "albino/5",
+    "label": "大理石白",
+    "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, a long spindle-shaped body, a laterally compressed body, a relatively large oblique terminal mouth, vertical stripes down the body, round spots on the body. full side view, whole body visible, facing left, centered with generous margin, slightly longer fins. chalky white albino colouring, marble-pale body with faint pale grey markings between the facets, low saturation, translucent rose-tinted fins, pink eye. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Finely faceted low-poly surface, a dense triangular polygon mesh covering the body, crisp visible polygon edges, flat shading per facet with subtle tone variation between neighbouring facets, no texture, no gradients. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark."
+   },
+   "bright": {
+    "candidate": "shiny/5",
+    "label": "极光薄膜",
+    "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, a long spindle-shaped body, a laterally compressed body, a relatively large oblique terminal mouth, vertical stripes down the body, round spots on the body. full side view, whole body visible, facing left, centered with generous margin, slightly longer fins. thin aurora film coating, green and violet shimmer travelling along the flanks, sharp bright specular streaks, luminous metallic base, iridescent sparkle concentrated on the lit edge. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Finely faceted low-poly surface, a dense triangular polygon mesh covering the body, crisp visible polygon edges, flat shading per facet with subtle tone variation between neighbouring facets, no texture, no gradients. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark."
+   },
+   "golden": {
+    "candidate": "golden/3",
+    "label": "古铜暗金",
+    "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, a long spindle-shaped body, a laterally compressed body, a relatively large oblique terminal mouth, vertical stripes down the body, round spots on the body. full side view, whole body visible, facing left, centered with generous margin, slightly longer fins. antique gold colouring, burnished gold body with deep bronze shading in the shadow, warm matte gold lustre, muted golden highlights, rich dark metal tone. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Finely faceted low-poly surface, a dense triangular polygon mesh covering the body, crisp visible polygon edges, flat shading per facet with subtle tone variation between neighbouring facets, no texture, no gradients. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark."
+   },
+   "shiny": {
+    "candidate": "shiny/1",
+    "label": "星点（基准）",
+    "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, a long spindle-shaped body, a laterally compressed body, a relatively large oblique terminal mouth, vertical stripes down the body, round spots on the body. full side view, whole body visible, facing left, centered with generous margin, slightly longer fins. iridescent shimmering body covered in sparkling glittering speckles, bright specular glints, star-shaped sparkle highlights, prismatic sheen. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Finely faceted low-poly surface, a dense triangular polygon mesh covering the body, crisp visible polygon edges, flat shading per facet with subtle tone variation between neighbouring facets, no texture, no gradients. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark."
+   }
+  },
+  "name": "虹鳟",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, a long spindle-shaped body, a laterally compressed body, a relatively large oblique terminal mouth, vertical stripes down the body, round spots on the body. full side view, whole body visible, facing left, centered with generous margin, slightly longer fins. natural realistic colouring, muted yellow green body with muted deep green fins, a clearly lighter belly and a darker back. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Finely faceted low-poly surface, a dense triangular polygon mesh covering the body, crisp visible polygon edges, flat shading per facet with subtle tone variation between neighbouring facets, no texture, no gradients. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 1,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
  "D01": {
   "cfg": 3.0,
   "model": "qwen-image-2.1-int8",

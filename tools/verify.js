@@ -1454,7 +1454,7 @@ console.log('\n[32-b] 已清理过的死接口不许复活（运行时按路径�
   const REMOVED = ['Scene.state', 'Scene.resize', 'Scene.getRodTip', 'Scene.getFloat',
     'Platform.sys.isWeb', 'Platform.input.upOn', 'Loot.envWeight', 'Loot.pickInBucket',
     'Fight.isRunning', 'Audio.isEnabled', 'Audio.getVolume', 'Tutorial.isFinished',
-    'Panels.getPendingCatch', 'Panels.hideCatch', 'FishArt.paintTo'];
+    'Panels.getPendingCatch', 'Panels.hideCatch', 'FishArt.paintTo', 'Hud.el'];
   const at = p => p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), sandbox.G);
   const back = REMOVED.filter(p => at(p) !== undefined);
   if (back.length) {

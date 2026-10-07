@@ -268,12 +268,14 @@ G.Hud = (function () {
     while (el.toasts.children.length > 4) el.toasts.removeChild(el.toasts.firstChild);
   }
 
+  /* ⚠️ `el`（DOM 元素缓存表）不再对外导出：全项目零消费（一开始是想给调试用的，
+     但开发者文档 §11 的调试入口清单里也没有它）。需要哪个元素就补一个真正的
+     读取接口，别把整张表挂出去。 */
   return {
     init: init, syncAll: syncAll, syncCoin: syncCoin, syncStats: syncStats, syncDeck: syncDeck,
     setAction: setAction, showBite: showBite, showFight: showFight, updateFight: updateFight,
     toast: toast, setField: setField, setWeather: setWeather,
     setTitle: setTitle, syncTitle: syncTitle, syncGoalBadge: syncGoalBadge,
     pushCatch: pushCatch,
-    el: el,
   };
 })();

@@ -1178,16 +1178,39 @@ def main():
         except Exception:
             pass
 
+    def lock_alive(pid):
+        """那个 pid 是否**真的还活着**。
+
+        🔴 为什么必须有这一步：锁如果只靠「心跳时间戳」判过期，那么一个**死掉的进程**
+           会把锁留在磁盘上，最长 STALE 秒内**挡住下一轮生图**。而定时任务**每小时**才触发一次
+           —— 挡一次就是整整一小时白等，而且**不报错**（正是本项目最高频的坑型）。
+           实测：本环境会在轮次结束时回收进程（`DETACHED_PROCESS` 也逃不掉，疑似 Job Object），
+           所以「非正常退出、留下陈旧锁」是**常态而不是例外**。
+        查不到进程表时返回 True（当作还活着），退回时间戳判据 —— 宁可少开一轮，也不重复出图。
+        """
+        try:
+            r = subprocess.run(["tasklist", "/FI", "PID eq %d" % pid, "/NH"],
+                               capture_output=True, text=True, errors="replace", timeout=15)
+            return str(pid) in (r.stdout or "")
+        except Exception:
+            return True
+
     if not args.plan:
         try:
             d = json.load(open(LOCK, encoding="utf-8"))
         except Exception:
             d = None
-        if d and time.time() - d.get("ts", 0) <= STALE:
-            print("⏸ 已有生图进程在跑（pid=%s，%d 秒前还有心跳）—— 本轮不重复开工。"
-                  % (d.get("pid"), int(time.time() - d.get("ts", 0))))
-            print("   避免重复出图、以及两个进程并发写 manifest.json。")
-            return
+        if d:
+            pid = int(d.get("pid", 0) or 0)
+            age = int(time.time() - d.get("ts", 0))
+            if pid and not lock_alive(pid):
+                print("……上一个生图进程（pid=%s）已不存在（心跳停在 %d 秒前），本轮接管。"
+                      % (pid, age))
+            elif age <= STALE:
+                print("⏸ 已有生图进程在跑（pid=%s，%d 秒前还有心跳）—— 本轮不重复开工。"
+                      % (d.get("pid"), age))
+                print("   避免重复出图、以及两个进程并发写 manifest.json。")
+                return
     lock_write()
 
     # ── manifest 定期落盘 ────────────────────────────────────────────────────

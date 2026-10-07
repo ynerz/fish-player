@@ -60,7 +60,7 @@
      （明暗对比垮掉 + 背景漂移成纯黑/深灰/深蓝三种）。
      **v9 那几句是「好看」的来源，是资产不是选项。** 要防精细就加 GEOM，别动它们。
 """
-import argparse, hashlib, json, os, re, subprocess, sys, colorsys
+import argparse, hashlib, json, os, re, subprocess, sys, time, colorsys
 
 # 同目录的抠图工具：出图后立刻抠成 RGBA 透明（见 cutout.py 文件头）
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -264,8 +264,12 @@ MORPH_ORDER = ("bright", "albino", "golden", "shiny")
 
 
 def pool_entries(key):
-    """把池子的候选键展开成 `[(标签, 颜色句, 权重), …]` —— 出图与挑选都走这里。"""
-    return [(MORPH_CANDIDATES[ck][0], MORPH_CANDIDATES[ck][1], w) for ck, w in MORPH_POOL[key]]
+    """把池子展开成 `[(候选键, 标签, 颜色句, 权重), …]` —— 出图、挑选、提示词表都走这里。
+
+    ⚠️ **带上「候选键」**（如 `bright/1`）而不只是标签：提示词表要能回答
+       「这条鱼这一档抽中的是**哪一套**」，光有中文标签对不上 `MORPH_CANDIDATES`。
+    """
+    return [(ck, MORPH_CANDIDATES[ck][0], MORPH_CANDIDATES[ck][1], w) for ck, w in MORPH_POOL[key]]
 
 
 def check_pools():
@@ -289,7 +293,7 @@ def check_pools():
                                    "而且不报错）：%r" % (key, ck, w))
             if not MORPH_CANDIDATES[ck][1].strip():
                 raise RuntimeError("%s/%s 的颜色句是空的" % (key, ck))
-        tags = [t for t, _s, _w in entries]
+        tags = [t for _ck, t, _s, _w in entries]
         if len(set(tags)) != len(tags):
             raise RuntimeError("%s 的池子里有重名标签，日志分不清抽到了哪套：%s" % (key, tags))
 
@@ -298,20 +302,23 @@ check_pools()
 
 
 def morph_pick(fid, key):
-    """按鱼 id **稳定加权重**挑一套颜色句 → `(标签, 颜色句)`。
+    """按鱼 id **稳定加权重**挑一套颜色句 → `(候选键, 标签, 颜色句)`。
 
     ⚠️ 用 md5 而**不是** Python 内置 `hash()`：`hash()` 带 PYTHONHASHSEED 随机盐，
        **每次进程启动结果都不一样** → 同一条鱼今天出金色、明天出古铜金，
        manifest 里记的提示词与磁盘上的图对不上，可复现性（硬约束）当场失效。
+
+    ⚠️ 「按 id 稳定」≠「每档只有一套」：**不同鱼之间是分散的**（这才是用户要的
+       「五档颜色句可以随机抽」），只是同一条鱼重跑必须落到同一套。
     """
     entries = pool_entries(key)
-    total = sum(w for _t, _s, w in entries)
+    total = sum(e[3] for e in entries)
     r = int(hashlib.md5(("%s/%s" % (fid, key)).encode("utf-8")).hexdigest()[:8], 16) % total
-    for tag, sent, w in entries:
+    for ck, tag, sent, w in entries:
         if r < w:
-            return tag, sent
+            return ck, tag, sent
         r -= w
-    return entries[-1][0], entries[-1][1]        # 不可达，纯防守
+    return entries[-1][0], entries[-1][1], entries[-1][2]      # 不可达，纯防守
 
 
 # ⚠️ 保留 `MORPHS` 这个名字与「5 档」语义：`morph_keys()`、耗时常量、manifest 都按它算。
@@ -939,13 +946,29 @@ def report_traits(fish):
 
     ⚠️ 这个数**不是 KPI，是诚实度指标**：没查证的就该留空，不许为了刷覆盖率去编。
     """
-    have = [f for f in fish if trait_of(f["id"], "form")]
-    miss = [f for f in fish if not trait_of(f["id"], "form")]
-    fam = [f for f in miss if mark_by_family(f.get("name", ""))]
-    print("逐条查证（fish-traits.json）：%d / %d 条（%.1f%%）" % (len(have), len(fish), len(have) / len(fish) * 100))
-    print("退回推导，但科属花纹命中：%d 条" % len(fam))
-    print("退回推导，且无科属花纹（留空）：%d 条" % (len(miss) - len(fam)))
-    print("\n还没查证的（前 20 条）：%s" % "、".join(f["id"] + f["name"] for f in miss[:20]))
+    # 🔴 **现实与虚构必须分列**（2026-10-08）。`fish-traits.json` 里现在装着两种**性质
+    #    完全不同**的东西：现实物种的查证结果，和虚构生物的设计稿。混进同一个百分比，
+    #    这个指标就废了 —— 198 条虚构稿会把「查证覆盖率」冲到接近 100%，
+    #    看上去像全查完了，实际现实那一半还空着。**分母必须是它真正想量的那部分。**
+    # ⚠️ 分列要按 **id 空间**（SS/SSS = 设计上虚构），**不是**按 `source` ——
+    #    因为「湖心巨鲤 / 百斤鳡王」这类**游戏造名**坐在普通 id 里，但它们的描述也是设计稿。
+    #    按 source 分会把这 18 条从「现实物种」分母里挖掉，得出「现实查证 100%」的假象。
+    is_real = lambda f: not re.match(r"^S{2,}", f["id"])
+    real = [f for f in fish if is_real(f)]
+    fic = [f for f in fish if not is_real(f)]
+    r_designed = [f for f in real if trait_of(f["id"], "source").startswith("设计上虚构")]
+    r_verified = [f for f in real if f not in r_designed]
+    v_have = [f for f in r_verified if trait_of(f["id"], "form")]
+    v_miss = [f for f in r_verified if not trait_of(f["id"], "form")]
+    fam = [f for f in v_miss if mark_by_family(f.get("name", ""))]
+    print("现实物种 %d 条：**查证 %d（%.1f%%）**｜同空间的游戏造名（设计稿）%d｜"
+          "退回推导但科属花纹命中 %d｜无花纹留空 %d"
+          % (len(real), len(v_have), 100.0 * len(v_have) / max(1, len(real)),
+             len(r_designed), len(fam), len(v_miss) - len(fam)))
+    print("虚构生物 %d 条（SS/SSS）：按名字设计 %d —— **不是查证结果，不计入上面那个百分比**"
+          % (len(fic), len([f for f in fic if trait_of(f["id"], "form")])))
+    print("\n现实物种里还没查证的（前 20 条）：%s"
+          % "、".join(f["id"] + f["name"] for f in v_miss[:20]))
 
 
 def write_prompts(fish):
@@ -960,13 +983,14 @@ def write_prompts(fish):
     L.append("> 由 `tools/gen-art.py --prompts` 生成，**不要手改**（改口径请改 `build_prompt()`）。")
     L.append("> 每条鱼的提示词由**同一份代码**产出，与实际出图逐字一致。")
     L.append("> 结构：`BASE + 形态句 + 构图句 + 颜色句 + LIGHT + GEOM + BG`，"
-             "其中 `LIGHT` / `GEOM` / `BG` 三段是**固定常量**（见 §后附）。\n")
-    L.append("**固定段落**（每条鱼都一样，表中不再重复）：\n")
+             "其中 `LIGHT` / `GEOM` / `BG` 三段是**固定常量**（见 §一）。\n")
+    L.append("## 一、固定段落（每条鱼都一样）\n")
     L.append("```")
     L.append("LIGHT = " + LIGHT.strip())
     L.append("GEOM  = " + GEOM.strip())
     L.append("BG    = " + BG.strip())
     L.append("```\n")
+    L.append("## 二、母版（原色）提示词 —— 每条鱼独有的部分\n")
     L.append("下表列出**每条鱼独有的部分**（体型 + 形态 + 特征 + 颜色 + 构图）。\n")
     L.append("| id | 名字 | 档 | 体型 | 提示词（已剥掉固定段 LIGHT/GEOM/BG） |")
     L.append("|---|---|---|---|---|")
@@ -980,9 +1004,40 @@ def write_prompts(fish):
         L.append("| %s | %s | %s | %s | %s |" % (
             f["id"], f["name"], RAR_CN.get(f.get("rar", 0), "?"),
             f.get("shape", ""), var))
+
+    # ── 三、五档颜色句：**每条鱼实际会抽到的那一套** ──────────────────────
+    # 🔴 这张表存在的理由：颜色句**不再是每档固定一句**。每档有 5 套候选
+    #    （`MORPH_CANDIDATES`）、由 `MORPH_POOL` 给权重，出图时 `morph_pick(鱼id, 档)`
+    #    **按 md5 稳定加权抽一套**。不给这张表的话，「给人看的提示词表」就不完整 ——
+    #    它只说了颜色的一半（母版），另一半（五档）谁也看不见。
+    L.append("\n## 三、五档颜色句：**每条鱼实际会抽到的那一套**\n")
+    L.append("颜色句每档有 **5 套候选**（`MORPH_CANDIDATES`），`MORPH_POOL` 给权重，")
+    L.append("出图时由 `morph_pick(鱼 id, 档)` **按 md5 稳定加权抽一套** —— "
+             "同一条鱼重跑永远是同一套（可复现），**不同鱼之间才会不一样**。")
+    L.append("下表列的就是**实际会被抽中的那一套**（键 = `候选键 中文标签`）。\n")
+    L.append("| id | 名字 | %s |" % " | ".join(MORPH_CN[k] for k in MORPH_ORDER))
+    L.append("|---|---|%s" % ("---|" * len(MORPH_ORDER)))
+    for f in fish:
+        cols = []
+        for k in MORPH_ORDER:
+            ck, tag, _sent = morph_pick(f["id"], k)
+            cols.append("`%s` %s" % (ck, tag))
+        L.append("| %s | %s | %s |" % (f["id"], f["name"], " | ".join(cols)))
+
+    L.append("\n### 候选句总表（各档 5 套，`池子权重` 决定抽中概率）\n")
+    for k in MORPH_ORDER:
+        L.append("**%s**（池子：%s，基准 = 第 0 项）\n" % (
+            MORPH_CN[k], " / ".join("%s×%d" % (ck, w) for ck, w in MORPH_POOL[k])))
+        L.append("| 候选键 | 标签 | 句子 |")
+        L.append("|---|---|---|")
+        for ck, (t, s) in MORPH_CANDIDATES.items():
+            if not ck.startswith(k + "/"):
+                continue
+            L.append("| %s | %s | %s |" % (ck, t, s))
+
     out = os.path.join(ROOT, "docs", "鱼提示词表.md")
     open(out, "w", encoding="utf-8").write("\n".join(L))
-    print("提示词表已写出：%s（%d 条）" % (out, len(fish)))
+    print("提示词表已写出：%s（%d 条；含五档颜色句抽选表）" % (out, len(fish)))
 
 
 def write_forms(fish):
@@ -1023,6 +1078,13 @@ def main():
     ap.add_argument("--masters-only", action="store_true", help="只出母版，不出五档")
     ap.add_argument("--morphs-only", action="store_true", help="只出五档（跳过已有母版）")
     ap.add_argument("--skip-existing", action="store_true", help="已有成品跳过（断点续跑）")
+    ap.add_argument("--budget-min", type=float, default=0,
+                    help="时间预算（分钟）：到点**在任务边界干净收工**，不等当前这张之外的更多任务。"
+                         "0 = 不限。定时任务靠它把单轮压进窗口，长跑靠它约束时长。")
+    ap.add_argument("--sleep-check", type=float, default=0,
+                    help="每张出完额外歇 N 秒（给 GPU 降降火，也留出被外部打断的窗）")
+    ap.add_argument("--img-timeout", type=int, default=300,
+                    help="**单张图**的等待上限秒数（正常 ≈62s）。卡死时不再白等 txt2img 的默认 3600s。")
     args = ap.parse_args()
 
     if args.dry:
@@ -1066,12 +1128,26 @@ def main():
         manifest = json.load(open(MANIFEST, encoding="utf-8"))
 
     def run_t2i(prompt, path):
-        """出图 + 等落盘。返回 (是否成功, CompletedProcess)。"""
-        r = subprocess.run([PY, COMFY, "-p", prompt, "-n", NEG, "--cfg", str(CFG),
-                            "-o", path, "-W", str(W), "-H", str(H),
-                            "--steps", str(STEPS), "--seed", str(SEED)],
-                           capture_output=True, text=True, errors="replace")
-        return os.path.exists(path), r
+        """出图 + 等落盘。返回 (是否成功, CompletedProcess)。
+
+        ⚠️ **必须给等待设上限**。`txt2img.py` 自己的默认是 **3600 秒** ——
+           正常一张只要 62 秒，也就是说**卡住时最坏能白等 1 小时**。
+           无人值守长跑时这是致命的：一次静默卡死就吃掉整晚的 1/8。
+           实测见过真卡（一张图停在原地 4.5 分钟没动静、ComfyUI 队列却是空的），
+           所以这里收到 `--img-timeout`（默认 300 秒 = 正常值的 5 倍，够宽容但有界），
+           超时后**重试一次**再判失败 —— 单次抖动不该让一条鱼落空。
+        """
+        for attempt in (1, 2):
+            r = subprocess.run([PY, COMFY, "-p", prompt, "-n", NEG, "--cfg", str(CFG),
+                                "-o", path, "-W", str(W), "-H", str(H),
+                                "--steps", str(STEPS), "--seed", str(SEED),
+                                "--timeout", str(args.img_timeout)],
+                               capture_output=True, text=True, errors="replace")
+            if os.path.exists(path):
+                return True, r
+            if attempt == 1:
+                print("    …超时/未落盘，重试一次")
+        return False, r
 
     os.makedirs(TMP, exist_ok=True)
     # 任务序列：母版 → 五档（`normal` 不是独立出图，它就是母版的抠图）
@@ -1087,14 +1163,47 @@ def main():
 
     per = len(jobs) // len(fish) if fish else 0
     print("待生成 %d 张（%d 条鱼 × %d 张）" % (len(jobs), len(fish), per))
+
+    # ── 互斥锁：**两个生图进程同时跑会重复出图 + 并发写 manifest.json** ──
+    #    这不是假想风险：定时任务（每小时一轮）与长跑本来就会撞上。
+    #    判据用「心跳过期」而不是查 pid —— 查进程在本项目沙箱里不可靠（见 MEMORY.md）。
+    #    每张图出完刷新一次心跳；超过 STALE 秒没动静 = 上一个进程已死，可以接管。
+    LOCK = os.path.join(OUT, ".gen-art.lock")
+    STALE = 300
+
+    def lock_write():
+        try:
+            json.dump({"pid": os.getpid(), "ts": time.time(), "budgetMin": args.budget_min},
+                      open(LOCK, "w", encoding="utf-8"))
+        except Exception:
+            pass
+
+    if not args.plan:
+        try:
+            d = json.load(open(LOCK, encoding="utf-8"))
+        except Exception:
+            d = None
+        if d and time.time() - d.get("ts", 0) <= STALE:
+            print("⏸ 已有生图进程在跑（pid=%s，%d 秒前还有心跳）—— 本轮不重复开工。"
+                  % (d.get("pid"), int(time.time() - d.get("ts", 0))))
+            print("   避免重复出图、以及两个进程并发写 manifest.json。")
+            return
+    lock_write()
+
+    t_start = time.time()
     ok = fail = skip = 0
     for i, (f, morph) in enumerate(jobs, 1):
+        # ⏱ 时间预算：**在任务边界收工**（不打断正在进行的那张），剩余下一轮 --skip-existing 续跑
+        if args.budget_min and (time.time() - t_start) / 60.0 >= args.budget_min:
+            print("\n⏱ 时间预算 %.0f 分钟已到，干净收工。本轮到第 %d/%d 张，"
+                  "剩余下一轮续跑（加 --skip-existing）。" % (args.budget_min, i - 1, len(jobs)))
+            break
         fid = f["id"]
         variant_tag = ""
         if morph is None:
             dst, prompt, label = os.path.join(OUT, fid + ".png"), build_prompt(f), "母版"
         else:
-            variant_tag, desc = morph_pick(fid, morph)
+            variant_ck, variant_tag, desc = morph_pick(fid, morph)
             dst = os.path.join(OUT, "%s-%s.png" % (fid, morph))
             prompt, label = build_morph_prompt(f, desc), MORPH_CN[morph]
 
@@ -1128,15 +1237,24 @@ def main():
                     "size": [W, H], "steps": STEPS, "model": MODEL,
                 }
             else:
-                manifest.setdefault(fid, {}).setdefault("morphs", {})[morph] = prompt
+                # ⚠️ **必须把「抽中的是哪个候选键」写进 manifest** ——
+                #    颜色句现在是从池子里抽的，只记 prompt 就还得反查是哪一套；
+                #    记了键，`MORPH_CANDIDATES` 一改就能立刻看出哪些图受影响。
+                manifest.setdefault(fid, {}).setdefault("morphs", {})[morph] = {
+                    "candidate": variant_ck, "label": variant_tag, "prompt": prompt}
                 # 抽到哪一套也记下来 —— 光看提示词能反查，但列出标签便于人核对分布与复现
                 manifest.setdefault(fid, {}).setdefault("morphVariant", {})[morph] = variant_tag
             print("    ok")
         else:
             fail += 1
             print("    失败：" + (r.stdout or r.stderr or "")[-200:])
+        lock_write()          # 心跳（见上：锁靠心跳过期来自愈，不查 pid）
 
     json.dump(manifest, open(MANIFEST, "w", encoding="utf-8"), ensure_ascii=False, indent=1, sort_keys=True)
+    try:
+        os.remove(LOCK)       # 正常收工要主动释放；异常中断则靠心跳过期自愈
+    except OSError:
+        pass
     print("\n" + "=" * 50)
     print("成功 %d / 失败 %d / 跳过 %d，清单 %s（共 %d 条）"
           % (ok, fail, skip, MANIFEST, len(manifest)))

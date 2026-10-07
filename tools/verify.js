@@ -1719,7 +1719,24 @@ console.log('\n[33-d] 抠图接线：产 RGBA + mask 极性反转 + 旧管线入
     err('tools/gen-morph.py 又出现了 —— 旧图生图管线的入口会被误跑（曾静默产出 45 张废图），必须删掉');
     return;
   }
-  ok('抠图接线完整（BiRefNet → RemoveBackground → InvertMask → JoinImageWithAlpha），已接入 gen-art，旧管线入口已清除');
+
+  // ── 无人值守跑图的两条保险（2026-10-08 补）──────────────────────────────
+  //  ① `--budget-min`：定时任务每轮必须能在 40 分钟窗口内自己停下来。
+  //     没有它就只能「按条数估」，而每条鱼 5.2 分钟，估错就和下一轮叠在一起。
+  //  ② 互斥锁：两个生图进程同时跑会**重复出图 + 并发写 manifest.json**。
+  const guard = [
+    ['--budget-min', '时间预算（定时任务靠它把单轮压进窗口）'],
+    ['.gen-art.lock', '互斥锁（防两个生图进程同时跑）'],
+    ['lock_write', '锁的心跳刷新'],
+    ['--img-timeout', '单张等待上限（卡死时不再白等 3600s）'],
+  ];
+  const gmiss = guard.filter(([k]) => ga.indexOf(k) < 0).map(([k, why]) => `${k}（${why}）`);
+  if (gmiss.length) {
+    err(`gen-art.py 缺少无人值守保险：${gmiss.join('、')}`);
+    return;
+  }
+  ok('抠图接线完整（BiRefNet → RemoveBackground → InvertMask → JoinImageWithAlpha），已接入 gen-art，旧管线入口已清除；'
+     + '无人值守保险齐（时间预算 / 互斥锁 / 心跳 / 单张超时）');
 })();
 
 

@@ -68,6 +68,22 @@
  "A05": {
   "cfg": 3.0,
   "model": "qwen-image-2.1-int8",
+  "morphVariant": {
+   "albino": "珍珠白+粉鳍缘",
+   "bright": "虹彩油膜"
+  },
+  "morphs": {
+   "albino": {
+    "candidate": "albino/4",
+    "label": "珍珠白+粉鳍缘",
+    "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, rather large eyes with a well-developed adipose eyelid, an inferior small mouth with a herringbone-shaped cleft, tiny villiform teeth, cycloid scales covering the whole body, no lateral line, pectoral fins without an axillary scale, two dorsal fins, an anal fin with 8 rays, a deeply forked tail fin, a blotch at the base of the pectoral fin. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. pearl-white albino colouring, lustrous pale body with a faint silvery sheen, translucent fins washed with soft pink, delicate pink rim along the fin edges, deep ruby-pink eye. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Finely faceted low-poly surface, a dense triangular polygon mesh covering the body, crisp visible polygon edges, flat shading per facet with subtle tone variation between neighbouring facets, no texture, no gradients. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark."
+   },
+   "bright": {
+    "candidate": "bright/3",
+    "label": "虹彩油膜",
+    "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, rather large eyes with a well-developed adipose eyelid, an inferior small mouth with a herringbone-shaped cleft, tiny villiform teeth, cycloid scales covering the whole body, no lateral line, pectoral fins without an axillary scale, two dorsal fins, an anal fin with 8 rays, a deeply forked tail fin, a blotch at the base of the pectoral fin. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. thin iridescent rainbow film across the flanks, metallic hues drifting from teal and green into violet and magenta, high-chroma colourful specular highlights, colour that changes across the curved facets. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Finely faceted low-poly surface, a dense triangular polygon mesh covering the body, crisp visible polygon edges, flat shading per facet with subtle tone variation between neighbouring facets, no texture, no gradients. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark."
+   }
+  },
   "name": "鲻鱼",
   "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
   "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, fusiform body with a small pointed head and a forked tail, a medium-sized fish, a moderately proportioned body, a long trailing tail fin, a clean plain unmarked body. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring, light grey body with darker fins, a clearly lighter belly and a darker back. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",

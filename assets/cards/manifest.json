@@ -1,0 +1,744 @@
+{
+ "A01": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "沙丁鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, moderate proportions, downward-facing mouth, small head, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, cool silvery tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A02": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "竹荚鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, moderate proportions, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, cool silvery tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A03": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "黑鲷",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, deep-bodied laterally compressed body with a spiny dorsal fin, short snout, medium head, a fan-shaped tail, sharp spines along the back. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, muted neutral tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A04": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "黄鳍鲷",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, very deep rounded body, a fan-shaped tail, sharp spines along the back. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, warm earthy tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A05": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "鲻鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, moderate proportions, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, muted neutral tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A06": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "石斑鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, very deep rounded body, short snout, small head, a fan-shaped tail, round spots on the body. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, muted neutral tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A07": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "银鲳",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, very deep rounded body, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, muted neutral tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A08": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "刺鲳",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, very deep rounded body, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, cool silvery tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A09": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "鳀鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, slender elongated proportions, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, cool silvery tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A10": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "小黄鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, moderate proportions, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, cool silvery tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A11": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "梅童鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, deep-bodied build, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, warm earthy tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A12": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "黄姑鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, deep-bodied build, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, muted neutral tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A13": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "白姑鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, deep-bodied build, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, warm earthy tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A14": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "海鳗",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single long slender eel with a ribbon-like serpentine body and a continuous fin along the back, deep-bodied build. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, cool silvery tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "eel",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A15": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "星鳗",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single long slender eel with a ribbon-like serpentine body and a continuous fin along the back, deep-bodied build. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, muted neutral tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "eel",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A16": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "鲽鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, flat oval body with both eyes close together on the upper side, pointed snout, medium head, a fan-shaped tail, round spots on the body. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, warm earthy tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A17": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "舌鳎",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, very deep rounded body, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, muted neutral tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A18": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "六线鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, deep-bodied build, a fan-shaped tail, round spots on the body. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, warm earthy tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A19": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "黑鲪",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, deep-bodied build, a fan-shaped tail, sharp spines along the back. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, cool silvery tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A20": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "赤点石斑",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, very deep rounded body, a fan-shaped tail, round spots on the body. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, cool silvery tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A42": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "斑鰶",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, deep-bodied build, a fan-shaped tail, round spots on the body. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, muted neutral tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "A43": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "日本鳀",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, slender elongated proportions, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, warm earthy tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "B01": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "鲢鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, deep-bodied build, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, cool silvery tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "B02": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "鳙鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, very deep rounded body, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, muted neutral tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "B03": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "草鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, deep-bodied build, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, warm earthy tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "B04": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "鲮鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, deep-bodied build, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, muted neutral tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "B05": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "罗非鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, very deep rounded body, a fan-shaped tail, sharp spines along the back. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, muted neutral tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "B06": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "鳊鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, very deep rounded body, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, warm earthy tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "B07": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "鲂鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, very deep rounded body, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, muted neutral tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "B08": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "银鲴",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, deep-bodied build, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, muted neutral tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "B09": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "黄尾鲴",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, deep-bodied build, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, warm earthy tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "B10": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "赤眼鳟",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, moderate proportions, a deeply forked tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, muted neutral tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "B11": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "大眼华鳊",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, very deep rounded body, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, warm earthy tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "B12": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "似鳊",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, very deep rounded body, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, cool silvery tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "B13": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "中华细鲫",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, moderate proportions, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, warm earthy tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "B14": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "麦鲮",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, deep-bodied build, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, greenish tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "B15": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "鲈鲤",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, deep-bodied build, a fan-shaped tail, sharp spines along the back. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, warm earthy tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "B31": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "银鮈",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, moderate proportions, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, warm earthy tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "B32": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "短颌鲚",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, slender elongated proportions, a deeply forked tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, warm earthy tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "C01": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "溪哥",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, moderate proportions, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, greenish tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "D01": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "麦穗鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, moderate proportions, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, cool silvery tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "D11": {
+  "model": "qwen-image-2.1-int8",
+  "name": "黄鳝",
+  "prompt": "a single long slender eel, ribbon-like serpentine body, continuous fin along the back. (light grey body, muted deep green fins). full side view, whole body visible, facing left, centered with generous margin, clean form, slightly richer detail, fan-shaped tail. low poly 3D render, faceted polygonal surfaces, flat shading per face, strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, dark neutral grey background, high-end collectible item presentation.",
+  "rar": 1,
+  "seed": 20261007,
+  "shape": "eel",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "D16": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "塘主的大青鱼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single streamlined fish with a rounded body and small pectoral fins, deep-bodied build, a fan-shaped tail. full side view, whole body visible, facing left, centered with generous margin, long layered overlapping fins, extra spines and streamers. natural realistic colouring with a clearly lighter belly and a darker back, cool silvery tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 3,
+  "seed": 20261007,
+  "shape": "fish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "S16": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "灯塔水母",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single jellyfish with a rounded bell dome and long tentacles hanging below, a soft glowing edge along the outer silhouette. full side view, whole body visible, facing left, centered with generous margin, simple unadorned form. natural realistic colouring with a clearly lighter belly and a darker back, muted neutral tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 0,
+  "seed": 20261007,
+  "shape": "jelly",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "S58": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "海沟幽灵·大王乌贼",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "a single squid with an elongated mantle, pointed tip, triangular side fins and a cluster of tentacles, a soft glowing edge along the outer silhouette. muted pale sky blue body with light grey side fins. Full body visible in profile, facing left, centered with generous margin, long layered overlapping side fins. low-poly 3D game asset, built from large flat triangular facets, clearly visible polygon edges, hard-edged flat shading, matte surface, minimal surface detail, no texture. Stylized collectible figurine on a plain dark charcoal background, single soft rim light along the top edge, no ambient fill light, deep unlit shadow side.",
+  "rar": 3,
+  "seed": 20261007,
+  "shape": "squid",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "S59": {
+  "model": "qwen-image-2.1-int8",
+  "name": "海沟幽魂·无光鲸",
+  "prompt": "a single whale, bulky rounded body, wide horizontal fluke, small dorsal fin. (light grey body, muted deep blue fins). full side view, whole body visible, facing left, centered with generous margin, highly ornate legendary form, elaborate flowing fins, extra decorative spines and streamers, magnificent and precious, fan-shaped tail, with a soft bioluminescent glow along the edges. low poly 3D render, faceted polygonal surfaces, flat shading per face, strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, dark neutral grey background, high-end collectible item presentation.",
+  "rar": 3,
+  "seed": 20261007,
+  "shape": "whale",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "S60": {
+  "model": "qwen-image-2.1-int8",
+  "name": "海沟之主·深渊巨鲨",
+  "prompt": "a single shark, torpedo body, pointed snout, tall triangular dorsal fin, crescent tail. (red body, red fins). full side view, whole body visible, facing left, centered with generous margin, highly ornate legendary form, elaborate flowing fins, extra decorative spines and streamers, magnificent and precious, fan-shaped tail, with a soft bioluminescent glow along the edges, with a slightly open mouth showing small sharp teeth. low poly 3D render, faceted polygonal surfaces, flat shading per face, strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, dark neutral grey background, high-end collectible item presentation.",
+  "rar": 3,
+  "seed": 20261007,
+  "shape": "shark",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "SS76": {
+  "model": "qwen-image-2.1-int8",
+  "name": "星陨之主·天鳞",
+  "prompt": "a single serpentine dragon fish, long sinuous body, spiny dorsal ridge, whisker barbels, fan tail. (muted violet body, pale violet fins). full side view, whole body visible, facing left, centered with generous margin, highly ornate legendary form, elaborate flowing fins, extra decorative spines and streamers, magnificent and precious, fan-shaped tail, with a soft bioluminescent glow along the edges. low poly 3D render, faceted polygonal surfaces, flat shading per face, strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, dark neutral grey background, high-end collectible item presentation.",
+  "rar": 3,
+  "seed": 20261007,
+  "shape": "dragon",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "SS77": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "渊底月神·银鳐",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "low poly 3D render, faceted polygonal surfaces, flat shading per face, matte material, clean readable silhouette of a single flat wide manta ray with a broad diamond body and wing-like fins, a soft glowing edge along the outer silhouette. full side view, whole body visible, facing left, centered with generous margin, long layered overlapping wings. natural realistic colouring with a clearly lighter belly and a darker back, cool silvery tones. strong rim light along the back and tail, no ambient fill light, deep unlit shadow side, high contrast between the lit edge and the shadow, high-end product render look. Built from large flat angular facets, clearly visible polygon edges, minimal surface detail, no texture. Plain dark neutral grey background, completely empty, no scenery, no text, no watermark.",
+  "rar": 3,
+  "seed": 20261007,
+  "shape": "ray",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ },
+ "SS78": {
+  "cfg": 3.0,
+  "model": "qwen-image-2.1-int8",
+  "name": "星陨王座·裂空皇带",
+  "negative": "smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, painting, illustration, soft gradients, fur, hair, water, background scenery, text, watermark, signature",
+  "prompt": "a single ribbon fish with an extremely long thin body and a tall crest fin running the whole back, a fan-shaped tail, a soft glowing edge along the outer silhouette. muted blue body with lighter fins. Full body visible in profile, facing left, centered with generous margin, long layered overlapping crest fin, extra spines and streamers. low-poly 3D game asset, built from large flat triangular facets, clearly visible polygon edges, hard-edged flat shading, matte surface, minimal surface detail, no texture. Stylized collectible figurine on a plain dark charcoal background, single soft rim light along the top edge, no ambient fill light, deep unlit shadow side.",
+  "rar": 3,
+  "seed": 20261007,
+  "shape": "oarfish",
+  "size": [
+   1152,
+   768
+  ],
+  "steps": 25
+ }
+}

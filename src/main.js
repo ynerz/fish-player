@@ -119,7 +119,7 @@
         hiddenAt = Date.now();
         St.save(true);
       } else {
-        last = performance.now();
+        last = G.Platform.sys.now();
         /* 页面重新可见：先结算水族箱的被动收益（与挂机开关无关） */
         if (hiddenAt) {
           var t2 = St.tankCatchUp((Date.now() - hiddenAt) / 1000);
@@ -146,7 +146,7 @@
 
     /* ---------- 窗口失焦：多显示器下切走也要停，只靠 visibilitychange 不够 ---------- */
     G.Platform.sys.onBlur(function () { blurred = true; St.save(true); });
-    G.Platform.sys.onFocus(function () { blurred = false; last = performance.now(); });
+    G.Platform.sys.onFocus(function () { blurred = false; last = G.Platform.sys.now(); });
 
     /* ---------- 关闭前保存 ---------- */
     U.on(window, 'beforeunload', function () { St.save(true); });
@@ -183,7 +183,9 @@
 
     syncAction();
     bootDone = true;
-    last = performance.now();
+    /* 起手先把 `last` 对齐到平台时钟：下一帧的 dt 才不会因为
+       「boot 花了多久」而算出一个大跳（loop 里还有一层 <0 / >0.05 的夹紧兜底）。 */
+    last = G.Platform.sys.now();
     requestAnimationFrame(loop);
   }
 

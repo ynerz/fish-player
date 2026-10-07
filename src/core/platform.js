@@ -82,6 +82,11 @@ G.Platform = (function () {
     size: function () {
       return { w: window.innerWidth || 800, h: window.innerHeight || 600 };
     },
+    /* 单调时钟 —— **全项目唯一的取时口径**（业务代码不许写 `performance.now()`，
+       第 ㊱ 节按字面量拦）。主循环的帧间隔、水族箱动画的相位都靠它。
+       ⚠️ 它必须与「帧时间戳」同源：`requestAnimationFrame` 回调收到的第一个参数
+          就是本函数在同一时刻会返回的值（Web 端都是 `performance.now()`）。
+          换平台时两个一起换，否则 `now - last` 会算出一个天文数字。 */
     now: function () {
       return (window.performance && window.performance.now)
         ? window.performance.now()

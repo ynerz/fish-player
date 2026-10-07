@@ -870,7 +870,9 @@ G.Panels = (function () {
     var items = s.tank.map(function (e) {
       return { e: e, ph: Math.random() * 6.28, sp: 0.35 + Math.random() * 0.5, y: 0.25 + Math.random() * 0.5 };
     });
-    var t0 = performance.now();
+    /* t0 与下面 `drawTank(now)` 收到的帧时间戳同源（都走平台时钟），
+       差值才是真的相位秒数 —— 别在一边换成 Date.now()。 */
+    var t0 = G.Platform.sys.now();
     /* 水体的渐变只跟画布高度有关 —— 按尺寸缓存，别每帧新建。
        口径与 scene.js 的 `grad()` 缓存工厂一致：渲染路径里不许造渐变对象。
        （verify 第 ⑰ 节会扫这段的源码断言。） */

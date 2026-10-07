@@ -2031,6 +2031,12 @@ let platBad = 0;
     /* 启动时机也收进平台层（sys.onReady）：业务代码不再自己判 readyState */
     ['document.readyState', /document\s*\.\s*readyState/],
     ['DOMContentLoaded 字面量', /(['"])DOMContentLoaded\1/],
+    /* ⚠️ 时间源也属「系统信息」（sys.now / sys.dpr 是同一族）。
+       踩过的：main.js 三处 + panels.js 一处直接写 `performance.now()`，
+       而平台层的 `sys.now()` 因此**全项目零调用**——「按名枚举」的规则
+       从没覆盖过它，直到 2026-10-08 才被一次全项目 API 扫描翻出来。
+       主循环的 dt、鱼缸动画的相位都靠这个时钟，换平台时两边必须一起换。 */
+    ['performance.now（直接取时）', /(^|[^\w$.])performance\s*\.\s*now\s*\(/],
   ];
   const rel = [];
   (function walk(dir) {

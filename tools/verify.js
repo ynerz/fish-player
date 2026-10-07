@@ -1694,6 +1694,65 @@ let platBad = 0;
 })();
 
 
+/* ---------------- 37. 读 config 的键必须真的存在 ----------------
+   踩过的（同一个根因的另一半）：`tools/gen-collect-time.js` 读 `cm.prob`
+   —— 那个字段早改了名，于是比较器拿到 `undefined`、排序静默失效，
+   把「最稀有的颜色」标成了原色（见第 2-b 节）。
+   **读一个不存在的键永远不会报错**，只会算错、或让兜底值静默生效，
+   所以这里把所有 `CFG.x.y.z` 的静态路径拿到运行时真解析一遍。
+
+   已知局限（刻意的）：只认**静态的点号链**。`CFG.rarity[t].timeMin`、
+   `CFG[name]`、`CFG.fight[key]` 这类动态取值扫不到 —— 断言只能当网用。 */
+console.log('\n[37] 读 config 的键必须真的存在（读不存在的键不会报错）');
+(function () {
+  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const files = [];
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+      const p = path.join(ROOT, dir, n);
+      if (fs.statSync(p).isDirectory()) walk(dir + '/' + n);
+      else if (/\.js$/.test(n)) files.push(dir + '/' + n);
+    });
+  })('src');
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+      if (/\.js$/.test(n)) files.push(dir + '/' + n);
+    });
+  })('tools');
+
+  const cfg = sandbox.G && sandbox.G.CONFIG;
+  if (!cfg) { err('沙箱里没有 G.CONFIG —— 第 ⑪ 节没把 config.js 加载进来？'); return; }
+  /* 前面必须有「非标识符」边界：否则 `GOAL_CFG.dailyMedals` 里的 `CFG.` 会被误认 */
+  const re = /(?:^|[^\w$.])(?:CFG|G\.CONFIG)((?:\.[A-Za-z_][\w]*)+)/g;
+  const bad = {};
+  let checked = 0;
+  files.forEach(r => {
+    const code = strip(fs.readFileSync(path.join(ROOT, r), 'utf8'));
+    let m;
+    while ((m = re.exec(code))) {
+      const parts = m[1].slice(1).split('.');
+      let o = cfg, i;
+      for (i = 0; i < parts.length; i++) {
+        if (o == null || o[parts[i]] === undefined) break;
+        o = o[parts[i]];
+      }
+      checked++;
+      if (i < parts.length) {
+        const key = parts.slice(0, i + 1).join('.');
+        (bad[key] = bad[key] || []).push(r);
+      }
+    }
+    re.lastIndex = 0;
+  });
+  const keys = Object.keys(bad);
+  if (keys.length) {
+    keys.forEach(k => err(`config 里没有 \`${k}\`，但 ${bad[k].join('、')} 在读它 —— 拿到的是 undefined（不报错，只会算错或走兜底）`));
+  } else {
+    ok(`${files.length} 个文件里的 ${checked} 处 config 取值路径全部存在`);
+  }
+})();
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

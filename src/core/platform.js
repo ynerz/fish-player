@@ -13,6 +13,7 @@
      audio      createContext()          —— 小程序要换成 wx.createInnerAudioContext
      canvas     create(w,h)              —— 小程序要换成 wx.createOffscreenCanvas
      sys        dpr() / size() / now() / isVisible() / reload()
+                onResize(fn) / onVisibility(fn) / onFocus(fn) / onBlur(fn)
      input      down(el,fn) / up(fn) / cancel / leave / key
      clipboard  write(text) → Promise<boolean>   —— 小程序换成 wx.setClipboardData
      dialog     confirm(msg) / prompt(msg,def)   —— 小程序换成 wx.showModal
@@ -94,6 +95,21 @@ G.Platform = (function () {
     /* 尺寸变化通知（渲染层靠它重算画布）。小程序端换成 wx.onWindowResize 即可。 */
     onResize: function (fn) {
       try { window.addEventListener('resize', fn); } catch (e) {}
+    },
+    /* 页面可见性变化（主循环暂停 / 恢复、离线补算都靠它）。
+       小程序端换成 onShow / onHide 维护的一个布尔值即可。
+       ⚠️ 回调里请用 `sys.isVisible()` 判可见性，别读 `document.hidden` ——
+          那是 Web 专有字段，换平台就没了（第 ㊱ 节会拦）。 */
+    onVisibility: function (fn) {
+      try { (window.document || window).addEventListener('visibilitychange', fn); } catch (e) {}
+    },
+    /* 窗口获得 / 失去焦点。多显示器下「切到别的应用」不一定触发 visibilitychange，
+       所以失焦要单独听。小程序端换成 onShow / onHide。 */
+    onFocus: function (fn) {
+      try { window.addEventListener('focus', fn); } catch (e) {}
+    },
+    onBlur: function (fn) {
+      try { window.addEventListener('blur', fn); } catch (e) {}
     },
     /* 整体重载（重置存档、导入存档之后用）。
        小程序端要换成 reLaunch / navigateTo 的等价动作 —— 所以别在业务代码里写 location.reload。 */

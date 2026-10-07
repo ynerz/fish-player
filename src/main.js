@@ -114,8 +114,8 @@
     });
 
     /* ---------- 网页隐藏 / 显示 ---------- */
-    U.on(document, 'visibilitychange', function () {
-      if (document.hidden) {
+    G.Platform.sys.onVisibility(function () {
+      if (!G.Platform.sys.isVisible()) {
         hiddenAt = Date.now();
         St.save(true);
       } else {
@@ -145,8 +145,8 @@
     });
 
     /* ---------- 窗口失焦：多显示器下切走也要停，只靠 visibilitychange 不够 ---------- */
-    U.on(window, 'blur', function () { blurred = true; St.save(true); });
-    U.on(window, 'focus', function () { blurred = false; last = performance.now(); });
+    G.Platform.sys.onBlur(function () { blurred = true; St.save(true); });
+    G.Platform.sys.onFocus(function () { blurred = false; last = performance.now(); });
 
     /* ---------- 关闭前保存 ---------- */
     U.on(window, 'beforeunload', function () { St.save(true); });

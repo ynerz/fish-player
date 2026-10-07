@@ -93,7 +93,7 @@ G.Hud = (function () {
     });
     /* 兜底：指针在窗口外抬起（拖到浏览器外 / 切成别的应用）收不到 pointerup，
        不补这一条就会「一直收线」直到断线 */
-    U.on(window, 'blur', function () {
+    G.Platform.sys.onBlur(function () {
       if (handlers.onRelease) handlers.onRelease();
     });
 

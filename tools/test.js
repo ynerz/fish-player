@@ -1589,6 +1589,27 @@ G_('Platform · 对话框 / 剪贴板 / 环境能力的兜底');
   ok(P.sys.isVisible() === true,
      '拿不到 document 时 isVisible() 默认「可见」（纯逻辑环境不会把自己误判成暂停）');
   ok(typeof P.sys.onResize === 'function', 'sys.onResize 在导出面上（渲染层不再直连 window resize）');
+
+  /* 生命周期事件（可见性 / 焦点）也必须走平台层：
+     它们此前经 U.on(window|document, ...) 裸挂 DOM —— 按名扫描 window.addEventListener
+     的规则拦不住（真正调 addEventListener 的是 U.on）。这里真注册一遍，
+     确认三个函数都把回调交到了 window 上。 */
+  ok(typeof P.sys.onVisibility === 'function' && typeof P.sys.onFocus === 'function'
+     && typeof P.sys.onBlur === 'function',
+     'sys.onVisibility / onFocus / onBlur 都在导出面上（生命周期事件不再裸挂 DOM）');
+  const prevAdd = global.addEventListener;
+  const regd = [];
+  global.addEventListener = (t) => { regd.push(t); };
+  try {
+    P.sys.onVisibility(() => {});
+    P.sys.onFocus(() => {});
+    P.sys.onBlur(() => {});
+  } finally { global.addEventListener = prevAdd; }
+  ok(regd.indexOf('visibilitychange') >= 0 && regd.indexOf('focus') >= 0 && regd.indexOf('blur') >= 0,
+     '三个函数都真的把回调注册到了 window（' + regd.join(' / ') + '）');
+  let lifeThrew = false;
+  try { P.sys.onVisibility(null); P.sys.onFocus(null); P.sys.onBlur(null); } catch (e) { lifeThrew = true; }
+  ok(!lifeThrew, '传 null 回调也不抛（正常环境下的注册路径不因缺参数崩掉）');
 })();
 
 /* =========================================================

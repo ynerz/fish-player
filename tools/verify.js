@@ -486,8 +486,8 @@ let inputBad = 0;
 
 if (!/function handlePress\s*\(/.test(mainSrc)) { err('main.js 里没有 handlePress()'); inputBad++; }
 const hudSrc = fs.readFileSync(path.join(ROOT, 'src/ui/hud.js'), 'utf8');
-if (!/U\.on\(window,\s*'blur'/.test(hudSrc)) {
-  err('hud.js 没有在 window blur 时兜底放线 —— 指针在窗口外抬起（拖出浏览器 / 切应用）会一直收线到断线');
+if (!/G\.Platform\.sys\.onBlur\s*\(/.test(hudSrc)) {
+  err('hud.js 没有在窗口失焦时兜底放线 —— 指针在窗口外抬起（拖出浏览器 / 切应用）会一直收线到断线');
   inputBad++;
 }
 const platSrc = fs.readFileSync(path.join(ROOT, 'src/core/platform.js'), 'utf8');
@@ -1972,6 +1972,13 @@ let platBad = 0;
     ['document.visibilityState', /document\s*\.\s*visibilityState/],
     ['window.addEventListener(...)', /window\s*\.\s*addEventListener\s*\(/],
     ['localStorage 读写', /\blocalStorage\s*\.\s*(get|set|remove)Item/],
+    /* ⚠️ 下面三条是「绕过 window.addEventListener 规则」的缺口：
+       生命周期事件经 U.on(window/document, ...) 注册时，上面那条按名扫描拦不住
+       （U.on 内部才调 addEventListener）→ main.js / hud.js 的 visibilitychange、
+       blur、focus 一直裸挂在 DOM 上。现在必须走 G.Platform.sys.on*。 */
+    ['U.on(window, 生命周期事件)', /U\s*\.\s*on\s*\(\s*window\s*,\s*(['"])(?:resize|visibilitychange|blur|focus|orientationchange)\1/],
+    ['U.on(document, 生命周期事件)', /U\s*\.\s*on\s*\(\s*document\s*,\s*(['"])(?:resize|visibilitychange|blur|focus|orientationchange)\1/],
+    ['document.hidden', /(^|[^\w$.])document\s*\.\s*hidden/],
   ];
   const rel = [];
   (function walk(dir) {

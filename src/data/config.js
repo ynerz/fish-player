@@ -134,11 +134,11 @@ G.CONFIG = {
      --------------------------------------------------------- */
   colorMorphs: [
     //                                            普通   稀有   史诗   传说
-    { key:'normal', name:'原色', tint:null,      probs:[0.76, 0.70, 0.56, 0.43], valueMul:1.00 },
-    { key:'bright', name:'亮色', tint:'#ffe08a', probs:[0.10, 0.11, 0.16, 0.20], valueMul:1.15 },
-    { key:'albino', name:'白化', tint:'#ffffff', probs:[0.10, 0.11, 0.16, 0.20], valueMul:1.60 },
-    { key:'golden', name:'黄金', tint:'#ffc93c', probs:[0.03, 0.06, 0.09, 0.12], valueMul:2.30 },
-    { key:'shiny',  name:'闪光', tint:'#9be7ff', probs:[0.01, 0.02, 0.03, 0.05], valueMul:4.00 },
+    { key:'normal', name:'原色',   tint:null,      probs:[0.76, 0.70, 0.56, 0.43], valueMul:1.00 },
+    { key:'bright', name:'彩虹色', tint:'#ffe08a', probs:[0.10, 0.11, 0.16, 0.20], valueMul:3.00 },
+    { key:'albino', name:'白化',   tint:'#ffffff', probs:[0.10, 0.11, 0.16, 0.20], valueMul:3.00 },
+    { key:'golden', name:'黄金',   tint:'#ffc93c', probs:[0.03, 0.06, 0.09, 0.12], valueMul:10.00 },
+    { key:'shiny',  name:'闪光',   tint:'#9be7ff', probs:[0.01, 0.02, 0.03, 0.05], valueMul:100.00 },
   ],
 
   /* ---------------------------------------------------------

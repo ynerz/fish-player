@@ -81,7 +81,8 @@ console: 0 errors
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
-| **P1** | `vendor/three.min.js`（r160 UMD）+ `tools/three-preview.html` 对照页跑通 | ✅ **本轮完成** |
+| **P1** | `vendor/three.min.js`（r160 UMD）+ `tools/three-preview.html` 对照页跑通 | ✅ **完成** |
+| **P2~P5** | —— | ⏸ **已暂停**（用户口径 2026-10-08 02:09：「那你先别换了，一直跑图吧」）<br>⛔ **不要再往下做**，除非用户重新点名要迁移。当前优先级是**把图鉴卡面生图跑完**。 |
 | **P2** | 新增 `src/render/threegl.js`：共享离屏 renderer + `drawMeshTo(ctx, mesh, st)`；**不动既有路径**；挂进 `index.html`；补 `test.js`/`verify.js` 断言并反向验证 | 待做 |
 | **P3** | `scene.js` 主画面切过去（它本来就是一块大画布，投入产出比最高） | 待做 |
 | **P4** | 图鉴 / 鱼护 / 水族箱逐个切（走共享 renderer 的贴图路径） | 待做 |

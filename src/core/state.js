@@ -745,14 +745,18 @@ G.State = (function () {
       S.baitSel = 'worm'; emit('bait'); return bait('worm');
     }
     S.baits[b.id]--;
-    if (S.baits[b.id] <= 0) {
+    /* 用掉最后一枚 → 自动回退到免费饵。
+       ⚠️ `emit('bait')` 只在函数末尾发一次：以前这个分支里也发了一次，
+       于是「用掉最后一枚」这一竿会连发两次 bait 事件（订阅方只是同步底栏、
+       不会出错，但属于白白多跑一遍）。要提示就用 toast，别复用 bait。 */
+    var ranOut = S.baits[b.id] <= 0;
+    if (ranOut) {
       S.baits[b.id] = 0;
       S.baitSel = 'worm';
-      emit('bait');
-      emit('toast', { text: '鱼饵用完了，已切回蚯蚓', kind: 'warn' });
     }
     scheduleSave();
     emit('bait');
+    if (ranOut) emit('toast', { text: '鱼饵用完了，已切回蚯蚓', kind: 'warn' });
     return b;
   }
 

@@ -248,6 +248,28 @@ ok(lastB.rareMul === paid.rareMul && lastB.speed === paid.speed, '它的 speed /
 ok(St.get().baits[paid.id] === 0, '最后一枚被扣到 0');
 ok(St.get().baitSel === 'worm' && St.curBait().id === 'worm', '同时自动切回蚯蚓（下一竿用免费饵）');
 
+/* 🔴 回归：「用掉最后一枚」这一竿只能发**一次** bait 事件。
+   以前 `consumeBait()` 在「切回蚯蚓」分支里发了一次、函数末尾又发一次
+   → 同一竿底栏同步两遍（不报错，只是白跑）。 */
+let baitEvtN = 0, countBaitEvt = false, baitToastN = 0, countBaitToast = false;
+St.on('bait', function () { if (countBaitEvt) baitEvtN++; });
+St.on('toast', function () { if (countBaitToast) baitToastN++; });
+St.get().baits[paid.id] = 1;
+St.selectBait(paid.id);
+countBaitEvt = true; countBaitToast = true;
+St.consumeBait();
+countBaitEvt = false; countBaitToast = false;
+ok(baitEvtN === 1, '🔴 用掉最后一枚时只发一次 bait 事件', `实际 ${baitEvtN} 次`);
+ok(baitToastN === 1, '用掉最后一枚时发一次「已切回蚯蚓」提示', `实际 ${baitToastN} 次`);
+
+/* 库存还有时同样只发一次（别在正常路径上退回两次） */
+St.get().baits[paid.id] = 3;
+St.selectBait(paid.id);
+baitEvtN = 0; countBaitEvt = true;
+St.consumeBait();
+countBaitEvt = false;
+ok(baitEvtN === 1, '库存正常消耗时也只发一次 bait 事件', `实际 ${baitEvtN} 次`);
+
 /* 选了一个库存为 0 的付费饵 → 回退到蚯蚓，且返回的是蚯蚓（不能返回一个用不了的饵） */
 St.get().baits[paid.id] = 0;
 const fallback = St.consumeBait();

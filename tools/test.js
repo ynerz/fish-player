@@ -31,7 +31,7 @@ global.localStorage = {
  'src/data/goals.js',
  'src/core/util.js', 'src/core/platform.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js',
  'src/core/goals.js', 'src/core/weather.js', 'src/core/fishing.js', 'src/core/track.js',
- 'src/render/mesh3d.js', 'src/render/fishmesh.js',
+ 'src/render/mesh3d.js', 'src/render/fishmesh.js', 'src/render/fishpaint.js',
  'src/ui/tutorial.js']
   .forEach(r => (new Function(fs.readFileSync(path.join(ROOT, r), 'utf8'))).call(global));
 
@@ -1902,10 +1902,15 @@ ok(Math.abs(nf[0]) < 1e-9 && Math.abs(nf[1]) < 1e-9, 'faceNormal()：法线已�
 near(M3.toViewNormal([0, 0, 1], vw0)[2], 1, 1e-9, 'toViewNormal()：无旋转时法线不变');
 
 const palAmb = { back: [1, 1, 1], belly: [1, 1, 1], rim: [0, 0, 0], rimK: 0, spec: 0, metallic: 0 };
-const nBack = M3.norm([0.32, -0.72, -0.42]);        // 正对主光的反面 → diff 归零
-const shAmb = M3.shade(nBack, [0, 0, 1], palAmb, M3.LIGHT);
-near(shAmb[0], M3.LIGHT.ambient, 1e-6,
-  'shade()：背光面只剩环境项（口径 = 无环境补光，环境项压到 0.09）');
+// 光照模型（按 v9 参考图重标定过）：亮度 = max(环境项 + 主光, 腹部反射补光 × (1-t))
+const shTop = M3.shade(M3.norm([0, 1, 0]), [0, 0, 1], palAmb, M3.LIGHT);
+near(shTop[0], M3.LIGHT.ambient + 0.806 * M3.LIGHT.keyGain, 0.02,
+  'shade()：正朝上的面被主光打亮（v9 的亮面是真的亮，不是一片灰）');
+const shBelly = M3.shade(M3.norm([0, -1, 0]), [0, 0, 1], palAmb, M3.LIGHT);
+near(shBelly[0], M3.LIGHT.bellyFloor, 1e-6,
+  'shade()：正朝下的面亮度 = 腹部反射补光下限（v9 参考图里鱼肚是亮的，没有这一项会黑成一块）');
+ok(M3.LIGHT.bellyFloor < 1 && M3.LIGHT.ambient < M3.LIGHT.bellyFloor,
+  'shade()：腹部补光只作用于朝下的面，不是「把整条鱼提亮」的环境光（口径仍是「无环境补光」）');
 
 const palRim = { back: [0.5, 0.5, 0.5], belly: [0.5, 0.5, 0.5], rim: [1, 1, 1], rimK: 1, spec: 0, metallic: 0 };
 const shEdge = M3.shade([0, 0, 1], [1, 0, 0], palRim, M3.LIGHT);   // 法线 ⟂ 视线 → 边缘项拉满
@@ -1995,13 +2000,8 @@ SHAPES9.forEach(k => {
 });
 
 function bboxOf(m) {
-  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, z0 = 1e9, z1 = -1e9;
-  m.verts.forEach(v => {
-    if (v.x < x0) x0 = v.x; if (v.x > x1) x1 = v.x;
-    if (v.y < y0) y0 = v.y; if (v.y > y1) y1 = v.y;
-    if (v.z < z0) z0 = v.z; if (v.z > z1) z1 = v.z;
-  });
-  return { x: x1 - x0, y: y1 - y0, z: z1 - z0 };
+  const b = M3.bbox(m);
+  return { x: b.x1 - b.x0, y: b.y1 - b.y0, z: b.z1 - b.z0 };
 }
 const bFish = bboxOf(FM.build('fish'));
 const bRay = bboxOf(FM.build('ray'));
@@ -2026,6 +2026,55 @@ ok(dvRay.pitch > 0.7 && dvRay.pitch < 1.4,
 ok(dvFish.pitch === 0 && dvFish.yaw === 0, 'defaultView()：常规鱼默认侧视（辨识度最高的角度）');
 ok(dvJelly.pitch !== 0, 'defaultView()：水母不是正侧视（要看到伞盖内侧）');
 ok(FM.defaultView('没这个体型') === null, 'defaultView()：未知体型返回 null');
+
+G_('FishPaint —— 颜色变异 → 材质参数（队列 T4）');
+const FP = G.FishPaint;
+ok(FP.MORPH_KEYS.length === CFG.colorMorphs.length &&
+   FP.MORPH_KEYS.every((k, i) => CFG.colorMorphs[i].key === k),
+  'MORPH_KEYS 的顺序与 config.colorMorphs 完全一致（不许有第二份顺序）');
+
+const ORANGE = ['#e0683c', '#8a3a1c'];
+const pN = FP.palette(ORANGE[0], ORANGE[1], 'normal');
+const pB = FP.palette(ORANGE[0], ORANGE[1], 'bright');
+const pA = FP.palette(ORANGE[0], ORANGE[1], 'albino');
+const pG = FP.palette(ORANGE[0], ORANGE[1], 'golden');
+const pS = FP.palette(ORANGE[0], ORANGE[1], 'shiny');
+
+const satOf = c => Math.max.apply(null, c) - Math.min.apply(null, c);
+const hueOrange = c => c[0] > c[1] && c[1] > c[2];        // 橙：红 > 绿 > 蓝
+
+ok(hueOrange(pN.back) && hueOrange(pB.back),
+  '亮色档保留原色相（橙仍是红>绿>蓝）—— 口径：只许同色系提亮提饱和，禁止换互补色');
+ok(Math.max.apply(null, pB.back) > Math.max.apply(null, pN.back) &&
+   satOf(pB.back) > satOf(pN.back),
+  `亮色档确实更亮更饱和（饱和 ${satOf(pN.back).toFixed(2)} → ${satOf(pB.back).toFixed(2)}）`);
+ok(satOf(pA.back) < satOf(pN.back) * 0.45,
+  `白化档把饱和压得很低（${satOf(pN.back).toFixed(2)} → ${satOf(pA.back).toFixed(2)}）—— 手段 = 去色`);
+ok(pG.metallic === 1 && pS.metallic === 0,
+  '黄金 = 换材质（metallic 1）；闪光不是金属（手段必须互不重叠）');
+ok(pS.spin === 1 && pS.sparkle === 1 && pG.sparkle === 0 && pA.sparkle === 0,
+  '闪光 = 加光效（移动高光 + 星点），黄金 / 白化都没有');
+ok(pG.rimK > pN.rimK && pS.rimK > pG.rimK,
+  `边缘光强度逐级递增：${pN.rimK} → ${pG.rimK} → ${pS.rimK} —— 越稀有轮廓越亮`);
+
+const pN2 = FP.palette('#5f8fd0', '#2f4f80', 'normal');
+ok(Math.abs(pN.back[0] - pN2.back[0]) > 0.15 && Math.abs(pN.back[2] - pN2.back[2]) > 0.15,
+  `原色档按鱼自己的配色走（橙鱼的背色 R=${pN.back[0].toFixed(2)}，蓝鱼 R=${pN2.back[0].toFixed(2)}）` +
+  ' —— 不是套一个统一灰');
+ok(FP.fromFish(null, 'normal').back.length === 3,
+  'fromFish()：空鱼给兜底配色，不抛异常');
+ok(FP.hexToRgb('nope').length === 3 && FP.hexToRgb(null).length === 3,
+  'hexToRgb()：认不出的输入退回中灰（脏档不该把整条渲染链带崩）');
+ok(FP.hexToRgb('#abc')[0] > 0.6, 'hexToRgb()：支持三位简写 #abc');
+ok(FP.isSparkly('shiny') && !FP.isSparkly('golden'), 'isSparkly()：只有闪光档叠星点');
+ok(FP.shouldAnimate(3, 'normal') === true && FP.shouldAnimate(0, 'normal') === false &&
+   FP.shouldAnimate(0, 'shiny') === true,
+  'shouldAnimate()：传说档与闪光色开动画，普通原色不开 —— 「稀有的东西才配动」');
+ok(FP.mix([0, 0, 0], [1, 1, 1], 0.5)[0] === 0.5, 'mix()：线性插值');
+
+const realFish = G.FISH.filter(f => f.rar === 3)[0] || G.FISH[0];
+ok(!!FP.fromFish(realFish, 'golden').back,
+  `fromFish()：能吃下 fish.js 的真实字段（body/accent）—— 试了「${realFish.name}」`);
 
 G_('FishMesh —— 传说细节层级（用户口径：传说鱼细节明显更足）');
 ok(FM.detailForRar(0) === 0 && FM.detailForRar(1) === 0 &&

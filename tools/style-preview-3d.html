@@ -42,101 +42,128 @@
 
 <div class="bar">
   <button data-morph="normal" class="on">原色</button>
+  <button data-morph="bright">亮色</button>
   <button data-morph="albino">白化</button>
   <button data-morph="golden">黄金</button>
   <button data-morph="shiny">闪光</button>
+  <span style="width:14px"></span>
+  <button data-mode="shapes" class="on">9 体型 × 3 细节</button>
+  <button data-mode="fish">真实鱼（各自的配色）</button>
   <span class="stat" id="stat">加载中…</span>
 </div>
 
 <table id="tbl"></table>
 
+<script src="../src/data/config.js"></script>
+<script src="../src/data/fields.js"></script>
+<script src="../src/data/fish.js"></script>
 <script src="../src/render/mesh3d.js"></script>
 <script src="../src/render/fishmesh.js"></script>
+<script src="../src/render/fishpaint.js"></script>
 <script>
 (function () {
   'use strict';
-  var M3 = window.G.Mesh3D, FM = window.G.FishMesh;
+  var M3 = window.G.Mesh3D, FM = window.G.FishMesh, FP = window.G.FishPaint;
   var SHAPES = ['fish', 'eel', 'ray', 'squid', 'jelly', 'oarfish', 'shark', 'whale', 'dragon'];
   var DETAILS = [
     { d: 0, name: '0 基础', note: '普通 / 稀有' },
     { d: 1, name: '1 史诗', note: '+腹鳍 +背棘' },
     { d: 2, name: '2 传说', note: '+飘带 +双层尾鳍' }
   ];
-
-  /* 颜色档 → 材质参数（口径见开发者文档 §1.4：去色 / 换材质 / 加光效 三种不同手段） */
-  var MORPHS = {
-    normal: { label: '原色', back: [0.34, 0.46, 0.53], belly: [0.84, 0.88, 0.86], rim: [0.72, 0.88, 0.95], rimK: 0.85, spec: 0, metallic: 0, spin: 0 },
-    albino: { label: '白化', back: [0.78, 0.74, 0.72], belly: [0.97, 0.94, 0.92], rim: [1.0, 0.91, 0.94], rimK: 0.80, spec: 0.10, metallic: 0, spin: 0 },
-    golden: { label: '黄金', back: [0.78, 0.56, 0.14], belly: [1.0, 0.92, 0.60], rim: [1.0, 0.94, 0.66], rimK: 1.35, spec: 0.55, metallic: 1, spin: 0 },
-    shiny: { label: '闪光', back: [0.52, 0.70, 0.82], belly: [0.90, 0.96, 1.0], rim: [1, 1, 1], rimK: 1.55, spec: 0.90, metallic: 0, spin: 1 }
+  /* 「体型」视图里每行给一组代表色（取自 gen-fish 的真实色板），
+     真实鱼视图则直接用鱼自己的 body/accent */
+  var SHAPE_TINT = {
+    fish: ['#b9cbd6', '#8497a4'], eel: ['#5c7a68', '#33473d'], ray: ['#8fa2b0', '#5f7280'],
+    squid: ['#c78f9e', '#8a5f75'], jelly: ['#cfe4ec', '#9dc2d2'], oarfish: ['#f2c14e', '#d99a1f'],
+    shark: ['#6c7480', '#414a55'], whale: ['#9aa8b8', '#6b7888'], dragon: ['#c98f8f', '#8f5555']
   };
   var morphKey = 'normal';
 
+  /* 颜色档不再自己写一份 —— 走 G.FishPaint（口径的单一来源） */
+
   var cells = [];
   var tbl = document.getElementById('tbl');
+  var mode = 'shapes';        // 'shapes' = 9 体型 × 3 细节；'fish' = 真实鱼（各自的配色 + 细节档）
+  var fishRows = null;
 
-  function makeRow(typeKey) {
-    var tr = document.createElement('tr');
-    var th = document.createElement('th');
-    th.className = 'rowh';
-    var t = FM.TYPES[typeKey];
-    th.innerHTML = (t ? t.label : typeKey) + '<span class="n">' + typeKey + '</span>';
-    tr.appendChild(th);
-
-    DETAILS.forEach(function (dd) {
-      var td = document.createElement('td');
-      var cv = document.createElement('canvas');
-      td.appendChild(cv);
-      var cap = document.createElement('div');
-      cap.className = 'cap';
-      td.appendChild(cap);
-      tr.appendChild(td);
-
-      var mesh = FM.build(typeKey, { detail: dd.d });
-      var dv = FM.defaultView(typeKey);       // 默认视角按体型给（鳐俯视）
-      var cell = {
-        cv: cv, ctx: cv.getContext('2d'), cap: cap,
-        mesh: mesh, target: M3.makeTarget(mesh),
-        yaw: dv.yaw, pitch: dv.pitch, defYaw: dv.yaw, defPitch: dv.pitch,
-        dragging: false, lastX: 0, lastY: 0, releaseAt: 0,
-        dirty: true, w: 0, h: 0, dpr: 1,
-        animate: dd.d >= 2,
-        sparkles: [], time: Math.random() * 6
-      };
-      // 闪光档的锚点：取背侧顶点
-      for (var i = 0; i < mesh.verts.length; i += Math.max(2, Math.floor(mesh.verts.length / 16))) {
-        var v = mesh.verts[i];
-        if (v.b > 0.25) cell.sparkles.push({ i: i, ph: Math.random() * 6.28, f: 2.4 + Math.random() * 2.6 });
-      }
-      cap.textContent = mesh.tris.length + ' 面';
-
-      cv.addEventListener('pointerdown', function (e) {
-        cell.dragging = true; cell.lastX = e.clientX; cell.lastY = e.clientY;
-        cv.classList.add('drag');
-        if (cv.setPointerCapture) cv.setPointerCapture(e.pointerId);
+  /* 真实鱼取样：确定性抽样，跨钓场 / 跨稀有度 —— 证明「每种鱼都能出图」，
+     而不是只挑好看的几条。每条鱼用它自己的 body/accent 配色。 */
+  function pickRealFish() {
+    var all = (window.G.FISH || []).slice();
+    if (!all.length) return [];
+    var byField = {};
+    all.forEach(function (f) { (byField[f.field] = byField[f.field] || []).push(f); });
+    var out = [];
+    Object.keys(byField).forEach(function (fid) {
+      var arr = byField[fid];
+      // 每个钓场取 4 条，均匀铺开（含该场最稀有的一条）
+      [0.0, 0.33, 0.66, 1.0].forEach(function (t) {
+        out.push(arr[Math.min(arr.length - 1, Math.floor(t * (arr.length - 1)))]);
       });
-      cv.addEventListener('pointermove', function (e) {
-        if (!cell.dragging) return;
-        cell.yaw += (e.clientX - cell.lastX) * 0.010;
-        cell.pitch = Math.max(-1.3, Math.min(1.3, cell.pitch + (e.clientY - cell.lastY) * 0.008));
-        cell.lastX = e.clientX; cell.lastY = e.clientY;
-        cell.releaseAt = 0; cell.dirty = true;
-      });
-      function up() {
-        if (!cell.dragging) return;
-        cell.dragging = false; cv.classList.remove('drag');
-        cell.releaseAt = performance.now();
-      }
-      cv.addEventListener('pointerup', up);
-      cv.addEventListener('pointercancel', up);
-      cv.addEventListener('lostpointercapture', up);
-
-      cells.push(cell);
     });
-    tbl.appendChild(tr);
+    return out.slice(0, 28);
   }
 
-  (function header() {
+  function newCell(typeKey, detail, extra) {
+    var mesh = FM.build(typeKey, { detail: detail });
+    var dv = FM.defaultView(typeKey);
+    var cell = {
+      cv: null, ctx: null, cap: null,
+      mesh: mesh, target: M3.makeTarget(mesh),
+      yaw: dv.yaw, pitch: dv.pitch, defYaw: dv.yaw, defPitch: dv.pitch,
+      dragging: false, lastX: 0, lastY: 0, releaseAt: 0,
+      dirty: true, w: 0, h: 0, dpr: 1,
+      camZ: 3, animate: detail >= 2, typeKey: typeKey,
+      sparkles: [], time: Math.random() * 6,
+      label: extra ? extra.label : '', sub: extra ? extra.sub : ''
+    };
+    for (var i = 0; i < mesh.verts.length; i += Math.max(2, Math.floor(mesh.verts.length / 16))) {
+      if (mesh.verts[i].b > 0.25) {
+        cell.sparkles.push({ i: i, ph: Math.random() * 6.28, f: 2.4 + Math.random() * 2.6 });
+      }
+    }
+    return cell;
+  }
+
+  function wire(cell) {
+    var cv = cell.cv;
+    cv.addEventListener('pointerdown', function (e) {
+      cell.dragging = true; cell.lastX = e.clientX; cell.lastY = e.clientY;
+      cv.classList.add('drag');
+      if (cv.setPointerCapture) cv.setPointerCapture(e.pointerId);
+    });
+    cv.addEventListener('pointermove', function (e) {
+      if (!cell.dragging) return;
+      cell.yaw += (e.clientX - cell.lastX) * 0.010;
+      cell.pitch = Math.max(-1.3, Math.min(1.3, cell.pitch + (e.clientY - cell.lastY) * 0.008));
+      cell.lastX = e.clientX; cell.lastY = e.clientY;
+      cell.releaseAt = 0; cell.dirty = true;
+    });
+    function up() {
+      if (!cell.dragging) return;
+      cell.dragging = false; cv.classList.remove('drag');
+      cell.releaseAt = performance.now();
+    }
+    cv.addEventListener('pointerup', up);
+    cv.addEventListener('pointercancel', up);
+    cv.addEventListener('lostpointercapture', up);
+  }
+
+  function addCell(tr, cell) {
+    var td = document.createElement('td');
+    var cv = document.createElement('canvas');
+    td.appendChild(cv);
+    var cap = document.createElement('div');
+    cap.className = 'cap';
+    td.appendChild(cap);
+    tr.appendChild(td);
+    cell.cv = cv; cell.ctx = cv.getContext('2d'); cell.cap = cap;
+    cap.textContent = cell.capText || (cell.mesh.tris.length + ' 面');
+    wire(cell);
+    cells.push(cell);
+  }
+
+  function buildShapesView() {
     var tr = document.createElement('tr');
     var th0 = document.createElement('th');
     th0.className = 'rowh';
@@ -148,8 +175,48 @@
       tr.appendChild(th);
     });
     tbl.appendChild(tr);
-  })();
-  SHAPES.forEach(makeRow);
+
+    SHAPES.forEach(function (key) {
+      var r = document.createElement('tr');
+      var th = document.createElement('th');
+      th.className = 'rowh';
+      th.innerHTML = FM.TYPES[key].label + '<span class="n">' + key + '</span>';
+      r.appendChild(th);
+      DETAILS.forEach(function (dd) { addCell(r, newCell(key, dd.d)); });
+      tbl.appendChild(r);
+    });
+  }
+
+  function buildFishView() {
+    var list = pickRealFish();
+    if (!list.length) {
+      tbl.innerHTML = '<tr><td style="padding:20px;color:#8b98a3">' +
+        '没读到 G.FISH —— 这一页需要先加载 config.js / fields.js / fish.js</td></tr>';
+      return;
+    }
+    var COLS = 7, i = 0;
+    while (i < list.length) {
+      var tr = document.createElement('tr');
+      for (var c = 0; c < COLS && i < list.length; c++, i++) {
+        var f = list[i];
+        var det = FM.detailForRar(f.rar);
+        var cell = newCell(f.shape, det, { label: f.name });
+        cell.fish = f;
+        cell.capText = f.name + '　' + ['普通', '稀有', '史诗', '传说'][f.rar] +
+                       '　' + FM.TYPES[f.shape].label + '　' + cell.mesh.tris.length + ' 面';
+        addCell(tr, cell);
+      }
+      tbl.appendChild(tr);
+    }
+  }
+
+  function rebuild() {
+    tbl.innerHTML = '';
+    cells = [];
+    if (mode === 'shapes') buildShapesView(); else buildFishView();
+    resize();
+    cells.forEach(function (c) { c.dirty = true; });
+  }
 
   function resize() {
     cells.forEach(function (c) {
@@ -158,12 +225,12 @@
       c.w = Math.round(r.width); c.h = Math.round(r.height);
       c.cv.width = Math.round(c.w * c.dpr);
       c.cv.height = Math.round(c.h * c.dpr);
+      // 自动构图：按包围盒算出「主体占满画面 78%」的相机距离。
+      // 之前固定 camZ = 3，长条鱼只占画面 24%，跟 v9 参考图的构图差很远。
+      if (c.w && c.h) c.camZ = M3.fitCamera(c.mesh, c.w, c.h, 0.78);
       c.dirty = true;
     });
   }
-  window.addEventListener('resize', resize);
-  resize();
-
   var last = 0, fps = 0, acc = 0, nf = 0, drawnFrames = 0;
 
   function drawCell(c, now) {
@@ -184,15 +251,17 @@
     g.addColorStop(0, '#191d21'); g.addColorStop(1, '#0b0e11');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 
-    var vw = M3.view(W, H, c.yaw, c.pitch, 3.0);
+    var tint = SHAPE_TINT[c.typeKey] || ['#8fa2b0', '#5f7280'];
+    var pal = c.fish ? FP.fromFish(c.fish, morphKey) : FP.palette(tint[0], tint[1], morphKey);
+
+    var vw = M3.view(W, H, c.yaw, c.pitch, c.camZ);
     M3.render(ctx, c.mesh, {
-      target: c.target, view: vw,
-      palette: MORPHS[morphKey],
+      target: c.target, view: vw, palette: pal,
       time: c.time, animate: c.animate
     });
 
     // 闪光档的星点（render 只管三角面，星点由调用方叠）
-    if (morphKey === 'shiny' && c.sparkles.length) {
+    if (FP.isSparkly(morphKey) && c.sparkles.length) {
       for (var i = 0; i < c.sparkles.length; i += 3) {
         var sp = c.sparkles[i];
         var tw = Math.sin(c.time * sp.f + sp.ph);
@@ -223,31 +292,48 @@
       var live = cells.filter(function (c) { return c.animate; }).length;
       document.getElementById('stat').innerHTML =
         '帧率 <b>' + fps.toFixed(0) + '</b> fps · 本帧重画 <b>' + drawnFrames + '</b> 格<br>' +
-        '27 格共 <b>' + tris + '</b> 面 · 其中 <b>' + live + '</b> 格开动画 · 色档 <b>' + MORPHS[morphKey].label + '</b>';
+        cells.length + ' 格共 <b>' + tris + '</b> 面 · <b>' + live + '</b> 格开动画 · 色档 <b>' +
+        ({ normal: '原色', bright: '亮色', albino: '白化', golden: '黄金', shiny: '闪光' }[morphKey]) + '</b>';
     }
     requestAnimationFrame(tick);
   }
-  requestAnimationFrame(tick);
 
-  Array.prototype.forEach.call(document.querySelectorAll('.bar button'), function (b) {
+  Array.prototype.forEach.call(document.querySelectorAll('.bar button[data-morph]'), function (b) {
     b.addEventListener('click', function () {
       morphKey = b.dataset.morph;
-      Array.prototype.forEach.call(document.querySelectorAll('.bar button'), function (x) {
+      Array.prototype.forEach.call(document.querySelectorAll('.bar button[data-morph]'), function (x) {
         x.classList.toggle('on', x === b);
       });
       cells.forEach(function (c) { c.dirty = true; });
     });
   });
+  Array.prototype.forEach.call(document.querySelectorAll('.bar button[data-mode]'), function (b) {
+    b.addEventListener('click', function () {
+      mode = b.dataset.mode;
+      Array.prototype.forEach.call(document.querySelectorAll('.bar button[data-mode]'), function (x) {
+        x.classList.toggle('on', x === b);
+      });
+      rebuild();
+    });
+  });
+
+  rebuild();
+  window.addEventListener('resize', resize);
+  requestAnimationFrame(tick);
 
   window.__preview = {
-    cells: cells,
+    cells: function () { return cells; },
     setMorph: function (k) { morphKey = k; cells.forEach(function (c) { c.dirty = true; }); },
+    setMode: function (m) { mode = m; rebuild(); },
     setYaw: function (i, y) { cells[i].yaw = y; cells[i].dirty = true; },
     fps: function () { return fps; },
     triCounts: function () { return cells.map(function (c) { return c.mesh.tris.length; }); },
-    drawnFrames: function () { return drawnFrames; }
+    drawnFrames: function () { return drawnFrames; },
+    cellCount: function () { return cells.length; },
+    realFishCount: function () { return (window.G.FISH || []).length; }
   };
 })();
 </script>
 </body>
 </html>
+

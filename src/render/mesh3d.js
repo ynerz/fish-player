@@ -17,18 +17,27 @@ G.Mesh3D = (function () {
 
   /* 光照默认值 —— 这是**调参杠杆**，不是平衡数值（不影响经济），
      所以跟 fishart.js 的 TPL / STYLES 一样留在渲染模块里。
-     将来若要做「按天气 / 时段调光」，再整体移进 config。 */
+     将来若要做「按天气 / 时段调光」，再整体移进 config。
+
+     2026-10-07 按 v9 参考图重标定过一次。原参数的问题是整条鱼偏暗、
+     像「剪纸 + 一圈轮廓光」；v9 是实心渲染：亮面真的亮、腹部有反射补光、
+     轮廓光是**有宽度的一条带**而不是发丝线。 */
   var LIGHT = {
-    ambient: 0.09,                 // 环境项：口径要求「无环境补光」，压到极低
+    ambient: 0.10,                 // 环境项。口径是「无环境补光」，只给暗部的下限
     key: [-0.32, 0.72, 0.42],      // 主光方向：上方偏前左
     rim: [0.26, 0.60, -0.78],      // 边缘光方向：上方偏后
-    keyGain: 0.62,                 // 主光贡献系数
-    rimPow: 2.6,                   // 边缘光锐度（越大边越窄）
-    rimGain: 0.55,                 // 边缘光最低亮度
+    keyGain: 1.00,                 // 主光贡献（亮面要真的亮起来，暗面才有对比）
+    rimPow: 3.0,                   // 边缘光锐度（越大边越窄越亮）—— 要 crisp，不是一片晕光
+    rimGain: 0.50,                 // 边缘光最低亮度
     rimKeyMix: 0.45,               // 边缘光受主光方向调制
     bellyBias: 0.55,               // 两色身体的分界偏移
-    bellySpan: 0.90                // 两色身体的过渡跨度
+    bellySpan: 0.85,               // 两色身体的过渡跨度
+    bellyFloor: 0.34               // 腹部反射补光下限（只作用于朝下的面，不是环境补光）
   };
+  // 方向归方向、强度归强度：光向量必须是单位向量，强度只由 keyGain / rimK 控制。
+  // （不归一化的话，「光的强度」会悄悄藏在方向向量的长度里，改方向就顺手改了亮度）
+  LIGHT.key = norm(LIGHT.key);
+  LIGHT.rim = norm(LIGHT.rim);
 
   var DEG = Math.PI / 180;
 
@@ -129,6 +138,10 @@ G.Mesh3D = (function () {
     var b = belly[2] + (back[2] - belly[2]) * t;
 
     var lit = L.ambient + diff * L.keyGain;
+    // 腹部反射补光：只作用于**朝下**的面，所以它不是「把整条鱼提亮」的环境光 ——
+    // 没有这一项，鱼肚会黑成一块，v9 参考图里鱼肚是亮的
+    var floorLit = L.bellyFloor * (1 - t);
+    if (lit < floorLit) lit = floorLit;
     r *= lit; g *= lit; b *= lit;
 
     // 镜面（金属用低次幂 = 整块高光；闪光用高次幂 = 细高光）
@@ -209,6 +222,53 @@ G.Mesh3D = (function () {
     };
     freeze(mesh, out);
     return out;
+  }
+
+  /** 网格的包围盒（构造 / 构图 / 测试都要用） */
+  function bbox(mesh) {
+    var v = mesh.verts, x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, z0 = 1e9, z1 = -1e9;
+    for (var i = 0; i < v.length; i++) {
+      if (v[i].x < x0) x0 = v[i].x; if (v[i].x > x1) x1 = v[i].x;
+      if (v[i].y < y0) y0 = v[i].y; if (v[i].y > y1) y1 = v[i].y;
+      if (v[i].z < z0) z0 = v[i].z; if (v[i].z > z1) z1 = v[i].z;
+    }
+    return {
+      x0: x0, x1: x1, y0: y0, y1: y1, z0: z0, z1: z1,
+      cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, cz: (z0 + z1) / 2
+    };
+  }
+
+  /** 自动构图：算出让主体占满画面 `fill` 比例的相机距离。
+   *  在 8 个朝向上取最坏情况 → **旋转时相机不会「呼吸」**（否则转起来主体一胀一缩）。
+   *  之前固定 camZ = 3.0，长条鱼只占画面 24%，跟 v9 参考图的构图差很远。 */
+  function fitCamera(mesh, w, h, fill) {
+    var bb = bbox(mesh);
+    var f = Math.min(w, h) * 1.45;
+    var fx = (w / 2) * fill, fy = (h / 2) * fill;
+    var corners = [];
+    [bb.x0, bb.x1].forEach(function (x) {
+      [bb.y0, bb.y1].forEach(function (y) {
+        [bb.z0, bb.z1].forEach(function (z) {
+          corners.push([x - bb.cx, y - bb.cy, z - bb.cz]);
+        });
+      });
+    });
+    var best = 0;
+    for (var a = 0; a < 8; a++) {
+      var yaw = a * Math.PI / 4;
+      var pitch = (a % 3 === 0) ? 0 : ((a % 3 === 1) ? 0.9 : -0.9);
+      var cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+      for (var i = 0; i < corners.length; i++) {
+        var c = corners[i];
+        var xr = c[0] * cy + c[2] * sy;
+        var zr = -c[0] * sy + c[2] * cy;
+        var yr = c[1] * cp - zr * sp;
+        var zr2 = c[1] * sp + zr * cp;
+        var need = Math.max(zr2 + Math.abs(xr) * f / fx, zr2 + Math.abs(yr) * f / fy);
+        if (need > best) best = need;
+      }
+    }
+    return Math.max(best, 1.2);
   }
 
   function clamp255(v) {
@@ -300,6 +360,8 @@ G.Mesh3D = (function () {
     animate: animate,
     freeze: freeze,
     makeTarget: makeTarget,
+    bbox: bbox,
+    fitCamera: fitCamera,
     render: render
   };
 })();

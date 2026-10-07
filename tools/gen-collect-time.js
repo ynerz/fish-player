@@ -99,8 +99,6 @@ G.FIELDS.forEach(field => {
       f, p,
       casts: 1 / p,
       hours: (1 / p) * cyc / 3600,
-      /* 最稀有颜色（闪光）的期望 */
-      rarestColor: CFG.colorMorphs[CFG.colorMorphs.length - 1],
     };
   });
 

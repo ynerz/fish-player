@@ -22,8 +22,6 @@ G.Scene = (function () {
     nudge: 0,             // 0~1，咬钩前的「浮漂异动」强度，指数衰减
     rodBend: 0,
     lineOut: 0,           // 0~1 线放出的程度（抛竿动画）
-    fightFish: null,
-    fightRarity: 0,
     fishShadow: null,     // {fish, kg, x, y, vx, vy, alpha, t}
     particles: [],
     stars: [],
@@ -173,15 +171,14 @@ G.Scene = (function () {
     G.Audio.splash();
   }
   function bite() { S.floatState = 'bite'; S.biteDip = 1; }
-  function beginFight(fish) {
-    S.floatState = 'fight';
-    S.fightFish = fish;
-    S.fightRarity = fish ? fish.rar : 0;
-  }
+  /* 进入拉扯：只切状态。原先这里还把 `fish` / `fish.rar` 存进 `S.fightFish` /
+     `S.fightRarity`，但**全项目没有一处读它们**（2026-10-08 全项目扫描发现）——
+     水下鱼影走的是 `showShadow(fish, kg)`，稀有度由 `sparkle(n, rar)` 现传，
+     两个字段纯属只写不读，已删。beginFight 因此不再需要参数。 */
+  function beginFight() { S.floatState = 'fight'; }
   /* 收杆 / 上岸 / 失败 / 换场：把这一竿的水下鱼影一起收掉。
      鱼影是「等待期」的表现，回合结束了就不该还在水里游。 */
   function endFight() {
-    S.fightFish = null;
     S.fishShadow = null;
     S.floatState = 'none';
     S.lineOut = 0;

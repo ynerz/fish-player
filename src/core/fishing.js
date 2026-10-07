@@ -122,7 +122,7 @@ G.Fishing = (function () {
     state = 'fight';
     timer = 0;
     autoHold = true; autoHoldTimer = 0;
-    G.Scene.beginFight(pending.fish);
+    G.Scene.beginFight();
     G.Fight.begin({
       fish: pending.fish,
       kg: pending.kg,

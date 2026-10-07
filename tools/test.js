@@ -166,6 +166,42 @@ function fight(fishRar, kg, opts) {
   F.end();
   ok(F.snapshot() === null, 'Fight.end() 后 snapshot 返回 null');
 })();
+/* 力竭提示：tireHint() 自己管「报过没有」，UI 不许往战局对象上挂字段 */
+(() => {
+  const drop = CFG.fight.tireMaxDrop, rng = CFG.fight.tireRampFrom, below = CFG.fight.tireHintBelow;
+
+  /* ① 触发线必须落在 tire 的真实取值区间内，否则提示永远不弹（旧值 0.62 < 下限 0.78 就是这样） */
+  const tireMin = 1 - drop;
+  ok(below > tireMin,
+    `力竭提示线 ${below} 落在 tire 取值区间 (${tireMin.toFixed(3)}, 1] 内（低于下限 = 提示永不弹）`);
+  const pAt = rng + (100 - rng) * (1 - below) / drop;   // 现算：tire 跌破阈值时的进度
+  ok(pAt < 100, `提示线对应进度 ${pAt.toFixed(1)}% < 100%（能在对局内触发，而不是只有打完才到）`);
+
+  /* ② 一次对局只提示一次 */
+  fight(3, null);
+  const st = F.get();
+  ok(st.tire === 1, 'begin() 后 tire 已初始化（不是 undefined，免得首帧拿不到值）');
+  st.progress = rng; F.update(1 / 60, true);
+  ok(F.tireHint() === false, `进度 ${rng}% 时 tire≈1 → 不提示`);
+  st.progress = 80; F.update(1 / 60, true);
+  ok(F.get().tire < below, `进度 80% 时 tire=${F.get().tire.toFixed(3)} 已跌破 ${below}`);
+  ok(F.tireHint() === true, '力竭提示第一次问 → true');
+  ok(F.tireHint() === false, '同一次对局再问 → false（只报一次）');
+  ok(F.get().tiredNoted === true, '「报过没有」记在战局对象自己的字段上（不是外面挂的 _xxx）');
+  ok(F.snapshot().tire01 === F.get().tire, 'snapshot 带 tire01（提示线同族，供 UI 读）');
+  ok(F.snapshot().struggle01 !== undefined, 'snapshot 带 struggle01（画面表现量走同一出口）');
+
+  F.end();
+  ok(F.tireHint() === false, 'Fight.end() 后 tireHint() 返回 false（不崩）');
+
+  /* ③ 阈值真读 config，不是写死在 fight.js 里 */
+  const keep = CFG.fight.tireHintBelow;
+  CFG.fight.tireHintBelow = 1;              // 只有 tire 严格小于 1 才提示 → 开局即满足
+  fight(3, null); F.get().progress = rng + 1; F.update(1 / 60, true);
+  ok(F.tireHint() === true, '阈值改成 1 → 刚开始乏力就提示（说明读的是 config）');
+  F.end();
+  CFG.fight.tireHintBelow = keep;
+})();
 
 /* =========================================================
    5. State —— 存档 / 图鉴 / 解锁

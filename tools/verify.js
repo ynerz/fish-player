@@ -1712,6 +1712,74 @@ console.log('\n[32-d] 模块内部状态字段「只写不读」（逃出模块 
 })();
 
 
+/* ---------------- 32-e. 战局状态（G.Fight）的对外出口 ----------------
+   本节的由来（2026-10-08）：`main.js` 的力竭提示**绕过 `snapshot()`** 直读 `Fight.get()` 的
+   原始字段 —— 读 `f.tire`、往别人的状态对象上挂 `f._tiredNote`、兜底条件写成
+   `f.tire !== undefined`。三个后果：
+     ① `fight.js` 改字段名 → 提示**无声消失**（不报错、不告警）；
+     ② 「报过没有」这种对局状态被写进了**调用方**，谁都能改；
+     ③ 顺手验出来的**真 bug**：阈值写死 `tire < 0.62`，而 tire 的真实取值区间是
+        **[1 - tireMaxDrop, 1] = [0.78, 1]** → **提示上线以来一次都没弹过**。
+   所以立两条判据：
+     ① `G.Fight.get()` 的字面量位置白名单 —— **只许 core/fishing.js**
+        （它是战局的生命周期主人：begin / update / 读 `over`/`result`/`elapsed` 决定状态迁移）。
+        main.js 与 ui/ 一律走 `snapshot()` / `tireHint()`。用第 36-a 节那套
+        「管字面量出现位置」的办法，新增任何包装器都会立刻暴露。
+     ② 力竭提示线必须落在 tire 的取值区间内（读 config 现算）——
+        这是「阈值不可达 = 功能静默失效」的通用网。 */
+console.log('\n[32-e] 战局原始状态只许 core/fishing.js 直读；力竭提示线必须可达');
+let fightRawBad = 0;
+(function () {
+  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const files = [];
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+      const p = path.join(ROOT, dir, n);
+      if (fs.statSync(p).isDirectory()) walk(dir + '/' + n);
+      else if (/\.js$/.test(n)) files.push(dir + '/' + n);
+    });
+  })('src');
+  const ALLOW = { 'src/core/fishing.js': 2 };   // 允许的文件 → 允许的出现次数（多/少都报红）
+  const seen = {};
+  files.forEach(r => {
+    const code = strip(fs.readFileSync(path.join(ROOT, r), 'utf8'));
+    const n = (code.match(/G\.Fight\.get\(\)/g) || []).length;
+    if (n) seen[r] = n;
+  });
+  Object.keys(seen).forEach(r => {
+    if (!(r in ALLOW)) {
+      err(`${r} 直读战局原始状态（G.Fight.get() ×${seen[r]}）—— `
+        + '改走 G.Fight.snapshot() / tireHint()，别碰别人的状态对象');
+      fightRawBad++;
+    } else if (seen[r] !== ALLOW[r]) {
+      err(`${r} 里 G.Fight.get() 的出现次数是 ${seen[r]}，白名单写的是 ${ALLOW[r]}`
+        + '（次数变了要连白名单一起改，并在这里说明为什么）');
+      fightRawBad++;
+    }
+  });
+  Object.keys(ALLOW).forEach(r => {
+    if (!seen[r]) { err(`${r} 里已找不到 G.Fight.get()，白名单条目过期了`); fightRawBad++; }
+  });
+
+  /* 力竭提示线必须可达：tire ∈ [1 - tireMaxDrop, 1]，阈值要严格大于下限 */
+  const drop = CFG.fight.tireMaxDrop, rng = CFG.fight.tireRampFrom, below = CFG.fight.tireHintBelow;
+  const tireMin = 1 - drop;
+  const pAt = rng + (100 - rng) * (1 - below) / drop;   // 现算：tire 跌破阈值时的进度
+  if (!(below > tireMin && below <= 1)) {
+    err(`config.fight.tireHintBelow = ${below} 落在 tire 取值区间 (${tireMin.toFixed(3)}, 1] 之外`
+      + ' —— 力竭提示永远不弹（少一句话，玩再久也发现不了）');
+    fightRawBad++;
+  } else if (pAt >= 100) {
+    err(`力竭提示线 ${below} 只在进度 ${pAt.toFixed(1)}%（≥100%）才到得了 —— 等于永不弹`);
+    fightRawBad++;
+  }
+  if (!fightRawBad) {
+    ok('战局状态只从 snapshot() / tireHint() 出（G.Fight.get() 只许 core/fishing.js 的 2 处控制流）；'
+      + `力竭提示线 ${below} 可达（对应进度 ${pAt.toFixed(1)}%）`);
+  }
+})();
+
+
 /* ---------------- 33. 体型数量：文档 / 出图工具必须与代码一致 ----------------
    代码里是 **9 种**（`TPL.fish / eel / ray / squid / jelly / oarfish / shark / whale / dragon`），
    而 GDD 两处 + 开发者文档一处都写着「10 种体型」，开发者文档 §5.2 自己又写着 9 ——

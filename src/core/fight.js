@@ -58,9 +58,11 @@ G.Fight = (function () {
       slackTimer: 0,
       elapsed: 0,
       struggle: 0,       // 0~1，用于画面表现
+      tire: 1,           // 力竭系数（update 里按进度下降；先给个满力值，避免首帧 undefined）
       over: false,
       result: null,
       events: [],
+      tiredNoted: false, // 「鱼开始力竭了」提示报过没有（对局状态，不进 snapshot）
     };
     return F;
   }
@@ -94,7 +96,8 @@ G.Fight = (function () {
     }
 
     /* --- 力竭：进度越高，鱼越没力气（保证对局收敛，也符合真实手感）--- */
-    var tire = 1 - 0.22 * U.clamp((F.progress - 20) / 80, 0, 1);
+    var rng = CFG.fight.tireRampFrom;
+    var tire = 1 - CFG.fight.tireMaxDrop * U.clamp((F.progress - rng) / (100 - rng), 0, 1);
     F.tire = tire;
 
     /* --- 张力 --- */
@@ -155,7 +158,7 @@ G.Fight = (function () {
   function end() { F = null; }
   function get() { return F; }
 
-  /* 供 UI：张力占比、安全线、进度 */
+  /* 供 UI：张力占比、安全线、进度、力竭系数 */
   function snapshot() {
     if (!F) return null;
     return {
@@ -166,12 +169,24 @@ G.Fight = (function () {
       warn: F.warn,
       danger: F.tension >= F.tensionMax * SAFE,
       elapsed: F.elapsed,
+      tire01: F.tire,
+      struggle01: F.struggle,
     };
+  }
+
+  /* 力竭提示：tire 首次跌破 tireHintBelow 时返回 true（一次对局只报一次）。
+     文案属 UI，但「报过没有」是战局状态 —— 留在战局对象里，
+     ⛔ 别由调用方往别人的状态对象上挂 _xxx 字段（那样一改字段名就静默失效）。 */
+  function tireHint() {
+    if (!F || F.over) return false;
+    if (F.tiredNoted || F.tire >= CFG.fight.tireHintBelow) return false;
+    F.tiredNoted = true;
+    return true;
   }
 
   return {
     begin: begin, update: update, end: end, get: get,
-    snapshot: snapshot, drainEvents: drainEvents,
+    snapshot: snapshot, drainEvents: drainEvents, tireHint: tireHint,
     SAFE: SAFE,
   };
 })();

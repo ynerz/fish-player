@@ -342,12 +342,8 @@
 
     if (!paused && focused) {
       F.update(dt);
-      /* 鱼力竭提示 */
-      var f = G.Fight.get();
-      if (f && f.tire !== undefined && f.tire < 0.62 && !f._tiredNote) {
-        f._tiredNote = true;
-        Hud.toast({ text: '鱼开始力竭了，顺势收线！', kind: 'good' });
-      }
+      /* 鱼力竭提示：（tire 由 fight.js 按进度算，「报过没有」也归它管） */
+      if (G.Fight.tireHint()) Hud.toast({ text: '鱼开始力竭了，顺势收线！', kind: 'good' });
     }
 
     /* 新手引导：失焦时 dt 传 0，只保持显示不推进进度 */

@@ -298,7 +298,10 @@ G.Fishing = (function () {
         }
         f = G.Fight.get();
         if (f) {
-          G.Scene.setRodBend((f.struggle - 0.15) * 1.3 + (f.dashing ? 0.35 : 0));
+          /* 画面用的表现量走 snapshot（战局状态的唯一对外出口），
+             这里只保留「控制流」用的原始字段：over / result / elapsed */
+          var view = G.Fight.snapshot();
+          G.Scene.setRodBend((view.struggle01 - 0.15) * 1.3 + (view.dashing ? 0.35 : 0));
           var evs = G.Fight.drainEvents();
           for (var i = 0; i < evs.length; i++) {
             if (evs[i] === 'dash') G.Scene.splash(0.4);

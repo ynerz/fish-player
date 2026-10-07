@@ -1729,6 +1729,7 @@ console.log('\n[33-d] 抠图接线：产 RGBA + mask 极性反转 + 旧管线入
     ['.gen-art.lock', '互斥锁（防两个生图进程同时跑）'],
     ['lock_write', '锁的心跳刷新'],
     ['--img-timeout', '单张等待上限（卡死时不再白等 3600s）'],
+    ['save_manifest', '定期落盘（长跑被杀不能连出图台账一起丢）'],
   ];
   const gmiss = guard.filter(([k]) => ga.indexOf(k) < 0).map(([k, why]) => `${k}（${why}）`);
   if (gmiss.length) {

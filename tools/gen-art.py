@@ -1190,6 +1190,19 @@ def main():
             return
     lock_write()
 
+    # ── manifest 定期落盘 ────────────────────────────────────────────────────
+    # 🔴 **不能只在收尾写一次**。长跑（整夜/整天）中途被杀（客户端关闭、崩溃）时，
+    #    整本出图台账 —— 提示词、种子、cfg、**该档抽中的颜色句候选键** —— 就全丢了。
+    #    图还在磁盘上，但**复现不了、也说不清是哪套颜色句出的**。
+    #    用「写临时文件 + os.replace 原子替换」：避免写到一半被杀，留下半个 JSON
+    #    （那会让 check-cards.py 直接解析失败）。
+    def save_manifest():
+        tmp = MANIFEST + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(manifest, fh, ensure_ascii=False, indent=1, sort_keys=True)
+        os.replace(tmp, MANIFEST)
+
+    CHECKPOINT = 10          # 每 10 张（≈10 分钟）落一次
     t_start = time.time()
     ok = fail = skip = 0
     for i, (f, morph) in enumerate(jobs, 1):
@@ -1249,8 +1262,10 @@ def main():
             fail += 1
             print("    失败：" + (r.stdout or r.stderr or "")[-200:])
         lock_write()          # 心跳（见上：锁靠心跳过期来自愈，不查 pid）
+        if (ok + fail + skip) % CHECKPOINT == 0:
+            save_manifest()   # 定期落盘（见上：长跑被杀不能连台账一起丢）
 
-    json.dump(manifest, open(MANIFEST, "w", encoding="utf-8"), ensure_ascii=False, indent=1, sort_keys=True)
+    save_manifest()
     try:
         os.remove(LOCK)       # 正常收工要主动释放；异常中断则靠心跳过期自愈
     except OSError:

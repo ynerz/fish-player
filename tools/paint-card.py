@@ -125,12 +125,53 @@ def bg_color(im):
     return samples[len(samples) // 2]
 
 
-def paint_one(src, dst, back, belly, bg=None):
+def multi_stops_lut(stops):
+    """多色标渐变 → 三个 256 项查找表（给 PIL 的 `point()` 用）。
+
+    ⚠️ `ImageOps.colorize` 只吃**两个**色标，**做不出彩虹** —— 亮色档改成多色相之后
+       （用户 2026-10-07 口径）必须手写 LUT。
+    stops = [(pos, (r,g,b)), ...]，pos 从 0 到 1 递增。
+    """
+    luts = [[], [], []]
+    n = len(stops)
+    for i in range(256):
+        t = i / 255.0
+        j = 0
+        while j < n - 2 and t > stops[j + 1][0]:
+            j += 1
+        p0, c0 = stops[j]
+        p1, c1 = stops[j + 1]
+        f = 0.0 if p1 <= p0 else (t - p0) / (p1 - p0)
+        f = max(0.0, min(1.0, f))
+        for ch in range(3):
+            luts[ch].append(int(round(max(0.0, min(1.0, c0[ch] + (c1[ch] - c0[ch]) * f)) * 255)))
+    return luts
+
+
+def apply_palette(gray, pal):
+    """灰度 → 上色。
+
+    - **彩虹档**（`pal` 带 `bands`）：多色标 LUT，色相沿亮度走一遍色带
+    - 其余档：两色渐变映射（与之前一致）
+    两条路都**保留灰度结构**，只换「用什么颜色去表现这个明暗」。
+    """
+    bands = pal.get("bands")
+    if bands and len(bands) > 1:
+        n = len(bands)
+        stops = [(i / float(n - 1), tuple(bands[i])) for i in range(n)]
+        luts = multi_stops_lut(stops)
+        return Image.merge("RGB", (gray.point(luts[0]),
+                                   gray.point(luts[1]),
+                                   gray.point(luts[2])))
+    return ImageOps.colorize(gray, to255(pal["back"]), to255(pal["belly"]))
+
+
+def paint_one(src, dst, pal, bg=None):
     im = Image.open(src).convert("RGB")
 
-    # ① 灰度 → 输入曲线归一 → 双色渐变映射（暗部=背色，亮部=腹色）
+    # ① 灰度 → 输入曲线归一 → 上色（彩虹档走多色标，其余走两色）
     gray = tone_normalize(im.convert("L"))
-    colored = ImageOps.colorize(gray, to255(back), to255(belly))
+    colored = apply_palette(gray, pal)
 
     # ② 抠主体：与背景色差异超阈值的算主体
     base = bg or bg_color(im)
@@ -179,7 +220,7 @@ def main():
         for k in keys:
             p = info["morphs"][k]
             dst = os.path.join(CARDS, "%s-%s.png" % (fid, k))
-            px = paint_one(src, dst, p["back"], p["belly"])
+            px = paint_one(src, dst, p)
             n += 1
             print("  %s %-6s → %s  (主体 %d px)" % (fid, k, os.path.basename(dst), px))
     print("\n共 %d 张" % n)

@@ -91,6 +91,14 @@ G.Mesh3D = (function () {
    * 法线
    * ---------------------------------------------------------------------- */
   /** 世界空间面法线（未归一化的叉积方向；调用方一般紧跟 toViewNormal） */
+  /** 顶点的「沿身体位置」t（0=尾 1=头，见 fishmesh 的环形生成器）。
+   *  ⚠️ 鳍之类附属结构的顶点可能没带 `t` —— 缺省 0.5 而不是 undefined，
+   *     否则下游插值会算出 NaN，表现是「这一块不显示但也不报错」。 */
+  function vertT(mesh, idx) {
+    var v = mesh.verts && mesh.verts[idx];
+    return (v && typeof v.t === 'number') ? v.t : 0.5;
+  }
+
   function faceNormal(a, b, c) {
     var e1x = b.x - a.x, e1y = b.y - a.y, e1z = b.z - a.z;
     var e2x = c.x - a.x, e2y = c.y - a.y, e2z = c.z - a.z;
@@ -114,7 +122,14 @@ G.Mesh3D = (function () {
    * 光照：强边缘光 + 无环境补光（口径见开发者文档 §1.4）
    *   shade(n, toCam, pal, light) → [r, g, b]，分量范围约 0~1（可超 1，由调用方 clamp）
    * ---------------------------------------------------------------------- */
-  function shade(n, toCam, pal, light) {
+  /**
+   * @param n      视空间法线
+   * @param toCam  面→相机方向
+   * @param pal    材质参数（fishpaint.palette 的返回）
+   * @param light  光照参数
+   * @param posT   **沿身体长度**的位置 0~1（只有彩虹档用得上，其余可省略）
+   */
+  function shade(n, toCam, pal, light, posT) {
     var L = light || LIGHT;
     var key = L.key, rimDir = L.rim;
 
@@ -129,13 +144,32 @@ G.Mesh3D = (function () {
     var km = n[0] * rimDir[0] + n[1] * rimDir[1] + n[2] * rimDir[2];
     rim *= L.rimGain + (1 - L.rimGain) * (km > 0 ? km : 0);
 
-    // 两色身体：按法线朝上的程度在「背部色 ↔ 腹部色」之间插值
+    // 「朝上的程度」0=朝下(腹) 1=朝上(背)。彩虹档也要用它算腹部补光
     var t = (L.bellyBias + L.bellySpan * n[1]);
     if (t < 0) t = 0; else if (t > 1) t = 1;
-    var back = pal.back, belly = pal.belly;
-    var r = belly[0] + (back[0] - belly[0]) * t;
-    var g = belly[1] + (back[1] - belly[1]) * t;
-    var b = belly[2] + (back[2] - belly[2]) * t;
+
+    var r, g, b;
+    if (pal.bands && pal.bands.length > 1) {
+      /* 彩虹档（亮色）：按**身体位置**取色，色相沿体长走一遍色带。
+         ⚠️ 这里**不做背腹插值** —— 「按位置取色」这个维度已经被彩虹占用了，
+            明暗层次改由下面的光照项（lit / bellyFloor）承担。
+         ⚠️ posT 缺省 0.5：鳍之类附属结构的顶点可能没带 `t`，别让它变成 NaN。 */
+      var u = (posT === undefined ? 0.5 : posT) * (pal.bands.length - 1);
+      var i0 = Math.floor(u);
+      if (i0 < 0) i0 = 0; else if (i0 > pal.bands.length - 1) i0 = pal.bands.length - 1;
+      var i1 = i0 + 1; if (i1 > pal.bands.length - 1) i1 = pal.bands.length - 1;
+      var f0 = u - i0;
+      var A0 = pal.bands[i0], B0 = pal.bands[i1];
+      r = A0[0] + (B0[0] - A0[0]) * f0;
+      g = A0[1] + (B0[1] - A0[1]) * f0;
+      b = A0[2] + (B0[2] - A0[2]) * f0;
+    } else {
+      // 两色身体：按法线朝上的程度在「背部色 ↔ 腹部色」之间插值
+      var back = pal.back, belly = pal.belly;
+      r = belly[0] + (back[0] - belly[0]) * t;
+      g = belly[1] + (back[1] - belly[1]) * t;
+      b = belly[2] + (back[2] - belly[2]) * t;
+    }
 
     var lit = L.ambient + diff * L.keyGain;
     // 腹部反射补光：只作用于**朝下**的面，所以它不是「把整条鱼提亮」的环境光 ——
@@ -327,7 +361,9 @@ G.Mesh3D = (function () {
         nv = [-nv[0], -nv[1], -nv[2]];
       }
 
-      var col = shade(nv, toCam, pal, L2);
+      // 沿身体的位置 —— 只有彩虹档（`pal.bands`）用得上，其余档传了也不影响
+      var posT = (vertT(mesh, t3[0]) + vertT(mesh, t3[1]) + vertT(mesh, t3[2])) / 3;
+      var col = shade(nv, toCam, pal, L2, posT);
       var css = 'rgb(' + clamp255(col[0]) + ',' + clamp255(col[1]) + ',' + clamp255(col[2]) + ')';
 
       ctx.beginPath();

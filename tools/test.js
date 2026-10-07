@@ -2045,11 +2045,22 @@ const pS = FP.palette(ORANGE[0], ORANGE[1], 'shiny');
 const satOf = c => Math.max.apply(null, c) - Math.min.apply(null, c);
 const hueOrange = c => c[0] > c[1] && c[1] > c[2];        // 橙：红 > 绿 > 蓝
 
-ok(hueOrange(pN.back) && hueOrange(pB.back),
-  '亮色档保留原色相（橙仍是红>绿>蓝）—— 口径：只许同色系提亮提饱和，禁止换互补色');
-ok(Math.max.apply(null, pB.back) > Math.max.apply(null, pN.back) &&
-   satOf(pB.back) > satOf(pN.back),
-  `亮色档确实更亮更饱和（饱和 ${satOf(pN.back).toFixed(2)} → ${satOf(pB.back).toFixed(2)}）`);
+// ⚠️ 2026-10-07 口径变更：亮色从「同色系提亮提饱和」改成「**彩虹**」
+//    （用户口径「之前的亮色就用现在的彩虹色吧」）。旧断言「保留原色相」按新口径已作废。
+//    新口径要验四件事：给出多色带 / 带内色相确实在走 / 起点是本鱼色相 / 不压过黄金。
+ok(hueOrange(pN.back), '原色档保留本色（橙仍是红>绿>蓝）');
+ok(pB.bands && pB.bands.length >= 4,
+  `亮色档 = 彩虹：必须给出多色带 bands（实得 ${pB.bands ? pB.bands.length : 0} 段）`);
+const bandSpread = (a, b) =>
+  Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
+// ⚠️ 不能拿「首尾」比 —— 5 段 × 0.25 刚好走完一圈色相环，首尾本来就是同一个色
+//    （实测首尾色距 = 0.000，这条断言一开始就是这么写错的）。要拿「首 vs 中」比。
+ok(bandSpread(pB.bands[0], pB.bands[2]) > 0.5,
+  '彩虹带的半圈必须明显变色（否则退化成单色 = 等于没换色相）');
+ok(hueOrange(pB.bands[0]),
+  '彩虹的**起点**用本鱼自己的色相（橙鱼的带首仍是暖色）—— 同类之间才有区分度');
+ok(pG.rimK > pB.rimK,
+  `黄金的边缘光强度必须压过亮色（亮 ${pB.rimK} < 金 ${pG.rimK}）—— 价格梯度的视觉契约`);
 ok(satOf(pA.back) < satOf(pN.back) * 0.45,
   `白化档把饱和压得很低（${satOf(pN.back).toFixed(2)} → ${satOf(pA.back).toFixed(2)}）—— 手段 = 去色`);
 ok(pG.metallic === 1 && pS.metallic === 0,

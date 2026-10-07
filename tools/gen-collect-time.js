@@ -77,7 +77,7 @@ const RAR_COLOR = ['#8b98a5', '#2b8fe0', '#8b5cf6', '#e8901a'];
    ⚠️ 必须走 `G.Loot.colorProb()`：配置里的 `cm.prob`（单值写法）**早就删了**，
    原来这里是 `sort((a,b) => a.prob - b.prob)` → 比较器拿到 undefined，
    `undefined - undefined` 是 NaN → **排序完全没生效**（数组保持原顺序），
-   于是「最稀有 · 最贵」被标在了**原色**那一行，两个额外列也印成了「该鱼原色 / 该鱼亮色」。
+   于是「最稀有 · 最贵」被标在了**原色**那一行，两个额外列也印成了「该鱼原色 / 该鱼彩虹色」。
    不报任何错，只是把最稀有的颜色（闪光）和最贵的说反了。 */
 const RAREST = CFG.colorMorphs.slice().sort((a, b) => G.Loot.colorProb(a, 0) - G.Loot.colorProb(b, 0));
 const C_RARE = RAREST[0], C_NEXT = RAREST[1];
@@ -262,12 +262,12 @@ const html = `<!DOCTYPE html>
     </table>
     <div class="note">
       ✅ <b>概率按鱼的稀有度分档</b>：<b>鱼越稀有，出稀有颜色的概率越高</b>。<br>
-      <b>普通鱼这一行不变</b>（原色 76% / 亮色 10% / 白化 10% / 黄金 3% / 闪光 1%）；
-      稀有 / 史诗 / 传说依次上调：亮色&middot;白化 10 &rarr; 11 &rarr; 16 &rarr; 20%，
+      <b>普通鱼这一行不变</b>（原色 76% / 彩虹色 10% / 白化 10% / 黄金 3% / 闪光 1%）；
+      稀有 / 史诗 / 传说依次上调：彩虹色&middot;白化 10 &rarr; 11 &rarr; 16 &rarr; 20%，
       黄金 3 &rarr; 6 &rarr; 9 &rarr; 12%，闪光 1 &rarr; 2 &rarr; 3 &rarr; 5%。<br>
-      每档内部始终保持 <b>原色 &gt; 亮色 &ge; 白化 &gt; 黄金 &gt; 闪光</b>，
+      每档内部始终保持 <b>原色 &gt; 彩虹色 &ge; 白化 &gt; 黄金 &gt; 闪光</b>，
       所以<b>闪光在所有档位都是最稀有的颜色</b>。
-      售价系数 <b>闪光 ×4.00 最高</b>、黄金 ×2.30 —— 越稀有越值钱。
+      售价系数 <b>闪光 ×100 最高</b>、黄金 ×10 —— 越稀有越值钱。
     </div>
 
     <h3>每个钓场里，各颜色的期望出现间隔</h3>

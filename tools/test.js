@@ -81,7 +81,7 @@ G_('Loot · 售价与重量');
 const fish = G.FISH[0];
 const gold = L.colorByKey('golden'), shiny = L.colorByKey('shiny');
 ok(L.price(fish, fish.minKg, shiny, false) > L.price(fish, fish.minKg, gold, false),
-   '闪光鱼比黄金鱼贵（售价系数 ×4.00 > ×2.30）');
+   '闪光鱼比黄金鱼贵（售价系数 ×100 > ×10）');
 ok(L.price(fish, fish.maxKg, gold, false) > L.price(fish, fish.minKg, gold, false), '同色下大鱼更贵');
 const pNew = L.price(fish, fish.minKg, gold, true), pOld = L.price(fish, fish.minKg, gold, false);
 ok(Math.abs(pNew - pOld * CFG.economy.firstCatchBonus) <= 1,
@@ -2054,7 +2054,7 @@ const hueOrange = c => c[0] > c[1] && c[1] > c[2];        // 橙：红 > 绿 > �
 //    新口径要验四件事：给出多色带 / 带内色相确实在走 / 起点是本鱼色相 / 不压过黄金。
 ok(hueOrange(pN.back), '原色档保留本色（橙仍是红>绿>蓝）');
 ok(pB.bands && pB.bands.length >= 4,
-  `亮色档 = 彩虹：必须给出多色带 bands（实得 ${pB.bands ? pB.bands.length : 0} 段）`);
+  `彩虹色档：必须给出多色带 bands（实得 ${pB.bands ? pB.bands.length : 0} 段）`);
 const bandSpread = (a, b) =>
   Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
 // ⚠️ 不能拿「首尾」比 —— 5 段 × 0.25 刚好走完一圈色相环，首尾本来就是同一个色
@@ -2064,7 +2064,7 @@ ok(bandSpread(pB.bands[0], pB.bands[2]) > 0.5,
 ok(hueOrange(pB.bands[0]),
   '彩虹的**起点**用本鱼自己的色相（橙鱼的带首仍是暖色）—— 同类之间才有区分度');
 ok(pG.rimK > pB.rimK,
-  `黄金的边缘光强度必须压过亮色（亮 ${pB.rimK} < 金 ${pG.rimK}）—— 价格梯度的视觉契约`);
+  `黄金的边缘光强度必须压过彩虹色（亮 ${pB.rimK} < 金 ${pG.rimK}）—— 价格梯度的视觉契约`);
 // 白化 = 去色，但要**分开判身体与鳍**（用户口径「颜色要稍微区分一点点」）：
 //   · 身体（belly）必须真的去色 —— 这才是「白化」的定义
 //   · 鳍（back）允许带**淡粉**（v8 标准的「白身 + 淡粉鳍」），所以只要求它**比原色淡**

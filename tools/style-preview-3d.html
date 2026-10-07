@@ -47,7 +47,7 @@
 
 <div class="bar">
   <button data-morph="normal" class="on">原色</button>
-  <button data-morph="bright">亮色</button>
+  <button data-morph="bright">彩虹色</button>
   <button data-morph="albino">白化</button>
   <button data-morph="golden">黄金</button>
   <button data-morph="shiny">闪光</button>
@@ -335,7 +335,7 @@
       document.getElementById('stat').innerHTML =
         '帧率 <b>' + fps.toFixed(0) + '</b> fps · 本帧重画 <b>' + drawnFrames + '</b> 格<br>' +
         cells.length + ' 格共 <b>' + tris + '</b> 面 · <b>' + live + '</b> 格开动画 · 色档 <b>' +
-        ({ normal: '原色', bright: '亮色', albino: '白化', golden: '黄金', shiny: '闪光' }[morphKey]) + '</b>';
+        ({ normal: '原色', bright: '彩虹色', albino: '白化', golden: '黄金', shiny: '闪光' }[morphKey]) + '</b>';
     }
     requestAnimationFrame(tick);
   }

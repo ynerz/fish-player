@@ -465,7 +465,9 @@ G.State = (function () {
     var mid = Math.max(1e-6, (fish.minKg + fish.maxKg) / 2);
     var kgMul = U.clamp(entry.kg / mid, CFG.eco.kgMin, CFG.eco.kgMax);
     var cm = G.Loot.colorByKey(entry.c);
-    var cmMul = CFG.eco.colorBase + CFG.eco.colorSpan * (cm ? cm.valueMul : 1);
+    /* ⚠️ 用**独立的**生态值颜色系数，不要拿售价倍率 valueMul 去乘 ——
+       倍率是 100 量级的经济杠杆，会把这里的差距放大到 30 倍（已踩过，见 config.eco）。 */
+    var cmMul = (cm && CFG.eco.colorMul[cm.key]) || CFG.eco.colorMul.normal;
     var base = CFG.eco.base[fish.rar] != null ? CFG.eco.base[fish.rar] : CFG.eco.base[0];
     return Math.max(1, Math.round(base * kgMul * cmMul));
   }

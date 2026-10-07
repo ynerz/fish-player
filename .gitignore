@@ -27,3 +27,16 @@ assets/cards/_superseded/
 # Python 字节码缓存
 __pycache__/
 *.pyc
+
+# 抓取到的形态资料缓存（临时，可重跑）
+tools/.traits-cache/
+tools/_fishlist.json
+
+# A/B 探针图（一次性中间产物，可重跑出图；几十张 / 几十 MB，进库只会把仓库撑肿）
+# 例外：被文档引用的对拍留痕（verify §33-c 与开发者文档 §17.3 都点名了它），必须进库
+docs/images/card-ab/_*
+!docs/images/card-ab/_t2i-vs-i2i.png
+
+# 颜色句选型对拍：每套一句的原始出图（可用 tools/prompt-ab.py 重跑），只留 4 张对照表
+docs/images/prompt-ab/*.png
+!docs/images/prompt-ab/*-sheet.png

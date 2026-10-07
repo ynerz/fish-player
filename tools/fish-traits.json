@@ -1,0 +1,794 @@
+{
+ "_schema": {
+  "说明": "逐条查证的真实形态特征表（Layer B）。gen-art.py 的 form_profile()/build_prompt() 优先读它，查不到再退回推导。",
+  "键": "fish.js 里的鱼 id",
+  "字段": {
+   "form": "体型/体形（英文短语，进提示词）",
+   "fins": "鳍的构型（英文短语，进提示词；查不到留空字符串，**不要编**）",
+   "markings": "体表**花纹形状**（进提示词）。🔴 **只写花纹与图案，不要写颜色词** —— 颜色由 palette_desc 掌控，两边都写颜色会打架",
+   "colour": "真实的体色（**只记录，不喂提示词**）。游戏的口径是「配色保留夸张体系」，所以这里存真值备查，将来若要「连配色也照实」可直接启用",
+   "species": "学名（用于核对，不进提示词）",
+   "source": "来源（**必填**，写不实来源的不要进这张表）"
+  },
+  "规则": [
+   "只写查证到的：查不到对应字段就留空字符串，宁可少说，不许编",
+   "科属级通性走 gen-art.py 的 MARK_BY_FAMILY（不在这里）",
+   "🔴 markings 与 colour 必须分家：markings 进提示词且不含颜色词，colour 只存档",
+   "禁止把 IP / 版本号等写进提示词"
+  ]
+ },
+ "A02": {
+  "name": "竹荚鱼",
+  "species": "",
+  "form": "large eyes, a long pointed snout, a large mouth",
+  "fins": "",
+  "markings": "spots scattered along the flanks",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E7%AB%B9%E8%8D%9A%E9%B1%BC"
+ },
+ "A03": {
+  "name": "黑鲷",
+  "species": "",
+  "form": "a complete lateral line, a large head",
+  "fins": "",
+  "markings": "",
+  "colour": "体背部灰黑色；腹部色淡具银光",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%BB%91%E9%B2%B7"
+ },
+ "A07": {
+  "name": "银鲳",
+  "species": "",
+  "form": "a short caudal peduncle",
+  "fins": "",
+  "markings": "",
+  "colour": "因其背部呈淡墨青色；腹部呈白色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%93%B6%E9%B2%B3"
+ },
+ "A08": {
+  "name": "刺鲳",
+  "species": "",
+  "form": "a laterally compressed body, a small head, a long pointed snout",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%88%BA%E9%B2%B3"
+ },
+ "A10": {
+  "name": "小黄鱼",
+  "species": "",
+  "form": "an elongated body, a laterally compressed body, a narrow compressed caudal peduncle, a large head, a large mouth, cycloid scales, ctenoid scales",
+  "fins": "",
+  "markings": "",
+  "colour": "各鳍灰黄色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%B0%8F%E9%BB%84%E9%B1%BC"
+ },
+ "A11": {
+  "name": "梅童鱼",
+  "species": "",
+  "form": "a narrow compressed caudal peduncle, a blunt rounded head",
+  "fins": "a wedge-shaped tail fin",
+  "markings": "",
+  "colour": "体色上部为灰黑；腹部及两侧的下部为金黄色；鳃盖上部呈黑色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E6%A2%85%E7%AB%A5%E9%B1%BC"
+ },
+ "A04": {
+  "name": "黄鳍鲷",
+  "species": "",
+  "form": "an oval body, a laterally compressed body, a rounded belly",
+  "fins": "",
+  "markings": "longitudinal lines running along the flanks",
+  "colour": "体色青灰带黄；臀鳍的一小部分及尾鳍边缘灰黑色；臀鳍的大部及尾鳍下叶为黄",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%BB%84%E9%B3%8D%E9%B2%B7"
+ },
+ "A05": {
+  "name": "鲻鱼",
+  "species": "",
+  "form": "an inferior mouth, a complete lateral line",
+  "fins": "",
+  "markings": "spots scattered along the flanks",
+  "colour": "头部呈青灰色；腹部呈白色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%B2%BB%E9%B1%BC"
+ },
+ "A12": {
+  "name": "黄姑鱼",
+  "species": "",
+  "form": "an elongated body, a laterally compressed body, a slightly arched back, a medium-sized head, a short blunt protruding snout, a large mouth, the upper jaw slightly longer than the lower, ctenoid scales, bare scaleless cheeks, a complete lateral line",
+  "fins": "",
+  "markings": "wavy diagonal stripes",
+  "colour": "腹部银白色；背鳍棘上部暗褐色；鳍条边缘黑色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%BB%84%E5%A7%91%E9%B1%BC"
+ },
+ "A14": {
+  "name": "海鳗",
+  "species": "",
+  "form": "naked skin with no scales, a complete lateral line",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E6%B5%B7%E9%B3%97"
+ },
+ "A15": {
+  "name": "星鳗",
+  "species": "",
+  "form": "naked skin with no scales, a complete lateral line, a conical head, a short blunt protruding snout, an elongated cylindrical body",
+  "fins": "the dorsal fin set far back",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E6%98%9F%E9%B3%97"
+ },
+ "A17": {
+  "name": "舌鳎",
+  "species": "",
+  "form": "a tongue-shaped flat body, a laterally compressed body, ctenoid scales, a complete lateral line, cycloid scales, a blunt rounded snout, small eyes",
+  "fins": "no pectoral fins, fin rays all unbranched",
+  "markings": "",
+  "colour": "有眼侧体色一般为褐色或深褐色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E8%88%8C%E9%B3%8E"
+ },
+ "A21": {
+  "name": "真鲷",
+  "species": "",
+  "form": "an oval body, a large head, medium-sized eyes, the mouth set slightly above the midline, a medium-sized mouth, a complete lateral line",
+  "fins": "",
+  "markings": "spots",
+  "colour": "红带鲷和红鳍等；腹部为银色；腹鳍边缘呈黑色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E7%9C%9F%E9%B2%B7"
+ },
+ "A25": {
+  "name": "马鲛",
+  "species": "",
+  "form": "a slender tail, three longitudinal ridges on each side, small scales, large scales, a complete lateral line",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%A9%AC%E9%B2%9B"
+ },
+ "A26": {
+  "name": "蓝点马鲛",
+  "species": "",
+  "form": "a slender tail, three longitudinal ridges on each side, small scales, large scales, a complete lateral line",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E8%93%9D%E7%82%B9%E9%A9%AC%E9%B2%9B"
+ },
+ "A27": {
+  "name": "大黄鱼",
+  "species": "",
+  "form": "a short blunt protruding snout, a slightly protruding lower jaw, a complete lateral line",
+  "fins": "a pointed tail fin",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%A4%A7%E9%BB%84%E9%B1%BC"
+ },
+ "A29": {
+  "name": "牙鲆",
+  "species": "",
+  "form": "a complete lateral line",
+  "fins": "pelvic fins set well back",
+  "markings": "spots scattered along the flanks",
+  "colour": "牙鲆鱼鳍主要呈淡黄色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E7%89%99%E9%B2%86"
+ },
+ "A31": {
+  "name": "鬼鲉",
+  "species": "",
+  "form": "small eyes, a long pointed snout",
+  "fins": "",
+  "markings": "spots",
+  "colour": "鳍黑褐色常具斑纹",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%AC%BC%E9%B2%89"
+ },
+ "A34": {
+  "name": "金枪鱼",
+  "species": "",
+  "form": "a medium-sized mouth, large scales, a narrow compressed caudal peduncle",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%87%91%E6%9E%AA%E9%B1%BC"
+ },
+ "A40": {
+  "name": "翻车鱼",
+  "species": "",
+  "form": "a laterally compressed body, a blunt rounded snout",
+  "fins": "short pectoral fins",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E7%BF%BB%E8%BD%A6%E9%B1%BC"
+ },
+ "A41": {
+  "name": "角箱鲀",
+  "species": "",
+  "form": "large eyes, two nostrils on each side, a small mouth",
+  "fins": "",
+  "markings": "spots",
+  "colour": "腹部白色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E8%A7%92%E7%AE%B1%E9%B2%80"
+ },
+ "A42": {
+  "name": "斑鰶",
+  "species": "",
+  "form": "a laterally compressed body, a small mouth",
+  "fins": "",
+  "markings": "spots scattered along the flanks",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E6%96%91%E9%B0%B6"
+ },
+ "A43": {
+  "name": "日本鳀",
+  "species": "",
+  "form": "a large mouth, the upper jaw slightly longer than the lower, a complete lateral line",
+  "fins": "",
+  "markings": "",
+  "colour": "身体背部呈绿色；两侧以及腹部呈银白色；体侧有一黑色纵带",
+  "source": "快懂百科 https://www.baike.com/wiki/%E6%97%A5%E6%9C%AC%E9%B3%80"
+ },
+ "B01": {
+  "name": "鲢鱼",
+  "species": "",
+  "form": "a laterally compressed body, small eyes, no barbels, large scales",
+  "fins": "",
+  "markings": "",
+  "colour": "各鳍灰白色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%B2%A2%E9%B1%BC"
+ },
+ "B03": {
+  "name": "草鱼",
+  "species": "",
+  "form": "an elongated cylindrical body, a terminal mouth, no barbels, a blunt rounded head, a short blunt snout",
+  "fins": "short pectoral fins, a dorsal fin without spines, a slightly forked tail fin",
+  "markings": "",
+  "colour": "背部青灰；腹部灰白；腹鳍灰黄色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E8%8D%89%E9%B1%BC"
+ },
+ "B04": {
+  "name": "鲮鱼",
+  "species": "",
+  "form": "a laterally compressed body, a rounded belly, an inferior mouth, a long caudal peduncle",
+  "fins": "",
+  "markings": "spots scattered along the flanks",
+  "colour": "腹部银白色；体侧在胸鳍基部之后上方有8-9个鳞片的基部为黑色聚成为1块长菱形的斑块",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%B2%AE%E9%B1%BC"
+ },
+ "B05": {
+  "name": "罗非鱼",
+  "species": "",
+  "form": "an oval body, a large head, large scales",
+  "fins": "",
+  "markings": "",
+  "colour": "雄鱼体色变成蓝黑色；仅在头下侧和鳃盖后缘为白色；背鳍和尾鳍的边缘红色明显",
+  "source": "快懂百科 https://www.baike.com/wiki/%E7%BD%97%E9%9D%9E%E9%B1%BC"
+ },
+ "B06": {
+  "name": "鳊鱼",
+  "species": "",
+  "form": "a deep body, a laterally compressed body, a small head, a terminal mouth, no barbels",
+  "fins": "a dorsal fin with a stout spine, a long anal fin",
+  "markings": "",
+  "colour": "体背及头部背面青灰色；体侧银灰色；腹部银白色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%B3%8A%E9%B1%BC"
+ },
+ "B07": {
+  "name": "鲂鱼",
+  "species": "",
+  "form": "a large mouth, a long caudal peduncle, a laterally compressed body, a small head, a slightly arched back",
+  "fins": "",
+  "markings": "spots scattered along the flanks, stripes",
+  "colour": "背部青灰色；腹部银白",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%B2%82%E9%B1%BC"
+ },
+ "B08": {
+  "name": "银鲴",
+  "species": "",
+  "form": "a small head, an inferior mouth, no barbels, large eyes, the mouth set slightly above the midline",
+  "fins": "",
+  "markings": "spots scattered along the flanks",
+  "colour": "白尾；它的体背部为灰黑色；腹部及体下侧为银白色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%93%B6%E9%B2%B4"
+ },
+ "B10": {
+  "name": "赤眼鳟",
+  "species": "",
+  "form": "an elongated cylindrical body, a conical head, no ventral keel, a terminal mouth, large scales, a complete lateral line",
+  "fins": "no stout spines, a deeply forked tail fin",
+  "markings": "spots scattered along the flanks, stripes",
+  "colour": "腹部银白色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E8%B5%A4%E7%9C%BC%E9%B3%9F"
+ },
+ "B11": {
+  "name": "大眼华鳊",
+  "species": "",
+  "form": "a laterally compressed body, a small head, no barbels, large eyes, a complete lateral line, pharyngeal teeth in three rows",
+  "fins": "a deeply forked tail fin",
+  "markings": "",
+  "colour": "体背部青灰色；体侧及腹面灰白色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%A4%A7%E7%9C%BC%E5%8D%8E%E9%B3%8A"
+ },
+ "B12": {
+  "name": "似鳊",
+  "species": "",
+  "form": "a laterally compressed body, a rounded belly, a short blunt snout, a small mouth, large scales",
+  "fins": "",
+  "markings": "",
+  "colour": "体背部和体上侧为灰褐色；体下侧和腹部为银白色；背鳍与尾鳍浅灰色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E4%BC%BC%E9%B3%8A"
+ },
+ "B13": {
+  "name": "中华细鲫",
+  "species": "",
+  "form": "large scales, a complete lateral line",
+  "fins": "long pectoral fins, a long anal fin, no stout spines, a deeply forked tail fin",
+  "markings": "stripes",
+  "colour": "体背部为深黑色；腹部为灰白色；腹鳍和臀鳍为微黄色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E4%B8%AD%E5%8D%8E%E7%BB%86%E9%B2%AB"
+ },
+ "B14": {
+  "name": "麦鲮",
+  "species": "",
+  "form": "an elongated body, a complete lateral line",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%BA%A6%E9%B2%AE"
+ },
+ "B17": {
+  "name": "鲈鱼",
+  "species": "",
+  "form": "the lower jaw slightly longer than the upper, a long pointed snout",
+  "fins": "",
+  "markings": "spots",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E4%B8%AD%E5%9B%BD%E8%8A%B1%E9%B2%88"
+ },
+ "B18": {
+  "name": "翘嘴鲌",
+  "species": "",
+  "form": "a complete lateral line, pharyngeal teeth in three rows, a slender elongated body, a laterally compressed body, a medium-sized head, a slightly arched back, a long caudal peduncle",
+  "fins": "",
+  "markings": "",
+  "colour": "体侧银灰色；腹面银白色；尾鳍呈淡红色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E7%BF%98%E5%98%B4%E9%B2%8C"
+ },
+ "B20": {
+  "name": "黑鱼",
+  "species": "",
+  "form": "a cylindrical front tapering to a compressed rear, a large head, a large mouth, a slightly protruding lower jaw, small eyes, two nostrils on each side",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E4%B9%8C%E9%B3%A2"
+ },
+ "B21": {
+  "name": "鳡鱼",
+  "species": "",
+  "form": "a large mouth, small eyes, a slender elongated body",
+  "fins": "a deeply forked tail fin",
+  "markings": "",
+  "colour": "腹部银白色；尾鳍青灰色；其余各鳍黄色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%B3%A1%E9%B1%BC"
+ },
+ "B23": {
+  "name": "青鱼",
+  "species": "",
+  "form": "an elongated cylindrical body, a rounded belly, no ventral keel",
+  "fins": "",
+  "markings": "",
+  "colour": "体色青黑；臀鳍均为深黑色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%9D%92%E9%B1%BC"
+ },
+ "B26": {
+  "name": "鳜鱼",
+  "species": "",
+  "form": "a deep laterally compressed body, a large mouth",
+  "fins": "",
+  "markings": "",
+  "colour": "腹部灰白；体侧有不规\u0000则暗棕色斑块",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%B3%9C%E9%B1%BC"
+ },
+ "B27": {
+  "name": "大眼鳜",
+  "species": "",
+  "form": "a laterally compressed body, cycloid scales, a large mouth",
+  "fins": "",
+  "markings": "stripes, spots scattered along the flanks",
+  "colour": "头部两侧各有一条贯穿眼的褐色斜带；头背部至背鳍前有一褐色带纹；体侧棕黄色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%A4%A7%E7%9C%BC%E9%B3%9C"
+ },
+ "B28": {
+  "name": "长吻鮠",
+  "species": "",
+  "form": "a complete lateral line",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%95%BF%E5%90%BB%E9%AE%A0"
+ },
+ "B29": {
+  "name": "中华倒刺鲃",
+  "species": "",
+  "form": "a laterally compressed body, a conical head, large scales, a complete lateral line",
+  "fins": "",
+  "markings": "",
+  "colour": "身体背部呈青黑色；腹部灰白色；体侧鳞片有明显的黑色边缘",
+  "source": "快懂百科 https://www.baike.com/wiki/%E4%B8%AD%E5%8D%8E%E5%80%92%E5%88%BA%E9%B2%"
+ },
+ "B30": {
+  "name": "胭脂鱼",
+  "species": "",
+  "form": "a small head, a short blunt snout, a laterally compressed body",
+  "fins": "",
+  "markings": "vertical bands crossing the flanks",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E8%83%AD%E8%84%82%E9%B1%BC"
+ },
+ "B31": {
+  "name": "银鮈",
+  "species": "",
+  "form": "a slender elongated body, a complete lateral line, a long caudal peduncle, a long pointed snout",
+  "fins": "",
+  "markings": "",
+  "colour": "腹部银白色；背鳍及尾灰色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%93%B6%E9%AE%88"
+ },
+ "C02": {
+  "name": "马口鱼",
+  "species": "",
+  "form": "a large head",
+  "fins": "",
+  "markings": "vertical bands crossing the flanks, stripes",
+  "colour": "雄性体背部呈灰黑色；腹部呈银白色；胸鳍橙黄色",
+  "source": "直查百科 https://www.baike.com/wiki/%E9%A9%AC%E5%8F%A3%E9%B1%BC"
+ },
+ "C04": {
+  "name": "拉氏鱥",
+  "species": "",
+  "form": "medium-sized eyes, a complete lateral line",
+  "fins": "",
+  "markings": "spots, spots scattered along the flanks",
+  "colour": "体背部呈灰黄色；腹部呈白色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E6%8B%89%E6%B0%8F%E9%B1%A5"
+ },
+ "C05": {
+  "name": "中华鳑鲏",
+  "species": "",
+  "form": "a complete lateral line",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E4%B8%AD%E5%8D%8E%E9%B3%91%E9%B2%8F"
+ },
+ "C06": {
+  "name": "小鳈",
+  "species": "",
+  "form": "a rounded belly, a small head, a short blunt snout, a long pointed snout, small eyes, barbels at the corners of the mouth, a complete lateral line",
+  "fins": "a dorsal fin without spines, short pectoral fins",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%B0%8F%E9%B3%88"
+ },
+ "C07": {
+  "name": "黑鳍鳈",
+  "species": "",
+  "form": "a long caudal peduncle, a long pointed snout, a rounded belly, a small head",
+  "fins": "",
+  "markings": "spots scattered along the flanks, stripes",
+  "colour": "黑鳍鳈生活于江河；黑鳍鳈是一种小型鱼；腹部灰白色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%BB%91%E9%B3%8D%E9%B3%88"
+ },
+ "C08": {
+  "name": "棒花鱼",
+  "species": "",
+  "form": "a slightly arched back, a complete lateral line",
+  "fins": "",
+  "markings": "stripes",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E6%A3%92%E8%8A%B1%E9%B1%BC"
+ },
+ "C09": {
+  "name": "似鮈",
+  "species": "",
+  "form": "a complete lateral line",
+  "fins": "long pectoral fins",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E4%BC%BC%E9%AE%88"
+ },
+ "C10": {
+  "name": "间下鱵",
+  "species": "",
+  "form": "cycloid scales, a complete lateral line",
+  "fins": "short pectoral fins, long pectoral fins, short small pelvic fins",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%97%B4%E4%B8%8B%E9%B1%B5"
+ },
+ "C11": {
+  "name": "光唇鱼",
+  "species": "",
+  "form": "an elongated body, a laterally compressed body, an inferior mouth, a complete lateral line",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%85%89%E5%94%87%E9%B1%BC"
+ },
+ "C14": {
+  "name": "虹鳟",
+  "species": "",
+  "form": "a large mouth, a complete lateral line",
+  "fins": "",
+  "markings": "spots scattered along the flanks",
+  "colour": "虹鳟鱼背部和鳍一般呈暗绿色或褐色；体侧呈银白色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E8%99%B9%E9%B3%9F"
+ },
+ "C17": {
+  "name": "唇䱻",
+  "species": "",
+  "form": "a large head, large eyes, an inferior mouth, small scales, a complete lateral line",
+  "fins": "no stout spines, pelvic fins set well back, a long anal fin, a deeply forked tail fin",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%94%87%E4%B1%BB"
+ },
+ "C18": {
+  "name": "吻鰕虎",
+  "species": "",
+  "form": "an elongated body, a large head, a terminal mouth, two nostrils on each side",
+  "fins": "a rounded tail fin",
+  "markings": "stripes, spots scattered along the flanks",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%90%BB%E9%B0%95%E8%99%8E"
+ },
+ "C19": {
+  "name": "白甲鱼",
+  "species": "",
+  "form": "a spindle-shaped body, a laterally compressed body, a complete lateral line",
+  "fins": "",
+  "markings": "",
+  "colour": "背部为黄褐色；腹部灰白色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E7%99%BD%E7%94%B2%E9%B1%BC"
+ },
+ "C20": {
+  "name": "山女鳟",
+  "species": "",
+  "form": "an elongated body, a laterally compressed body, a short blunt protruding snout, a terminal mouth, a complete lateral line",
+  "fins": "short pectoral fins",
+  "markings": "",
+  "colour": "腹部呈银白色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%A9%AC%E8%8B%8F%E5%A4%A7%E9%BA%BB%E5%93%"
+ },
+ "C21": {
+  "name": "台湾铲颌鱼",
+  "species": "",
+  "form": "a complete lateral line, pharyngeal teeth in three rows, a long pointed snout, a long caudal peduncle",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%8F%B0%E6%B9%BE%E9%93%B2%E9%A2%8C%E9%B1%"
+ },
+ "C22": {
+  "name": "中华刺鳅",
+  "species": "",
+  "form": "a short blunt protruding snout",
+  "fins": "",
+  "markings": "spots scattered along the flanks",
+  "colour": "臀鳍下叶边缘有明显的深黑色边裙",
+  "source": "快懂百科 https://www.baike.com/wiki/%E4%B8%AD%E5%8D%8E%E5%88%BA%E9%B3%85"
+ },
+ "C24": {
+  "name": "溪灵·金线鲃",
+  "species": "",
+  "form": "a laterally compressed body, a short blunt protruding snout, a complete lateral line",
+  "fins": "",
+  "markings": "spots scattered along the flanks",
+  "colour": "头部有许多白色感觉孔连接而成白色线纹；背鳍及尾鳍色较黑；滇池金线鲃全身呈淡黄色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%87%91%E7%BA%BF%E9%B2%83"
+ },
+ "D04": {
+  "name": "泥鳅",
+  "species": "",
+  "form": "a cylindrical front tapering to a compressed rear",
+  "fins": "",
+  "markings": "",
+  "colour": "体背部及两侧深灰色；腹部灰白色或浅黄色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E6%B3%A5%E9%B3%85"
+ },
+ "D05": {
+  "name": "鳑鲏",
+  "species": "",
+  "form": "a small mouth, a complete lateral line, no ventral keel, a short caudal peduncle",
+  "fins": "a deeply forked tail fin",
+  "markings": "",
+  "colour": "",
+  "source": "直查百科 https://www.baike.com/wiki/%E9%B3%91%E9%B2%8F"
+ },
+ "D06": {
+  "name": "食蚊鱼",
+  "species": "",
+  "form": "large eyes, a small mouth, a complete lateral line, a rounded belly",
+  "fins": "a rounded tail fin",
+  "markings": "",
+  "colour": "体色青灰",
+  "source": "直查百科 https://www.baike.com/wiki/%E9%A3%9F%E8%9A%8A%E9%B1%BC"
+ },
+ "D07": {
+  "name": "塘鳢",
+  "species": "",
+  "form": "an elongated body, a large head, a complete lateral line",
+  "fins": "",
+  "markings": "spots scattered along the flanks, stripes",
+  "colour": "体色黑褐；体侧具3-4\u0000\u0000条不规则黑色横带",
+  "source": "直查百科 https://www.baike.com/wiki/%E5%A1%98%E9%B3%A2"
+ },
+ "D09": {
+  "name": "黄颡鱼",
+  "species": "",
+  "form": "a large head, a complete lateral line",
+  "fins": "",
+  "markings": "stripes",
+  "colour": "体背部黑褐色；体侧黄色；腹部淡黄色",
+  "source": "直查百科 https://www.baike.com/wiki/%E9%BB%84%E9%A2%A1%E9%B1%BC"
+ },
+ "D11": {
+  "name": "黄鳝",
+  "species": "",
+  "form": "a slender elongated body, a large mouth",
+  "fins": "",
+  "markings": "spots scattered along the flanks",
+  "colour": "腹部呈灰白色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%BB%84%E9%B3%9D"
+ },
+ "D13": {
+  "name": "金鲫",
+  "species": "",
+  "form": "a complete lateral line",
+  "fins": "pelvic fins set well back",
+  "markings": "",
+  "colour": "常见的体背部灰黑色；体侧银灰色或带黄绿色；腹部白色",
+  "source": "直查百科 https://www.baike.com/wiki/%E9%87%91%E9%B2%AB"
+ },
+ "D14": {
+  "name": "老塘草鱼",
+  "species": "",
+  "form": "an elongated body, a cylindrical front tapering to a compressed rear, a rounded belly, no ventral keel, a short blunt snout, a long pointed snout, a complete lateral line",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "搜狗百科 https://baike.sogou.com/Search.e?sp=S%E8%80%81%E5%A1%98%E8%8D%89%E9%B1"
+ },
+ "S05": {
+  "name": "帆蜥鱼",
+  "species": "",
+  "form": "a slender elongated body, a large mouth",
+  "fins": "a long dorsal fin, the dorsal fin set far back, a deeply forked tail fin",
+  "markings": "",
+  "colour": "头部及体背部蓝青色；体侧和腹部银灰色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%B8%86%E8%9C%A5%E9%B1%BC"
+ },
+ "S10": {
+  "name": "尖牙鱼",
+  "species": "",
+  "form": "a complete lateral line",
+  "fins": "",
+  "markings": "",
+  "colour": "属于辐鳍鱼纲金眼鲷目的一种深海鱼类；成体体色为深棕至黑色；皮肤苍白但是在腹部具有由暗色鳞片构成之黑斑",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%B0%96%E7%89%99%E9%B1%BC"
+ },
+ "S11": {
+  "name": "后肛鱼",
+  "species": "",
+  "form": "a complete lateral line",
+  "fins": "",
+  "markings": "",
+  "colour": "头部侧面带有金属光泽",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%90%8E%E8%82%9B%E9%B1%BC"
+ },
+ "S12": {
+  "name": "深海狗母鱼",
+  "species": "",
+  "form": "a cylindrical front tapering to a compressed rear, a short blunt protruding snout, large eyes",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E6%B7%B1%E6%B5%B7%E7%8B%97%E6%AF%8D%E9%B1%"
+ },
+ "S13": {
+  "name": "囊鳃鳗",
+  "species": "",
+  "form": "a complete lateral line, an elongated body, a laterally compressed body, a large mouth, the upper jaw slightly longer than the lower",
+  "fins": "",
+  "markings": "",
+  "colour": "一对白线或沟紧邻于背鳍下方",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%9B%8A%E9%B3%83%E9%B3%97"
+ },
+ "S34": {
+  "name": "深海龙鱼",
+  "species": "",
+  "form": "a large head",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E6%B7%B1%E6%B5%B7%E9%BE%99%E9%B1%BC"
+ },
+ "S37": {
+  "name": "蓝环章鱼",
+  "species": "",
+  "form": "a large mouth",
+  "fins": "",
+  "markings": "a spot behind the eye, spots",
+  "colour": "蓝环章鱼还可作为模式物种用于研究头足纲物种的形态结构",
+  "source": "快懂百科 https://www.baike.com/wiki/%E8%93%9D%E7%8E%AF%E7%AB%A0%E9%B1%BC"
+ },
+ "S41": {
+  "name": "皇带鱼",
+  "species": "",
+  "form": "a laterally compressed body, a short blunt snout, medium-sized eyes, a small mouth",
+  "fins": "",
+  "markings": "stripes",
+  "colour": "体色银亮；望之宛如红色头冠",
+  "source": "快懂百科 https://www.baike.com/wiki/%E7%9A%87%E5%B8%A6%E9%B1%BC"
+ },
+ "S42": {
+  "name": "巨口鲨",
+  "species": "",
+  "form": "a large head, a narrow compressed caudal peduncle",
+  "fins": "",
+  "markings": "",
+  "colour": "体色呈棕黑色；腹部偏白色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%B7%A8%E5%8F%A3%E9%B2%A8"
+ },
+ "S46": {
+  "name": "太平洋睡鲨",
+  "species": "",
+  "form": "a short blunt snout, a long pointed snout",
+  "fins": "no stout spines",
+  "markings": "",
+  "colour": "鱼鳍成蓝黑色中带不均匀的灰粉红色；背部表面上可能具有小白点",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%A4%AA%E5%B9%B3%E6%B4%8B%E7%9D%A1%E9%B2%"
+ },
+ "S52": {
+  "name": "巨尾鱼",
+  "species": "",
+  "form": "a laterally compressed body, a large head, a long pointed snout, a large mouth, a slightly protruding lower jaw, a complete lateral line",
+  "fins": "a deeply forked tail fin",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%B7%A8%E5%B0%BE%E9%B1%BC"
+ },
+ "S53": {
+  "name": "褶胸鱼",
+  "species": "",
+  "form": "large eyes, a superior mouth",
+  "fins": "a deeply forked tail fin, a long dorsal fin",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E8%A4%B6%E8%83%B8%E9%B1%BC"
+ },
+ "A28": {
+  "name": "鮸鱼",
+  "species": "",
+  "form": "a large mouth",
+  "fins": "",
+  "markings": "",
+  "colour": "",
+  "source": "快懂百科 https://www.baike.com/wiki/%E9%AE%B8%E9%B1%BC"
+ },
+ "D01": {
+  "name": "麦穗鱼",
+  "species": "",
+  "form": "a small mouth, no barbels",
+  "fins": "the dorsal fin set far back, no stout spines, a deeply forked tail fin, short small pelvic fins",
+  "markings": "spots scattered along the flanks",
+  "colour": "体背部呈灰黑色；腹部呈银白色；生殖期雄鱼体色黑化且头部有白色珠星",
+  "source": "直查百科 https://www.baike.com/wiki/%E9%BA%A6%E7%A9%97%E9%B1%BC"
+ },
+ "S33": {
+  "name": "六鳃鲨",
+  "species": "",
+  "form": "a large mouth",
+  "fins": "",
+  "markings": "",
+  "colour": "其体色从背面的灰黑色到巧克力棕色不等；腹部变浅为灰白色",
+  "source": "快懂百科 https://www.baike.com/wiki/%E5%85%AD%E9%B3%83%E9%B2%A8"
+ }
+}

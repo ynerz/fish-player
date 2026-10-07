@@ -6,7 +6,7 @@
    检查项：
      1. 各钓场稀有度权重合计 = 100%
      2. 每个稀有度档位的颜色概率合计 = 100%
-     3. 档内颜色序：原色 > 亮色 ≥ 白化 > 黄金 > 闪光
+     3. 档内颜色序：原色 > 彩虹色 ≥ 白化 > 黄金 > 闪光
      4. 颜色概率随稀有度单调（原色递减，其余递增）
      5. 各场 100% 收齐耗时 vs fields.js 的 estOwnHours（偏差 >8% 报错）
      6. fish.js 每条鱼字段完整、权重/价格/体重区间合法
@@ -63,7 +63,7 @@ console.log('\n[2] 每个稀有度档位的颜色概率合计 = 100%');
    而读一个不存在的字段**不会报错**：
      · `tools/gen-collect-time.js` 用它排序 → 比较器拿到 undefined → NaN →
        排序完全没生效 → 《收集耗时表》把「最稀有 · 最贵」标在了**原色**那一行，
-       两个额外列也印成「该鱼原色 / 该鱼亮色」。
+       两个额外列也印成「该鱼原色 / 该鱼彩虹色」。
    判据：src 与 tools 的 .js 里不许出现 `.prob`（`.probs` 合法），且必须是
    `G.Loot.colorProb(...)` 取概率。只看代码不看注释。 */
 console.log('\n[2-b] 颜色概率只许走 Loot.colorProb（不得再读已删的旧单值字段）');
@@ -98,15 +98,15 @@ console.log('\n[2-b] 颜色概率只许走 Loot.colorProb（不得再读已删�
 })();
 
 /* ---------------- 3. 档内颜色序 ---------------- */
-console.log('\n[3] 档内颜色序：原色 > 亮色 ≥ 白化 > 黄金 > 闪光');
+console.log('\n[3] 档内颜色序：原色 > 彩虹色 ≥ 白化 > 黄金 > 闪光');
 const byKey = {};
 CFG.colorMorphs.forEach(c => { byKey[c.key] = c; });
 [0, 1, 2, 3].forEach(t => {
   const n = byKey.normal, b = byKey.bright, a = byKey.albino, g = byKey.golden, s = byKey.shiny;
   const P = k => L.colorProb(byKey[k], t);
   const bad = [];
-  if (!(P('normal') > P('bright'))) bad.push('原色 ≤ 亮色');
-  if (!(P('bright') >= P('albino'))) bad.push('亮色 < 白化');
+  if (!(P('normal') > P('bright'))) bad.push('原色 ≤ 彩虹色');
+  if (!(P('bright') >= P('albino'))) bad.push('彩虹色 < 白化');
   if (!(P('albino') > P('golden'))) bad.push('白化 ≤ 黄金');
   if (!(P('golden') > P('shiny'))) bad.push('黄金 ≤ 闪光');
   if (bad.length) err(`${CFG.rarity[t].name}档：${bad.join('、')}`);
@@ -1312,6 +1312,37 @@ if (panelsSrc.indexOf('maxCatchUp') < 0) {
 if (!copyNumBad) ok('挂机倍率 / 离线补算上限 / 解锁门槛 / 颜色基准概率 / 天气高亮阈值的文案都现算自数据，钓场配色表只有一份');
 
 
+/* ---------------- 29-b. 生态值颜色系数**不许**从售价倍率派生（倍率改动会连锁放大） ----------------
+   🔴 2026-10-07 修的真 bug：`state.js` 里算生态值用的是
+      `colorBase + colorSpan × cm.valueMul` —— 售价倍率从 4.00 改成 100 之后，
+      闪光档的颜色系数从 **2.0 变成 30.8（设计值的 15.4 倍）**，而没人改过那一行。
+   **根因是「派生」**：售价倍率是经济杠杆、生态值系数是收集杠杆，两者不该挂钩。
+   已改成独立的 `CFG.eco.colorMul`（逐个还原改动前的实际取值）。
+   本节盯两件事：① state.js 的生态值路径里不许再出现 `valueMul`；② colorMul 的跨度要平缓。 */
+console.log('\n[29-b] 生态值颜色系数：独立配置，不许从售价倍率派生');
+(function () {
+  const st = fs.readFileSync(path.join(ROOT, 'src/core/state.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const fn = st.slice(st.indexOf('function ecoValue'));
+  const body = fn.slice(0, fn.indexOf('\n  }'));
+  if (body.indexOf('valueMul') >= 0) {
+    err('state.js 的 ecoValue() 又去读 valueMul 了 —— 售价倍率一改，生态值会被连锁放大（曾放大到 15.4 倍）');
+    return;
+  }
+  const cm = CFG.eco.colorMul;
+  if (!cm) { err('CFG.eco.colorMul 不存在 —— 生态值颜色系数必须有独立配置'); return; }
+  const miss = CFG.colorMorphs.filter(m => cm[m.key] == null).map(m => m.key);
+  if (miss.length) { err(`CFG.eco.colorMul 缺档位：${miss.join('、')}`); return; }
+  const vals = CFG.colorMorphs.map(m => cm[m.key]);
+  const spread = Math.max(...vals) / Math.min(...vals);
+  if (spread > 2.5) {
+    err(`生态值颜色系数的跨度过大（${spread.toFixed(2)} 倍，应 ≤2.5）—— 放生稀有颜色会变成刷生态值`
+      + `（售价的跨度可以有 100 倍，但生态值是收集货币，必须平缓）`);
+    return;
+  }
+  ok(`生态值颜色系数独立且平缓（${CFG.colorMorphs.map((m, i) => m.key + '×' + vals[i]).join(' / ')}，跨度 ${spread.toFixed(2)}×）`);
+})();
+
 /* ---------------- 30. 读档兜底的接线 ----------------
    `load()` 现在会在读档出问题时给 `St.loadNote()` 留一句话（退备份 / 已重置），
    但如果 main.js 没人读它，这句话就永远不出现 —— 玩家看到的还是「进度莫名没了」。
@@ -1619,31 +1650,196 @@ let structBad = 0;
 })();
 
 
-/* ---------------- 33-c. 图生图必须挂 pe_i2i 文本编码器（挂错只是「所有鱼长得一样」） ----------------
-   2026-10-07 实测撞出：5 档图改成独立出图（图生图）后，`gen-morph.py` 挂的是
-   **文生图**用的 `qwen3vl_8b_...`，喂进去的 `images.image_1` 被**静默丢弃**。
-   表现极其隐蔽：不报错、成品也「像条鱼」，prompt 里那句
-   "Keep the same shape, pose and framing as the reference image." 还让构图看着确实一致 ——
-   但四条**不同**的母版（A01/A02/A04/A05）产出的 5 档图**两两逐像素相同**，
-   ComfyUI 输出目录里的哈希按 5 个一循环。肉眼评审根本看不出来。
-   唯一可靠的症状是「跨鱼比同一档位的像素哈希」，所以这里改成**静态盯住接线**。
-   官方 2.1 Image Edit 模板里挂了两个 CLIPLoader，图生图那路才是 pe_i2i。 */
-console.log('\n[33-c] 图生图必须挂 pe_i2i 文本编码器（挂成文生图的那个 = 参考图被静默丢弃）');
+/* ---------------- 33-c. 五档提示词必须复用母版骨架，只换「颜色句」 ----------------
+   2026-10-07 口径：**五档全部走文生图**（图生图已弃用）。
+   每档提示词 = 母版提示词**只换颜色句**，其余逐字相同 —— 由 `build_morph_prompt()` 保证：
+   它调用**同一个** `build_prompt()`，再挖掉 `palette_desc(f)` 换上该档的颜色句。
+   踩过的坑：曾经「母版一个骨架、五档另一个骨架」，两套风格常量各写一份，
+   于是母版与五档「不像一家人」。**现在只允许有一份骨架定义**（见 §33-e）。
+   量化的代价（已与用户确认接受）：档位之间剪影 IoU 从图生图的 0.997 降到 0.93 ——
+   ⚠️ 也就是说**档位之间不再是「同一条鱼换漆」，而是同一条鱼的不同个体**。
+   对拍留痕：`docs/images/card-ab/_t2i-vs-i2i.png`。 */
+console.log('\n[33-c] 五档提示词必须复用母版骨架，只换颜色句');
 (function () {
-  const p = path.join(ROOT, 'tools/gen-morph.py');
-  if (!fs.existsSync(p)) { warn('tools/gen-morph.py 不存在，跳过'); return; }
-  /* 先剥注释 —— 文件头的说明里也会出现模型名，不剥会自己把自己喂饱 */
-  const src = fs.readFileSync(p, 'utf8').replace(/#[^\n]*/g, '');
-  const m = src.match(/^CLIP\s*=\s*"([^"]+)"/m);
-  if (!m) { err('tools/gen-morph.py 里找不到 `CLIP = "..."` 常量（改了写法就来更新这条断言）'); return; }
-  if (!/pe_i2i/.test(m[1])) {
-    err(`tools/gen-morph.py 的 CLIP 是 \`${m[1]}\` —— 图生图必须用 pe_i2i 那个编码器。`
-      + `挂成文生图的 qwen3vl_8b 会让参考图被静默丢弃：所有鱼的同一档位逐像素完全相同`);
-    return;
+  const p = path.join(ROOT, 'tools/gen-art.py');
+  if (!fs.existsSync(p)) { err('tools/gen-art.py 不存在'); return; }
+  const src = fs.readFileSync(p, 'utf8').replace(/"""[\s\S]*?"""/g, '').replace(/#[^\n]*/g, '');
+  if (!/def build_morph_prompt/.test(src)) {
+    err('gen-art.py 里没有 build_morph_prompt() —— 五档提示词没走「复用母版骨架」那条路'); return;
   }
-  ok(`gen-morph.py 的 CLIP = ${m[1]}`);
+  const body = src.slice(src.indexOf('def build_morph_prompt'));
+  const fn = body.slice(0, body.indexOf('\ndef ', 10));
+  const miss = ['build_prompt(', 'palette_desc(', '.replace('].filter(k => fn.indexOf(k) < 0);
+  if (miss.length) {
+    err(`build_morph_prompt() 没有「调 build_prompt → 换掉 palette_desc」的写法（缺 ${miss.join('、')}）`
+      + ` —— 五档会另起一套骨架，与母版口径分家`); return;
+  }
+  ok('build_morph_prompt() 复用 build_prompt 骨架 + 只替换颜色句');
 })();
 
+
+/* ---------------- 33-d. 抠图接线：必须产出 RGBA，且极性必须反转 ---------------- 
+   2026-10-07 新增：卡面改为**透明 PNG**（真 alpha，靠 BiRefNet），背景噪音问题从根上消失。
+   🔴 盯住四件事（都是「不报错只出错结果」型）：
+     ① `RemoveBackground` 的 MASK 是**亮 = 背景**，alpha 要的是**亮 = 主体** ——
+        **必须经 `InvertMask`**。去掉这一步不会报错，只会得到「鱼透明、底不透明」，
+        而且看着还挺「干净」，肉眼极难发现。
+     ② 必须走 `LoadBackgroundRemovalModel` + `JoinImageWithAlpha` 才真的产出 alpha；
+        只在提示词里写「transparent PNG」是**没用**的 ——
+        扩散模型输出的是像素，它会把「透明」画成一个**棋盘格**。
+     ③ `gen-art.py` 必须把抠图**接进出图流程**（`import cutout` + `cutout.cut_one`），
+        否则五档又会退回「暗底 + 噪点」。
+     ④ `tools/gen-morph.py` **必须已删除** —— 它是旧图生图管线的入口，留着就是地雷
+        （历史事故：废弃脚本被定时任务误跑，静默产出 45 张废图）。
+   完整背景见 `tools/cutout.py` 文件头。 */
+console.log('\n[33-d] 抠图接线：产 RGBA + mask 极性反转 + 旧管线入口已清除');
+(function () {
+  const p = path.join(ROOT, 'tools/cutout.py');
+  if (!fs.existsSync(p)) { err('tools/cutout.py 不存在 —— 卡面透明化那一步没了'); return; }
+  /* 剥掉 `#` 注释**和**三引号字符串，否则文件头的说明书会自己把自己喂饱 */
+  const src = fs.readFileSync(p, 'utf8')
+    .replace(/"""[\s\S]*?"""/g, '').replace(/#[^\n]*/g, '');
+  const need = [
+    ['LoadBackgroundRemovalModel', '加载抠图模型'],
+    ['birefnet', 'BiRefNet 权重名'],
+    ['RemoveBackground', '抠图节点'],
+    ['InvertMask', '🔴 极性反转（去掉 = 鱼变透明）'],
+    ['JoinImageWithAlpha', '合成 alpha 产出 RGBA'],
+  ];
+  const miss = need.filter(([k]) => src.indexOf(k) < 0).map(([k, why]) => `${k}（${why}）`);
+  if (miss.length) { err(`tools/cutout.py 缺少：${miss.join('、')}`); return; }
+
+  const ga = fs.readFileSync(path.join(ROOT, 'tools/gen-art.py'), 'utf8')
+    .replace(/"""[\s\S]*?"""/g, '').replace(/#[^\n]*/g, '');
+  if (!/import cutout/.test(ga) || !/cutout\.cut_one/.test(ga)) {
+    err('gen-art.py 没把抠图接进出图流程（缺 `import cutout` / `cutout.cut_one`）—— 五档会退回暗底噪点');
+    return;
+  }
+  if (fs.existsSync(path.join(ROOT, 'tools/gen-morph.py'))) {
+    err('tools/gen-morph.py 又出现了 —— 旧图生图管线的入口会被误跑（曾静默产出 45 张废图），必须删掉');
+    return;
+  }
+  ok('抠图接线完整（BiRefNet → RemoveBackground → InvertMask → JoinImageWithAlpha），已接入 gen-art，旧管线入口已清除');
+})();
+
+
+/* ---------------- 33-e. 低模精细度 + 「骨架只能有一份定义」 ----------------
+   2026-10-07 修正：`GEOM` 原稿写的是
+     `Built from large flat angular facets, ... minimal surface detail`
+   —— 字面上命令模型「用**大**面片、**尽量少**的表面细节」，结果鱼身只有 30~50 个大块，
+   比 v9 标准图（密集三角网，密度 ≈3.6 色块/千px）糙得多。**改提示词不会报错，只会变难看。**
+   教训：这块防的是「写实」，不是「密度」，**两者可以同时要**（见开发者文档 §17.10）。
+   🔴 另盯一件：骨架（BASE / GEOM / LIGHT / BG）**全项目只允许有一份定义**。
+      以前 gen-art.py 与 gen-morph.py 各写一份，靠「必须逐字一致」的**约定**维持 ——
+      约定会忘记，机制不会。现在 gen-morph.py 已并入 gen-art.py，这条改成**机制检查**。
+   量化工具：`python tools/facet-count.py`（靶子 ≈ 3.6）。 */
+console.log('\n[33-e] 低模精细度：GEOM 要密度不要「大面片」；骨架全项目只许有一份');
+(function () {
+  const src = fs.readFileSync(path.join(ROOT, 'tools/gen-art.py'), 'utf8')
+    .replace(/"""[\s\S]*?"""/g, '').replace(/#[^\n]*/g, '');
+  const toStr = (m) => (m ? (m[1].match(/"([^"]*)"/g) || []).map(s => s.slice(1, -1)).join(' ') : null);
+  const geom = toStr(src.match(/^GEOM\s*=\s*\(([\s\S]*?)\)\s*$/m));
+  const base = toStr(src.match(/^BASE\s*=\s*\(([\s\S]*?)\)\s*$/m));
+  if (!geom || !base) { err('读不到 gen-art.py 的 BASE / GEOM 常量'); return; }
+
+  /* ① 不许再出现「大面片 / 最少细节」这种把低模写粗的措辞 */
+  const BAD = ['large flat angular facets', 'minimal surface detail'];
+  const hit = BAD.filter(s => geom.includes(s));
+  if (hit.length) {
+    err(`GEOM 里又出现了「把低模写粗」的措辞：${hit.join('、')} —— `
+      + `实测那样鱼身只有 30~50 个大块（v9 靶子密度 ≈3.6 色块/千px，老稿只有 ≈1.5）`);
+    return;
+  }
+  /* ② 必须显式要求「密集细分」 */
+  const DENSITY = ['dense triangular polygon mesh', 'dense', 'tessellation', 'many small'];
+  if (!DENSITY.some(s => geom.includes(s))) {
+    err(`GEOM 没有要求面片密度（要出现 dense / tessellation / many small 之类的词）：${geom}`); return;
+  }
+  /* ③ 骨架只能有一份定义：tools/ 下不许再有第二个 GEOM = ... */
+  const others = fs.readdirSync(path.join(ROOT, 'tools'))
+    .filter(n => n.endsWith('.py') && n !== 'gen-art.py')
+    .filter(n => /^GEOM\s*=\s*\(/m.test(fs.readFileSync(path.join(ROOT, 'tools', n), 'utf8')));
+  if (others.length) {
+    err(`骨架常量出现了第二份定义：${others.join('、')} —— 母版与五档会口径分家，骨架只许写在 gen-art.py`);
+    return;
+  }
+  ok('GEOM 明确要求密集三角网；骨架常量全项目只有 gen-art.py 一份定义（密度判据见 tools/facet-count.py）');
+})();
+
+/* ---------------- 33-f. 五档颜色句：候选总表 + 权重池，且抽样必须可复现 ----------------
+   2026-10-08 定稿（用户口径：「四档提示词有点单一，多跑几套我来挑，之后生成时随机挑一套」）：
+   🔴 1. `MORPH_CANDIDATES` —— **候选总表**，键 = 出处档/编号，值 = (标签, 颜色句)。
+         落选的句子也留着（下次换型要原句），所以池子里只有一部分键，**不许按前缀过滤**。
+     2. `MORPH_POOL` —— **正式池子**，每档一串 `(候选键, 权重)`。
+     3. `MORPHS` 仍 = 5 档每档一句（清单 / manifest / 耗时常量按它算），**由 1+2 派生**。
+   🔴 盯四件事（全是本项目的高频坑型）：
+     ① **颜色句只能有一份**：`MORPHS` 必须由 `MORPH_CANDIDATES[MORPH_POOL[k][0][0]][1]` 派生；
+        池子里**只许出现「候选键 + 权重」**，不许把句子原文抄进池子（两份拷贝必然漂开）。
+     ② **权重 ≥1 且模块加载时就校验**（`check_pools()` 必须被调用）——
+        权重 ≤0 或候选键写错 = 那套句子**永远抽不到、而且不报错**，
+        362 张图没人会去数。放在加载时是因为「记得手动跑一下」在本项目反复栽跟头。
+     ③ **抽样必须可复现**：`morph_pick()` 必须用 `hashlib.md5`，**不许用内置 `hash()`** ——
+        后者带 PYTHONHASHSEED 随机盐，**每次进程启动结果都不一样** →
+        同一条鱼今天出金色、明天出古铜金，manifest 里的提示词与磁盘上的图对不上。
+     ④ 基准句仍在候选总表里（`MORPHS` 取的就是它们，四档各留一句特征词做留证）。
+   ⚠️ 这里只能做**文本结构**检查（verify 不跑 python）。真实抽签分布由
+   `python tools/prompt-ab.py --picks` 打印（每套句子的实际占比 vs 期望占比）。 */
+console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生；抽样用 md5 可复现');
+(function () {
+  const p = path.join(ROOT, 'tools/gen-art.py');
+  if (!fs.existsSync(p)) { err('tools/gen-art.py 不存在'); return; }
+  const src = fs.readFileSync(p, 'utf8').replace(/"""[\s\S]*?"""/g, '').replace(/#[^\n]*/g, '');
+  if (!/MORPH_CANDIDATES\s*=\s*\{/.test(src) || !/MORPH_POOL\s*=\s*\{/.test(src)) {
+    err('gen-art.py 缺少 MORPH_CANDIDATES / MORPH_POOL —— 五档又回到「每档只有一句」'); return;
+  }
+  /* ① 单一来源：MORPHS 由候选总表 + 池子派生 */
+  if (!/MORPHS\s*=\s*\[\(k,\s*MORPH_CANDIDATES\[MORPH_POOL\[k\]\[0\]\[0\]\]\[1\]\)/.test(src)) {
+    err('MORPHS 不再由 MORPH_CANDIDATES[MORPH_POOL[k][0][0]][1] 派生 —— '
+      + '颜色句出现了第二份拷贝，两份必然漂开'); return;
+  }
+  /* ①b 池子里只许有「候选键 + 权重」，不许出现句子原文（连续三个英文单词 = 抄了原文） */
+  const poolStart = src.indexOf('MORPH_POOL = {');
+  const poolBody = src.slice(poolStart, src.indexOf('\n}', poolStart));
+  if ((poolBody.match(/\(\s*"[a-z]+\/\d+"\s*,\s*\d+\s*\)/g) || []).length < 4) {
+    err('MORPH_POOL 里没有找到 ≥4 个 `("候选键", 权重)` 元组 —— 池子结构不对'); return;
+  }
+  if (/[a-z]{4,} [a-z]{4,} [a-z]{4,}/.test(poolBody)) {
+    err('MORPH_POOL 里出现了成段的英文原文 —— 颜色句被抄进池子了，'
+      + '它只该引用 MORPH_CANDIDATES 的键'); return;
+  }
+  /* ② 自检必须真的被调用，不只是定义 */
+  if (!/def check_pools\(/.test(src) || !/^check_pools\(\)\s*$/m.test(src)) {
+    err('check_pools() 没定义或**没在模块加载时被调用** —— 权重 ≤0 / 候选键写错会静默通过'); return;
+  }
+  /* ③ 可复现：必须 md5，不许内置 hash() */
+  const pk = src.slice(src.indexOf('def morph_pick'));
+  const pickFn = pk.slice(0, pk.indexOf('\ndef ', 10));
+  if (!/hashlib\.md5/.test(pickFn)) {
+    err('morph_pick() 没有用 hashlib.md5 —— 抽样不可复现，跨进程会变'); return;
+  }
+  if (/\bhash\(/.test(pickFn)) {
+    err('morph_pick() 用了内置 hash() —— 它带 PYTHONHASHSEED 随机盐，'
+      + '每次进程启动结果都不一样，manifest 与磁盘上的图会对不上'); return;
+  }
+  /* ④ 基准句逐档在册 ——
+     ⚠️ 比对前要先把**跨行的字符串隐式拼接**接回去（`.replace(/"\s*"/g, '')` 去掉
+        「引号 换行 引号」），否则只要某句被折成两行，这条检查就会误报「被删了」，
+        而它想抓的其实是「句子本身被改了」。折行与内容无关，不该影响判定。 */
+  const flat = src.replace(/"\s*"/g, '').replace(/\s+/g, ' ');
+  const BASE = {
+    bright: 'from magenta and orange through yellow and cyan to blue and violet',
+    albino: 'pale creamy white body, soft pink translucent fins, pale pink eye',
+    golden: 'rich brass and gold tones, brilliant golden sheen, high luminance',
+    shiny: 'star-shaped sparkle highlights, prismatic sheen',
+  };
+  const miss = Object.keys(BASE).filter(k => flat.indexOf(BASE[k]) < 0);
+  if (miss.length) {
+    err(`基准颜色句被删了或改动了：${miss.join('、')} —— 池子第 0 项引用的就是它们，不许动`);
+    return;
+  }
+  ok('候选总表 + 权重池齐备；MORPHS 派生、池内只存键与权重；check_pools() 加载即校验；'
+    + 'morph_pick 走 md5（可复现）；四档基准句在册');
+})();
 
 /* ---------------- 34. 文档里写的「自检 N 节」必须就是本文件的节数 ----------------
    开发者文档 §8 出现过「数据自检 29 节」、GDD §目录树 写着「自检 15 节」，

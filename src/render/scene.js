@@ -602,7 +602,7 @@ G.Scene = (function () {
       G.FishArt.draw(ctx, Object.assign({}, fs.fish, { glow: false }), 0, 0, L, { t: fs.t });
       ctx.globalAlpha = 1;
       ctx.restore();
-      // 亮色的鱼本体（半透明）
+      // 彩虹色档的鱼本体（半透明）
       ctx.globalAlpha = fs.alpha * 0.55;
       ctx.filter = 'brightness(0.75) saturate(0.9)';
       G.FishArt.draw(ctx, fs.fish, fs.x, fs.y, L, { t: fs.t });

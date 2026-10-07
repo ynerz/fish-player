@@ -11,10 +11,25 @@
 输出：assets/cards/<id>.png  +  assets/cards/manifest.json（含提示词 / 种子 / 尺寸）
 
 用法：
-  python tools/gen-art.py --list 0,1,2         # 只出指定 id
+  python tools/gen-art.py --list A01            # 出 A01 的**母版 + 5 档**（一条命令全出）
+  python tools/gen-art.py --list A01 --masters-only      # 只出母版
+  python tools/gen-art.py --list A01,A02 --skip-existing # 断点续跑
   python tools/gen-art.py --limit 12           # 抽样 12 条（跨稀有度）
   python tools/gen-art.py --rar 3              # 只出传说
   python tools/gen-art.py --dry D01,D16        # 只打印提示词，不出图
+
+产物（2026-10-07 口径：**六张一组**）：
+  `assets/cards/<id>.png`           母版，RGB 暗底 —— 与 `docs/images/标准/` 对照的「标准外观」
+  `assets/cards/<id>-normal.png`    原色档，**RGBA 透明** = 母版的抠图（不重新生成）
+  `assets/cards/<id>-bright|albino|golden|shiny.png`   其余四档，**RGBA 透明**
+
+  ⚠️ **五档全部走文生图**（2026-10-07 用户拍板，已弃用图生图）。
+     每档提示词 = 母版提示词**只换颜色句**，其余逐字相同（见 `build_morph_prompt`）。
+     代价（已量化并接受）：档位之间不再是「同一条鱼换漆」，而是**同一条鱼的不同个体** ——
+     剪影 IoU 从图生图的 0.997 降到 0.93（对拍见 `docs/images/card-ab/_t2i-vs-i2i.png`）。
+     换来的是：流程只有一套、没有参考图依赖、每档都是完整质量出图、颜色不再被参考图色相牵制。
+
+  ⚠️ 抠图（真 alpha）由 `tools/cutout.py` 在出图后立刻完成，理由见其文件头。
 
 ────────────────────────────────────────────────────────────────────────────
 提示词结构（2026-10-07 第二轮定稿：**逐字对齐 v8 / v9 的用词**）
@@ -47,11 +62,16 @@
 """
 import argparse, hashlib, json, os, re, subprocess, sys, colorsys
 
+# 同目录的抠图工具：出图后立刻抠成 RGBA 透明（见 cutout.py 文件头）
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import cutout
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PY = r"C:/Users/15001/.workbuddy/binaries/python/versions/3.13.12/python.exe"
 COMFY = os.path.expanduser(r"~/.workbuddy/comfy/txt2img.py")
 OUT = os.path.join(ROOT, "assets", "cards")
 MANIFEST = os.path.join(OUT, "manifest.json")
+TMP = os.path.join(OUT, "_tmp")       # 五档出图的中间 RGB，抠完即删
 
 SEED = 20261007
 W, H, STEPS = 1152, 768, 25           # 3:2 横构图（图鉴卡面比例，UI 容器按这个做）
@@ -73,9 +93,22 @@ BASE = ("low poly 3D render, faceted polygonal surfaces, flat shading per face, 
 
 # ② 防「写实化」几何块 —— v9 没有、v10 才需要。
 #    为什么需要：`low poly 3D render` 单独出现时，模型会理解成「低模风格的写实渲染」，
-#    照样给细密鳞片和柔和渐变。必须显式点名「大平面 / 可见多边形边 / 极少表面细节」。
-GEOM = ("Built from large flat angular facets, clearly visible polygon edges, "
-        "minimal surface detail, no texture.")
+#    照样给细密鳞片和柔和渐变。
+#    🔴 **2026-10-07 修正：这一块曾经写反了。** 原稿是
+#       `Built from large flat angular facets, ... minimal surface detail`
+#       —— 字面上就是在命令模型「用**大**面片、**尽量少**的表面细节」。
+#       结果每张鱼身上只有 30~50 个大块，比 v9 标准图的密集三角网粗糙得多。
+#    ⚠️ 关键认识：**这块防的是「写实」，不是「密度」，两者可以同时要** ——
+#       `flat shading per facet / no texture / no gradients` 负责防写实，
+#       `dense triangular polygon mesh` 负责要密度。
+#    量化判据：鱼身剪影内「独立亮度色块」数 ÷ 千像素（`python tools/facet-count.py`）。
+#       · v9 标准图 ≈ **3.6**（靶子）
+#       · 老稿（large / minimal）≈ 1.5
+#       · **本版 ≈ 3.3** ← 最贴靶子
+#       · 只写 `hundreds of small facets` ≈ 5.7（过头，块面发碎）
+GEOM = ("Finely faceted low-poly surface, a dense triangular polygon mesh covering the body, "
+        "crisp visible polygon edges, flat shading per facet with subtle tone variation "
+        "between neighbouring facets, no texture, no gradients.")
 
 # ③ 光照 —— 逐字取自 v9（`gen9.py` 的 LIGHT）。用户口径：边缘光、不加环境补光。
 #    ⚠️ **绝对不许出现 soft** —— v10 首版把 `strong rim light` 改成
@@ -95,6 +128,195 @@ BG = ("Plain dark neutral grey background, completely empty, no scenery, "
 NEG = ("smooth surfaces, fine scales, detailed texture, photorealistic, realistic rendering, "
        "painting, illustration, soft gradients, fur, hair, water, background scenery, "
        "text, watermark, signature")
+
+# ────────────────────────────────────────────────────────────────────────────
+# 五档颜色句（**全部走文生图**，2026-10-07 用户口径）
+#
+# ⚠️ 为什么要显式写出目标色相：**图生图那套「泛化描述干不过参考图本色」的教训在这里同样成立**，
+#    而且文生图还会被 `palette_desc` 之外的语义带跑 ——
+#    `彩虹色` 只写「更鲜艳」时，模型更倾向于把原色鱼画得饱和一点，而不是真出彩虹。
+#    白化 / 黄金 / 闪光本来就有明确色词，所以没问题。
+#
+# ⚠️ 这五档**不再是「母版改色」**：每档都是一次独立完整出图，
+#    所以档位之间是**同一条鱼的不同个体**，不是同一条鱼换了漆（用户已确认接受，见 2026-10-07 对拍记录）。
+#
+# ────────────────────────────────────────────────────────────────────────────
+# 🔴 2026-10-08 定稿：**候选总表 + 每档权重池**（用户口径见下）
+#
+# 由来：2026-10-07 第三轮先做了「每档 5 套候选」的对拍 —— 同一条鱼（A03 黑鲷）、
+#   同一个种子、只换颜色句（工具 `tools/prompt-ab.py`，留痕 `docs/images/prompt-ab/`），
+#   用户在对照表上逐档挑定，于是有了本节的「池子 + 权重」。
+#
+# 两张表的分工（**别合并**）：
+#   `MORPH_CANDIDATES` —— **候选总表**，键 = 出处档/编号，值是 (标签, 颜色句)。
+#       落选的句子**留在表里不删**：下次想「再换掉彩虹那套太暗的」时，
+#       要么直接在池子里调权重，要么回对拍工具重出图，都得有原句。
+#   `MORPH_POOL`       —— **正式池子**，每档一串 `(候选键, 权重)`。
+#       正式出图只从这里挑。
+#   ⚠️ 键名里的档**只是出处，不代表最终归属**：`shiny/3`(全息镭射膜) 与 `shiny/5`(极光薄膜)
+#      在用户口径里属于「彩虹色」—— 它们本来就是同一族的虹彩材质，当初做候选时挂在闪光档下
+#      而已。所以**不许**按前缀过滤池子（`MORPH_POOL["bright"]` 里有两个 shiny/*）。
+#
+# 🔴 权重不是装饰：**权重 ≤0 的句子会永远抽不到，而且不报错**（本项目最高频的坑型）。
+#   所以模块加载时立刻跑 `check_pools()`，不合格直接抛（见下）。
+# ⚠️ 选择必须**按鱼 id 稳定**（`morph_pick()`），不许真随机 —— 真随机 = 同一条鱼重跑就变样，
+#   manifest 里的提示词与磁盘上的图对不上，可复现性直接没了。
+# ⚠️ 这里的「随机」与已删除的 `stable_pick()`（形态随机池）**不是一回事**：
+#   形态随机 = 明确的错误（石首鱼科尾鳍是楔形，抽到新月形就是错）；
+#   颜色措辞随机 = **同一档位内**的风格差异、色相口径不变，属于「个体差异」。
+# ────────────────────────────────────────────────────────────────────────────
+MORPH_CANDIDATES = {
+    # ── 彩虹色族 ──
+    "bright/1": ("全光谱纵渐变",
+                 "full-spectrum rainbow colouring, vivid saturated hues shifting along the body "
+                 "length from magenta and orange through yellow and cyan to blue and violet, "
+                 "punchy high-chroma palette, lively"),
+    "bright/2": ("横向彩虹色带",
+                 "rainbow colouring divided into broad saturated bands running from head to tail, "
+                 "each band one flat pure hue in the order red, orange, yellow, green, cyan, blue, "
+                 "violet, bold colour blocking with crisp edges between the bands"),
+    "bright/3": ("虹彩油膜",
+                 "thin iridescent rainbow film across the flanks, metallic hues drifting from teal "
+                 "and green into violet and magenta, high-chroma colourful specular highlights, "
+                 "colour that changes across the curved facets"),
+    "bright/4": ("霓虹荧光条",
+                 "electric neon rainbow colouring, glowing saturated stripes in magenta, cyan and "
+                 "lime running along the flanks, fluorescent high-voltage palette, "
+                 "luminous coloured edge glow"),
+    "bright/5": ("背腹双色域",
+                 "the upper body flooded with saturated magenta and red, the lower body with "
+                 "electric cyan and deep blue, a hard hue boundary along the flank, "
+                 "vivid rainbow-tinted fins"),
+    # ── 白化族 ──
+    "albino/1": ("奶白（基准）",
+                 "albino colouring, pale creamy white body, soft pink translucent fins, "
+                 "pale pink eye"),
+    "albino/2": ("冷调冰白",
+                 "ice-white albino colouring, snow-pale body, cool desaturated shading deepening "
+                 "to pale slate blue in the shadow, milky translucent fins with a faint cold tint, "
+                 "small pink eye"),
+    "albino/3": ("暖调象牙",
+                 "warm ivory albino colouring, creamy off-white body, soft beige shading in the "
+                 "shadow, pearlescent coating over the facets, translucent fins with a pale rosy "
+                 "edge, coral pink eye"),
+    "albino/4": ("珍珠白+粉鳍缘",
+                 "pearl-white albino colouring, lustrous pale body with a faint silvery sheen, "
+                 "translucent fins washed with soft pink, delicate pink rim along the fin edges, "
+                 "deep ruby-pink eye"),
+    "albino/5": ("大理石白",
+                 "chalky white albino colouring, marble-pale body with faint pale grey markings "
+                 "between the facets, low saturation, translucent rose-tinted fins, pink eye"),
+    # ── 黄金族 ──
+    "golden/1": ("亮金（基准）",
+                 "bright luminous polished metallic gold body, glowing golden highlights, "
+                 "rich brass and gold tones, brilliant golden sheen, high luminance"),
+    "golden/2": ("24K 镜面",
+                 "mirror-polished twenty-four-karat gold body, sharp brilliant specular "
+                 "reflections across the facets, crisp golden rim light, "
+                 "flawless polished metal finish, maximum brilliance"),
+    "golden/3": ("古铜暗金",
+                 "antique gold colouring, burnished gold body with deep bronze shading in the "
+                 "shadow, warm matte gold lustre, muted golden highlights, rich dark metal tone"),
+    "golden/4": ("玫瑰金",
+                 "polished rose gold metallic body, warm copper-pink gold sheen, luminous rosy "
+                 "highlights, delicate pinkish gold lustre, elegant warm metal finish"),
+    "golden/5": ("熔金",
+                 "molten liquid gold colouring, flowing golden highlights running along the body, "
+                 "warm amber and honey gold tones, champagne-bright glints, heavy metallic lustre"),
+    # ── 闪光族 ──
+    "shiny/1":  ("星点（基准）",
+                 "iridescent shimmering body covered in sparkling glittering speckles, "
+                 "bright specular glints, star-shaped sparkle highlights, prismatic sheen"),
+    "shiny/2":  ("银底亮片",
+                 "body densely covered in tiny mirror-bright metallic speckles that catch the "
+                 "light like glitter, hundreds of pinpoint specular glints, cool chrome-bright "
+                 "sheen, scattered bright highlights"),
+    "shiny/3":  ("全息镭射膜",
+                 "holographic foil coating over the body, faint rainbow glints appearing only in "
+                 "the bright highlights, crisp pinpoint specular flashes, chrome-edged facets, "
+                 "the deep base colour kept in the shadow"),
+    "shiny/4":  ("星尘光点",
+                 "soft glowing specks of light clinging to the body, a scatter of tiny bright "
+                 "luminous dots, silvery pearlescent base, gentle prismatic sparkle, "
+                 "delicate starlit glints"),
+    "shiny/5":  ("极光薄膜",
+                 "thin aurora film coating, green and violet shimmer travelling along the flanks, "
+                 "sharp bright specular streaks, luminous metallic base, "
+                 "iridescent sparkle concentrated on the lit edge"),
+}
+
+# 🔴 正式池子（2026-10-08 用户拍板：从 A03 黑鲷的 4 张对照表上逐档挑定）
+#    每项 = (候选键, 权重)。**第 0 项 = 基准句**（各档都给了最高权重 5，与旧行为一致）。
+MORPH_POOL = {
+    # 「1、2、3，外加闪光的 3 和 5」→ 5 套，权重 5:1:2:4:2
+    "bright": [("bright/1", 5), ("bright/2", 1), ("bright/3", 2),
+               ("shiny/3", 4), ("shiny/5", 2)],
+    # 「白化全选用」→ 5 套，权重 5:2:3:5:2
+    "albino": [("albino/1", 5), ("albino/2", 2), ("albino/3", 3),
+               ("albino/4", 5), ("albino/5", 2)],
+    # 「黄金选用 1、2、3、5」→ 4 套，权重 5:4:1:1
+    "golden": [("golden/1", 5), ("golden/2", 4), ("golden/3", 1), ("golden/5", 1)],
+    # 「闪光仅选用 1」→ 单套（池子可以只有一项，`morph_pick()` 照样成立）
+    "shiny":  [("shiny/1", 1)],
+}
+MORPH_CN = {"bright": "彩虹色", "albino": "白化", "golden": "黄金", "shiny": "闪光"}
+MORPH_ORDER = ("bright", "albino", "golden", "shiny")
+
+
+def pool_entries(key):
+    """把池子的候选键展开成 `[(标签, 颜色句, 权重), …]` —— 出图与挑选都走这里。"""
+    return [(MORPH_CANDIDATES[ck][0], MORPH_CANDIDATES[ck][1], w) for ck, w in MORPH_POOL[key]]
+
+
+def check_pools():
+    """池子自检 —— **模块加载时就跑**，任何一条不满足直接抛。
+
+    为什么不做成「记得手动跑一下」的工具：这几类错误**全都不报错、只出错结果** ——
+    权重 ≤0 的句子永远抽不到（静默少一套风格）、候选键打错在抽样时才 KeyError、
+    池子空了让整档退化成无颜色句。而「要记得手动跑检查」正是本项目反复栽跟头的地方。
+    """
+    for key in MORPH_ORDER:
+        if key not in MORPH_POOL:
+            raise RuntimeError("颜色句池子缺档位：%s" % key)
+        entries = pool_entries(key)
+        if not entries:
+            raise RuntimeError("%s 档的池子是空的 —— 整档会退化成没有颜色句" % key)
+        for ck, w in MORPH_POOL[key]:
+            if ck not in MORPH_CANDIDATES:
+                raise RuntimeError("%s 的池子引用了不存在的候选键：%s" % (key, ck))
+            if not isinstance(w, int) or isinstance(w, bool) or w < 1:
+                raise RuntimeError("%s/%s 的权重必须是 ≥1 的整数（≤0 = 这套句子永远抽不到，"
+                                   "而且不报错）：%r" % (key, ck, w))
+            if not MORPH_CANDIDATES[ck][1].strip():
+                raise RuntimeError("%s/%s 的颜色句是空的" % (key, ck))
+        tags = [t for t, _s, _w in entries]
+        if len(set(tags)) != len(tags):
+            raise RuntimeError("%s 的池子里有重名标签，日志分不清抽到了哪套：%s" % (key, tags))
+
+
+check_pools()
+
+
+def morph_pick(fid, key):
+    """按鱼 id **稳定加权重**挑一套颜色句 → `(标签, 颜色句)`。
+
+    ⚠️ 用 md5 而**不是** Python 内置 `hash()`：`hash()` 带 PYTHONHASHSEED 随机盐，
+       **每次进程启动结果都不一样** → 同一条鱼今天出金色、明天出古铜金，
+       manifest 里记的提示词与磁盘上的图对不上，可复现性（硬约束）当场失效。
+    """
+    entries = pool_entries(key)
+    total = sum(w for _t, _s, w in entries)
+    r = int(hashlib.md5(("%s/%s" % (fid, key)).encode("utf-8")).hexdigest()[:8], 16) % total
+    for tag, sent, w in entries:
+        if r < w:
+            return tag, sent
+        r -= w
+    return entries[-1][0], entries[-1][1]        # 不可达，纯防守
+
+
+# ⚠️ 保留 `MORPHS` 这个名字与「5 档」语义：`morph_keys()`、耗时常量、manifest 都按它算。
+#    它就是「各档池子的第 0 项」，**不是**另一份颜色句定义。
+MORPHS = [(k, MORPH_CANDIDATES[MORPH_POOL[k][0][0]][1]) for k in MORPH_ORDER]
 
 # —— 体型：形态句 + 「华丽」作用在哪个部件上 + 颜色句里的部件名词 ——
 #    `fin` 决定稀有度递进加长哪个部位；水母是触手、鳐是翼、鲸是尾叶。
@@ -204,6 +426,14 @@ def luma(hexstr):
 def palette_desc(f):
     """颜色句 —— 用**该鱼自己的色名**。
 
+    🔴 **颜色只由这里管**（2026-10-07 定）。
+       真实特征表里的 `markings` 只写**花纹形状**、不许写颜色词，
+       真实体色存进 `colour` 字段但**不喂提示词**。
+       原因：实测把两者都写进同一句会**打架** ——
+       `palette_desc` 说 `muted sky blue body`，查证的花纹却写 `golden yellow lower flank`，
+       模型收到两条互斥的颜色指令，出来的颜色不可控。
+       **口径：花纹照实，配色保留游戏的夸张体系**（用户已定）。
+
     用户口径（2026-10-07）：「**鱼的原色提示词要使用鱼本来的颜色和特征**」。
 
     ⚠️ 但**保留「natural realistic colouring」这句**，不写死色值 —— 原因有两条：
@@ -289,29 +519,73 @@ NAME_HINTS = [
     ("鲂",   "laterally compressed diamond-shaped body with a small head"),
 ]
 
-# ── 个体差异（用户口径：「要有一定的随机性」+「同种生图时加一些小特征来区分」）──
-# ⚠️ 随机必须**可复现**：用鱼 id 派生哈希，同一条鱼每次出图结果一样。
-#    用真随机会让「重出一张」变成「换一条鱼」，清单和 manifest 立刻失真。
-SNOUT = ["short snout", "pointed snout", "blunt rounded snout",
-         "slightly upturned mouth", "downward-facing mouth"]
-HEAD = ["small head", "medium head", "large head"]
-FINBUILD = ["modest fins", "well-developed fins", "long trailing fins"]
-# 体表小特征 —— 用户口径「同种（同科属）的鱼要能区分」。
-# ⚠️ 与 FEATURE 的特征位**互斥**：鱼本身带 `stripes` / `spots` 时跳过这里，
-#    否则会出现「带垂直条纹 + 带竖直斑纹」这种重复描述。
-MARKINGS = ["a dark lateral line running along the body",
-            "a faint scattering of small dots",
-            "subtle vertical barring on the flanks",
-            "a single dark spot near the tail base",
-            "a clean plain unmarked body",
-            "a slightly darker patch behind the gill cover"]
+# ── ⛔ 这里原本有一组「个体差异随机池」（SNOUT / HEAD / FINBUILD / TAIL_RANDOM / HEAD_RANDOM），
+#    **2026-10-07 全部删除**。理由（用户口径「鱼的特征要和现实中的相似度很高」）：
+#    那些池子是 `stable_pick` 从几个候选里**按 id 哈希抽一个**，
+#    也就是「一条黑鲷可能被画上尾柄一个暗点」「石首鱼可能被画上新月形尾鳍」——
+#    **随机 ≠ 个体差异，随机 = 明确的错误**。
+#    现在：**查证到的写、查不到的留空**（`fish-traits.json` → `MARK_BY_FAMILY` → 不写）。
+#    ⚠️ 要加「个体差异」请往 `fish-traits.json` 加**查证过的**条目，不要再引入随机池。
+
+# ── 体表花纹：**按科属字给真实倾向**（2026-10-07 用户口径）──
+# 规则：名字里的科属字命中 → 用该科属**查证过的**花纹特征；
+#      **命中不了就不写**（留空不编）—— 少说一句，好过说错一句。
+# ⚠️ 本表是**科属级通性**，每条都要有来源。逐种查证由 `fish-traits.json`（Layer B）覆盖，
+#    两者冲突时 fish-traits.json 胜。
+MARK_BY_FAMILY = [
+    # 长串优先（与 NAME_HINTS 同一规矩：表序即优先级）
+    ("梅童", "dark patches at the front of the jaws and a single dark spot on top of the eye"),
+    ("黄鱼", "a dark patch at the front of the lower jaw"),
+    ("竹荚", "irregular scribbled dark lines above the pectoral-fin line and a single dark spot on the upper rear edge of the gill cover"),
+    ("鲷",   "several vertical bands down the flanks and one small spot at the start of the lateral line, with dark edges on the fins"),
+    ("鲳",   "a dense scatter of tiny dots over the very small scales"),
+]
+# ⚠️ 这里**故意不收**「黄姑 / 白姑」—— 查到的资料只说了它们的颜色，
+#    而颜色归 `palette_desc()` 管（🔴 见它的说明），花纹形状我没查到科属级的，
+#    所以**留空不编**。要补就先去查证，别在这里顺手编一句。
 MARKING_KEYS = ("stripes", "spots")
+
+# ── 逐条查证的真实形态（Layer B）—— 见 tools/fish-traits.json 的 _schema ──
+# 有记录就用**查证过的**形态，没有就退回上面的推导。
+# ⚠️ 这是**可以持续追加**的数据文件，适合交给定时任务每轮补几条。
+TRAITS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fish-traits.json")
+
+
+def load_traits():
+    """读真实特征表。文件缺失/坏掉都不许让出图挂掉，退回空表并提示。"""
+    if not os.path.exists(TRAITS_FILE):
+        return {}
+    try:
+        raw = json.load(open(TRAITS_FILE, encoding="utf-8"))
+    except Exception as e:
+        print("⚠️ fish-traits.json 读不出来（%s），本次退回推导形态" % e)
+        return {}
+    return {k: v for k, v in raw.items() if not k.startswith("_")}
+
+
+TRAITS = load_traits()
+
+
+def trait_of(fid, key):
+    """取某条鱼查证过的某一项；没有就返回空串。"""
+    v = TRAITS.get(fid, {}).get(key)
+    return v.strip() if isinstance(v, str) else ""
+
+
+def mark_by_family(name):
+    """按名字里的科属字取**真实花纹倾向**；命中不了返回空串（留空不编）。"""
+    for key, desc in MARK_BY_FAMILY:
+        if key in name:
+            return desc
+    return ""
 
 
 def stable_pick(fid, salt, options):
-    """用鱼 id 派生稳定的选择 —— 可复现是硬要求（见上面 FINBUILD 的注释）"""
-    h = hashlib.md5((str(fid) + "|" + salt).encode("utf-8")).digest()
-    return options[h[0] % len(options)]
+    """⚠️ **已废弃，无调用点**（2026-10-07）。保留仅为说明历史：
+    它曾用来给「花纹 / 尾型 / 头型」抽一个可复现的随机值。
+    但那不是"个体差异"，**是明确的错误**（石首鱼科明明是楔形尾，抽到新月形就是错的）。
+    现在改成「查证到的写、查不到的留空」。新代码**不要再调它**。"""
+    raise NotImplementedError("stable_pick 已废弃：请往 fish-traits.json 加查证过的条目")
 
 
 def name_hint(f):
@@ -344,13 +618,15 @@ HEAD_HINTS = [
     ("鲛",   "a pointed snout on a streamlined head"),
     ("鲨",   "a pointed snout on a streamlined head"),
 ]
-HEAD_RANDOM = ["a small pointed head", "a medium tapered head",
-               "a large blunt head", "a compact rounded head",
-               "an elongated head", "a deep heavy head"]
 
 TAIL_HINTS = [
     ("鲹",   "a deeply forked tail on a narrow tail base"),
     ("鲭",   "a deeply forked tail"),
+    ("竹荚", "a deeply forked tail on a narrow tail base"),
+    ("鲳",   "a deeply forked tail with the lower lobe longer than the upper"),
+    ("黄鱼", "a wedge-shaped tail"),
+    ("黄姑", "a wedge-shaped tail"),
+    ("白姑", "a wedge-shaped tail"),
     ("沙丁", "a forked tail"),
     ("鳐",   "a long thin whip-like tail"),
     ("魟",   "a long thin whip-like tail"),
@@ -362,9 +638,6 @@ TAIL_HINTS = [
     ("鲟",   "a strongly asymmetrical shark-like tail"),
     ("鲸",   "a wide horizontal fluke"),
 ]
-TAIL_RANDOM = ["a forked tail", "a rounded tail fin", "a crescent tail",
-               "a fan-shaped tail", "a truncated square tail",
-               "a long trailing tail fin"]
 
 # 体型大小 —— 由 `maxKg` 分档（实测分布：p25=1.2 / p50=4 / p75=40 / max=20000，
 # 跨 5 个数量级，是最有效的「个体差异」维度之一）
@@ -380,29 +653,44 @@ SIZE_BANDS = [
 def form_profile(f):
     """**形态档案** —— 用户口径：「按身体特征对每条鱼先写一个描述」。
 
-    五个维度全部由 `fish.js` 的**真实数据**驱动（不是随手编的）：
+    🔴 **优先级（2026-10-07 改）**：
+      ① `fish-traits.json` 里**逐条查证过**的 `form` / `fins` —— 有就用它，直接用完就返回
+      ② 没有查证记录时，才退回下面的推导（名义上是"由真实数据驱动"，但**是推导不是查证**）
 
-      | 维度 | 数据来源 |
+    ⚠️ 退回推导时，数据来源是：
+      | 维度 | 来源 |
       |---|---|
       | 体型大小 | `maxKg`（0.04~20000，跨 5 个数量级） |
       | 身体比例 | `body_ratio`（0.20~0.86） |
-      | 头型 | 名字线索优先，找不到用 `stable_pick` 兜底 |
-      | 鳍 | 特征位（`spiny`/`barbels`/`lure`…）由调用方另行拼接 |
-      | 尾型 | 同上（`tail` 字段 351/362 是 `fan`，**不可用**） |
+      | 头型 / 尾型 | 名字科属线索（`TAIL_HINTS` / `HEAD_HINTS`） |
 
-    ⚠️ 五条都写进提示词会太长、稀释风格锚点，所以这里**只挑最能区分的三条**
-       （大小 / 比例 / 尾型），头型重叠时再补一条 —— 见返回值。
+    ⛔ **尾型不再有随机兜底**。旧做法是 `stable_pick` 从 6 个尾型里随机抽一个 ——
+       实测「石首鱼科的尾鳍是楔形」，随机抽可能抽到叉形/扇形/新月形，**全错**。
+       现在：名字线索命中才写，命中不了**就不写**（`SHAPES[shape]` 的默认里本来就有尾型，
+       那是个「不撒谎但也不具体」的兜底）。
+
+    ⚠️ 五条都写进提示词会太长、稀释风格锚点，所以推导路径**只挑最能区分的三条**
+       （大小 / 比例 / 尾型），头型重叠时再补一条。
     """
+    # ① 查证过的真实形态优先 —— 有就不必再推导
+    real_form = trait_of(f["id"], "form")
+    if real_form:
+        parts = [real_form]
+        real_fins = trait_of(f["id"], "fins")
+        if real_fins:
+            parts.append(real_fins)
+        return ", ".join(parts)
+
     out = []
 
-    # ① 体型大小（maxKg）
+    # ② 体型大小（maxKg）
     kg = f.get("maxKg") or 0.1
     for lim, desc in SIZE_BANDS:
         if kg < lim:
             out.append(desc)
             break
 
-    # ② 身体比例（body_ratio）—— 只对有躯干的体型
+    # ③ 身体比例（body_ratio）—— 只对有躯干的体型
     shape = f.get("shape", "fish")
     if shape in TORSO_SHAPES:
         r = f.get("body_ratio") or 0.30
@@ -415,25 +703,18 @@ def form_profile(f):
         else:
             out.append("a very deep rounded body")
 
-    # ③ 尾型（名字线索 → 随机兜底）
+    # ④ 尾型 —— **只认名字线索，没有就不写**（⛔ 不许随机兜底，见 docstring）
     name = f.get("name", "")
-    tail = ""
     for key, desc in TAIL_HINTS:
         if key in name:
-            tail = desc
+            out.append(desc)
             break
-    if not tail:
-        tail = stable_pick(f["id"], "tail", TAIL_RANDOM)
-    out.append(tail)
 
-    # ④ 头型 —— 名字线索能命中就写，命中不了就丢掉（少说一句好过多说一句）
-    head = ""
+    # ⑤ 头型 —— 名字线索能命中就写，命中不了就丢掉（少说一句好过多说一句）
     for key, desc in HEAD_HINTS:
         if key in name:
-            head = desc
+            out.append(desc)
             break
-    if head:
-        out.append(head)
 
     return ", ".join(out)
 
@@ -454,7 +735,10 @@ def build_prompt(f):
     bits = [spec["d"]]
 
     # ① 名字族（科属特征）—— 只在 fish 体型生效，其余体型有专属模板
-    hint = name_hint(f)
+    #    ⚠️ 有逐条查证记录时**跳过**：查证过的 form/fins 已经把体型说清楚了，
+    #       再叠一句科属体形会重复（实测叠完出现「deep-bodied laterally compressed body」
+    #       紧跟「elongated oval body, strongly compressed and rather deep」这种自我重复）。
+    hint = "" if trait_of(f["id"], "form") else name_hint(f)
     if hint:
         bits.append(hint)
 
@@ -462,9 +746,12 @@ def build_prompt(f):
     #    （用户口径：「按身体特征对每条鱼先写一个描述」，让鱼更好分辨）
     bits.append(form_profile(f))
 
-    # ③ 体表小特征（与特征位互斥，避免「带垂直条纹 + 带竖直斑纹」这种重复）
+    # ③ 体表花纹 —— 查证过的逐条特征最优先，其次按科属字给**真实倾向**，
+    #    两者都没有就**不写**（⛔ 不许随机抽，见 MARK_BY_FAMILY 的注释）
     if shape == "fish" and not any(f.get(k) for k in MARKING_KEYS):
-        bits.append(stable_pick(f["id"], "mark", MARKINGS))
+        mark = trait_of(f["id"], "markings") or mark_by_family(f.get("name", ""))
+        if mark:
+            bits.append(mark)
 
     # ④ 特征位（按体型过滤）
     for key, (desc, shapes) in FEATURE.items():
@@ -479,6 +766,23 @@ def build_prompt(f):
     frame = ("full side view, whole body visible, facing left, "
              "centered with generous margin, " + rar + ".")
     return " ".join([head, frame, palette_desc(f), LIGHT, GEOM, BG])
+
+
+def build_morph_prompt(f, color_desc):
+    """五档的提示词 = 母版提示词**只换颜色句**，其余逐字相同。
+
+    ⚠️ 别在这里另起一套骨架 —— 那会让「母版」和「五档」两套口径分家，
+       最后变成「同一条鱼不同档不像一家人」。做法同 `GEOM`：
+       **同一个 `build_prompt`，挖掉原色颜色句，换上该档的颜色句。**
+    """
+    p = build_prompt(f)
+    pd = palette_desc(f)
+    if pd not in p:
+        raise RuntimeError("颜色句没出现在提示词里 —— build_prompt 的结构改过？")
+    # ⚠️ `palette_desc` 自带句号，五档的颜色句没有 —— 补上，
+    #    否则会和后面的 LIGHT 黏成「…lively strong rim light…」
+    desc = color_desc if color_desc.rstrip().endswith(".") else color_desc.rstrip() + "."
+    return p.replace(pd, desc, 1)
 
 
 def load_fish():
@@ -526,8 +830,10 @@ RAR_CN = {0: "普通", 1: "稀有", 2: "史诗", 3: "传说"}
 #   档位 = 图生图 cfg=1.0 ≈ 20s
 # ⚠️ 别再用「单张 55s × 条数」估总时间 —— 每条鱼现在是 6 张（1 母版 + 5 档），
 #    按旧口径会把工期低估 3 倍（清单头部因此长期写着 6.4 小时，实际 ≈ 15.6 小时）。
-SEC_PER_MASTER = 55
-SEC_PER_MORPH = 20
+SEC_PER_MASTER = 55     # 母版：文生图，25 步（cfg=3.0，每步两次前向），实测 ≈55s
+SEC_PER_MORPH = 55      # ⚠️ 五档**2026-10-07 起也是文生图** —— 曾走图生图（≈20s），已弃用。
+                        #    所以现在和母版同价，别再按 20s 估。
+SEC_PER_CUT = 2         # 母版抠图 → `<id>-normal.png`（本地 BiRefNet，实测 1.5~3s）
 # 传说鱼的迭代轮数 —— 是**评审次数**，不是机器时间（见清单文档里的说明）
 LEGEND_ROUNDS = 3
 
@@ -548,20 +854,19 @@ def make_batches(fish):
 
 
 def morph_keys():
-    """5 档的键名（normal/bright/albino/golden/shiny）—— **从 `gen-morph.py` 读，不在这里再写一份**。
+    """5 档的键名（normal/bright/albino/golden/shiny）。清单勾选按这 5 个键名找文件。
 
-    为什么绕一下：本项目反复栽在「同一件事写两遍，改了一处漏另一处」（见 MEMORY.md）。
-    清单勾选要按这 5 个键名找文件，若在这里硬编码一份，将来加/改档位必然分家。
-    ⚠️ 解析失败**直接报错**，不要静默降级 —— 静默降级会让清单又变回「只查母版」而不自知。
+    🔴 **2026-10-07 修死引用**：原实现是「打开 `tools/gen-morph.py` 正则抠它的 `MORPHS`」
+    （动机是怕档位清单写两遍而分家）。但那个脚本**已合并进本文件并删除**，
+    而且 `verify §33-d` 明确要求它**必须不存在** —— 也就是说这段代码
+    从删除那天起就变成了**必然抛 `FileNotFoundError` 的死引用**，`--plan` 一调就崩。
+    （这类「不报错直到被调用」的死引用，正是本项目最高频的坑型，见 MEMORY.md。）
+    现在直接读**本文件**的 `MORPHS`：档位清单在本文件里本来就只有一份，就是单一来源。
+    `normal` 不在 `MORPHS` 里（它是母版的抠图、不独立出图），但清单要按 5 档找文件，故补上。
     """
-    p = os.path.join(ROOT, "tools", "gen-morph.py")
-    src = open(p, encoding="utf-8").read()
-    m = re.search(r"^MORPHS\s*=\s*\[(.*?)^\]", src, re.S | re.M)
-    if not m:
-        sys.exit("gen-art.py：解析不出 gen-morph.py 的 MORPHS（清单勾选依赖它）")
-    keys = re.findall(r'\(\s*"([a-z_]+)"\s*,', m.group(1))
+    keys = ["normal"] + [k for k, _ in MORPHS]
     if len(keys) < 5:
-        sys.exit("gen-art.py：MORPHS 只解析出 %d 档，expected >= 5" % len(keys))
+        sys.exit("gen-art.py：档位只解析出 %d 档，expected >= 5" % len(keys))
     return keys
 
 
@@ -571,16 +876,18 @@ def write_plan(fish):
     total = sum(len(b) for b in bs)
     legend = sum(1 for f in fish if f["rar"] == 3)
     nk = len(morph_keys())
-    # 每条鱼 = 1 张母版 + nk 张图生图（见 gen-morph.py）
+    # 每条鱼 = 1 张母版（文生图）+ (nk-1) 张档位（**也是文生图**）+ 1 次抠图（出 `-normal`）
+    per_fish = SEC_PER_MASTER + (nk - 1) * SEC_PER_MORPH + SEC_PER_CUT
     shots = total * (1 + nk) + legend * (LEGEND_ROUNDS - 1) * (1 + nk)
-    secs = shots * (SEC_PER_MASTER + nk * SEC_PER_MORPH) / (1 + nk)
+    secs = (total + legend * (LEGEND_ROUNDS - 1)) * per_fish
 
     L = []
     L.append("# 图鉴卡面生图清单（%d 条鱼 / %d 批）\n" % (total, len(bs)))
-    L.append("> ① `python tools/gen-art.py --list <id>` 出**原色母版** → `assets/cards/<id>.png`")
-    L.append("> ② `python tools/gen-morph.py --list <id> --skip-existing` 出 **%d 档**（图生图）→ "
-             "`assets/cards/<id>-<档>.png`" % nk)
-    L.append("> ③ `python tools/check-cards.py` 验收。提示词 / 种子 / 参数落进 "
+    L.append("> **一条命令出全部**：`python tools/gen-art.py --list <id...>`")
+    L.append("> → 母版 `assets/cards/<id>.png` + **%d 档** `<id>-<档>.png`" % nk)
+    L.append("> （`<id>-normal` 是母版的**抠图**，不重新生成；单档重出用 `--morphs-only`，")
+    L.append("> 母版跳过已存在的用 `--skip-existing`）")
+    L.append("> 验收：`python tools/check-cards.py`。提示词 / 种子 / 参数落进 "
              "`assets/cards/manifest.json`，可复现。")
     L.append("> ⚠️ 勾选 = **母版 + %d 档全部存在**才算完成（自动检测，见 `write_plan()`）；" % nk)
     L.append("> 只有母版的鱼**不再**算完成 —— 否则下一轮会跳过它，档位图再也没人补。\n")
@@ -592,8 +899,8 @@ def write_plan(fish):
     L.append("| 批次数 | **%d** |" % len(bs))
     L.append("| 传说鱼 | %d 条，每条按 %d 轮迭代（评审轮次） |" % (legend, LEGEND_ROUNDS))
     L.append("| 出图张数（含传说迭代） | ≈ **%d**（每条 %d 张：1 母版 + %d 档） |" % (shots, 1 + nk, nk))
-    L.append("| 单条耗时 | ≈ **%d s**（母版 %ds + %d × 图生图 %ds） |"
-             % (SEC_PER_MASTER + nk * SEC_PER_MORPH, SEC_PER_MASTER, nk, SEC_PER_MORPH))
+    L.append("| 单条耗时 | ≈ **%d s**（母版 %ds + %d 档 × %ds + 抠图 %ds） |"
+             % (per_fish, SEC_PER_MASTER, nk - 1, SEC_PER_MORPH, SEC_PER_CUT))
     L.append("| 纯机器时间 | ≈ **%.1f 小时** |" % (secs / 3600.0))
     L.append("")
     L.append("⚠️ 真正的瓶颈不是机器时间，是**评审次数**：%d 批，每批都要「看图 → 判断合格 / 重出」。" % len(bs))
@@ -627,11 +934,26 @@ def write_plan(fish):
           % (total, len(bs), shots, secs / 3600.0))
 
 
+def report_traits(fish):
+    """报告**真实特征表（Layer B）的覆盖进度** —— 逐条查证是一件长期活，进度要看得见。
+
+    ⚠️ 这个数**不是 KPI，是诚实度指标**：没查证的就该留空，不许为了刷覆盖率去编。
+    """
+    have = [f for f in fish if trait_of(f["id"], "form")]
+    miss = [f for f in fish if not trait_of(f["id"], "form")]
+    fam = [f for f in miss if mark_by_family(f.get("name", ""))]
+    print("逐条查证（fish-traits.json）：%d / %d 条（%.1f%%）" % (len(have), len(fish), len(have) / len(fish) * 100))
+    print("退回推导，但科属花纹命中：%d 条" % len(fam))
+    print("退回推导，且无科属花纹（留空）：%d 条" % (len(miss) - len(fam)))
+    print("\n还没查证的（前 20 条）：%s" % "、".join(f["id"] + f["name"] for f in miss[:20]))
+
+
 def write_prompts(fish):
     """导出**全量提示词表**（供人工审阅）—— 用户口径：「先写好每个鱼的提示词让我看一下」。
 
     ⚠️ 这里用的就是 `build_prompt()` **本体**，不是另写一份 ——
        否则「给人看的」和「实际出图用的」会分家，审阅就失去意义。
+       （2026-10-07 修：这里**曾经**复制了一份拼装逻辑，结果分家了，还漏改过一次随机花纹。）
     """
     L = []
     L.append("# 鱼提示词表（%d 条）\n" % len(fish))
@@ -646,28 +968,18 @@ def write_prompts(fish):
     L.append("BG    = " + BG.strip())
     L.append("```\n")
     L.append("下表列出**每条鱼独有的部分**（体型 + 形态 + 特征 + 颜色 + 构图）。\n")
-    L.append("| id | 名字 | 档 | 体型 | 形态与特征 | 构图与稀有度 | 颜色句 |")
-    L.append("|---|---|---|---|---|---|---|")
+    L.append("| id | 名字 | 档 | 体型 | 提示词（已剥掉固定段 LIGHT/GEOM/BG） |")
+    L.append("|---|---|---|---|---|")
     for f in fish:
-        shape = f.get("shape", "fish")
-        spec = SHAPES.get(shape, SHAPES["fish"])
-        bits = [spec["d"]]
-        h = name_hint(f)
-        if h:
-            bits.append(h)
-        bits.append(form_profile(f))
-        if shape == "fish" and not any(f.get(k) for k in MARKING_KEYS):
-            bits.append(stable_pick(f["id"], "mark", MARKINGS))
-        for key, (desc, shapes) in FEATURE.items():
-            if f.get(key) and shape in shapes:
-                bits.append(desc)
-        rar_i = min(3, f.get("rar", 0))
-        extra = ", extra spines and streamers" if (rar_i == 3 and shape in SPINE_SHAPES) else ""
-        rar = RARITY[rar_i].format(fin=spec["fin"], extra=extra)
-        frame = "full side view, whole body visible, facing left, centered with generous margin, " + rar
-        L.append("| %s | %s | %s | %s | %s | %s | %s |" % (
-            f["id"], f["name"], RAR_CN.get(f.get("rar", 0), "?"), shape,
-            ", ".join(bits), frame, palette_desc(f)))
+        # ⚠️ **必须调 build_prompt() 本体再剥离固定段**，不许在这里复制一份拼装逻辑 ——
+        #    之前就是复制了一份，结果「给人看的表」和「实际出图」分家（还漏改过一次随机花纹）。
+        var = build_prompt(f)
+        for seg in (LIGHT, GEOM, BG):
+            var = var.replace(seg, "")
+        var = " ".join(var.split())
+        L.append("| %s | %s | %s | %s | %s |" % (
+            f["id"], f["name"], RAR_CN.get(f.get("rar", 0), "?"),
+            f.get("shape", ""), var))
     out = os.path.join(ROOT, "docs", "鱼提示词表.md")
     open(out, "w", encoding="utf-8").write("\n".join(L))
     print("提示词表已写出：%s（%d 条）" % (out, len(fish)))
@@ -704,9 +1016,13 @@ def main():
     ap.add_argument("--plan", action="store_true", help="只写出分批清单 docs/生图清单.md")
     ap.add_argument("--forms", action="store_true", help="只写出形态档案 docs/鱼形态档案.md")
     ap.add_argument("--prompts", action="store_true", help="只写出提示词表 docs/鱼提示词表.md")
+    ap.add_argument("--traits", action="store_true", help="只报告真实特征表（Layer B）的覆盖进度")
     ap.add_argument("--batch", type=int, default=0, help="只出第 N 批（从 1 起，见清单）")
     ap.add_argument("--prompt-only", action="store_true", help="只打印提示词，不出图")
     ap.add_argument("--dry", default="", help="（快捷）等价于 --prompt-only --list X")
+    ap.add_argument("--masters-only", action="store_true", help="只出母版，不出五档")
+    ap.add_argument("--morphs-only", action="store_true", help="只出五档（跳过已有母版）")
+    ap.add_argument("--skip-existing", action="store_true", help="已有成品跳过（断点续跑）")
     args = ap.parse_args()
 
     if args.dry:
@@ -723,6 +1039,9 @@ def main():
 
     if args.prompts:
         write_prompts(allfish); return
+
+    if args.traits:
+        report_traits(allfish); return
 
     if args.batch:
         bs = make_batches(allfish)
@@ -746,31 +1065,83 @@ def main():
     if os.path.exists(MANIFEST):
         manifest = json.load(open(MANIFEST, encoding="utf-8"))
 
-    print("待生成 %d 张" % len(fish))
-    ok = 0
-    for i, f in enumerate(fish, 1):
-        path = os.path.join(OUT, f["id"] + ".png")
-        prompt = build_prompt(f)
-        print("\n[%d/%d] %s %s (rar %d, %s)" % (i, len(fish), f["id"], f["name"], f["rar"], f["shape"]))
+    def run_t2i(prompt, path):
+        """出图 + 等落盘。返回 (是否成功, CompletedProcess)。"""
         r = subprocess.run([PY, COMFY, "-p", prompt, "-n", NEG, "--cfg", str(CFG),
-                            "-o", path,
-                            "-W", str(W), "-H", str(H), "--steps", str(STEPS),
-                            "--seed", str(SEED)],
+                            "-o", path, "-W", str(W), "-H", str(H),
+                            "--steps", str(STEPS), "--seed", str(SEED)],
                            capture_output=True, text=True, errors="replace")
-        if os.path.exists(path):
+        return os.path.exists(path), r
+
+    os.makedirs(TMP, exist_ok=True)
+    # 任务序列：母版 → 五档（`normal` 不是独立出图，它就是母版的抠图）
+    # ⚠️ 五档的任务里**只带档位名**，颜色句在出图那一刻才按鱼 id 挑（`morph_pick`）——
+    #    提前挑好会导致「挑一次、后面复用」，manifest 与图反而更容易对不上。
+    jobs = []
+    for f in fish:
+        if not args.morphs_only:
+            jobs.append((f, None))
+        if not args.masters_only:
+            for key, _desc in MORPHS:
+                jobs.append((f, key))
+
+    per = len(jobs) // len(fish) if fish else 0
+    print("待生成 %d 张（%d 条鱼 × %d 张）" % (len(jobs), len(fish), per))
+    ok = fail = skip = 0
+    for i, (f, morph) in enumerate(jobs, 1):
+        fid = f["id"]
+        variant_tag = ""
+        if morph is None:
+            dst, prompt, label = os.path.join(OUT, fid + ".png"), build_prompt(f), "母版"
+        else:
+            variant_tag, desc = morph_pick(fid, morph)
+            dst = os.path.join(OUT, "%s-%s.png" % (fid, morph))
+            prompt, label = build_morph_prompt(f, desc), MORPH_CN[morph]
+
+        if args.skip_existing and os.path.exists(dst):
+            print("[%d/%d] %s %-7s 已存在，跳过" % (i, len(jobs), fid, label))
+            skip += 1
+            continue
+
+        print("\n[%d/%d] %s %s   %s%s" % (i, len(jobs), fid, f["name"], label,
+                                          ("　[" + variant_tag + "]") if variant_tag else ""))
+        if morph is None:
+            # 母版：RGB 暗底（与 docs/images/标准/ 一致的外观对照）
+            good, r = run_t2i(prompt, dst)
+            if good:
+                # 原色档 = 母版的抠图（不重新生成：省一次出图，且与母版必然同色）
+                cutout.cut_one(dst, os.path.join(OUT, fid + "-normal.png"))
+        else:
+            raw = os.path.join(TMP, "%s-%s.png" % (fid, morph))
+            good, r = run_t2i(prompt, raw)
+            if good:
+                good = cutout.cut_one(raw, dst)      # 出图后立刻抠成 RGBA
+                if os.path.exists(raw):
+                    os.remove(raw)
+
+        if good:
             ok += 1
-            manifest[f["id"]] = {
-                "name": f["name"], "rar": f["rar"], "shape": f["shape"],
-                "prompt": prompt, "negative": NEG, "seed": SEED, "cfg": CFG,
-                "size": [W, H], "steps": STEPS, "model": MODEL
-            }
+            if morph is None:
+                manifest[fid] = {
+                    "name": f["name"], "rar": f["rar"], "shape": f["shape"],
+                    "prompt": prompt, "negative": NEG, "seed": SEED, "cfg": CFG,
+                    "size": [W, H], "steps": STEPS, "model": MODEL,
+                }
+            else:
+                manifest.setdefault(fid, {}).setdefault("morphs", {})[morph] = prompt
+                # 抽到哪一套也记下来 —— 光看提示词能反查，但列出标签便于人核对分布与复现
+                manifest.setdefault(fid, {}).setdefault("morphVariant", {})[morph] = variant_tag
             print("    ok")
         else:
+            fail += 1
             print("    失败：" + (r.stdout or r.stderr or "")[-200:])
 
     json.dump(manifest, open(MANIFEST, "w", encoding="utf-8"), ensure_ascii=False, indent=1, sort_keys=True)
     print("\n" + "=" * 50)
-    print("成功 %d / %d，清单 %s（共 %d 条）" % (ok, len(fish), MANIFEST, len(manifest)))
+    print("成功 %d / 失败 %d / 跳过 %d，清单 %s（共 %d 条）"
+          % (ok, fail, skip, MANIFEST, len(manifest)))
+    if fail:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

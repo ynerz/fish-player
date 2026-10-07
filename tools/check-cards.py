@@ -23,9 +23,10 @@
 
 ⚠️ 解释器：系统 conda 的 python（有 PIL）
 
-⚠️ 2026-10-07 修正：原来只扫母版（`MASTER_RE`），于是**1810 张档位图没人验收** ——
-   而档位图现在是**独立图生图**（`gen-morph.py`），不是从母版算出来的，
-   它们出错的方式（写实金鱼 / 背景漂移 / 裁切）和母版完全一样，必须一起进验收。
+⚠️ 2026-10-07 修正：原来只扫母版（`MASTER_RE`），于是**档位图没人验收** ——
+   档位图现在是**独立出的**（同为文生图，`tools/gen-art.py` 里的 4 档 + 母版抠图出的
+   `-normal`），不是从母版算出来的，它们出错的方式（写实金鱼 / 背景漂移 / 裁切）
+   和母版完全一样，必须一起进验收。
 """
 import os, re, sys
 
@@ -35,7 +36,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CARDS = os.path.join(ROOT, "assets", "cards")
 
 MASTER_RE = re.compile(r"^[A-Z]+\d+\.png$")     # 母版 = <id>.png
-MORPH_RE = re.compile(r"^[A-Z]+\d+-[a-z_]+\.png$")   # 档位 = <id>-<档>.png（图生图独立产出）
+MORPH_RE = re.compile(r"^[A-Z]+\d+-[a-z_]+\.png$")   # 档位 = <id>-<档>.png（独立产出）
 
 MASK_THRESH = 20          # 与背景色的差异超过它才算主体（与 paint-card.py 同口径）
 BG_TOL = 26               # 四角之间允许的最大通道差

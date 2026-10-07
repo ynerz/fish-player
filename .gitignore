@@ -23,3 +23,7 @@ tools/output/
 # 保留 manifest.json —— 它记录提示词/种子/参数，是「来源可复现」的凭据
 assets/cards/*.png
 assets/cards/_superseded/
+
+# Python 字节码缓存
+__pycache__/
+*.pyc

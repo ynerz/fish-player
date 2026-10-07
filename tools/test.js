@@ -1968,16 +1968,24 @@ ok(drawn === meshFish.tris.length && fills === meshFish.tris.length,
 ok(strokes === fills,
   'render()：每面填充后都用同色描一遍（不描的话三角面之间会露底色的发丝缝，像线框）');
 
-G_('FishMesh —— 体型参数 → 三角网格（队列 T2，本轮先做 fish / shark / eel）');
-ok(Object.keys(FM.TYPES).length === 3 && FM.TYPES.fish && FM.TYPES.shark && FM.TYPES.eel,
-  'TYPES：本轮只有 fish / shark / eel（ray 需要「平面型驱动」生成器，排到队列 T3）');
+G_('FishMesh —— 全 9 种体型的三角网格（队列 T3）');
+const SHAPES9 = ['fish', 'eel', 'ray', 'squid', 'jelly', 'oarfish', 'shark', 'whale', 'dragon'];
+ok(Object.keys(FM.TYPES).length === 9 && SHAPES9.every(k => !!FM.TYPES[k]),
+  'TYPES：9 种体型齐全（与 fishart.js 的 TPL 同一批；漏一种就会有鱼画不出网格）');
 
-['fish', 'shark', 'eel'].forEach(k => {
+// 与 fish.js 实际用到的体型集合对齐（现算，不写死数字）
+const usedShapes = {};
+G.FISH.forEach(f => { usedShapes[f.shape] = true; });
+const shapeMissing = Object.keys(usedShapes).filter(s => !FM.TYPES[s]);
+ok(shapeMissing.length === 0,
+  `渔获实际用到的 ${Object.keys(usedShapes).length} 种体型都能建网格（缺：${shapeMissing.join('、') || '无'}）`);
+
+SHAPES9.forEach(k => {
   const m = FM.build(k);
   ok(m.verts.every(v => isFinite(v.x) && isFinite(v.y) && isFinite(v.z)),
-    `build('${k}')：所有顶点坐标都是有限数（无 NaN / Infinity）`);
-  ok(m.tris.length > 100 && m.tris.length < 500,
-    `build('${k}')：面数落在 100~500（实际 ${m.tris.length}）`);
+    `build('${k}')：顶点坐标都是有限数（无 NaN / Infinity）`);
+  ok(m.tris.length > 100 && m.tris.length < 900,
+    `build('${k}')：面数落在 100~900（实际 ${m.tris.length}）`);
   ok(m.verts.every(v => v.t >= 0 && v.t <= 1),
     `build('${k}')：顶点 t 都在 [0,1]（动画按 t 施加，越界会算出畸形）`);
   ok(m.verts.every(v => v.b >= -1.001 && v.b <= 1.001),
@@ -1986,17 +1994,82 @@ ok(Object.keys(FM.TYPES).length === 3 && FM.TYPES.fish && FM.TYPES.shark && FM.T
     `build('${k}')：所有三角面的顶点索引都在范围内（越界会画出乱线）`);
 });
 
-const mF = FM.build('fish');
-const xsF = mF.verts.map(v => v.x), ysF = mF.verts.map(v => v.y);
-const spanX = Math.max.apply(null, xsF) - Math.min.apply(null, xsF);
-const spanY = Math.max.apply(null, ysF) - Math.min.apply(null, ysF);
-ok(spanX > 1.4 && spanX < 1.9, `fish：体长跨度合理（${spanX.toFixed(2)}，含尾鳍）`);
-ok(spanY > 0.5 && spanY < 1.0, `fish：体高跨度合理（${spanY.toFixed(2)}，含背鳍 / 胸鳍）`);
+function bboxOf(m) {
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, z0 = 1e9, z1 = -1e9;
+  m.verts.forEach(v => {
+    if (v.x < x0) x0 = v.x; if (v.x > x1) x1 = v.x;
+    if (v.y < y0) y0 = v.y; if (v.y > y1) y1 = v.y;
+    if (v.z < z0) z0 = v.z; if (v.z > z1) z1 = v.z;
+  });
+  return { x: x1 - x0, y: y1 - y0, z: z1 - z0 };
+}
+const bFish = bboxOf(FM.build('fish'));
+const bRay = bboxOf(FM.build('ray'));
+const bJelly = bboxOf(FM.build('jelly'));
+ok(bFish.x > 1.4 && bFish.x < 1.9, `fish：体长跨度合理（${bFish.x.toFixed(2)}，含尾鳍）`);
+ok(bFish.y > 0.5 && bFish.y < 1.0, `fish：体高跨度合理（${bFish.y.toFixed(2)}，含背鳍 / 胸鳍）`);
+ok(bRay.z > bRay.x, `ray：展向（${bRay.z.toFixed(2)}）大于体长（${bRay.x.toFixed(2)}）—— 这是鳐的识别特征`);
+ok(bRay.y < 0.3, `ray：极扁（厚度 ${bRay.y.toFixed(2)}）—— 车削式做不出这个平面型，所以它走独立生成器`);
+ok(bJelly.y > bJelly.x, `jelly：伞盖 + 触手在竖直方向展开（高 ${bJelly.y.toFixed(2)} > 宽 ${bJelly.x.toFixed(2)}）`);
 
-near(FM.profileAt('fish', 0.37).r, 1, 0.05,
+near(FM.profileAt('fish', 0.37).hy, 0.3378, 0.05,
   'profileAt()：最粗处在体长约 37% 位置（流线型鱼的重心偏前）');
-ok(FM.profileAt('fish', 0).r < 0.05 && FM.profileAt('fish', 1).r < 0.05,
+ok(FM.profileAt('fish', 0).hy < 0.05 && FM.profileAt('fish', 1).hy < 0.05,
   'profileAt()：吻端与尾根趋近于 0（环退化成一个点，三角面自然收尖）');
+ok(FM.profileAt('没这个体型', 0.5) === null, 'profileAt()：未知体型返回 null，不是抛异常');
+near(FM.rad(90), Math.PI / 2, 1e-9, 'rad()：导出给调用方用（角度参数一律过它转弧度）');
+
+// 默认视角必须按体型给：鳐侧视只是一条细缝，正 / 侧面都没有辨识度
+const dvRay = FM.defaultView('ray'), dvFish = FM.defaultView('fish'), dvJelly = FM.defaultView('jelly');
+ok(dvRay.pitch > 0.7 && dvRay.pitch < 1.4,
+  `defaultView('ray')：俯仰 ${(dvRay.pitch * 180 / Math.PI).toFixed(0)}° —— 鳐必须俯视才认得出来`);
+ok(dvFish.pitch === 0 && dvFish.yaw === 0, 'defaultView()：常规鱼默认侧视（辨识度最高的角度）');
+ok(dvJelly.pitch !== 0, 'defaultView()：水母不是正侧视（要看到伞盖内侧）');
+ok(FM.defaultView('没这个体型') === null, 'defaultView()：未知体型返回 null');
+
+G_('FishMesh —— 传说细节层级（用户口径：传说鱼细节明显更足）');
+ok(FM.detailForRar(0) === 0 && FM.detailForRar(1) === 0 &&
+   FM.detailForRar(2) === 1 && FM.detailForRar(3) === 2,
+  'detailForRar()：普通 / 稀有 = 0 级，史诗 = 1 级，传说 = 2 级');
+ok(FM.DETAIL_TIERS.length === 4 && FM.DETAIL_TIERS[3].detail === 2,
+  'DETAIL_TIERS：稀有度 → 细节层级是单一来源（不在别处再写一份映射）');
+
+const thinTier = [];
+const flatTier = [];
+SHAPES9.forEach(k => {
+  const d0 = FM.build(k, { detail: 0 }), d2 = FM.build(k, { detail: 2 });
+  const d1 = FM.build(k, { detail: 1 });
+  if (!(d2.tris.length > d0.tris.length)) thinTier.push(k);
+  // 每一档都必须看得出来 —— 史诗档也不能是「和普通一模一样」
+  if (!(d1.tris.length > d0.tris.length)) flatTier.push(k);
+  // 加了附属结构之后坐标仍必须是有限数 —— 锚点算错时最容易出 NaN，
+  // 而 NaN 只是「什么都不显示」，不会报错（实测踩过：鳐鱼飘带锚点漏了 span）
+  ok(d2.verts.every(v => isFinite(v.x) && isFinite(v.y) && isFinite(v.z)),
+    `build('${k}', detail 2)：加了飘带 / 棘刺后坐标仍是有限数`);
+});
+ok(flatTier.length === 0,
+  `史诗档（detail 1）在全部 9 种体型上都比普通档更多细节${flatTier.length ? '；没变的：' + flatTier.join('、') : ''}`);
+ok(thinTier.length === 0,
+  `传说档（detail 2）的三角面在全部 9 种体型上都多于普通档${thinTier.length ? '；例外：' + thinTier.join('、') : ''}`);
+
+// 关键：细节必须落在**剪影**上 —— 缩到 64px 时表面全糊，只有轮廓外的突起读得出来
+let silBad = [];
+SHAPES9.forEach(k => {
+  const b0 = bboxOf(FM.build(k, { detail: 0 })), b2 = bboxOf(FM.build(k, { detail: 2 }));
+  const grow = Math.max(b2.x - b0.x, b2.y - b0.y, b2.z - b0.z);
+  if (grow < 0.02) silBad.push(k + '(+' + grow.toFixed(3) + ')');
+});
+ok(silBad.length === 0,
+  `传说档的剪影确实变大（不是贴表面纹理）${silBad.length ? '；没变的：' + silBad.join('、') : ''}`);
+
+const f0 = FM.build('fish', { detail: 0 }), f1 = FM.build('fish', { detail: 1 }), f2 = FM.build('fish', { detail: 2 });
+ok(f1.tris.length > f0.tris.length && f2.tris.length > f1.tris.length,
+  `细节层级单调递增：${f0.tris.length} → ${f1.tris.length} → ${f2.tris.length} 个三角面`);
+ok(f2.tris.length >= f0.tris.length * 1.1,
+  `fish：传说档面数至少多 10%（${f0.tris.length} → ${f2.tris.length}）`);
+const bb0 = bboxOf(f0), bb2 = bboxOf(f2);
+ok(bb2.x > bb0.x + 0.2,
+  `fish：传说档尾鳍飘带把剪影拉长（${bb0.x.toFixed(2)} → ${bb2.x.toFixed(2)}）—— 64px 下靠它认出来`);
 })();
 
 /* ---------- 汇总 ---------- */

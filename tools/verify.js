@@ -1639,6 +1639,78 @@ console.log('\n[32-c] 平台适配层的子能力也必须有消费方');
   }
 })();
 
+/* ---------------- 32-d. 模块内部状态字段的「只写不读」 ----------------
+   上一节的 32-b/32-c 都是**运行时按 `G.*` 路径取值**，够不到模块内部对象。
+   踩过的：`src/render/scene.js` 的 `S.fightFish` / `S.fightRarity` 只写不读躺了很久
+   （`beginFight(fish)` 把整条鱼对象存进去、`endFight()` 清掉，全项目零读取），
+   当时靠一次性探针（正则统计 `S.<字段>` 的写/读次数）才发现，探针用完就丢了。
+   这里把它固化下来（静态扫 `src/` 全部 `.js`，只扫代码不扫注释）。
+
+   计数口径：`X.p` 后面紧跟 `= / += / ++ / --` 算**写**，其余算**读**。
+   刻意排除两类必然误报的状态对象 —— 它们是「分析不了」，不是「死字段」：
+     A) **逃出模块**（裸 `return X` / `return {X: X}`）：别的文件会读它的字段。
+        例：`fight.js` 的 `F.tire` 本文件只写不读，但 `main.js` 通过 `Fight.get()` 读它；
+            `goals.js` 的 `b.day` 也是 `return b` 后由 state 持久化的。
+        ⚠️ 判据是「**裸**返回」（`X` 后面不跟 `.` / `[`）—— 写成 `return X.field` 只是返回一个值、
+        对象没逃出，那种行**不能**算逃逸（第一版按「return 行里出现 X」判，
+        结果 `scene.js` 里一句 `return U.lerp(…, S.floatT / …)` 就把 `S` 整个放行了，
+        注入的探针字段照样不报红）。
+     B) **有动态键访问** `X[表达式]`：字段名是算出来的，静态扫不到。
+        例：`fishart.js` 的 `TPL[fish.shape]`、`panels.js` 的 `VIEWS[name]`。
+   ⚠️ 所以这是**一张网、不是一份证明**：逃出模块的状态里若有真死字段，它照样漏。
+   反之命中即为真（模块内部 + 无动态键 + 写了从没读）。 */
+console.log('\n[32-d] 模块内部状态字段「只写不读」（逃出模块 / 动态键的对象不参与）');
+(function () {
+  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const files = [];
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+      const p = path.join(ROOT, dir, n);
+      if (fs.statSync(p).isDirectory()) walk(dir + '/' + n);
+      else if (/\.js$/.test(n)) files.push(dir + '/' + n);
+    });
+  })('src');
+  let skipped = 0;
+  const hits = [];
+  files.forEach(r => {
+    const code = strip(fs.readFileSync(path.join(ROOT, r), 'utf8'));
+    /* 候选状态容器：被赋成对象字面量、且至少有一处 `X.字段` 用法 */
+    const globs = [...code.matchAll(/(?:^|[^\w$.])(?:var|let|const)?\s*([A-Za-z_$][\w$]*)\s*=\s*\{/g)]
+      .map(m => m[1]);
+    [...new Set(globs)].forEach(v => {
+      if (!new RegExp('(?:^|[^\\w$.])' + v + '\\s*\\.\\s*[A-Za-z_$]').test(code)) return;
+      /* A) 逃出模块（`return X` / `return {X: X}` 这种**裸**返回；`return X.field`
+            只是返回一个值，对象没逃出）、B) 动态键 */
+      if (new RegExp('\\breturn\\b[^;\\n]*\\b' + v + '\\b(?!\\s*[.\\[])').test(code)
+        || new RegExp('(?:^|[^\\w$.])' + v + '\\s*\\[').test(code)) { skipped++; return; }
+      const props = {};
+      const re = new RegExp('(?:^|[^\\w$.])' + v + '\\s*\\.\\s*([A-Za-z_$][\\w$]*)', 'g');
+      let m;
+      while ((m = re.exec(code))) {
+        const k = m[1];
+        const after = code.slice(m.index + m[0].length);
+        const isWrite = /^\s*(?:=(?!=)|[-+*/%]=|\+\+|--)/.test(after);
+        const isDel = /^\s*(?:;|,|\}|$)/.test(after)
+          && /delete\s+$/.test(code.slice(0, m.index + m[0].length - k.length));
+        props[k] = props[k] || { w: 0, r: 0, d: 0 };
+        if (isDel) props[k].d++; else if (isWrite) props[k].w++; else props[k].r++;
+      }
+      Object.keys(props).forEach(k => {
+        const s = props[k];
+        if (s.r > 0 || (s.w + s.d) === 0) return;         // 有读，或压根没写
+        if (s.d > 0 && s.d >= s.w) return;                // 写完再删：纯生命周期字段
+        hits.push(`${r} 的 ${v}.${k}`);
+      });
+    });
+  });
+  if (hits.length) {
+    err(`模块内部状态字段只写不读：${hits.join('、')}`
+      + '（删掉，或说明它为什么必须存在；若该状态对象会逃出模块请在本节注释里写明）');
+  } else {
+    ok(`src 下没有「只写不读」的模块内部状态字段（${skipped} 个状态对象因逃出模块 / 动态键未参与判定）`);
+  }
+})();
+
 
 /* ---------------- 33. 体型数量：文档 / 出图工具必须与代码一致 ----------------
    代码里是 **9 种**（`TPL.fish / eel / ray / squid / jelly / oarfish / shark / whale / dragon`），

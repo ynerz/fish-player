@@ -1561,6 +1561,63 @@ let shapeBad = 0;
 })();
 if (!shapeBad) ok(`文档里的体型数量与出图工具的覆盖都等于代码里的 ${Object.keys(G.FISH.reduce((a, f) => (a[f.shape] = 1, a), {})).length} 种`);
 
+/* 33-b 钓场结构数字（品种数 / 解锁门槛 / 传说条数）也必须与数据一致
+   和 ㉝ 同一类：文档里写死的数字会随着数值调整悄悄过期，且没有任何报错。
+   这次抓到的：GDD 的解锁规则还写着「D 有 6 种鱼 → 需 5 种」「SS 共 60 种、SSS 共 84 种」，
+   说明书还写着「D 和 C 钓场没有传说鱼」—— 而实际上 D 16 种 / C 24 种，
+   D~S 共 182 种、D~SS 共 262 种，且**每个钓场都有传说鱼**（D / C 各 1 条）。
+   判据全部现算，不写死任何数字。 */
+console.log('\n[33-b] 文档里的钓场结构数字（品种数 / 门槛 / 传说条数）必须与数据一致');
+let structBad = 0;
+(function () {
+  const cnt = {};
+  G.FIELDS.forEach(f => { cnt[f.id] = G.FISH_BY_FIELD[f.id].length; });
+  const legendary = {};
+  G.FIELDS.forEach(f => { legendary[f.id] = (G.FISH_BY_FIELD_RARITY[f.id][3] || []).length; });
+  const cum = (from, to) => G.FIELDS.slice(from, to).reduce((a, f) => a + cnt[f.id], 0);
+  const cumSet = [cum(0, 5), cum(0, 6)];   // D~S 与 D~SS
+
+  const docList = ['docs/GDD.md', 'docs/说明书.html', 'README.md', 'docs/开发者文档.md'];
+  docList.forEach(rel => {
+    const p = path.join(ROOT, rel);
+    if (!fs.existsSync(p)) return;
+    const txt = fs.readFileSync(p, 'utf8');
+
+    /* ① 「X 有/只有 N 种鱼」的 N 必须等于该钓场的品种数 */
+    (txt.match(/[A-Z]+\s*[有只]\s*有?\s*\d+\s*种鱼/g) || []).forEach(hit => {
+      const m = hit.match(/([A-Z]+)[\s\S]*?(\d+)\s*种鱼/);
+      if (!m || cnt[m[1]] == null) return;
+      if (parseInt(m[2], 10) !== cnt[m[1]]) {
+        err(`${rel} 写着「${hit.trim()}」，而钓场 ${m[1]} 实际有 ${cnt[m[1]]} 种鱼`);
+        structBad++;
+      }
+    });
+
+    /* ② 解锁规则里「全 100%（共 N 种）」的 N 必须等于 D~S 或 D~SS 的实际累计。
+       只认这个上下文 —— 文档里还有「共 362 种鱼」这种总量说法，不该被这条管。 */
+    (txt.match(/100%\s*[（(]\s*共\s*\d+\s*种/g) || []).forEach(hit => {
+      /* ⚠️ 取「共」后面的那个数，不能把前面的 100 也算进去 */
+      const num = parseInt((hit.match(/共\s*(\d+)/) || [, '0'])[1], 10);
+      if (cumSet.indexOf(num) < 0) {
+        err(`${rel} 写着「${hit}」，而实际累计只有 D~S = ${cumSet[0]} 种、D~SS = ${cumSet[1]} 种`);
+        structBad++;
+      }
+    });
+
+    /* ③ 每个钓场都有传说鱼时，不许再写「某钓场没有传说鱼」 */
+    const hasLegendary = G.FIELDS.some(f => legendary[f.id] > 0);
+    if (hasLegendary && /没有传说鱼/.test(txt)) {
+      err(`${rel} 还写着「没有传说鱼」—— 实际每个钓场都有（D / C 各 ${legendary.D} 条）`);
+      structBad++;
+    }
+  });
+
+  if (!structBad) {
+    ok(`钓场结构文案与数据一致（D ${cnt.D} 种 / C ${cnt.C} 种；D~S ${cumSet[0]} 种、D~SS ${cumSet[1]} 种；` +
+       `传说条数 ${G.FIELDS.map(f => legendary[f.id]).join('/')}）`);
+  }
+})();
+
 
 /* ---------------- 34. 文档里写的「自检 N 节」必须就是本文件的节数 ----------------
    开发者文档 §8 出现过「数据自检 29 节」、GDD §目录树 写着「自检 15 节」，

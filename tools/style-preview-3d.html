@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>低多边形 3D 鱼 · 可行性原型</title>
+<style>
+  :root{
+    --bg:#14171a; --panel:#1c2126; --line:#2b3238; --fg:#e8eef2;
+    --dim:#8b98a3; --accent:#4ec3d9; --gold:#ffd479;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    background:var(--bg); color:var(--fg); padding:18px 20px 26px;
+    font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1{font-size:18px;font-weight:700;letter-spacing:.3px}
+  .sub{font-size:12px;color:var(--dim);line-height:1.7;margin:6px 0 16px;max-width:940px}
+  .sub b{color:var(--fg)}
+  .sub code{background:#242b31;border-radius:4px;padding:1px 5px;font-size:11px;color:#9fd8e6}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media (max-width:960px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .card canvas{display:block;width:100%;height:300px;touch-action:none;cursor:grab;background:#0d1013}
+  .card canvas.drag{cursor:grabbing}
+  .bar{display:flex;align-items:center;gap:8px;padding:9px 11px;border-top:1px solid var(--line)}
+  .bar b{font-size:12.5px;font-weight:700}
+  .bar .tag{font-size:10.5px;color:var(--dim)}
+  .bar .sp{flex:1}
+  select{
+    background:#242b31;color:var(--fg);border:1px solid var(--line);border-radius:6px;
+    padding:3px 6px;font-size:11.5px;font-family:inherit;outline:none
+  }
+  .hint{font-size:10.5px;color:var(--dim);padding:0 11px 9px}
+  .stat{
+    margin-top:16px;padding:11px 13px;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;font-size:11.5px;line-height:1.85;color:var(--dim)
+  }
+  .stat b{color:var(--fg)}
+  .stat .k{color:var(--accent);font-variant-numeric:tabular-nums}
+  .pill{display:inline-block;font-size:10px;padding:1px 6px;border-radius:20px;margin-left:6px}
+  .pill.on{background:#1e3b26;color:#7fd39a}
+  .pill.off{background:#2b3238;color:var(--dim)}
+</style>
+</head>
+<body>
+<h1>低多边形 3D 鱼 · 可行性原型</h1>
+<div class="sub">
+  <b>纯 Canvas 2D 手写 3D</b> —— 零依赖、零图片素材、零 WebGL，单文件双击即可运行。<br>
+  网格由代码按体型参数生成（<b>三角面 + 每面平涂</b>），光照 = <b>强边缘光 + 无环境补光</b>（口径见开发者文档 §1.4）。<br>
+  <b>拖动任意一条鱼 → 360° 旋转</b>；松手 2 秒后自动回到默认视角。
+  按口径，<b>只有传说档与闪光色开动画</b>，普通鱼静态。
+</div>
+
+<div class="grid" id="grid"></div>
+
+<div class="stat" id="stat"></div>
+
+<script>
+(function(){
+'use strict';
+
+/* ============================================================
+   1. 体型参数表 —— 用代码描述一条鱼，不是画一张图
+   axis:'x' 脊柱沿 x（常规鱼）；axis:'y' 脊柱沿 y（水母伞盖）
+   ============================================================ */
+var TYPES = {
+  fish: {
+    label:'通用鱼形', axis:'x', stations:12, segments:9,
+    spine:{ x:function(t){return -0.78+1.42*t;}, y:function(){return 0;} },
+    prof:function(t){ return Math.pow(Math.sin(Math.PI*Math.pow(t,0.62)),0.75); },
+    h:0.34, w:0.20, defYaw:0, defPitch:0,
+    caudal:0.28, dorsal:0.17, pectoral:true, belly:0.34
+  },
+  shark: {
+    label:'鲨鱼', axis:'x', stations:12, segments:9,
+    spine:{ x:function(t){return -0.86+1.64*t;}, y:function(t){return 0.03*Math.sin(Math.PI*t);} },
+    prof:function(t){ return Math.pow(Math.sin(Math.PI*Math.pow(t,0.45)),0.58); },
+    h:0.30, w:0.24, defYaw:0, defPitch:0,
+    caudal:0.34, dorsal:0.26, pectoral:true, belly:0.30
+  },
+  ray: {
+    label:'鳐鱼', axis:'x', stations:10, segments:14,
+    spine:{ x:function(t){return -0.66+1.30*t;}, y:function(){return 0;} },
+    prof:function(t){ return 1; },
+    // 鳐鱼的平面型：横向展翼（宽），纵向极薄 —— 用 hprof/wprof 分开控制
+    hprof:function(t){ return 0.85*Math.pow(Math.sin(Math.PI*(0.05+0.9*t)),0.5); },
+    wprof:function(t){ return Math.pow(Math.sin(Math.PI*Math.pow(t,0.40)),0.30); },
+    h:0.10, w:0.72, defYaw:0, defPitch:60*Math.PI/180,
+    caudal:0, dorsal:0, pectoral:false, whip:0.62, belly:0.0
+  },
+  eel: {
+    label:'鳗鱼', axis:'x', stations:16, segments:8,
+    spine:{ x:function(t){return -0.72+1.52*t;}, y:function(){return 0;} },
+    prof:function(t){ return 0.66*Math.pow(Math.sin(Math.PI*(0.08+0.84*t)),0.34); },
+    h:0.135, w:0.115, defYaw:0, defPitch:0,
+    caudal:0.13, dorsal:0, pectoral:false, ribbon:true, belly:0.0
+  },
+  dragon: {
+    label:'龙鱼', axis:'x', stations:14, segments:9,
+    spine:{ x:function(t){return -0.76+1.46*t;}, y:function(){return 0;} },
+    prof:function(t){ return Math.pow(Math.sin(Math.PI*(0.05+0.9*t)),0.6); },
+    h:0.20, w:0.145, defYaw:0, defPitch:0,
+    caudal:0.30, dorsal:0, pectoral:false, ribbon:true, ridge:0.13, belly:0.12
+  },
+  jelly: {
+    label:'水母', axis:'y', stations:8, segments:14,
+    spine:{ x:function(){return 0;}, y:function(t){return -0.26+0.56*t;} },
+    prof:function(t){ return 0.40*Math.sqrt(Math.max(0,1-t*t))+0.015; },
+    h:1, w:1, defYaw:0, defPitch:-14*Math.PI/180,
+    caudal:0, dorsal:0, pectoral:false, tentacles:11, tentacleLen:0.78, dome:true, belly:0.0
+  }
+};
+
+/* ============================================================
+   2. 网格生成：体型参数 → 三角面
+   ============================================================ */
+function buildMesh(cfg){
+  var verts = [], tris = [];
+  var N = cfg.stations, S = cfg.segments;
+  var i, j;
+
+  function push(x, y, z, t, b){
+    verts.push({ x:x, y:y, z:z, t:t, b:(b===undefined?0:b) });
+    return verts.length - 1;
+  }
+  function ringIdx(i, j){ return i * S + ((j % S) + S) % S; }
+
+  // —— 主体管状网格
+  for (i = 0; i <= N; i++){
+    var t = i / N;
+    var r = Math.max(cfg.prof(t), 0.0001);
+    var ph = cfg.hprof ? Math.max(cfg.hprof(t), 0.0001) : r;
+    var pw = cfg.wprof ? Math.max(cfg.wprof(t), 0.0001) : r;
+    var hy = ph * cfg.h, hz = pw * cfg.w;
+    var sx = cfg.spine.x(t), sy = cfg.spine.y(t);
+    for (j = 0; j < S; j++){
+      var a = 2 * Math.PI * j / S;
+      var ca = Math.cos(a), sa = Math.sin(a);
+      if (cfg.axis === 'y'){
+        // 水母伞盖：环在 x-z 平面，脊柱沿 y
+        push(sx + ca * r, sy, sa * r, t, 0);
+      } else {
+        var yy = ca * hy, zz = sa * hz;
+        if (cfg.belly && ca < 0) yy *= (1 - cfg.belly * 1.1);
+        push(sx, sy + yy, zz, t, ca);
+      }
+    }
+  }
+
+  for (i = 0; i < N; i++){
+    for (j = 0; j < S; j++){
+      var A = ringIdx(i,j), B = ringIdx(i,j+1), Cc = ringIdx(i+1,j+1), D = ringIdx(i+1,j);
+      tris.push([A,B,Cc], [A,Cc,D]);
+    }
+  }
+
+  // —— 两端封口
+  var nose = push(cfg.spine.x(0) - (cfg.axis==='y'?0:0.045),
+                  cfg.axis==='y' ? cfg.spine.y(0)-0.05 : cfg.spine.y(0), 0, 0, 0);
+  var tail = push(cfg.spine.x(1) + (cfg.axis==='y'?0:0.03),
+                  cfg.axis==='y' ? cfg.spine.y(1)+0.03 : cfg.spine.y(1), 0, 1, 0);
+  for (j = 0; j < S; j++){
+    tris.push([ringIdx(0,j), nose, ringIdx(0,j+1)]);
+    tris.push([ringIdx(N,j), ringIdx(N,j+1), tail]);
+  }
+
+  // —— 尾鳍（竖直扇形，可随动画横向摆动）
+  var finGrp = [];
+  if (cfg.caudal > 0){
+    var xT = cfg.spine.x(1), yT = cfg.spine.y(1);
+    var c = cfg.caudal;
+    var base = verts.length;
+    push(xT + 0.01, yT, 0, 1, 0);                      // 0 根
+    push(xT + c,    yT + c*0.95, 0, 1, 0);             // 1 上叶尖
+    push(xT + c*0.62, yT + c*0.18, 0, 1, 0);           // 2 上叶内凹
+    push(xT + c,    yT - c*0.95, 0, 1, 0);             // 3 下叶尖
+    push(xT + c*0.62, yT - c*0.18, 0, 1, 0);           // 4 下叶内凹
+    tris.push([base+0,base+1,base+2], [base+0,base+2,base+4], [base+0,base+4,base+3]);
+    for (var k = base; k < base+5; k++) finGrp.push(k);
+  }
+  // —— 背鳍
+  if (cfg.dorsal > 0){
+    var dBase = verts.length;
+    var t0 = 0.34, t1 = 0.70, tm = 0.5;
+    push(cfg.spine.x(t0), cfg.spine.y(t0) + cfg.prof(t0)*cfg.h, 0, t0, 1);
+    push(cfg.spine.x(tm), cfg.spine.y(tm) + cfg.prof(tm)*cfg.h + cfg.dorsal, 0, tm, 1);
+    push(cfg.spine.x(t1), cfg.spine.y(t1) + cfg.prof(t1)*cfg.h, 0, t1, 1);
+    tris.push([dBase, dBase+1, dBase+2]);
+    for (k = dBase; k < dBase+3; k++) finGrp.push(k);
+  }
+  // —— 龙鱼背脊棘
+  if (cfg.ridge > 0){
+    var rStart = verts.length, M = 7;
+    for (var m = 0; m < M; m++){
+      var tt = 0.22 + 0.56 * m / (M-1);
+      push(cfg.spine.x(tt), cfg.spine.y(tt) + cfg.prof(tt)*cfg.h + cfg.ridge, 0, tt, 1);
+    }
+    for (m = 0; m < M-1; m++) tris.push([rStart+m, rStart+m+1, ringIdx(Math.round((0.22+0.56*m/(M-1))*N), 0)]);
+    for (k = rStart; k < rStart+M; k++) finGrp.push(k);
+  }
+  // —— 胸鳍
+  if (cfg.pectoral){
+    [1,-1].forEach(function(sgn){
+      var pBase = verts.length, tp = 0.36;
+      var rx = cfg.spine.x(tp), ry = cfg.spine.y(tp);
+      var hy = cfg.prof(tp)*cfg.h, hz = cfg.prof(tp)*cfg.w;
+      push(rx, ry - hy*0.25, sgn*hz*0.85, tp, -1);
+      push(rx - 0.14, ry - hy*1.15, sgn*(hz+0.16), tp, -1);
+      push(rx + 0.16, ry - hy*0.85, sgn*(hz+0.07), tp, -1);
+      tris.push([pBase, pBase+1, pBase+2]);
+      for (k = pBase; k < pBase+3; k++) finGrp.push(k);
+    });
+  }
+  // —— 长尾鞭（鳐鱼的标志：细长如鞭，随动画左右摆动）
+  if (cfg.whip > 0){
+    var wStart = verts.length, WN = 6;
+    var wx0 = cfg.spine.x(1), wy0 = cfg.spine.y(1);
+    for (var s = 0; s <= WN; s++){
+      var u = s / WN;
+      var hw = 0.020 * (1 - u * 0.85);            // 由粗到细
+      var wx = wx0 + cfg.whip * u;
+      var wy = wy0 - 0.10 * u * u;                // 微微下垂
+      push(wx, wy, hw, 1, 0);
+      push(wx, wy, -hw, 1, 0);
+    }
+    for (s = 0; s < WN; s++){
+      var b0 = wStart + s*2, b1 = wStart + s*2 + 1;
+      var c0 = wStart + (s+1)*2, c1 = c0 + 1;
+      tris.push([b0, b1, c1], [b0, c1, c0]);
+    }
+  }
+
+  // 触手不在这里生成 —— 它走 buildTentacles 的细带绘制路径（见下）
+  return { verts:verts, tris:tris, finGrp:finGrp, cfg:cfg };
+}
+
+/* 触手用细带绘制（单独的几何：每根触手一条四边形链） */
+function buildTentacles(cfg){
+  var list = [], rad = cfg.prof(0), cy0 = cfg.spine.y(0);
+  for (var q = 0; q < cfg.tentacles; q++){
+    var ang = 2*Math.PI*q/cfg.tentacles;
+    var bx = Math.cos(ang)*rad*0.86, bz = Math.sin(ang)*rad*0.86;
+    var pts = [];
+    for (var s = 0; s <= 7; s++){
+      var u = s/7;
+      pts.push({ x:bx*(1-u*0.3), y:cy0 - cfg.tentacleLen*u, z:bz*(1-u*0.3), u:u, ph:q*1.7 });
+    }
+    list.push(pts);
+  }
+  return list;
+}
+
+/* ============================================================
+   3. 颜色档（口径见开发者文档 §1.4）
+   ============================================================ */
+var MORPHS = {
+  normal:{ label:'原色',  back:[0.34,0.46,0.53], belly:[0.84,0.88,0.86], fin:[0.46,0.57,0.62],
+           rim:[0.72,0.88,0.95], rimK:0.85, spec:0, sparkle:0, metallic:0 },
+  albino:{ label:'白化',  back:[0.78,0.74,0.72], belly:[0.97,0.94,0.92], fin:[0.93,0.80,0.82],
+           rim:[1.00,0.91,0.94], rimK:0.80, spec:0.1, sparkle:0, metallic:0 },
+  golden:{ label:'黄金',  back:[0.72,0.52,0.12], belly:[1.00,0.90,0.55], fin:[0.85,0.63,0.18],
+           rim:[1.00,0.94,0.66], rimK:1.35, spec:0.55, sparkle:0, metallic:1 },
+  shiny: { label:'闪光',  back:[0.52,0.70,0.82], belly:[0.90,0.96,1.00], fin:[0.62,0.80,0.90],
+           rim:[1.00,1.00,1.00], rimK:1.55, spec:0.9, sparkle:1, metallic:0 }
+};
+
+/* ============================================================
+   4. 渲染器
+   ============================================================ */
+var AMB = 0.09;                                    // 环境项压到极低（口径：无环境补光）
+var LKEY = norm([-0.32, 0.72, 0.42]);              // 主光：上方偏前左
+var LRIM = norm([0.26, 0.60, -0.78]);              // 边缘光：上方偏后
+
+function norm(v){
+  var m = Math.sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]) || 1;
+  return [v[0]/m, v[1]/m, v[2]/m];
+}
+
+function makeView(w, h, yaw, pitch, camZ){
+  var cy = Math.cos(yaw), sy = Math.sin(yaw);
+  var cp = Math.cos(pitch), sp = Math.sin(pitch);
+  return { w:w, h:h, cy:cy, sy:sy, cp:cp, sp:sp,
+           cx:w/2, cyy:h/2, f:Math.min(w,h)*1.45, camZ:camZ };
+}
+
+/* ============================================================
+   5. 卡片
+   ============================================================ */
+var grid = document.getElementById('grid');
+var cards = [];
+var IDSEQ = 0;
+
+function makeCard(opts){
+  var el = document.createElement('div');
+  el.className = 'card';
+
+  var canvas = document.createElement('canvas');
+  el.appendChild(canvas);
+
+  var bar = document.createElement('div');
+  bar.className = 'bar';
+  var name = document.createElement('b');
+  name.textContent = opts.title;
+  bar.appendChild(name);
+  var tag = document.createElement('span');
+  tag.className = 'tag';
+  bar.appendChild(tag);
+  var sp = document.createElement('span');
+  sp.className = 'sp';
+  bar.appendChild(sp);
+  var sel = document.createElement('select');
+  Object.keys(TYPES).forEach(function(k){
+    var o = document.createElement('option');
+    o.value = k; o.textContent = TYPES[k].label;
+    sel.appendChild(o);
+  });
+  sel.value = opts.type;
+  bar.appendChild(sel);
+  el.appendChild(bar);
+
+  var hint = document.createElement('div');
+  hint.className = 'hint';
+  hint.textContent = '拖动可 360° 旋转 · 松手 2 秒回正';
+  el.appendChild(hint);
+
+  grid.appendChild(el);
+
+  var card = {
+    id: ++IDSEQ,
+    el: el, canvas: canvas, ctx: canvas.getContext('2d'),
+    morphKey: opts.morph, typeKey: opts.type, animate: opts.animate,
+    yaw: 0, pitch: 0, targetYaw: 0, targetPitch: 0,
+    dragging: false, releaseAt: 0, lastX: 0, lastY: 0,
+    w: 0, h: 0,
+    mesh: null, tent: null,
+    anim: { x:new Float32Array(0), y:new Float32Array(0), z:new Float32Array(0) },
+    proj: [], order: [],
+    sparkles: [], triCount: 0,
+    nameEl: name, tagEl: tag, selEl: sel
+  };
+
+  function rebuild(){
+    var cfg = TYPES[card.typeKey];
+    card.mesh = buildMesh(cfg);
+    card.tent = cfg.tentacles ? buildTentacles(cfg) : null;
+    card.triCount = card.mesh.tris.length;
+    var n = card.mesh.verts.length;
+    card.anim.x = new Float32Array(n);
+    card.anim.y = new Float32Array(n);
+    card.anim.z = new Float32Array(n);
+    card.proj = new Array(n);
+    for (var i = 0; i < n; i++) card.proj[i] = { x:0, y:0, z:0, s:1 };
+    card.order = new Array(card.mesh.tris.length);
+    card.depth = new Float32Array(card.mesh.tris.length);
+    for (i = 0; i < card.order.length; i++) card.order[i] = i;
+    card.targetYaw = card.yaw = cfg.defYaw || 0;
+    card.targetPitch = card.pitch = cfg.defPitch || 0;
+    // 闪光锚点：取背侧顶点
+    card.sparkles = [];
+    if (card.morphKey === 'shiny'){
+      for (i = 0; i < n; i += Math.max(2, Math.floor(n/18))){
+        var v = card.mesh.verts[i];
+        if (v.b > 0.25 && v.t > 0.08 && v.t < 0.9){
+          card.sparkles.push({ i:i, ph: Math.random()*6.28, f: 2.4 + Math.random()*2.6 });
+        }
+      }
+    }
+    card.tagEl.textContent = MORPHS[card.morphKey].label + (card.animate ? ' · 传说（会动）' : ' · 普通（静态）');
+  }
+
+  sel.addEventListener('change', function(){
+    card.typeKey = sel.value;
+    rebuild();
+  });
+
+  canvas.addEventListener('pointerdown', function(e){
+    card.dragging = true;
+    card.lastX = e.clientX; card.lastY = e.clientY;
+    canvas.classList.add('drag');
+    canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener('pointermove', function(e){
+    if (!card.dragging) return;
+    card.yaw += (e.clientX - card.lastX) * 0.010;
+    card.pitch += (e.clientY - card.lastY) * 0.008;
+    card.pitch = Math.max(-1.35, Math.min(1.35, card.pitch));
+    card.lastX = e.clientX; card.lastY = e.clientY;
+    card.releaseAt = 0;
+  });
+  function endDrag(){
+    if (!card.dragging) return;
+    card.dragging = false;
+    canvas.classList.remove('drag');
+    card.releaseAt = performance.now();
+  }
+  canvas.addEventListener('pointerup', endDrag);
+  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('lostpointercapture', endDrag);
+
+  rebuild();
+  cards.push(card);
+  return card;
+}
+
+/* ============================================================
+   6. 尺寸 / DPR
+   ============================================================ */
+function resizeAll(){
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  cards.forEach(function(c){
+    var r = c.canvas.getBoundingClientRect();
+    c.w = Math.round(r.width); c.h = Math.round(r.height);
+    c.canvas.width = Math.round(c.w * dpr);
+    c.canvas.height = Math.round(c.h * dpr);
+    c.dpr = dpr;
+  });
+}
+
+/* ============================================================
+   7. 逐帧渲染
+   ============================================================ */
+var lastT = 0, fps = 0, fpsAcc = 0, fpsN = 0, frameCount = 0;
+
+function drawCard(c, now, dt){
+  var cfg = c.mesh.cfg;
+  var ctx = c.ctx, W = c.w, H = c.h, dpr = c.dpr;
+  if (!W || !H) return;
+
+  // —— 回正：松手 2 秒后缓动回默认视角
+  if (!c.dragging && c.releaseAt && now - c.releaseAt > 2000){
+    var k = Math.min(1, (now - c.releaseAt - 2000) / 900);
+    var e = 1 - Math.pow(1 - k, 3);
+    c.yaw += ((cfg.defYaw||0) - c.yaw) * e * 0.16;
+    c.pitch += ((cfg.defPitch||0) - c.pitch) * e * 0.16;
+    if (k >= 1 && Math.abs(c.yaw - (cfg.defYaw||0)) < 0.004){ c.releaseAt = 0; }
+  }
+
+  var tsec = now / 1000;
+  var animate = c.animate;
+  var verts = c.mesh.verts, n = verts.length;
+  var ax = c.anim.x, ay = c.anim.y, az = c.anim.z;
+
+  // —— 顶点动画：侧向行进波 + 呼吸（只给传说档）
+  for (var i = 0; i < n; i++){
+    var v = verts[i];
+    var X = v.x, Y = v.y, Z = v.z;
+    if (animate){
+      var w = Math.pow(Math.max(v.t,0), 1.7);
+      var wave = Math.sin(tsec*2.5 - v.t*3.4) * 0.085 * w;
+      Z += wave;
+      if (cfg.ribbon) Y += Math.sin(tsec*2.5 - v.t*3.4 + 1.1) * 0.03 * w;
+      var breath = 1 + Math.sin(tsec*1.55) * 0.022;
+      Y *= breath; Z *= breath;
+    }
+    ax[i] = X; ay[i] = Y; az[i] = Z;
+  }
+
+  var view = makeView(W, H, c.yaw, c.pitch, 3.05);
+  var cosY = view.cy, sinY = view.sy, cosP = view.cp, sinP = view.sp;
+
+  for (i = 0; i < n; i++){
+    var x0 = ax[i], y0 = ay[i], z0 = az[i];
+    var xr = x0 * cosY + z0 * sinY;
+    var zr = -x0 * sinY + z0 * cosY;
+    var yr = y0 * cosP - zr * sinP;
+    var zr2 = y0 * sinP + zr * cosP;
+    var d = view.camZ - zr2;
+    if (d < 0.35) d = 0.35;
+    var s = view.f / d;
+    var p = c.proj[i];
+    p.x = view.cx + xr * s;
+    p.y = view.cyy - yr * s;
+    p.z = d;
+    p.s = s;
+  }
+
+  // —— 背景
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  var g = ctx.createRadialGradient(W*0.5, H*0.42, 10, W*0.5, H*0.5, Math.max(W,H)*0.72);
+  g.addColorStop(0, '#191d21');
+  g.addColorStop(1, '#0b0e11');
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,W,H);
+
+  // —— 三角面排序（画家算法：远 → 近）
+  var order = c.order, tris = c.mesh.tris, depth = c.depth;
+  for (i = 0; i < order.length; i++){
+    var k2 = order[i], tr = tris[k2];
+    depth[k2] = (c.proj[tr[0]].z + c.proj[tr[1]].z + c.proj[tr[2]].z) / 3;
+  }
+  order.sort(function(a,b){ return depth[b] - depth[a]; });
+
+  var mor = MORPHS[c.morphKey];
+  var Hv = animate ? norm([Math.cos(tsec*1.2)*0.55, 0.72, 0.42]) : LKEY;
+
+  for (i = 0; i < order.length; i++){
+    var ti = order[i];
+    var t3 = tris[ti];
+    var P0 = c.proj[t3[0]], P1 = c.proj[t3[1]], P2 = c.proj[t3[2]];
+    var a0x = ax[t3[0]], a0y = ay[t3[0]], a0z = az[t3[0]];
+    var a1x = ax[t3[1]], a1y = ay[t3[1]], a1z = az[t3[1]];
+    var a2x = ax[t3[2]], a2y = ay[t3[2]], a2z = az[t3[2]];
+    // 世界法线 → 视空间
+    var e1x = a1x-a0x, e1y = a1y-a0y, e1z = a1z-a0z;
+    var e2x = a2x-a0x, e2y = a2y-a0y, e2z = a2z-a0z;
+    var nx = e1y*e2z - e1z*e2y, ny = e1z*e2x - e1x*e2z, nz = e1x*e2y - e1y*e2x;
+    var nrx = nx*cosY + nz*sinY;
+    var nrz = -nx*sinY + nz*cosY;
+    var nry = ny*cosP - nrz*sinP;
+    var nrz2 = ny*sinP + nrz*cosP;
+    var nm = Math.sqrt(nrx*nrx + nry*nry + nrz2*nrz2) || 1;
+    nx = nrx/nm; ny = nry/nm; nz = nrz2/nm;
+    // 双面：法线朝观察者（视空间：x 右、y 上、z 朝相机）
+    var toCam = norm([ P0.x - view.cx, -(P0.y - view.cyy), view.f ]);
+    if (nx*toCam[0] + ny*toCam[1] + nz*toCam[2] < 0){ nx = -nx; ny = -ny; nz = -nz; }
+
+    var diff = Math.max(0, nx*Hv[0] + ny*Hv[1] + nz*Hv[2]);
+    var rimD = 1 - Math.abs(nx*toCam[0] + ny*toCam[1] + nz*toCam[2]);
+    var rim = Math.pow(Math.max(0, rimD), 2.6) * (0.55 + 0.45*Math.max(0, nx*LRIM[0]+ny*LRIM[1]+nz*LRIM[2]));
+    var up = ny;
+    var bellyT = Math.max(0, Math.min(1, (0.55 - up) / 1.25));   // 朝下的面偏腹部色
+    var mixD = (0.55 + 0.9*up);
+
+    var r = mix3(mor.belly, mor.back, Math.max(0, Math.min(1, mixD)));
+    var lit = AMB + diff * 0.62;
+    r = [r[0]*lit, r[1]*lit, r[2]*lit];
+
+    // 金属 / 镜面
+    if (mor.spec > 0){
+      var hx = Hv[0], hy = Hv[1], hz = Hv[2];
+      var hv = norm([hx + toCam[0], hy + toCam[1], hz + toCam[2]]);
+      var sp = Math.pow(Math.max(0, nx*hv[0] + ny*hv[1] + nz*hv[2]), mor.metallic ? 12 : 40) * mor.spec;
+      r = [r[0] + sp, r[1] + sp*0.96, r[2] + sp*0.72];
+    }
+
+    // 边缘光
+    r = [ r[0] + mor.rim[0]*rim*mor.rimK,
+          r[1] + mor.rim[1]*rim*mor.rimK,
+          r[2] + mor.rim[2]*rim*mor.rimK ];
+
+    if (mor.sparkle){
+      var iri = 0.5 + 0.5*Math.sin(nx*6 + ny*4 + tsec*1.4);
+      r[0] += 0.10*iri; r[1] += 0.14*(1-iri); r[2] += 0.18*iri;
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(P0.x, P0.y);
+    ctx.lineTo(P1.x, P1.y);
+    ctx.lineTo(P2.x, P2.y);
+    ctx.closePath();
+    var col = 'rgb(' + clamp255(r[0]) + ',' + clamp255(r[1]) + ',' + clamp255(r[2]) + ')';
+    ctx.fillStyle = col;
+    ctx.fill();
+    // 用同色描一圈：否则相邻三角面之间会露出底色的发丝缝（看起来像线框）
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1.2;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+  }
+
+  // —— 触手（细带，用同套光照粗略着色）
+  if (c.tent){
+    c.tent.forEach(function(pts){
+      for (var s = 0; s < pts.length-1; s++){
+        var p0 = pts[s], p1 = pts[s+1];
+        var w0 = 0.016*(1-p0.u*0.6), w1 = 0.012*(1-p1.u*0.6);
+        var swx = animate ? Math.sin(tsec*2.1 - s*0.7 + p0.ph)*0.05*p0.u : 0;
+        var pj0 = projectPoint(c, view, p0.x+swx, p0.y, p0.z, dpr);
+        var pj1 = projectPoint(c, view, p1.x+swx, p1.y, p1.z, dpr);
+        if (!pj0 || !pj1) continue;
+        var sc0 = view.f / pj0.z, sc1 = view.f / pj1.z;
+        var wid0 = w0*sc0, wid1 = w1*sc1;
+        var dx = pj1.x-pj0.x, dy = pj1.y-pj0.y;
+        var len = Math.sqrt(dx*dx+dy*dy) || 1;
+        var ox = -dy/len, oy = dx/len;
+        ctx.beginPath();
+        ctx.moveTo(pj0.x+ox*wid0, pj0.y+oy*wid0);
+        ctx.lineTo(pj1.x+ox*wid1, pj1.y+oy*wid1);
+        ctx.lineTo(pj1.x-ox*wid1, pj1.y-oy*wid1);
+        ctx.lineTo(pj0.x-ox*wid0, pj0.y-oy*wid0);
+        ctx.closePath();
+        var l = 0.30 + 0.35*(1 - p0.u);
+        ctx.fillStyle = 'rgb(' + clamp255(c.bellyCache[0]*l) + ',' +
+                        clamp255(c.bellyCache[1]*l) + ',' + clamp255(c.bellyCache[2]*l) + ')';
+        ctx.fill();
+      }
+    });
+  }
+
+  // —— 闪光星点
+  if (mor.sparkle && c.sparkles.length){
+    var maxD = 0; for (i=0;i<n;i++) if (c.proj[i].z > maxD) maxD = c.proj[i].z;
+    c.sparkles.forEach(function(sk){
+      var p = c.proj[sk.i];
+      var tw = Math.sin(tsec*sk.f + sk.ph);
+      if (tw < 0.25) return;
+      var a = (tw - 0.25) / 0.75;
+      var sz = (1.6 + 3.4*a) * (c.proj[sk.i].s / (view.f/3)) * 1.6;
+      var gg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, sz*3.2);
+      gg.addColorStop(0, 'rgba(255,255,255,' + (0.95*a) + ')');
+      gg.addColorStop(0.35, 'rgba(190,235,255,' + (0.45*a) + ')');
+      gg.addColorStop(1, 'rgba(120,200,255,0)');
+      ctx.fillStyle = gg;
+      ctx.beginPath(); ctx.arc(p.x, p.y, sz*3.2, 0, 6.2832); ctx.fill();
+    });
+  }
+
+  frameCount++;
+}
+
+function projectPoint(c, view, x0, y0, z0, dpr){
+  var cosY = view.cy, sinY = view.sy, cosP = view.cp, sinP = view.sp;
+  var xr = x0*cosY + z0*sinY;
+  var zr = -x0*sinY + z0*cosY;
+  var yr = y0*cosP - zr*sinP;
+  var zr2 = y0*sinP + zr*cosP;
+  var d = view.camZ - zr2; if (d < 0.35) d = 0.35;
+  var s = view.f / d;
+  return { x: view.cx + xr*s, y: view.cyy - yr*s, s: s, z: d };
+}
+function mix3(a, b, t){
+  return [ a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t ];
+}
+function clamp255(v){ v = Math.round(v*255); return v < 0 ? 0 : (v > 255 ? 255 : v); }
+
+/* ============================================================
+   8. 启动
+   ============================================================ */
+makeCard({ title:'① 普通鱼 · 原色',  type:'fish',  morph:'normal', animate:false });
+makeCard({ title:'② 传说鱼 · 黄金',  type:'shark', morph:'golden', animate:true });
+makeCard({ title:'③ 传说鱼 · 闪光',  type:'fish',  morph:'shiny',  animate:true });
+
+cards.forEach(function(c){ c.bellyCache = MORPHS[c.morphKey].belly; });
+
+resizeAll();
+window.addEventListener('resize', resizeAll);
+
+var statEl = document.getElementById('stat');
+function tick(now){
+  var dt = lastT ? (now - lastT) : 16;
+  lastT = now;
+  if (dt > 0 && dt < 250){ fpsAcc += 1000/dt; fpsN++; }
+
+  cards.forEach(function(c){ drawCard(c, now, dt); });
+
+  if (fpsN >= 20){
+    fps = fpsAcc / fpsN; fpsAcc = 0; fpsN = 0;
+    var tris = cards.reduce(function(s,c){ return s + c.triCount; }, 0);
+    var verts = cards.reduce(function(s,c){ return s + c.mesh.verts.length; }, 0);
+    statEl.innerHTML =
+      '<b>量化数据</b>（三条鱼同时渲染）　' +
+      '帧率 <span class="k">' + fps.toFixed(1) + '</span> fps　·　' +
+      '三角面 <span class="k">' + tris + '</span> 个　·　' +
+      '顶点 <span class="k">' + verts + '</span> 个　·　' +
+      '每帧填充 <span class="k">' + tris + '</span> 次<br>' +
+      '旋转：拖动任意一条鱼，横拖改偏航、竖拖改俯仰，松手 <span class="k">2</span> 秒后缓动回默认视角　·　' +
+      '鳐鱼默认俯视 <span class="k">60°</span>（侧视下它只是一条细缝，正面看不出是鳐）<br>' +
+      '动画：<span class="pill ' + (cards[0].animate?'on':'off') + '">普通鱼 静态</span>' +
+      '<span class="pill on">传说鱼 摆动 + 呼吸</span>' +
+      '<span class="pill on">闪光色 移动高光 + 星点</span>';
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+window.__proto = {
+  cards: cards,
+  setYaw: function(i, y){ cards[i].yaw = y; cards[i].releaseAt = 0; },
+  setPitch: function(i, p){ cards[i].pitch = p; cards[i].releaseAt = 0; },
+  setType: function(i, t){ cards[i].selEl.value = t; cards[i].typeKey = t;
+    cards[i].selEl.dispatchEvent(new Event('change')); },
+  fps: function(){ return fps; },
+  triCounts: function(){ return cards.map(function(c){ return c.triCount; }); }
+};
+})();
+</script>
+</body>
+</html>

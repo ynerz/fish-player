@@ -47,7 +47,7 @@ echo.
 if not "%RC%"=="0" echo [!] last segment exit code = %RC%
 if "%BUDGET%"=="0" goto done
 echo [%TIME%] segment done, next in 2 s...
-timeout /t 2 /nobreak >nul
+ping -n 3 127.0.0.1 >nul
 goto loop
 
 :done

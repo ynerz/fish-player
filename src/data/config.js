@@ -205,6 +205,10 @@ G.CONFIG = {
     minDur: 180, maxDur: 480,
     /* 游戏内一天多少秒 —— 20 分钟一整轮昼夜 */
     dayLen: 1200,
+    /* 游戏内时钟的整体偏移（小时）：+4 让「晨 4~10」落在 4:00 而不是 0:00。
+       ⚠️ 纯显示用（只影响 `Weather.snapshot().clock` 打印的 HH:MM），不是平衡数值；
+          放在这里是为了和 dayLen / times 这几个同族常量待在一起。 */
+    clockOffsetH: 4,
     times: [
       { key:'dawn',  name:'晨', icon:'🌅', rareMul:1.12, colorBoost:1.10,
         tint:'rgba(255,186,132,.16)', tip:'鱼在补水，咬口凶。' },

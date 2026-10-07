@@ -2170,6 +2170,31 @@ ok(bb2.x > bb0.x + 0.2,
   `fish：传说档尾鳍飘带把剪影拉长（${bb0.x.toFixed(2)} → ${bb2.x.toFixed(2)}）—— 64px 下靠它认出来`);
 })();
 
+/* =========================================================
+   Weather —— 游戏内时钟的偏移必须来自 config
+   踩过的（2026-10-07 自动化发现）：`CLOCK_OFFSET_H = 4` 与 24 小时换算被写死在
+   weather.js 模块里，而 dayLen / times 这些同族常量都在 config。
+   这条断言把四个时段的钟点与 `config.weather.clockOffsetH` 绑在一起 ——
+   偏移一旦被丢掉（或又写死回模块里）：「晨」会从 04:00 掉回 00:00，立刻报红。
+   ========================================================= */
+G_('Weather · 游戏内时钟的偏移读自 config');
+(function () {
+  const W = G.CONFIG.weather;
+  if (!G.Weather.isReady()) G.Weather.init(0);
+  const prev = G.Weather.snapshot();
+
+  W.times.forEach((t, i) => {
+    G.Weather.set(prev.wx.key, t.key);
+    const hour = Math.floor(((i / W.times.length) * 24 + W.clockOffsetH) % 24);
+    const exp = (hour < 10 ? '0' : '') + hour + ':00';
+    ok(G.Weather.snapshot().clock === exp,
+       `${t.name}（第 ${i} 段）钟点 = ${exp} —— tClock 起点 + config.weather.clockOffsetH=${W.clockOffsetH}`);
+  });
+
+  /* 复位：把时段放回原样（`set` 会把 tClock 对齐到该时段的起点，天气本身不变） */
+  G.Weather.set(prev.wx.key, prev.tm.key);
+})();
+
 /* ---------- 汇总 ---------- */
 console.log('\n' + '='.repeat(52));
 if (fail) { console.log(`\u2716 测试未通过：${pass} 通过 / ${fail} 失败\n`); process.exit(1); }

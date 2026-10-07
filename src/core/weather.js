@@ -99,11 +99,11 @@ G.Weather = (function () {
   }
 
   /* 游戏内时钟 HH:MM
-     四个时段各占 6 小时，整体 +4 小时偏移，让「晨」落在 4:00 而不是 0:00：
+     四个时段各占 6 小时，整体按 `config.weather.clockOffsetH` 偏移，
+     让「晨」落在 4:00 而不是 0:00：
        晨 4~10 ｜ 昼 10~16 ｜ 暮 16~22 ｜ 夜 22~4 */
-  var CLOCK_OFFSET_H = 4;
   function fmtClock() {
-    var total = Math.floor(((tClock / W.dayLen) * 24 + CLOCK_OFFSET_H) % 24 * 60);
+    var total = Math.floor(((tClock / W.dayLen) * 24 + W.clockOffsetH) % 24 * 60);
     var h = Math.floor(total / 60), m = total % 60;
     return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
   }

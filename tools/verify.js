@@ -1445,6 +1445,25 @@ let deadExportBad = 0;
   if (!deadExportBad) ok(`${modCount} 个模块共 ${checked} 个导出都有真实消费方，白名单只留控制台 API 与外部上报接入点`);
 })();
 
+/* 32-b 运行时兜底：短名字的按名扫描有假阴性（`state` / `resize` / `set` / `flush`
+   这些名字很容易在别处撞上同名字段，于是 `exportKeys` + 全文正则这套网会漏掉它们），
+   所以对「已经删过一次的死接口」做一次**运行时**回归 —— 只许消失，不许悄悄回来。
+   （这条正是上面 ㉜ 扫不到的那类：`Scene.state` / `Scene.resize` 挂了很久没人发现。） */
+console.log('\n[32-b] 已清理过的死接口不许复活（运行时按路径取值）');
+(function () {
+  const REMOVED = ['Scene.state', 'Scene.resize', 'Scene.getRodTip', 'Scene.getFloat',
+    'Platform.sys.isWeb', 'Platform.input.upOn', 'Loot.envWeight', 'Loot.pickInBucket',
+    'Fight.isRunning', 'Audio.isEnabled', 'Audio.getVolume', 'Tutorial.isFinished',
+    'Panels.getPendingCatch', 'Panels.hideCatch', 'FishArt.paintTo'];
+  const at = p => p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), sandbox.G);
+  const back = REMOVED.filter(p => at(p) !== undefined);
+  if (back.length) {
+    err(`这些死接口又被加回导出面了：${back.join('、')}（零消费的导出要删掉，别留「看着像基础设施」的 API）`);
+  } else {
+    ok(`${REMOVED.length} 条已知死接口在运行时确认仍然不存在`);
+  }
+})();
+
 
 /* ---------------- 33. 体型数量：文档 / 出图工具必须与代码一致 ----------------
    代码里是 **9 种**（`TPL.fish / eel / ray / squid / jelly / oarfish / shark / whale / dragon`），

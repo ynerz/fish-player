@@ -1417,17 +1417,19 @@ G.Scene = (function () {
     ctx.fillRect(0, 0, W, H);
   }
 
-  /* ---------------- 取用 ---------------- */
+  /* ---------------- 取用 ----------------
+     ⚠️ 只保留真的有外部消费方的接口（verify 第 ㉕ / ㉜ 节的判据）。
+     已删：`getRodTip` / `getFloat`（场景内部直接用 `rodTipX()` / `floatX()`）、
+           `state`（内部靠裸名 `S`，外部没人读 `G.Scene.state`）、
+           `resize`（尺寸变化由本文件内部监听窗口事件处理，外部没人调 `G.Scene.resize`）。 */
   function setRodBend(v) { S.rodBend = v; }
-  /* ⚠️ getRodTip() / getFloat() 已删：全项目零调用（场景内部直接用 rodTipX()/floatX()）。 */
 
   return {
-    init: init, render: render, resize: resize,
+    init: init, render: render,
     setField: setField, setDecor: setDecor,
     cast: cast, beginWait: beginWait, bite: bite, floatNudge: floatNudge,
     beginFight: beginFight, endFight: endFight,
     splash: splash, sparkle: sparkle, showShadow: showShadow,
     setRodBend: setRodBend,
-    state: S,
   };
 })();

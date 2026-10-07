@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>three.js 对照预览（真实鱼网格）</title>
+<style>
+  html,body{margin:0;height:100%;background:#1b1e22;color:#cfd6dd;
+    font:13px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+  #cv{display:block;width:100%;height:100%}
+  #hud{position:absolute;left:12px;top:12px;padding:10px 12px;border-radius:10px;
+    background:rgba(20,22,26,.86);border:1px solid #333a42;max-width:460px}
+  #hud b{color:#9fd3ff;font-weight:500}
+  #hud code{font-family:ui-monospace,Consolas,monospace;color:#ffd08a}
+  .k{color:#8b98a5}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="hud">
+  <div><b>three.js（r<span id="rev">?</span>）渲染 · 真实鱼网格</b></div>
+  <div class="k">网格来源：项目自己的 <code>G.FishMesh.build()</code>（不是另造一份）</div>
+  <div class="k">光照参数抄自 <code>mesh3d.js</code>：ambient 0.10 / key / rim</div>
+  <div id="stat">初始化中…</div>
+</div>
+
+<script src="../vendor/three.min.js"></script>
+<script src="../src/data/config.js"></script>
+<script src="../src/data/fields.js"></script>
+<script src="../src/data/fish.js"></script>
+<script src="../src/render/fishmesh.js"></script>
+<script src="../src/render/fishpaint.js"></script>
+<script>
+(function () {
+  var G = window.G || {};
+  var out = [];
+  function log(s) { out.push(s); console.log(s); }
+
+  log('THREE.REVISION=' + (window.THREE ? THREE.REVISION : 'MISSING'));
+  if (!window.THREE) { document.getElementById('stat').textContent = 'THREE 未加载'; return; }
+  document.getElementById('rev').textContent = THREE.REVISION;
+
+  // ── 光照：参数与 mesh3d.js 的 LIGHT 对齐，便于同条件对比 ──
+  function light(dir, gain) {
+    var l = new THREE.DirectionalLight(0xffffff, gain);
+    l.position.set(dir[0], dir[1], dir[2]);
+    return l;
+  }
+
+  var canvas = document.getElementById('cv');
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(0x1b1e22, 1);
+
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+  camera.position.set(0, 0.2, 9.6);
+  camera.lookAt(0, 0, 0);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.10));
+  scene.add(light([-0.32, 0.72, 0.42], 1.00));
+  scene.add(light([0.26, 0.60, -0.78], 0.50));
+
+  // ── 配色：走项目自己的 FishPaint（拿不到就退回中性色）──
+  // ⚠️ `fromFish()` 返回的字段是 `back` / `belly`（不是 body/accent）——
+  //    内部走的是 `palette(fish.body, fish.accent, morphKey)`，出来的是一组**渲染用**的
+  //    颜色（back/belly/rim/rimK/spec/metallic/spin/sparkle），不是原始色。
+  //    取错了会静默拿到 undefined → 整批鱼变灰（第一次跑就栽在这）。
+  function toColour(v, fb) {
+    var c = new THREE.Color(fb);
+    if (v == null) return c;
+    if (typeof v === 'number') return c.setHex(v);
+    if (typeof v === 'string') return c.set(v);
+    if (Array.isArray(v) && v.length >= 3) return new THREE.Color(v[0], v[1], v[2]);
+    return c;
+  }
+  function colours(f) {
+    var p = {};
+    try { p = G.FishPaint.fromFish(f) || {}; }
+    catch (e) { log('  FishPaint 不可用：' + e.message); }
+    return { body: toColour(p.back, f.body || f.c1 || '#8fa2b0'),
+             accent: toColour(p.belly, f.accent || f.c2 || '#5f7280') };
+  }
+
+  // ── 网格 → three.js：非索引化 + 每面一个颜色 + flatShading ──
+  //    必须「非索引化」：一个面三个顶点各带自己的颜色，配合 flatShading 才有硬边平涂；
+  //    用索引几何体会让相邻面共享顶点、颜色被插值糊掉，低多边形的棱就没了。
+  function toGeometry(mesh, col) {
+    var verts = mesh.verts, tris = mesh.tris;
+    var pos = new Float32Array(tris.length * 9);
+    var colr = new Float32Array(tris.length * 9);
+    var cb = col.body, ca = col.accent;
+    var k = 0;
+    for (var i = 0; i < tris.length; i++) {
+      var t = tris[i];
+      // 腹部（b 大）向 accent 靠，背部向 body 靠 —— 与 mesh3d 的两色身体同一思路
+      var bAvg = (verts[t[0]].b + verts[t[1]].b + verts[t[2]].b) / 3;
+      var c = cb.clone().lerp(ca, Math.max(0, Math.min(1, bAvg)));
+      for (var j = 0; j < 3; j++) {
+        var v = verts[t[j]];
+        pos[k] = v.x; pos[k + 1] = v.y; pos[k + 2] = v.z;
+        colr[k] = c.r; colr[k + 1] = c.g; colr[k + 2] = c.b;
+        k += 3;
+      }
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.BufferAttribute(colr, 3));
+    g.computeVertexNormals();
+    return g;
+  }
+
+  var SHAPES = ['fish', 'shark', 'ray', 'squid', 'jelly', 'eel', 'oarfish', 'whale', 'dragon'];
+  var group = new THREE.Group();
+  scene.add(group);
+  var nTri = 0, nMesh = 0;
+
+  // ⚠️ 必须**扫全表**：清单是按「普通→稀有→史诗→传说」排的，只取前 40 条
+  //    会清一色是鱼形/鳗形，另外 7 个体型一个都进不来（第一次跑就栽在这）。
+  var byShape = {};
+  (G.FISH || []).forEach(function (f) { if (!byShape[f.shape]) byShape[f.shape] = f; });
+  var used = SHAPES.filter(function (s) { return byShape[s]; });
+
+  var mat = new THREE.MeshLambertMaterial({
+    vertexColors: true, flatShading: true, side: THREE.DoubleSide
+  });
+
+  for (var s = 0; s < used.length; s++) {
+    var ff = byShape[used[s]];
+    var mesh;
+    try { mesh = G.FishMesh.build(used[s], { detail: 1 }); }
+    catch (e) { log('  build 失败 ' + used[s] + '：' + e.message); continue; }
+    var geom = toGeometry(mesh, colours(ff));
+    var m = new THREE.Mesh(geom, mat);
+    var col = s % 3, row = Math.floor(s / 3);
+    m.position.set((col - 1) * 2.5, 1.35 - row * 1.35, 0);
+    m.rotation.y = -0.5;
+    m.userData.name = used[s] + ' / ' + byShape[used[s]].name;
+    group.add(m);
+    nTri += mesh.tris.length; nMesh++;
+  }
+  log('已建 ' + nMesh + ' 条鱼（' + used.join('/') + '），三角面合计 ' + nTri);
+
+  // ── 自适应尺寸 ──
+  function resize() {
+    var w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // ── 帧数实测（预热 30 帧后计 120 帧）──
+  var frames = 0, t0 = 0, warm = 0, done = false;
+  function loop() {
+    if (done) return;
+    requestAnimationFrame(loop);
+    group.rotation.y += 0.004;
+    renderer.render(scene, camera);
+    frames++;
+    if (warm < 30) { warm++; return; }
+    if (!t0) { t0 = performance.now(); frames = 0; return; }
+    if (frames >= 120) {
+      var ms = performance.now() - t0;
+      var fps = 120000 / ms;
+      var msg = 'PERF fps=' + fps.toFixed(1) + ' frame=' + (ms / 120).toFixed(2) + 'ms'
+              + ' meshes=' + nMesh + ' tris=' + nTri;
+      document.getElementById('stat').textContent =
+        '帧数 ' + fps.toFixed(1) + ' fps（' + (ms / 120).toFixed(2) + ' ms/帧）· '
+        + nMesh + ' 条鱼 · ' + nTri + ' 个三角面';
+      log(msg);
+      log('PREVIEW_OK');
+      document.title = 'PERF ' + fps.toFixed(1) + 'fps';
+      done = true;
+    }
+  }
+  loop();
+})();
+</script>
+</body>
+</html>

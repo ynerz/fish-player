@@ -76,6 +76,28 @@ function isProseNeedle(n) {
   return /\s/.test(n) || (n.match(/[\u4e00-\u9fff]/g) || []).length >= 4;
 }
 
+/* ---------- 引用豁免（只给**开发向**文档用，见第 28 节的措辞禁令） ----------
+   写规则说明时难免要**提到**被禁的那句话（「不许写成 `上鱼速度`」），
+   于是断言把自己要解释的东西也一起报红了 —— 想讲清规则反而得绕开它。
+   所以：把**被引号 / 反引号包起来**的片段挖空再匹配。
+   ⚠️ 三条边界，缺一条这个豁免就会变成假通过：
+     ① **只对措辞类禁令**用，数值类禁令不用（文档里写死数字就是错，与加不加引号无关）；
+     ② **只对开发向文档**用（`开发者文档` / `GDD` / `README`）；`说明书.html` 是玩家向手册，
+        它写的「引号」就是**真的界面文案**，一律照原文匹配；
+     ③ **源码永不豁免** —— 源码里的字符串本身就是违规载体（`err('…七个钓场…')` 那种）。
+      第 28 节末尾有一条自检盯着 ②③ 没被写宽。 */
+function maskQuoted(t) {
+  return String(t)
+    .replace(/`[^`\n]*`/g, ' ')
+    .replace(/「[^」\n]*」/g, ' ')
+    .replace(/“[^”\n]*”/g, ' ')
+    .replace(/‘[^’\n]*’/g, ' ')
+    .replace(/"[^"\n]*"/g, ' ')
+    .replace(/'[^'\n]*'/g, ' ');
+}
+const DEV_DOCS = ['docs/GDD.md', 'docs/开发者文档.md', 'README.md'];
+const PLAYER_DOCS = ['docs/说明书.html'];
+
 /* ---------------- 1. 稀有度权重合计 ---------------- */
 console.log('\n[1] 各钓场稀有度权重合计 = 100%');
 G.FIELDS.forEach(f => {
@@ -1243,9 +1265,17 @@ if (baitTimeHits < 2) {
 if (!has(panelsCode, '提前收杆')) {
   err('panels.js 的鱼饵消耗说明没提「提前收杆退饵」，与 v0.5.7 的口径不一致'); baitWordBad++;
 }
-['docs/GDD.md', 'docs/说明书.html'].forEach(f => {
+/* 文档侧的两条措辞禁令走「引用豁免」：玩家向手册照原文，开发向文档允许用引号引用反例。 */
+PLAYER_DOCS.forEach(f => {
   const t = fs.readFileSync(path.join(ROOT, f), 'utf8');
   if (has(t, '上鱼速度')) { err(`${f} 的鱼饵表还写着「上鱼速度」`); baitWordBad++; }
+});
+DEV_DOCS.forEach(f => {
+  if (!fs.existsSync(path.join(ROOT, f))) return;
+  const t = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  if (has(maskQuoted(t), '上鱼速度')) {
+    err(`${f} 的鱼饵表还写着「上鱼速度」（且**不是**引号包起来的反例）`); baitWordBad++;
+  }
 });
 if (!baitWordBad) ok('商店 / GDD / 说明书都按「咬口时间」表述（越小越快），方向不再说反');
 
@@ -1253,8 +1283,9 @@ if (!baitWordBad) ok('商店 / GDD / 说明书都按「咬口时间」表述（�
    **全程没读剪贴板**。文档里写「从剪贴板导入」会让玩家以为要先把内容放进剪贴板；
    而 GDD / 开发者文档 / README **三份各写了一遍** —— 正是「同一件事被写 N 遍」的高危型。 */
 let impWordBad = 0;
-const impDocs = ['docs/GDD.md', 'docs/开发者文档.md', 'README.md'].filter(f =>
-  has(fs.readFileSync(path.join(ROOT, f), 'utf8'), '从剪贴板导入'));
+const impDocs = DEV_DOCS.filter(f =>
+  fs.existsSync(path.join(ROOT, f))
+  && has(maskQuoted(fs.readFileSync(path.join(ROOT, f), 'utf8')), '从剪贴板导入'));
 if (impDocs.length) {
   err(`文档里的存档导入措辞与实现不符（实际是粘进对话框，不读剪贴板）：${impDocs.join('、')}`);
   impWordBad++;
@@ -1264,6 +1295,23 @@ if (panelsCode.indexOf('dialog.prompt') < 0) {
   impWordBad++;
 }
 if (!impWordBad) ok('存档导入的措辞与实现一致（导出到剪贴板 / 粘进对话框导入，不读剪贴板）');
+
+/* 引用豁免的**行为自检**（照第 38 节那套做法：光有规则不够，得证明它真的这么工作）。
+   ⚠️ 这个豁免的本质是「把某一类对象整体放行」—— 最危险的写法就是放行范围写宽了还不自知
+   （放行条件写宽 = 假通过，比不写还危险）。所以三件事当场证明：
+     ① 引号 / 反引号里 → 豁免；② 裸写 → 照报；③ 玩家向手册**不**豁免。 */
+(function () {
+  const cases = [['`上鱼速度`', false], ['「上鱼速度」', false], ['这就叫上鱼速度', true]];
+  let selfBad = 0;
+  cases.forEach(c => {
+    if (has(maskQuoted(c[0]), '上鱼速度') !== c[1]) {
+      err(`引用豁免自检失败：${c[0]} 应${c[1] ? '报红' : '豁免'}`); selfBad++;
+    }
+  });
+  if (!has('`上鱼速度`', '上鱼速度')) { err('玩家向手册的匹配必须照原文（不许走豁免）'); selfBad++; }
+  if (selfBad) baitWordBad += selfBad;
+  else ok('引用豁免自检：引号内豁免 / 裸写照报 / 玩家向手册不豁免');
+})();
 
 
 /* ---------------- 29. 界面里的文案数值与配色常量都要单一来源 ----------------

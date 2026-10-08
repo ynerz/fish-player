@@ -135,6 +135,13 @@ G.Platform = (function () {
     onBlur: function (fn) {
       try { window.addEventListener('blur', fn); } catch (e) {}
     },
+    /* 是否跑在 `file://` 下（双击打开的开发期形态）。
+       消费方：`G.Assets.mode()` —— 决定素材走 `inline`（内联）还是 `external`（同目录文件）。
+       ⚠️ 加这个能力是**因为有真实消费方**；项目里删过没有消费方的 `isWeb`，
+          不许再留「看着像基础设施」的字段（第 ㉜-c 节会要求每个子键都有调用点）。 */
+    isFile: function () {
+      return !!(window.location && window.location.protocol === 'file:');
+    },
     /* 整体重载（重置存档、导入存档之后用）。
        小程序端要换成 reLaunch / navigateTo 的等价动作 —— 所以别在业务代码里写 location.reload。 */
     reload: function () {
@@ -195,6 +202,25 @@ G.Platform = (function () {
     },
   };
 
+  /* ---------------- 图像 ---------------- */
+  /* 图片加载的**唯一**口径。业务代码不许写 `new Image()`（第 ㊱ 节按字面量拦）。
+     小程序端换成 `wx.createImage()` —— 同名 API，src / onload / onerror 都在。 */
+  var image = {
+    create: function () { return new Image(); },
+    /* 加载一张图。成功给 Image 对象、失败给 **null**（不抛、不 reject）。
+       为什么给 null 而不是 reject：**素材缺失是常态** —— 卡图是分批跑出来的，
+       任何时刻都可能有一半的鱼还没出图。调用方要的是「有就用、没有就走回退」，
+       不是异常处理；用 reject 只会换来一堆没人接的 unhandled rejection。 */
+    load: function (url) {
+      return new Promise(function (res) {
+        var im = image.create();
+        im.onload = function () { res(im); };
+        im.onerror = function () { res(null); };
+        im.src = url;
+      });
+    },
+  };
+
   return {
     storage: storage,
     audio: audio,
@@ -203,5 +229,6 @@ G.Platform = (function () {
     input: input,
     clipboard: clipboard,
     dialog: dialog,
+    image: image,
   };
 })();

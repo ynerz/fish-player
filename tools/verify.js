@@ -2422,6 +2422,9 @@ let platBad = 0;
        从没覆盖过它，直到 2026-10-08 才被一次全项目 API 扫描翻出来。
        主循环的 dt、鱼缸动画的相位都靠这个时钟，换平台时两边必须一起换。 */
     ['performance.now（直接取时）', /(^|[^\w$.])performance\s*\.\s*now\s*\(/],
+    /* 图片加载也是平台能力：Web 端是 `new Image()`，小程序端是 `wx.createImage()`。
+       业务代码不许自己建 —— 统一走 `G.Platform.image`（消费方：`G.Assets`）。 */
+    ['new Image（直接建图片）', /(^|[^\w$.])new\s+Image\s*\(/],
   ];
   const rel = [];
   (function walk(dir) {

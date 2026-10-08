@@ -29,7 +29,7 @@ global.localStorage = {
 };
 ['src/data/config.js', 'src/data/fields.js', 'src/data/fish.js', 'src/data/items.js',
  'src/data/goals.js',
- 'src/core/util.js', 'src/core/platform.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js',
+ 'src/core/util.js', 'src/core/platform.js', 'src/core/assets.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js',
  'src/core/goals.js', 'src/core/weather.js', 'src/core/fishing.js', 'src/core/track.js',
  'src/render/fishpaint.js',
  'src/ui/tutorial.js']
@@ -2101,6 +2101,57 @@ G_('Weather · 游戏内时钟的偏移读自 config');
 
   /* 复位：把时段放回原样（`set` 会把 tClock 对齐到该时段的起点，天气本身不变） */
   G.Weather.set(prev.wx.key, prev.tm.key);
+})();
+
+/* =========================================================
+   Assets —— 素材表（外部素材的唯一取用口径）
+   规格：docs/开发者文档.md §7
+   ⚠️ 这里**只测「键 → 地址」这一段纯逻辑**。真正的图片加载是异步的，
+      本文件是同步测试器（跑不了 promise），那一段在浏览器里实跑验证。
+      但**风险最大的恰恰是这一段** —— 路径拼错 / 档位名打错 / 键认不出来，
+      都是「不报错但拿到 404」的静默失效，所以必须在这儿钉住。
+   ========================================================= */
+G_('Assets —— 键 → 地址（纯逻辑）');
+(function () {
+  const A = G.Assets;
+
+  ok(A.mode() === 'inline' || A.mode() === 'external',
+     `mode()：只可能是 inline / external（Node 没有 location ⇒ 实得「${A.mode()}」）`);
+
+  ok(A.resolve('fishcard:A01') === 'assets/cards/A01.png',
+     'resolve()：原色卡 = <id>.png');
+  ok(A.resolve('fishcard:A01:golden') === 'assets/cards/A01-golden.png',
+     'resolve()：档位卡 = <id>-<档位>.png');
+
+  /* 档位名必须来自 config.colorMorphs —— 写错要**直接拦掉**，而不是拼出一个不存在的路径。
+     这是本模块最容易出的静默失效：拼错了不会报错，只会 404。 */
+  ok(A.resolve('fishcard:A01:noSuchMorph') === null,
+     'resolve()：不在 config.colorMorphs 里的档位 → null（拦掉拼错的路径）');
+  CFG.colorMorphs.forEach(cm => ok(!!A.resolve('fishcard:A01:' + cm.key),
+     `resolve()：档位「${cm.name}」（${cm.key}）认得`));
+
+  ok(A.resolve('fishcard:') === null, 'resolve()：没有 id → null');
+  ok(A.resolve('fishcard:A01:golden:extra') === null, 'resolve()：键段数过多 → null');
+  ok(A.resolve('nope:A01') === null, 'resolve()：不认识的键前缀 → null');
+  ok(A.resolve('') === null && A.resolve(null) === null && A.resolve(undefined) === null,
+     'resolve()：空 / null / undefined 都不抛，返回 null');
+  ok(A.resolve('fishcard:../etc/passwd') === null && A.resolve('fishcard:a/b') === null,
+     'resolve()：id 里的路径字符被拦掉（只允许字母数字，不许穿目录）');
+
+  ok(A.fishKey('A01') === 'fishcard:A01' && A.fishKey('A01', 'shiny') === 'fishcard:A01:shiny',
+     'fishKey()：拼键口径与 resolve() 一致（不许两处各拼一套）');
+
+  /* 上云：把前缀换掉即可，业务代码一行都不用改 */
+  A.setBase('https://cdn.example.com/');
+  ok(A.resolve('fishcard:A01') === 'https://cdn.example.com/assets/cards/A01.png',
+     'setBase()：上云前缀生效（路径拼接只有这一处真相）');
+  A.setBase('');
+  ok(A.resolve('fishcard:A01') === 'assets/cards/A01.png', 'setBase(\'\')：还原回同目录');
+
+  const u = A.used();
+  ok(typeof u.ok === 'number' && typeof u.fail === 'number' && typeof u.cached === 'number',
+     'used()：返回 { ok, fail, cached } 三个数（开发者面板读它显示家底）');
+  ok(A.reset() === undefined && A.used().ok === 0, 'reset()：清空统计（自测之间不许互相污染）');
 })();
 
 /* ---------- 汇总 ---------- */

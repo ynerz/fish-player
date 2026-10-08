@@ -162,6 +162,15 @@ G.Cheat = (function () {
     ['+100 生态值', function () { return addEco(100); }],
     ['解锁全部装饰', function () { return allDecors(); }],
     ['日志条数', function () { return trackCount(); }],
+    /* 素材家底。它是 `G.Assets.mode()` 的**唯一消费方** ——
+       项目删过没有消费方的 `isWeb`，所以「加能力必须同时有读它的地方」。
+       用处很具体：客户机 / 双击打开时卡面不出来，先看这一行是 inline 还是 external。 */
+    ['素材家底', function () {
+      if (!G.Assets) return '未加载 G.Assets';
+      var u = G.Assets.used();
+      return '模式 ' + G.Assets.mode() + '｜已加载 ' + u.ok + '｜失败 ' + u.fail +
+             '｜缓存 ' + u.cached + '｜目录 assets/cards/';
+    }],
     ['导出日志', function () { return copyTrack(); }],
     ['清空日志', function () { G.Track && G.Track.clear(); return '已清空（含磁盘）'; }],
     ['造一个错误', function () { try { null.x = 1; } catch (e) { G.Track.error('devtools 自测', e); } return '已记录 1 条'; }],

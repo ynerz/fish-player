@@ -784,15 +784,57 @@ def species_tag(f):
     return name
 
 
+# —— 显式比例句（2026-10-08，用户报障「都像普通鱼，实际是更细长的鱼」）——
+#   🔴 为什么必需：`form` 里的 "laterally compressed" / "fusiform" / "keeled belly" 是
+#      **鱼类学术语**，扩散模型读不懂 —— 更糟的是 "laterally compressed"（侧扁）在它那里
+#      会读成「身体被压扁」，反而把鱼画厚。实测：D02 白条 的 form 明明写着
+#      "an elongated laterally compressed body"，出图却是约 2.9:1 的厚实鱼；
+#      加一句**可量的视觉比例**后立刻变细长（对照 docs/images/prompt-fix/）。
+#   🔴 为什么以前完全没用上：`form_profile()` 在「有查证过的 form」时**提前 return**，
+#      于是 `body_ratio` 这条推导路径对 **362 条鱼全部失效**（而 362 条都有 form）。
+#      `body_ratio` 恰恰是唯一直接编码「细长 vs 粗壮」的数值：白条 0.22、河鲀 0.78、
+#      翻车鱼 0.86。本函数把它从失效路径里救出来。
+#   ⚠️ **位置很重要**：必须紧跟**物种名之后**、其它形态描述之前 —— 实测放前面才压得住
+#      「普通鱼」这个先验，放到后面会被淹掉。
+def proportion_line(f):
+    """由 `body_ratio`（≈ 体深 / 体长）生成显式比例句。返回空串表示不写。
+
+    ⚠️ 只对有躯干的体型（`TORSO_SHAPES`）成立 —— 沿用了 `form_profile()` 原有的门槛：
+       鳐是扁盘、水母没有「体深」、鳗 / 皇带是长带，用「体深占体长几分之几」描述它们
+       会拼出「a very deep rounded fish」这种错话。
+    """
+    if f.get("shape", "fish") not in TORSO_SHAPES:
+        return ""
+    r = f.get("body_ratio")
+    if not r or r <= 0:
+        return ""
+    ratio = 1.0 / r
+    if ratio >= 4.5:
+        lead, frac = "an extremely slender elongated fish", "only about one fifth of its total length"
+    elif ratio >= 3.5:
+        lead, frac = "a slender elongated fish", "only about one fourth of its total length"
+    elif ratio >= 2.8:
+        lead, frac = "a moderately slender fish", "about one third of its total length"
+    elif ratio >= 2.2:
+        lead, frac = "a fish of moderate build", "about two fifths of its total length"
+    elif ratio >= 1.8:
+        lead, frac = "a deep-bodied fish", "about half of its total length"
+    else:
+        lead, frac = "a very deep rounded fish", "more than half of its total length"
+    return "%s, its body depth %s, " % (lead, frac)
+
+
 def build_prompt(f):
     """拼提示词。顺序**照 v9**，别改：
 
         BASE + " of <主语>." + <构图句> + <颜色句> + LIGHT + GEOM + BG
 
-    ⚠️ 头部引导有**三种**形态（2026-10-08 起，见 `species_tag` 与 ⓪ 的说明）：
-       · **有物种名**（默认）→ `of a 鲢鱼 (Hypophthalmichthys molitrix), <形态句>.`
+    ⚠️ 头部引导（2026-10-08 起，见 `species_tag` / `proportion_line` / ⓪ 的说明）：
+       主语 = 物种名 > 类目词（仅 fish）> 体型模板；**紧接着插「比例句」**，
+       再接真正的形态描述：
+       · **有物种名**（默认）→ `of a 鲢鱼 (Hypophthalmichthys molitrix), <比例句><形态句>.`
          名字当主语名词，类目词让位（"a 鲢鱼" 本身就是名词短语）
-       · 无物种名 + **有**查证过的 `form` → `of a <类目词>` 或 `of <form…>`：体型模板让位，
+       · 无物种名 + **有**查证过的 `form` → `of a fish` 或 `of <form…>`：体型模板让位，
          物种描述当主体 —— 否则体型模板会把「几何兜底」说成「物种」（小龙虾画成乌贼）
        · 无物种名 + **没有** `form` → `of a single <体型模板>.`（体型模板当主体）
 
@@ -822,12 +864,21 @@ def build_prompt(f):
     #    物种名（如果有）按 `species_tag` 的规则当**主语名词**，此时连类目词都不必写 ——
     #    "a 鲢鱼" 本身就是个名词短语，再写 "fish" 是重复。
     name_tag = species_tag(f)
-    if verified:
-        bits = [] if name_tag else (["fish"] if shape == "fish" else [])
-        lead = "a " if bits else ""
+    prop = proportion_line(f)
+
+    # ⓪a 主语：物种名 > 类目词（仅 fish）> 体型模板
+    if name_tag:
+        subject, bits = "a " + name_tag + ", ", []
+    elif verified:
+        subject, bits = ("a fish, " if shape == "fish" else ""), []
+    elif prop:
+        # 比例句自带冠词（"a slender elongated fish…"），此时不能再写 "a single"
+        subject, bits = "", [spec["d"]]
     else:
-        bits = [spec["d"]]
-        lead = "a single "
+        subject, bits = "a single ", [spec["d"]]
+    # ⓪b 比例句**紧跟主语**（位置为什么重要见 `proportion_line` 的注释）
+    if prop:
+        subject += prop
 
     # ① 体型决定性线索 —— **有 `form` 也照样输出**（为什么单独一张表见 BODY_HINTS_ALWAYS）
     #    `form` 已经说了「flat」就跳过，免得同一件事讲两遍。
@@ -866,7 +917,7 @@ def build_prompt(f):
     fin_word = spec.get("finSafe", spec["fin"]) if verified else spec["fin"]
     rar = RARITY[rar_i].format(fin=fin_word, extra=extra)
 
-    head = BASE + " of " + (("a " + name_tag + ", ") if name_tag else lead) + ", ".join(bits) + "."
+    head = BASE + " of " + subject + ", ".join([b for b in bits if b]) + "."
     frame = ("full side view, whole body visible, facing left, "
              "centered with generous margin, " + rar + ".")
     return " ".join([head, frame, palette_desc(f), LIGHT, GEOM, BG])

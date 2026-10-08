@@ -3435,10 +3435,14 @@ console.log('\n[41] 背景音乐随条件换参数：修饰量单一来源、键
    它要在缩略图上画红 / 黄框，**最省事的写法就是自己再判一遍几何** ——
    一旦两处阈值分家，就会出现「评审台说合格、接触表画红框」（本项目最忌的「第二份真相」，
    同族事故见 §41 与 MEMORY.md 的「同一个事实被写 N 遍 = 高危」）。
-   这里把三件事钉死：
+   这里把四件事钉死：
      ① 接触表里**不许出现** check-cards 的任何阈值标识符与判定文案 —— 必须 import 现成的；
      ② 判定只有**一个入口** `judge()`，`main()` 自己不许再比一次阈值（这段原来就是inline在 main 里的）；
-     ③ 接触表与 `docs/卡片评审.html` 用**同一套色**（一个视觉体系，颜色不许抄歪）。
+     ③ 接触表与 `docs/卡片评审.html` 用**同一套色**（一个视觉体系，颜色不许抄歪）；
+     ④ **成组判据**（`check-cards.py` 的 ⑦ 跨档一致性，2026-10-08 加）：
+        接触表必须走 `judge_group()`（逐张 `judge()` 读不到跨档提示），
+        且跨档判据**只能是提示级** —— `judge_group()` 体内不许出现 `hard`，
+        `judge()` 体内不许出现 `drift`（单张判定不许受成组结果影响，否则两套口径混在一处）。
    ⚠️ ① 必须**只扫代码不扫注释**（开发者文档 §8 硬规矩第 1 条）：散文里提一句颜色判定
       是正当的，`stripPy()` 因此把 docstring 与 `#` 注释都拿掉再扫。
    ⚠️ 反向验证（两向都要做）：注释里写违规词 → 必须**仍然绿**；代码里写 → 必须红。 */
@@ -3455,9 +3459,11 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
   const sheet = stripPy(read('tools/contact-sheet.py'));
   const cc = stripPy(read('tools/check-cards.py'));
 
-  /* ① 阈值与判定文案：接触表里一个都不许有 */
+  /* ① 阈值与判定文案：接触表里一个都不许有
+        （含 ⑦ 跨档判据的阈值与主词 —— 它的文案也由 check-cards 拼好，接触表只显示原文） */
   const forbidden = ['AREA_MIN', 'AREA_MAX', 'BG_TOL', 'EDGE_PAD', 'MASK_THRESH',
-    '背景漂移', '贴边裁切', '主体占比越界'];
+    'DRIFT_AREA', 'DRIFT_WH', 'DRIFT_CX', 'DRIFT_TAG',
+    '背景漂移', '贴边裁切', '主体占比越界', '跨档'];
   const hit = forbidden.filter(t => has(sheet, t));
   if (hit.length) {
     err(`tools/contact-sheet.py 里出现了 check-cards 的判定口径（${hit.join('、')}）`
@@ -3472,13 +3478,59 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
   if (mi < 0) { err('check-cards.py 里找不到 def main( —— 本断言按它切片，改了名就来更新'); secBad++; }
   else {
     const body = cc.slice(mi);
-    if (!has(body, 'judge(')) {
-      err('check-cards.py 的 main() 没调 judge() —— 判定入口没接上（等于接触表读不到判定）'); secBad++;
+    // 主入口调**任一个**判定入口都算接上了（成组工具的接入点是 `judge_group`，
+    // 它自己再调 `judge` —— 那一条由下面 ④ 单独盯）。
+    if (!has(body, 'judge(') && !has(body, 'judge_group(')) {
+      err('check-cards.py 的 main() 既没调 judge() 也没调 judge_group() —— 判定入口没接上'); secBad++;
     }
-    const dup = ['AREA_MIN', 'AREA_MAX', 'BG_TOL', 'EDGE_PAD', 'MASK_THRESH']
+    const dup = ['AREA_MIN', 'AREA_MAX', 'BG_TOL', 'EDGE_PAD', 'MASK_THRESH',
+      'DRIFT_AREA', 'DRIFT_WH', 'DRIFT_CX']
       .filter(t => has(body, t));
     if (dup.length) {
       err(`check-cards.py 的 main() 里又出现了阈值（${dup.join('、')}）—— 判定只许有 judge() 一处`); secBad++;
+    }
+  }
+
+  /* ④ 成组判据：唯一入口 + 提示级边界（两条判据都按**函数体切片**判，不是全文件 has） */
+  const ggDefs = (cc.match(/def\s+judge_group\s*\(/g) || []).length;
+  const drDefs = (cc.match(/def\s+drift_warnings\s*\(/g) || []).length;
+  if (ggDefs !== 1) { err(`check-cards.py 里 def judge_group( 有 ${ggDefs} 处（应为 1）`); secBad++; }
+  if (drDefs !== 1) { err(`check-cards.py 里 def drift_warnings( 有 ${drDefs} 处（应为 1）`); secBad++; }
+  const ji = at(cc, 'def judge('), di = at(cc, 'def drift_warnings('),
+    gi = at(cc, 'def judge_group(');
+  if (ji < 0 || di < 0 || gi < 0 || mi < 0 || !(ji < di && di < gi && gi < mi)) {
+    err('check-cards.py 的函数顺序变了（analyze → judge → drift_warnings → judge_group → main）'
+      + ' —— 本条按位置切片，改了就来更新');
+    secBad++;
+  } else {
+    const judgeBody = cc.slice(ji, di);
+    const groupBody = cc.slice(gi, mi);
+    // ⚠️ 判据用 `drift_warnings` / `DRIFT_` 而不是裸 `drift`：`bg_drift` 是**单张**判据
+    //    自己的字段名，裸 `drift` 会把它当成跨档判据（第一版就这么误报过）。
+    const leaked = ['drift_warnings', 'DRIFT_'].filter(n => has(judgeBody, n));
+    if (leaked.length) {
+      err(`check-cards.py 的 judge() 里出现了跨档判据（${leaked.join('、')}）—— `
+        + '单张判定不许读成组结果（两套口径混在一处）');
+      secBad++;
+    }
+    if (!has(groupBody, 'judge(')) {
+      err('check-cards.py 的 judge_group() 没调 judge() —— 单张判定的口径没复用（等于又写了一份判定）');
+      secBad++;
+    }
+    if (!has(groupBody, 'drift_warnings(')) {
+      err('check-cards.py 的 judge_group() 没调 drift_warnings() —— 跨档提示没接上，等于白写');
+      secBad++;
+    }
+    if (has(groupBody, 'hard')) {
+      err('check-cards.py 的 judge_group() 里出现了 hard —— 跨档判据**只能是提示级**：'
+        + '档间漂移是已知且接受的代价（IoU 0.997→0.93），判 FAIL 会把正常出图全否掉');
+      secBad++;
+    }
+    if (!has(sheet, 'judge_group(')) {
+      err('tools/contact-sheet.py 没走 judge_group()：逐张 judge 读不到跨档提示（⑦）'); secBad++;
+    }
+    if (has(sheet, 'cs.judge(')) {
+      err('tools/contact-sheet.py 里还在逐张调 cs.judge( —— 整条鱼一起判请走 judge_group()'); secBad++;
     }
   }
 
@@ -3498,7 +3550,8 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
   });
 
   if (!hit.length && !secBad && !bad) {
-    ok(`接触表复用 check-cards 的判定（${forbidden.length} 项口径 0 处重复）、judge() 是唯一入口，`
+    ok(`接触表复用 check-cards 的判定（${forbidden.length} 项口径 0 处重复）、`
+      + `judge() / judge_group() 各自唯一入口（跨档提示只进 soft），`
       + `且与评审页共用同一套 ${vars.length} 色`);
   }
 })();

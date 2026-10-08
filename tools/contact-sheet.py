@@ -15,7 +15,9 @@
     接触表负责「先扫一遍，挑出该细看的那几张」。
 
 口径**不在本文件**（三样都是 importlib 加载现成的工具，见 `_load()`）：
-  · 判定（fail / warn / ok + 原因文案）→ `check-cards.py` 的 `analyze()` + `judge()`
+  · 判定（fail / warn / ok + 原因文案）→ `check-cards.py` 的 `analyze()` + **`judge_group()`**
+    （`judge_group` = 单张 `judge()` + **跨档一致性**提示 ⑦ —— 必须整条鱼一起判，
+     逐张判读不到「这 5 档像不像同一条鱼」）
   · 有哪些鱼、每条鱼有哪些档位文件      → `review-cards.py` 的 `build_rows()`
     （**与评审台同一份口径** —— 连「normal 是母版抠图、不单独列」这种细节都不写第二遍）
   · 批号（第 N 批是哪些鱼）              → `gen-art.py` 的 `make_batches()`（与生图清单一致）
@@ -216,6 +218,12 @@ def render(rows, meta, args, cs, rar_cn, cols):
         S.put(d, (pad, y0 + 4), r["id"], "id", FG)
         S.put(d, (pad, y0 + 30), r["name"], "nm", FG)
         S.put(d, (pad, y0 + 52), rar_cn[min(3, r["rar"])], "rr", DIM)
+        # 判定：**走 check-cards 的唯一口径**（本文件不做任何阈值比较）。
+        # ⚠️ 必须**整条鱼一起判**（`judge_group`）而不是逐张 `judge`：
+        #    「同一条鱼的各档像不像同一条鱼」是**成组**判据（`check-cards.py` 的 ⑦），
+        #    逐张判根本读不到那条跨档提示。
+        gj = cs.judge_group([(s["k"], cs.analyze(os.path.join(CARDS, s["file"])))
+                             for s in r["slots"]])
         for ci in range(cols):
             x0 = pad + lab_w + gap + ci * (iw + 2 * inner + gap)
             if ci >= len(r["slots"]):
@@ -225,8 +233,7 @@ def render(rows, meta, args, cs, rar_cn, cols):
                 continue
             s = r["slots"][ci]
             path = os.path.join(CARDS, s["file"])
-            # 判定：**走 check-cards 的唯一口径**（本文件不做任何阈值比较）
-            j = cs.judge(cs.analyze(path))
+            j = gj[s["k"]]
             tallies[j["verdict"]] += 1
             if j["verdict"] == "fail":
                 bad_ids.append("%s/%s" % (r["id"], s["k"]))
@@ -323,8 +330,9 @@ def main(argv=None):
         for i, p in enumerate(pages, 1):
             print("\n  第 %d 页" % i)
             for r in p:
-                vs = ["%s:%s" % (s["k"], cs.judge(cs.analyze(os.path.join(CARDS, s["file"])))["verdict"])
-                      for s in r["slots"]]
+                gj = cs.judge_group([(s["k"], cs.analyze(os.path.join(CARDS, s["file"])))
+                                     for s in r["slots"]])
+                vs = ["%s:%s" % (s["k"], gj[s["k"]]["verdict"]) for s in r["slots"]]
                 print("    %-7s %-9s %-4s %s" % (r["id"], r["name"],
                                                 rc.RAR_CN[min(3, r["rar"])], " ".join(vs)))
         if meta.get("missing"):

@@ -6,7 +6,7 @@
   113 批 × 每批判断 = 上百次人工看图。能自动判的全部自动判，
   人的注意力只留给「好不好看」这种判不了的。
 
-六条判据（全部可从像素算出来，不含主观）：
+六条单张判据（全部可从像素算出来，不含主观）：
   硬性 FAIL
     ① 背景一致 —— 四角色差超阈值 = 背景漂移（v10 首版出现过纯黑/深灰/深蓝三种）
     ② 贴边裁切 —— 主体包围盒触到画面边缘 = 尾巴/鳍被切了（SS77 踩过）
@@ -16,10 +16,19 @@
     ⑤ 背腹   —— 上半比下半暗（渐变映射的前提；水母/鳐鱼可能不成立）
     ⑥ 主色   —— 只报告不判定：母版是「自然配色」，本来就不等于 config 的色值
 
+外加一条**成组**判据（要同一批的其它档才能算，不进 `judge()`）：
+    ⑦ 跨档一致性 —— 同一条鱼的各档之间比 占比 / 宽高比 / 重心，某档离中位太远 ⇒ 提示
+       （「6 张本该是同一条鱼，却长成了两种体型 / 一个朝左一个朝右」原来没有任何判据能发现：
+        `analyze()` 只看单张。**只提示、永不 FAIL** —— 五档各自文生图，档间剪影漂移
+        0.997→0.93 是已知且接受的代价，见 `DRIFT_*` 的注释与 `docs/改进待办.md`）
+       ⚠️ 成组消费者（`tools/contact-sheet.py`）请走 `judge_group()`，别再自己逐张调 `judge()`。
+
 用法：
   python tools/check-cards.py                 # 查全部卡片（母版 + 5 档）
-  python tools/check-cards.py A01 A02         # 查指定几条（含它们的 5 档）
-  python tools/check-cards.py A01 A01-golden  # 也可以直接点名某一张
+  python tools/check-cards.py A01 A02         # 查指定几条（**裸 id 会把它的各档一起拉进来**）
+  python tools/check-cards.py A01 A01-golden  # 点名某一张：带 `-档` 后缀就只查那一张
+  ⚠️ 跨档判据（⑦）要有**同一条鱼的多个档**才算得出来 ⇒ 想看到那条提示，
+     就把同一批的几个档一起点名（裸 id 会自动带齐）。
 
 ⚠️ 解释器：系统 conda 的 python（有 PIL）
 
@@ -46,6 +55,37 @@ MASK_THRESH = 20          # 与背景色的差异超过它才算主体（与 pai
 BG_TOL = 26               # 四角之间允许的最大通道差
 AREA_MIN, AREA_MAX = 0.08, 0.55
 EDGE_PAD = 3              # 主体距画面边缘小于它算「贴边」
+
+# ── ⑦ 跨档一致性（成组判据；**提示级，永不 FAIL**）──────────────────────────
+# 背景：`analyze()` 只看单张 ⇒ 「同一条鱼的 5 档本该是同一个体型 / 同一个朝向」这件事
+#   没有任何判据能发现。接触表（contact-sheet.py）把 5 档并排铺开后一眼可见，
+#   但**人眼仍是唯一判据**。这里补一张提示网。
+# ⚠️ 为什么只能是提示：五档是**各自文生图**出来的（2026-10-07 起图生图已弃用），
+#   档位之间剪影 IoU 从 0.997 降到 0.93 是**已知且接受的代价**（开发者文档 §17.1）
+#   ⇒ 档间本来就允许有漂移，判 FAIL 会把正常出图全否掉。
+# 🔎 **阈值来自实测，不是拍脑袋**（口径 = 评审台槽位：原色档 + 4 色档，每条鱼 5 档）：
+#   60 条鱼 / 299 张卡，各档与**同鱼中位**的漂移分位数 ——
+#     面积占比 rel  p50 0.035 / p90 0.108 / p95 0.129 / p97.5 0.215 / p99 0.242 / max 0.319
+#     宽高比   rel  p50 0.018 / p90 0.076 / p95 0.087 / p97.5 0.119 / p99 0.146 / max 0.228
+#     重心     abs  p50 0.003 / p90 0.009 / p95 0.014 / p97.5 0.020 / p99 0.030 / max 0.045
+#   取在 p99 更外侧（只抓「明显到值得人翻一眼」的），实测命中 8 张 / 7 条鱼
+#   —— **不是空集**（空集就是「永不生效的守卫」，见开发者文档 §8 硬规矩第 6 条）。
+DRIFT_AREA = 0.30         # 面积占比与同鱼中位的相对差
+DRIFT_WH = 0.15           # 宽高比与同鱼中位的相对差
+DRIFT_CX = 0.035          # 重心与同鱼中位的绝对差（占画面宽度的比例；1152px 上 ≈ 40px）
+DRIFT_TAG = "跨档漂移"     # 提示文案的主词（**唯一一处**；接触表只显示原文，不自己拼）
+
+
+def slot_of(path):
+    """文件名 → (鱼 id, 档键)。档键口径与评审台 / 接触表**同源**：
+    `<id>.png` 与 `<id>-normal.png` 都是**原色档**（槽键 `master`，normal 就是母版抠图）；
+    `<id>-<档>[-N].png` 的档键是 `<档>`（第 N 版并入同一档，见 `MORPH_RE` 那条注释）。"""
+    b = os.path.basename(path)[:-4]
+    m = re.match(r"^([A-Z]+\d+)(?:-(.+))?$", b)
+    if not m:
+        return b, "?"
+    suf = re.sub(r"-\d+$", "", m.group(2) or "normal")
+    return m.group(1), ("master" if suf == "normal" else suf)
 
 
 def corners_bg(im):
@@ -144,10 +184,78 @@ def judge(r):
             "verdict": "fail" if hard else ("warn" if soft else "ok")}
 
 
+def drift_warnings(items):
+    """⑦ 跨档一致性 —— 同一条鱼各档之间的一致性提示（**只提示，永不 FAIL**）。
+
+    `items` = `[(档键, analyze() 结果), ...]`，必须是**同一条鱼**的全部档。
+    判据：拿该组**全部可用档**的 面积占比 / 宽高比 / 重心 各自算中位数，
+    某档偏离中位超过 `DRIFT_*` ⇒ 给**那一档**一条提示（附带实际值与中位，一眼看出谁掉队）。
+
+    ⚠️ 少于 2 个可用档时返回 `{}`：只有一个档时「中位」就是它自己，比不出任何东西。
+    ⚠️ 阈值为什么不许 FAIL：见 `DRIFT_AREA` 上面那段（档间漂移是已知代价）。
+    ⚠️ 中位数用「取中间那个 / 两个取平均」，**不引 statistics**（本文件一直只用标准库 + PIL）。
+    """
+    use = [(k, r) for k, r in items if r["ok"]]
+    if len(use) < 2:
+        return {}
+
+    def med(vals):
+        xs = sorted(vals)
+        n = len(xs)
+        return xs[n // 2] if n % 2 else (xs[n // 2 - 1] + xs[n // 2]) / 2.0
+
+    ma = med([r["area"] for _, r in use])
+    mw = med([r["wh"] for _, r in use])
+    mx = med([r["cx"] for _, r in use])
+    out = {}
+    for k, r in use:
+        msgs = []
+        if ma and abs(r["area"] - ma) / ma > DRIFT_AREA:
+            msgs.append("%s(占比 %.0f%% vs 中位 %.0f%%)" % (DRIFT_TAG, r["area"] * 100, ma * 100))
+        if mw and abs(r["wh"] - mw) / mw > DRIFT_WH:
+            msgs.append("%s(宽高比 %.2f vs 中位 %.2f)" % (DRIFT_TAG, r["wh"], mw))
+        if abs(r["cx"] - mx) > DRIFT_CX:
+            msgs.append("%s(重心 %.2f vs 中位 %.2f)" % (DRIFT_TAG, r["cx"], mx))
+        if msgs:
+            out[k] = msgs
+    return out
+
+
+def judge_group(items):
+    """把**同一条鱼的全部档**一起判：单张判定（`judge()`）+ 跨档一致性提示（⑦）。
+
+    `items` = `[(档键, analyze() 结果), ...]` → `{档键: judge() 的那个 dict}`。
+    ⚠️ 跨档提示**只并进 `soft`**：所以它最多把 `ok` 抬成 `warn`，
+       **绝不会**产生 hard 理由、也绝不会把 fail 改掉（失败的卡不必再叠提示）。
+       这条边界就是「⑦ 是提示级」的可执行表述 —— verify 第 ㊷ 节盯着它。
+    ⚠️ 这是「成组消费者」的唯一入口：接触表 / 其它批级工具要跨档提示就必须走这里，
+       不要自己逐张调 `judge()` 再拼一遍（那就是判定口径的第二份）。
+    """
+    drift = drift_warnings(items)
+    out = {}
+    for k, r in items:
+        j = judge(r)
+        extra = drift.get(k) or []
+        if extra and j["verdict"] != "fail":
+            j["soft"] = j["soft"] + extra
+            if j["verdict"] == "ok":
+                j["verdict"] = "warn"
+        out[k] = j
+    return out
+
+
 def main():
     args = sys.argv[1:]
     if args:
-        files = [os.path.join(CARDS, a + ".png") for a in args]
+        names = []
+        for a in args:
+            a = a.strip()
+            # 裸 id ⇒ 连它的各档一起查（跨档判据要有整组才算得出来，这也是文件头写的用法）
+            if re.match(r"^[A-Z]+\d+$", a):
+                names += [f[:-4] for f in sorted(os.listdir(CARDS))
+                          if f.startswith(a + "-") and MORPH_RE.match(f)]
+            names.append(a)
+        files = sorted({os.path.join(CARDS, n + ".png") for n in names})
     else:
         files = sorted(os.path.join(CARDS, f) for f in os.listdir(CARDS)
                        if MASTER_RE.match(f) or MORPH_RE.match(f))
@@ -155,19 +263,40 @@ def main():
     if not files:
         print("assets/cards/ 下没有卡片（<id>.png / <id>-<档>.png）"); return
 
-    rows, fails = [], []
+    # ① 先按鱼归组：跨档判据（⑦）要「同一批的其它档」才算得出来。
+    #    顺手把 analyze() 的结果留在 per_path 里 —— 一张图只算一次（它要扫像素，不便宜）。
+    per_path, groups, order = {}, {}, []
     for p in files:
         if not os.path.exists(p):
             print("  缺文件：%s" % p); continue
         r = analyze(p)
-        if not r["ok"]:
-            j = judge(r)
-            fails.append((r["id"], j["hard"])); rows.append(r); continue
-        # ⚠️ 「背腹明暗」**只报告不判定** —— 实测这条判据不可靠：v9 的光照是
-        #    **边缘光打在背上**（背部反而亮），加上深色鱼与长条鱼，
-        #    25 张里 4 张误报（16%）。数值已在「背腹」列显示，人工看趋势就行。
-        #    `[待补]` 想找个可靠替代：算主体灰度的 p10~p90 跨度（对比度不足 = 图发平）。
-        j = judge(r)
+        per_path[p] = r
+        order.append(p)
+        fid, k = slot_of(p)
+        if k == "?":                    # 认不出档位 ⇒ 自己单独一组，免得跟别人瞎比
+            fid, k = os.path.basename(p)[:-4], "?"
+        g = groups.setdefault(fid, {})
+        # 同一个档位出现两个文件时（`<id>.png` 与 `<id>-normal.png` **都是原色档**）
+        # 留**游戏里真正显示的那张**（`-normal` 抠图）：中位数不能把同一个东西数两遍。
+        if k not in g or os.path.basename(p).endswith("-normal.png"):
+            g[k] = p
+
+    judged = {}
+    for fid, g in groups.items():
+        gj = judge_group([(k, per_path[p]) for k, p in g.items()])
+        for k, p in g.items():
+            judged[p] = gj[k]
+    # 被挤掉的那个「同档重复」文件（`<id>.png` 与 `<id>-normal.png` 是同一张原色档）
+    # 沿用留下那位的判定 —— 否则同一张图在报表里会出现两种判定，看着像 bug。
+    for p in order:
+        if p not in judged:
+            fid, k = slot_of(p)
+            judged[p] = judged[groups[fid][k]]
+
+    rows, fails = [], []
+    for p in order:
+        r = per_path[p]
+        j = judged[p]
         r["reasons"] = j["hard"]
         r["soft"] = j["soft"]
         if j["hard"]:
@@ -176,6 +305,10 @@ def main():
 
     print("%-12s %6s %7s %6s %6s %7s  %s" % ("id", "占比", "宽高比", "重心", "背腹", "主色", "判定"))
     print("-" * 78)
+    # ⚠️ 「背腹明暗」**只报告不判定** —— 实测这条判据不可靠：v9 的光照是
+    #    **边缘光打在背上**（背部反而亮），加上深色鱼与长条鱼，
+    #    25 张里 4 张误报（16%）。数值已在「背腹」列显示，人工看趋势就行。
+    #    `[待补]` 想找个可靠替代：算主体灰度的 p10~p90 跨度（对比度不足 = 图发平）。
     for r in rows:
         if not r["ok"]:
             print("%-12s  %s" % (r["id"], "、".join(r["reasons"]))); continue
@@ -191,6 +324,23 @@ def main():
     print("共 %d 张，硬性不合格 %d 张" % (len(rows), len(fails)))
     for fid, why in fails:
         print("  ✗ %s  %s" % (fid, "、".join(why)))
+    # 跨档一致性**单独列**：它是提示级（不影响上面的 FAIL 计数），
+    # 但它是「同一条鱼的 5 档不像同一条鱼」的唯一线索，藏在软提示里会被淹没。
+    # ⚠️ 按**槽位**列（不是按文件行）：原色档有两个文件（`<id>.png` / `<id>-normal.png`），
+    #    按行会把它同一条提示印两遍。
+    drift = []
+    for fid in sorted(groups):
+        for k, p in groups[fid].items():
+            j = judged[p]
+            if j["hard"]:
+                continue
+            msgs = [s for s in j["soft"] if s.startswith(DRIFT_TAG)]
+            if msgs:
+                drift.append((os.path.basename(p)[:-4], msgs))
+    if drift:
+        print("跨档一致性提示 %d 张（同鱼各档之间漂移偏大；**只是提示、不是不合格**）：" % len(drift))
+        for fid, why in drift:
+            print("  ⚠ %s  %s" % (fid, "、".join(why)))
 
 
 if __name__ == "__main__":

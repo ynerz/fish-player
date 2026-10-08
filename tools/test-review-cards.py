@@ -53,6 +53,20 @@ def load_review():
     return mod
 
 
+def load_check():
+    """按路径加载 `tools/check-cards.py`（同因：文件名带短横）。
+
+    ⚠️ 本文件的文件名只写了 review-cards，但它是 `tools/` 下**唯一**的 python 测试宿主
+       （`test.js` 够不着 python，`verify.js` 也跑不了外部命令 —— 见开发者文档 §8 的 EBUSY 那条）。
+       第 [10] 节测的就是 check-cards 的跨档判据（构造数值，不依赖真实卡面）。
+    """
+    spec = importlib.util.spec_from_file_location(
+        "check_cards", os.path.join(HERE, "check-cards.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--window", action="store_true", help="额外真开一个窗口验证（会闪一下）")
@@ -260,6 +274,74 @@ def main():
     check('"shapeCn"' in html, "产物里嵌了 shapeCn 字段（页内 JS 靠它渲染标签）")
     check("' · ' + d.shape +" not in html,
           "产物里不再把内部键裸印（应为 shapeTag(d)）")
+
+    print("\n[10] check-cards 的跨档判据：提示级、指得准、阈值真的在比")
+    # 为什么放在本文件：`tools/` 下只有这一个 python 测试宿主（`test.js` 够不着 python）。
+    # 判据本身在 `check-cards.py`（⑦ 跨档一致性，2026-10-08 做 Q30 时加）。
+    # ⚠️ 全部用**构造的数值**喂进去，不依赖真实卡面 —— 用户随时在重出图，
+    #    用真图当样本的测试会跟着烂掉。
+    C = load_check()
+
+    def slot(k, area, wh, cx, ok=True, hard=()):
+        return (k, {"ok": ok, "area": area, "wh": wh, "cx": cx, "bg_drift": 0,
+                    "clipped": False, "reasons": list(hard)})
+
+    KEYS = ("master", "bright", "albino", "golden", "shiny")
+    same = [slot(k, 0.20, 3.0, 0.50) for k in KEYS]
+    check(C.drift_warnings(same) == {}, "五档本来就一致 ⇒ 0 提示（不误报是最基本的要求）")
+
+    # 一张掉队：占比 0.13 vs 其它 0.20（相对差 35% > 阈值 30%）⇒ **只**标它
+    one = [slot(k, 0.13 if k == "golden" else 0.20, 3.0, 0.50) for k in KEYS]
+    w = C.drift_warnings(one)
+    check(sorted(w.keys()) == ["golden"], "只有掉队的那一档被标出来（实得 %s）" % sorted(w.keys()))
+    check(bool(w) and w["golden"][0].startswith(C.DRIFT_TAG),
+          "文案带主词 %r（接触表只显示原文，不自己拼）：%r" % (C.DRIFT_TAG, w.get("golden")))
+    check("中位" in "".join(w.get("golden") or []), "文案里写清「跟谁比」（同鱼中位）")
+
+    # 阈值真的在比：差一点点（0.24 相对 0.20 = 20% < 30%）不许报，刚过（0.27 = 35%）必须报
+    near = [slot(k, 0.24 if k == "shiny" else 0.20, 3.0, 0.50) for k in KEYS]
+    check(C.drift_warnings(near) == {}, "差不到阈值 ⇒ 不报（相对差 20%% < %.0f%%）"
+          % (C.DRIFT_AREA * 100))
+    over = [slot(k, 0.27 if k == "shiny" else 0.20, 3.0, 0.50) for k in KEYS]
+    check(sorted(C.drift_warnings(over).keys()) == ["shiny"],
+          "过了阈值就报（相对差 35%% > %.0f%%）" % (C.DRIFT_AREA * 100))
+    # 反向自检：把阈值抬到天上，同一个输入必须不再报 —— 证明**确实在读这个常量**
+    _saved = (C.DRIFT_AREA, C.DRIFT_WH, C.DRIFT_CX)
+    try:
+        C.DRIFT_AREA, C.DRIFT_WH, C.DRIFT_CX = 9.9, 9.9, 9.9
+        check(C.drift_warnings(one) == {} and C.drift_warnings(over) == {},
+              "把阈值抬到 9.9 ⇒ 同一个输入不再报（证明判据真的在比阈值）")
+    finally:
+        C.DRIFT_AREA, C.DRIFT_WH, C.DRIFT_CX = _saved
+
+    check(C.drift_warnings([slot("master", 0.20, 3.0, 0.5)]) == {},
+          "只有 1 个可用档 ⇒ 不比（中位就是它自己）")
+    check(C.drift_warnings([slot("master", 0.20, 3.0, 0.5),
+                            slot("bright", 0.20, 3.0, 0.5, ok=False)]) == {},
+          "另一档不可用（空图）⇒ 也不比（挑不出「谁掉队」）")
+
+    # `judge_group`：① 提示只进 soft，最多把 ok 抬成 warn；② **永不**产生 hard
+    gj = C.judge_group(one)
+    check(all(gj[k]["hard"] == [] for k in gj), "跨档提示**不进** hard（提示级）")
+    check(gj["golden"]["verdict"] == "warn" and gj["shiny"]["verdict"] == "ok",
+          "掉队那档 ok → warn，其余不受影响（实得 %s / %s）"
+          % (gj["golden"]["verdict"], gj["shiny"]["verdict"]))
+    check(bool(gj["golden"]["soft"]) and bool(gj["shiny"]["soft"]) is False,
+          "提示文案只挂在掉队那档上")
+    # 已经 FAIL 的卡不必再叠提示（它已经够忙了），且 verdict 不许被跨档判据改动
+    bad = [slot(k, 0.13 if k == "golden" else 0.20, 3.0, 0.50,
+                hard=("贴边裁切",) if k == "golden" else ()) for k in KEYS]
+    bad[3] = ("golden", dict(bad[3][1], clipped=True))
+    gb = C.judge_group(bad)
+    check(gb["golden"]["verdict"] == "fail" and gb["golden"]["soft"] == [],
+          "已 FAIL 的档：verdict 仍是 fail、也不叠跨档提示（不添乱）")
+    check(all(C.DRIFT_TAG not in x for k in gb for x in gb[k]["hard"]),
+          "跨档主词不许出现在 hard 里")
+    # 与单张判定的口径一致性：没有跨档提示时，judge_group 的结果必须与 judge 逐项相同
+    plain = [slot(k, 0.20, 3.0, 0.50) for k in KEYS]
+    same_as_judge = all(C.judge_group(plain)[k] == C.judge(plain[i][1])
+                        for i, k in enumerate(KEYS))
+    check(same_as_judge, "没有跨档提示时，judge_group 与 judge 的结果逐项相同（没偷偷改口径）")
 
     print("\n" + "=" * 52)
     if fails:

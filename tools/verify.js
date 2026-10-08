@@ -3499,14 +3499,19 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
       + ' —— 判定必须 import check-cards 的 judge()；阈值抄一份 = 两份真相');
   }
 
-  /* ② 判定只有一个入口：`def judge(` 恰好一处，且 `main()` 体内不再比阈值 */
+  /* ② 判定只有一个入口：`def judge(` 恰好一处，且 `main()` 体内不再比阈值
+     ⚠️ 取 main() 的**函数体**走顶层 `bodyOf()`（按缩进终止）。原来写成
+     `const mi = at(cc, 'def main('); … cc.slice(mi)` —— 那会一路切到**文件尾**
+     （把结尾的 `if __name__ == '__main__': main()` 也算进 main 的体里），正是 Q36 要收的
+     「范围越过函数体」形状；它漏过了 Q36 的两条网（那两条只认「下一个 def 当终止符」与内联
+     `.slice(at(`），由本轮新增的 ⑨ 判据兜住，并把这一处一并收掉。 */
   let secBad = 0;
   const judgeDefs = (cc.match(/def\s+judge\s*\(/g) || []).length;
   if (judgeDefs !== 1) { err(`check-cards.py 里 def judge( 有 ${judgeDefs} 处（应为 1）`); secBad++; }
-  const mi = at(cc, 'def main(');
-  if (mi < 0) { err('check-cards.py 里找不到 def main( —— 本断言按它切片，改了名就来更新'); secBad++; }
+  const mainBody = bodyOf(cc, 'def main(');
+  if (!mainBody) { err('check-cards.py 里找不到 def main( —— 本断言按它切片，改了名就来更新'); secBad++; }
   else {
-    const body = cc.slice(mi);
+    const body = mainBody;
     // 主入口必须接上**判定入口**：自 Q34（2026-10-09）起那唯一一处是 `slot_verdicts()`
     // （它内部再调 `judge_group()` → `judge()`，那两条由下面 ④ / ⑥ 单独盯）。
     // ⚠️ 原来这里放行 `judge(` / `judge_group(`：判定逻辑一旦被抽进 `slot_verdicts()`，
@@ -3668,14 +3673,14 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
       + '原色档那一对（同一个槽位、两个文件）会被印两遍、头条计数也双计（Q35）');
     secBad++;
   }
-  if (mi >= 0) {
-    const mb = bodyOf(cc, 'def main(');
-    if (!has(mb, 'slot_tally(')) {
+  /* ⑦ 复用 ② 已算出的 `mainBody`（同一节里原本也是共用 `mi`，不重复报「找不到 def main(」） */
+  if (mainBody) {
+    if (!has(mainBody, 'slot_tally(')) {
       err('check-cards.py 的 main() 没走 slot_tally() —— FAIL 清单与跨档提示段的口径会分家'
         + '（一个按文件、一个按槽位）');
       secBad++;
     }
-    const dup2 = ['fails.append(', 'drift.append('].filter(t => has(mb, t));
+    const dup2 = ['fails.append(', 'drift.append('].filter(t => has(mainBody, t));
     if (dup2.length) {
       err(`check-cards.py 的 main() 里又自己累加了 ${dup2.join('、')} —— `
         + '「一个槽位一行」只许在 slot_tally() 一处（FAIL 段按文件加会把同槽位印两遍）');
@@ -3713,9 +3718,9 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
          一行 ⇒ 判据静默变成摆设（「放行条件写宽了」那一类）。
      ⚠️ needle 全部用 `String.fromCharCode` / 拼接**造出来**，不写成字面量 —— 否则本断言自己
         就把自己喂饱了（本项目反复栽过的自指）。扫之前先剥行注释与块注释（硬规矩 ①）。
-     ⚠️ **已知网眼（写明，不假装覆盖）**：把锚点先存进变量再切片（`const a = at(...); cc.slice(a, b)`）
-        这两条网**抓不到** —— 而 `blank()` 那处「挖空定义段」正是这种形状（`stSrc.slice(0, fnAt)`），
-        它与「切函数体」语义不同，硬套会误报。要堵它得先能区分「挖空」与「切体」，已追加待办。 */
+     ⚠️ 这两条网**只认字面形态**：把锚点先存进变量再切片（`const a = at(...); cc.slice(a, b)`）
+        它们抓不到 —— 而 `blank()` 那处「挖空定义段」正是这种形状（`stSrc.slice(0, fnAt)`），
+        它与「切函数体」语义不同，硬套会误报。⇒ 由下面的 **⑨** 用**位置白名单**兜住（Q37，2026-10-09）。 */
   {
     const selfSrc = fs.readFileSync(__filename, 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
@@ -3753,12 +3758,99 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
     }
   }
 
+  /* ⑨ 「变量形式的按位置切片」只许出现在白名单里（Q37，2026-10-09）。
+     Q36 的两条网（「下一个 def 当终止符」/ 内联 `.slice(at(`）都**抓不到**这种形状：
+     先把锚点存进变量、再拿变量去切 —— 而 Q35 出事那一处正是它，Q36 收掉的 10 处里也有 4 处是它。
+     它本身不一定错：`blank()` 的「挖空定义段」与两处「取段落」就该这么写（语义是**挖空 / 取块**，
+     不是切函数体 —— 后者的正解是 `bodyOf()`）。危险的是**新增**一处而没人发现：
+     按位置切片靠「中间恰好没夹东西」成立，范围还容易越过目标（本轮就顺手收掉了 §42② 那处
+     `cc.slice(mi)` —— 它一路切到文件尾，把 `if __name__` 那两行也算进了 main 的体）。
+     判据是**多重集相等**（双向一步到位，缺一条就退化成摆设）：
+       · 每一处「`at()` 的锚点变量出现在 `.slice(...)` 参数里」都必须在白名单里 —— 多一处即报红；
+       · 白名单每一条都必须在文件里**恰好出现一次** —— 删了 / 改了 / 抄了第二份都报红。
+     ⚠️ 只认 `at()`（项目自己的「返回**原文偏移**」助手）。`indexOf()` 的短名锚点
+        （i / nl / end / nx …）在同一文件里会**撞名**（只读探针实测 31 个候选里 10 处是撞名误报，
+        连 `bodyOf()` 自己内部的 `nl` 也会中枪）⇒ 那批是**结构边界**问题，归 Q38，不按名在这里硬套。
+     ⚠️ 自指防线两道，缺一不可：先剥**注释**（硬规矩 ①），再剥**字符串字面量** ——
+        白名单本身就是一堆 `.slice(…)` 文本，不剥就会被自己扫到（自指喂饱）；
+        白名单里的 `.slice(` 另用拼接造（`'.' + 'slice' + '('`）再加一道保险。 */
+  let sliceN = 0;
+  {
+    /* 本文件、剥注释后的源码（与 ⑧ 同一份口径；⑧ 的 selfSrc 是它块内私有的，这里自算一份） */
+    const selfSrc = fs.readFileSync(__filename, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const STRIP = t => String(t)
+      .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
+      .replace(/"(?:[^"\\\n]|\\.)*"/g, '""')
+      .replace(/`(?:[^`\\]|\\.)*`/g, '``');
+    const norm = s => STRIP(s).replace(/\s+/g, '');
+    const SL = '.' + 'slice' + String.fromCharCode(40);   // `.slice(`（拼接造，防自指）
+    /* 扫出「at() 锚点变量出现在 .slice(...) 参数里」的每一处，返回**归一化**的调用文本 */
+    const sliceSites = text => {
+      const t = STRIP(text);
+      const anchors = [];
+      const reA = /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*?\bat\s*\(/g;
+      let am;
+      while ((am = reA.exec(t))) anchors.push(am[1]);
+      const out = [];
+      let k = 0;
+      while ((k = t.indexOf(SL, k)) >= 0) {
+        const open = k + SL.length;
+        let depth = 1, j = open;
+        while (j < t.length && depth) { const c = t[j++]; if (c === '(') depth++; else if (c === ')') depth--; }
+        const args = t.slice(open, j - 1);
+        if (anchors.some(v => new RegExp('\\b' + v.replace(/\$/g, '\\$') + '\\b').test(args))) {
+          let s0 = k;                                    // 把接收者一起切进来（`stSrc` / `src` …）
+          while (s0 > 0 && /[\w$.]/.test(t[s0 - 1])) s0--;
+          out.push(norm(t.slice(s0, j)));
+        }
+        k = j;
+      }
+      return out;
+    };
+    /* 白名单：逐处点名 + 写明为什么不是 bodyOf()。改这里必须同步改代码（多重集相等会拦）。 */
+    const AL = [
+      'stSrc' + SL + 'fnAt)',                     // §32-h ① 取 blank() 定义段的**起点**（要到段尾）
+      'stSrc' + SL + '0, fnAt)',                  // §32-h ② 挖空 blank 定义段（前半）
+      'stSrc' + SL + 'fnAt + blankSrc.length)',   // §32-h ② 挖空（后半）—— 与前半合成「挖洞」
+      'pSrc' + SL + 'setAt + 1)',                 // §32-h ③ 取 VIEWS.settings 段（到下一个 VIEWS.*）
+      'src' + SL + "poolStart, src.indexOf('', poolStart))",  // §33 MORPH_POOL 字典（到行首 `}`）
+    ].map(norm);
+    /* 判据自检：合成样本 —— 带 at() 锚点变量的切片必被认出、纯数组切片必被放过 */
+    const SYN_YES = "const zzAt = at(cc, 'x'); const q = cc" + SL + 'zzAt, 2);';
+    const SYN_NO = 'const q = cc' + SL + '0, 3);';
+    if (sliceSites(SYN_YES).length !== 1 || sliceSites(SYN_NO).length !== 0 || !AL.length) {
+      err('第 42 节 ⑨ 判据自检不成立：分不出「at() 锚点变量 + slice」（坏）与纯数组切片（好）'
+        + `—— 坏样本 ${sliceSites(SYN_YES).length} / 好样本 ${sliceSites(SYN_NO).length} / 白名单 ${AL.length} 条`);
+      secBad++;
+    }
+    const got = sliceSites(selfSrc);
+    sliceN = got.length;
+    if (got.slice().sort().join('\n') !== AL.slice().sort().join('\n')) {
+      const extra = got.filter(s => AL.indexOf(s) < 0);
+      const missing = AL.filter(s => got.indexOf(s) < 0);
+      if (extra.length) {
+        err(`verify.js 新增了「变量形式的按位置切片」而没进 ⑨ 白名单（${extra.join(' | ')}）—— `
+          + '取段落 / 挖空允许，但必须逐处写进白名单并说明为什么不是 bodyOf()（切**函数体**一律走 bodyOf()）');
+      }
+      if (missing.length) {
+        err(`第 42 节 ⑨ 白名单里有 ${missing.length} 条在文件里已不存在（${missing.join(' | ')}）—— `
+          + '删了 / 改了 / 抄了第二份都算，请同步白名单（否则白名单会烂成摆设）');
+      }
+      if (!extra.length && !missing.length) {
+        err(`第 42 节 ⑨：「变量形式的按位置切片」的出现次数（${got.length}）与白名单条数（${AL.length}）`
+          + '不符 —— 同一处写法被抄了第二份也算');
+      }
+      secBad++;
+    }
+  }
+
   if (!hit.length && !secBad && !bad) {
     ok(`接触表复用 check-cards 的判定（${forbidden.length} 项口径 0 处重复）、`
       + `judge() / judge_group() / slot_verdicts() / slot_tally() 各自唯一入口`
       + `（跨档提示只进 soft；FAIL 清单与提示段同走槽位口径）、`
       + `跨档中位按档投一票、判定按槽位归组（折版规则只在 morph_key() 一处）、`
-      + `切函数体只走 bodyOf()（按位置切片的写法 0 处）、`
+      + `切函数体只走 bodyOf()、「变量形式的按位置切片」${sliceN} 处全在 ⑨ 白名单内、`
       + `且与评审页共用同一套 ${vars.length} 色`);
   }
 })();

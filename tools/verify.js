@@ -1726,7 +1726,7 @@ console.log('\n[32-d] 模块内部状态字段「只写不读」（逃出模块 
         main.js 与 ui/ 一律走 `snapshot()` / `tireHint()`。用第 36-a 节那套
         「管字面量出现位置」的办法，新增任何包装器都会立刻暴露。
      ② 力竭提示线必须落在 tire 的取值区间内（读 config 现算）——
-        这是「阈值不可达 = 功能静默失效」的通用网。 */
+        这是「阈值不可达 = 功能静默失效」的通用网；**32-f 把它推广成一张逐项现算的表**。 */
 console.log('\n[32-e] 战局原始状态只许 core/fishing.js 直读；力竭提示线必须可达');
 let fightRawBad = 0;
 (function () {
@@ -1776,6 +1776,54 @@ let fightRawBad = 0;
   if (!fightRawBad) {
     ok('战局状态只从 snapshot() / tireHint() 出（G.Fight.get() 只许 core/fishing.js 的 2 处控制流）；'
       + `力竭提示线 ${below} 可达（对应进度 ${pAt.toFixed(1)}%）`);
+  }
+})();
+
+
+/* ---------------- 32-f. 配置阈值必须可达（32-e 的通用化） ----------------
+   由来（2026-10-08）：32-e 顺手量出的 `tire < 0.62` **永假**（tire ∈ [0.78, 1]）
+   不是孤例，而是「拿写死的阈值去比一个**有界量**」这一类写法的共同风险 ——
+   阈值一旦落到区间外，**不报错、不告警、门禁全绿**，只是那个分支 / 提示永远不执行。
+   32-e 只盯住了力竭提示线这一处，本节把规则做成一张**逐项现算**的表：
+   每一条都从 config / items 里算出被比较量的**真实区间**，再检查阈值落在区间内。
+   ⚠️ 以后新增「阈值 vs 有界量」的比较，把它加进下面这张表 —— 光靠人算是会漏的。 */
+console.log('\n[32-f] 配置阈值必须可达（拿写死阈值比有界量的地方，逐项现算区间）');
+let thrBad = 0;
+(function () {
+  /* 要求 lo < thr（严格：等于下限通常意味着该分支永不触发）且 thr ≤ hi（hiOpen 时严格）。 */
+  function need(name, thr, lo, hi, hiOpen) {
+    const bad = !(thr > lo) || (hiOpen ? !(thr < hi) : !(thr <= hi));
+    if (bad) {
+      err(`${name} = ${thr}，而被比较量的取值区间是 (${lo}, ${hi}${hiOpen ? ')' : ']'}`
+        + ' —— 对应的分支 / 提示永远不会触发（不报错、无告警，只有翻代码才看得出来）');
+      thrBad++;
+    }
+  }
+
+  /* ① 顶栏天气芯片的「好时机」高亮：rareMul = 天气档 × 时段档，是两个配置表的乘积
+        → 真实区间 = [min(天气)×min(时段), max(天气)×max(时段)]。
+        高于上界 = 芯片永不亮；不高于最低倍率 = 芯片常亮，高亮就失去了「好时机」的意义。 */
+  const wxs = CFG.weather.types.map(t => t.rareMul || 1);
+  const tms = CFG.weather.times.map(t => t.rareMul || 1);
+  const rLo = Math.min(...wxs) * Math.min(...tms);
+  const rHi = Math.max(...wxs) * Math.max(...tms);
+  need('config.weather.goodMul', CFG.weather.goodMul, rLo, rHi, false);
+
+  /* ② 松线判定（张力是绝对值）：下限 0（不按就一路掉到 0），
+        上界 = 最细的鱼线张力上限（`curLine()` 必来自 G.LINES，缺省回落 baseTensionMax）。 */
+  const tMax = G.LINES.map(l => l.tensionMax).concat([CFG.fight.baseTensionMax]);
+  need('config.fight.slackSoft', CFG.fight.slackSoft, 0, Math.min(...tMax), true);
+
+  /* ③ 张力安全线是**占比**（0~1 开区间）：≥1 一收线就「危险」，≤0 一收线就判 overSafe。 */
+  need('config.fight.safeRatio', CFG.fight.safeRatio, 0, 1, true);
+
+  /* ④ 巨物概率比 `Math.random()`（值域 [0,1)）：0 → 永不巨物，≥1 → 条条巨物。 */
+  need('config.weight.giantProb', CFG.weight.giantProb, 0, 1, true);
+
+  if (!thrBad) {
+    ok(`配置阈值全部可达：天气高亮线 ${CFG.weather.goodMul} ∈ (${rLo.toFixed(3)}, ${rHi.toFixed(3)}]`
+      + `；松线 ${CFG.fight.slackSoft} < 最细鱼线 ${Math.min(...tMax)}`
+      + `；安全线 ${CFG.fight.safeRatio} 与巨物率 ${CFG.weight.giantProb} ∈ (0,1)`);
   }
 })();
 

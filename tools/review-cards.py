@@ -126,6 +126,11 @@ TEMPLATE = u"""<!DOCTYPE html>
   button.on { background:var(--accent); border-color:var(--accent); color:#fff; }
   .stat { color:var(--dim); }
   .stat b { color:var(--fg); font-weight:500; }
+  /* 存储不可用时的横幅（沙箱 iframe / 隐私模式）。默认不显示 ——
+     但它必须存在且醒目：**不告诉用户，他刷新一下结果全没了还不知道**。 */
+  #warn { display:none; margin-top:6px; padding:6px 10px; border-radius:6px; font-size:12px;
+          background:rgba(192,80,63,.18); border:1px solid var(--bad); color:#f2dcd7; }
+  #warn.on { display:block; }
   .grid { display:grid; gap:14px; padding:16px;
           grid-template-columns:repeat(auto-fill,minmax(430px,1fr)); }
   .c { background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
@@ -191,8 +196,9 @@ TEMPLATE = u"""<!DOCTYPE html>
     <button id="f-bad">重出</button>
     <button id="exp">导出重出清单</button>
     <button id="rst">清空</button>
-    <span class="stat">快捷键：1=合格　2=重出　点图放大</span>
+    <span class="stat">快捷键：1=合格　2=重出　·　点图放大　·　<b>这里只记结论</b>：要真的重出，点「导出重出清单」拿命令去跑</span>
   </div>
+  <div id="warn"></div>
   <div class="stat" style="margin-top:4px">图片若显示不出来：请用「项目根目录起 http 服务」的方式打开本页（<code>python -m http.server 8765</code> → <code>127.0.0.1:8765/docs/卡片评审.html</code>）。</div>
 </header>
 <div class="grid" id="grid"></div>
@@ -215,11 +221,14 @@ var DATA = __DATA__;
 var KEY = 'fishcard-review-v2';
 var OLD_KEY = 'fishcard-review-v1';
 var state = {};
-try { state = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { state = {}; }
+var memOnly = false;    // localStorage 用不了时退回「只在本页存」（见 save 的注释）
+
+function readStore(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+try { state = JSON.parse(readStore(KEY) || '{}'); } catch (e) { state = {}; }
 /* 迁移：老状态是 `{id:'ok'|'bad'}`（整条鱼一个结论）→ 展开到它的每一档，
    以前审过的结论不白丢。 */
 try {
-  var older = JSON.parse(localStorage.getItem(OLD_KEY) || '{}');
+  var older = JSON.parse(readStore(OLD_KEY) || '{}');
   var byId = {};
   DATA.forEach(function (d) { byId[d.id] = d; });
   Object.keys(older).forEach(function (id) {
@@ -230,7 +239,32 @@ try {
 } catch (e) { /* 老状态坏了不影响使用 */ }
 var filter = 'all';
 
-function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+/* 🔴 `save()` **绝不许抛**。
+   踩过（2026-10-08 用户报「我点了重出后咋没用」）：预览面板把本页放在**沙箱 iframe** 里，
+   那里 `localStorage.setItem` 会抛 SecurityError；而 save() 原来排在
+   `paintCard()/updateStats()` **之前** —— 异常把整个点击处理中断，
+   于是「点了完全没反应」，连按钮高亮都没有，控制台只有一条 SecurityError。
+   现在两条防线：
+     ① 存不进去就退回「只在本页有效」，**并且显式告诉用户**（否则刷新一下全没了还不知道）；
+     ② 调用点一律**先把结果画出来、最后才落盘**（见点击处理）。 */
+function save() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state));
+    return true;
+  } catch (e) {
+    if (!memOnly) { memOnly = true; showMemWarning(); }
+    return false;
+  }
+}
+
+function showMemWarning() {
+  var w = document.getElementById('warn');
+  if (!w) return;
+  w.className = 'on';
+  w.innerHTML = '⚠️ <b>本页的存储不可用</b>（浏览器沙箱 / 隐私模式 / 无痕）：'
+    + '你判的结果<b>只在本页有效，刷新就没了</b>。'
+    + '请随时点「导出重出清单」把结果复制走（那个功能不依赖存储）。';
+}
 function verdict(d, k) { return ((state[d.id] || {})[k]) || ''; }
 function verdicts(d) { return d.slots.map(function (s) { return verdict(d, s.k); }); }
 function isDone(d) { return verdicts(d).every(function (v) { return !!v; }); }
@@ -256,9 +290,9 @@ function render() {
            '<div class="sl-label">' + s.label + '</div>' +
            '<div class="sl-acts">' +
              '<button class="b-ok' + (v === 'ok' ? ' on' : '') + '" data-id="' + d.id +
-               '" data-k="' + s.k + '" data-v="ok">合格</button>' +
+               '" data-k="' + s.k + '" data-v="ok" title="记下这张没问题">合格</button>' +
              '<button class="b-bad' + (v === 'bad' ? ' on' : '') + '" data-id="' + d.id +
-               '" data-k="' + s.k + '" data-v="bad">重出</button>' +
+               '" data-k="' + s.k + '" data-v="bad" title="记下这张要重出（**不会立刻重出** —— 之后点「导出重出清单」拿命令去跑）">重出</button>' +
            '</div></div>';
     });
     h += '</div>';
@@ -346,7 +380,8 @@ document.getElementById('grid').addEventListener('click', function (ev) {
   state[id] = state[id] || {};
   state[id][k] = (state[id][k] === v) ? '' : v;
   if (!state[id][k]) delete state[id][k];
-  save(); paintCard(id); updateStats();
+  /* 顺序很重要：**先把结果画出来，最后才落盘** —— 落盘失败也不能让「点了像没反应」。 */
+  paintCard(id); updateStats(); save();
 });
 
 ['all', 'pend', 'bad'].forEach(function (k) {

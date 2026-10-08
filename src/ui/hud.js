@@ -221,18 +221,27 @@ G.Hud = (function () {
   /* 提示文案的四个分支之间来回切，而 updateFight 是**每帧**被调的
      （main.js：`if (focused && F.getState() === 'fight') Hud.updateFight(...)`）。
      以前无条件写 innerHTML → 浏览器每帧都把同一段 HTML 重新解析一遍（纯白跑）。
-     缓存最后一次的文案，变了才写。 */
+     缓存最后一次的文案，变了才写。
+
+     文案的**选择**抽成纯函数 `fightTip(s)`：它不碰 DOM，所以 test.js 能在 Node 里
+     直接调它 —— 光扫源码只能证明「这句话还在」，真调一次才能证明「哪个分支真的会被走到」。
+     阈值也不许再写死在 UI 里：`warn > 0.4` 与 `config.fight.dashWarnLead` 是同一族
+     （调了预警时长，提示出现的时刻就跟着变），所以走 `CFG.fight.warnTipAt`。 */
+  function fightTip(s) {
+    if (!s) return '';
+    if (s.dashing) return '<b style="color:#e8595c">鱼在发力！松手！</b>';
+    if (s.warn > CFG.fight.warnTipAt) return '<b style="color:#e8a020">要逃窜了，准备松手</b>';
+    if (s.danger) return '<b style="color:#e8a020">张力偏高，别一直收</b>';
+    return '按住 <kbd>空格</kbd> 或 <kbd>鼠标左键</kbd> 收线，松开放线';
+  }
+
   var fightTipCache = '';
 
   function updateFight(s) {
     if (!fightVisible || !s) return;
     el.barProg.style.width = (s.progress01 * 100).toFixed(1) + '%';
     el.barTen.style.width = (s.tension01 * 100).toFixed(1) + '%';
-    var tip;
-    if (s.dashing) tip = '<b style="color:#e8595c">鱼在发力！松手！</b>';
-    else if (s.warn > 0.4) tip = '<b style="color:#e8a020">要逃窜了，准备松手</b>';
-    else if (s.danger) tip = '<b style="color:#e8a020">张力偏高，别一直收</b>';
-    else tip = '按住 <kbd>空格</kbd> 或 <kbd>鼠标左键</kbd> 收线，松开放线';
+    var tip = fightTip(s);
     if (tip !== fightTipCache) {
       fightTipCache = tip;
       el.fightTip.innerHTML = tip;
@@ -274,6 +283,7 @@ G.Hud = (function () {
   return {
     init: init, syncAll: syncAll, syncCoin: syncCoin, syncStats: syncStats, syncDeck: syncDeck,
     setAction: setAction, showBite: showBite, showFight: showFight, updateFight: updateFight,
+    fightTip: fightTip,
     toast: toast, setField: setField, setWeather: setWeather,
     setTitle: setTitle, syncTitle: syncTitle, syncGoalBadge: syncGoalBadge,
     pushCatch: pushCatch,

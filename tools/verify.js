@@ -1868,10 +1868,17 @@ let thrBad = 0;
   /* ④ 巨物概率比 `Math.random()`（值域 [0,1)）：0 → 永不巨物，≥1 → 条条巨物。 */
   need('config.weight.giantProb', CFG.weight.giantProb, 0, 1, true);
 
+  /* ⑤ 逃窜预警的切提示线：hud.js 比的是 `F.warn = 1 - max(0, nextDash) / dashWarnLead`
+        （fight.js 只在 `nextDash <= dashWarnLead` 时置 warn），所以 warn ∈ [0, 1]。
+        ⚠️ 这条的**第二份真相**曾写在 UI 里（`s.warn > 0.4`）：调 dashWarnLead 会连带
+        改变提示出现的时刻，阈值却在另一个文件里 —— 现在收进 config 由本表盯住。 */
+  const warnLo = 1 - Math.max(0, CFG.fight.dashWarnLead) / CFG.fight.dashWarnLead;
+  need('config.fight.warnTipAt', CFG.fight.warnTipAt, warnLo, 1, true);
+
   if (!thrBad) {
     ok(`配置阈值全部可达：天气高亮线 ${CFG.weather.goodMul} ∈ (${rLo.toFixed(3)}, ${rHi.toFixed(3)}]`
       + `；松线 ${CFG.fight.slackSoft} < 最细鱼线 ${Math.min(...tMax)}`
-      + `；安全线 ${CFG.fight.safeRatio} 与巨物率 ${CFG.weight.giantProb} ∈ (0,1)`);
+      + `；安全线 ${CFG.fight.safeRatio}、巨物率 ${CFG.weight.giantProb} 与逃窜预警线 ${CFG.fight.warnTipAt} ∈ (0,1)`);
   }
 })();
 

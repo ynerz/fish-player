@@ -93,6 +93,10 @@ G.CONFIG = {
     slackGrace     : 1.6,   // 张力 < slackSoft 持续超过这个秒数 → 脱钩
     slackSoft      : 6,     // 判定为「松线」的张力阈值
     dashWarnLead   : 0.55,  // 逃窜前多久给预警（秒）
+    /* 预警期内到哪一步才把提示切成「要逃窜了」——
+       被比较的是 `F.warn = 1 - max(0, nextDash) / dashWarnLead`（取值 [0, 1]），
+       所以调 dashWarnLead 会同时改变提示出现的时刻：两个值同族，放一起看。 */
+    warnTipAt      : 0.4,
     /* 张力触顶后还能撑多久算断线（秒）—— 与上面的 slackGrace 是同一族判定窗口。
        原来它放在 misc 里（注释写「断线缓冲」），与 slackGrace 分居两处，
        调手感时要在两个段落里各找一个值。 */

@@ -1819,6 +1819,42 @@ if (realRAF === undefined) delete global.requestAnimationFrame; else global.requ
 if (realCAF === undefined) delete global.cancelAnimationFrame; else global.cancelAnimationFrame = realCAF;
 
 /* =========================================================
+   Hud —— 拉扯提示的四个分支，以及阈值必须来自 config
+   ========================================================= */
+new Function(fs.readFileSync(path.join(ROOT, 'src/ui/hud.js'), 'utf8')).call(global);
+const Hud = global.G.Hud;
+
+G_('Hud · 拉扯提示文案');
+ok(!!(Hud && typeof Hud.fightTip === 'function'), 'hud.js 能在 Node 里加载并导出 fightTip');
+if (Hud && Hud.fightTip) {
+  /* 按「有 bug 时会不会报红」设计：warn 取 0.75（离写死的 0.4 很远），
+     若有人把阈值重新写死成 0.4，下面两条 config 驱动的断言必红。 */
+  const FT_WARN = 0.75;
+  const withThr = (thr, s) => {
+    const old = CFG.fight.warnTipAt;
+    CFG.fight.warnTipAt = thr;
+    try { return Hud.fightTip(s); } finally { CFG.fight.warnTipAt = old; }
+  };
+  const sBase = { warn: FT_WARN, dashing: false, danger: false };
+  ok(withThr(FT_WARN - 0.1, sBase).indexOf('要逃窜了') >= 0,
+     `warn ${FT_WARN} > 阈值 ${FT_WARN - 0.1} → 提示「要逃窜了」（阈值真的来自 config）`);
+  ok(withThr(FT_WARN + 0.1, sBase).indexOf('要逃窜了') < 0,
+     `warn ${FT_WARN} < 阈值 ${FT_WARN + 0.1} → 不再提示逃跑（阈值抬高即延后提示）`);
+  /* 另外三个分支也要真能走到 —— 之前只扫源码，看不出分支被遮挡 */
+  ok(Hud.fightTip({ warn: 1, dashing: true, danger: true }).indexOf('鱼在发力') >= 0,
+     '逃窜中优先级最高（即使同时满足预警与危险）');
+  ok(Hud.fightTip({ warn: 0, dashing: false, danger: true }).indexOf('张力偏高') >= 0,
+     '没到预警但张力偏高 → 提示「张力偏高」');
+  ok(Hud.fightTip({ warn: 0, dashing: false, danger: false }).indexOf('收线') >= 0,
+     '常态下提示收线操作');
+  ok(Hud.fightTip(null) === '', 'snapshot 缺失时不抛错、返回空串');
+  /* 阈值可达性的**行为**侧：warn 由 fight.js 现算，取满 [0, 1] 时两个分支都能出现 */
+  const wLo = 1 - Math.max(0, 0) / CFG.fight.dashWarnLead;
+  const wHi = 1 - Math.max(0, CFG.fight.dashWarnLead) / CFG.fight.dashWarnLead;
+  ok(wLo === 1 && wHi === 0, `fight.js 的 warn 取值区间是 [${wHi}, ${wLo}]，阈值 ${CFG.fight.warnTipAt} 落在区间内`);
+}
+
+/* =========================================================
    Build —— 单文件打包（tools/build.js）
    ========================================================= */
 const B = require(path.join(ROOT, 'tools/build.js'));

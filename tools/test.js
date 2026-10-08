@@ -31,7 +31,7 @@ global.localStorage = {
  'src/data/goals.js',
  'src/core/util.js', 'src/core/platform.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js',
  'src/core/goals.js', 'src/core/weather.js', 'src/core/fishing.js', 'src/core/track.js',
- 'src/render/mesh3d.js', 'src/render/fishmesh.js', 'src/render/fishpaint.js',
+ 'src/render/fishpaint.js',
  'src/ui/tutorial.js']
   .forEach(r => (new Function(fs.readFileSync(path.join(ROOT, r), 'utf8'))).call(global));
 
@@ -2000,173 +2000,17 @@ G_('模块导出面 · 清掉的零消费接口不许回来');
 });
 
 /* =========================================================
-   低多边形 3D · Mesh3D + FishMesh（3D 化改造队列 T1 / T2）
-   这两块是**纯逻辑**（不碰 DOM / Canvas / Fishing），所以能在 Node 里跑。
-   验的是「不报错但结果错」那一类：角度当弧度用、近平面除零、
-   顶点算出 NaN、排序方向反了、每个面没描边导致露发丝缝。
-   规格：docs/3D渲染方案.md §3 / §4
+   颜色变异 → 材质参数（FishPaint）
+   ⚠️ 2026-10-08：程序化 3D 已整体撤销（用户口径「之前的方式生成 3D 基本不可行，
+   太粗糙了」）→ `mesh3d.js` / `fishmesh.js` 两个模块与它们的断言块一并删除。
+   **FishPaint 保留**：它有独立于 3D 的消费方 ——
+     · `tools/paint-card.py` 靠 `node -e` 调 `palette()` 取 5 档颜色，
+       它是**颜色口径的唯一来源**（同口径写两遍必然分家）
+     · `rim` / `rimK` / `metallic` / `sparkle` 仍是卡面 5 档视觉跃迁的设计口径
+   规格：`docs/画风与颜色标准.md` §3
    ========================================================= */
 (function () {
-G_('Mesh3D —— 投影 / 法线 / 光照 / 排序 / 绘制');
-const M3 = G.Mesh3D, FM = G.FishMesh;
-
-near(M3.rad(180), Math.PI, 1e-9, 'rad()：180° == π');
-near(M3.rad(60), 1.0472, 1e-4,
-  'rad()：60° ≈ 1.0472 弧度（参考实现曾把 60 当弧度用 → 197° 视角错位，且不报错）');
-
-const vw0 = M3.view(200, 100, 0, 0, 3);
-ok(vw0.cx === 100 && vw0.cy === 50, 'view()：画面中心在 (w/2, h/2)');
-near(vw0.f, 100 * 1.45, 1e-9, 'view()：焦距 = min(w,h) × 1.45');
-
-const pj0 = M3.projectVerts(vw0, [{ x: 0, y: 0, z: 0 }], []);
-near(pj0[0].x, 100, 1e-9, 'projectVerts()：原点投影在画面中心 x');
-near(pj0[0].y, 50, 1e-9, 'projectVerts()：原点投影在画面中心 y');
-near(pj0[0].d, 3, 1e-9, 'projectVerts()：原点相机距离 = camZ');
-
-const pjNear = M3.projectVerts(vw0, [{ x: 0, y: 0, z: 99 }], []);
-ok(pjNear[0].d === 0.35,
-  'projectVerts()：越过相机的顶点被夹到近平面 0.35（否则透视除零 / 三角面翻面）');
-
-const pjFwd = M3.projectVerts(vw0, [{ x: 0, y: 0, z: 0.5 }], [])[0];
-const pjBack = M3.projectVerts(vw0, [{ x: 0, y: 0, z: -0.5 }], [])[0];
-ok(pjFwd.s > pjBack.s, 'projectVerts()：离相机越近缩放越大');
-
-const nf = M3.norm(M3.faceNormal(
-  { x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 }));
-near(nf[2], 1, 1e-9, 'faceNormal()：XY 平面上的三角形法线朝 +z');
-ok(Math.abs(nf[0]) < 1e-9 && Math.abs(nf[1]) < 1e-9, 'faceNormal()：法线已归一化');
-
-near(M3.toViewNormal([0, 0, 1], vw0)[2], 1, 1e-9, 'toViewNormal()：无旋转时法线不变');
-
-const palAmb = { back: [1, 1, 1], belly: [1, 1, 1], rim: [0, 0, 0], rimK: 0, spec: 0, metallic: 0 };
-// 光照模型（按 v9 参考图重标定过）：亮度 = max(环境项 + 主光, 腹部反射补光 × (1-t))
-const shTop = M3.shade(M3.norm([0, 1, 0]), [0, 0, 1], palAmb, M3.LIGHT);
-near(shTop[0], M3.LIGHT.ambient + 0.806 * M3.LIGHT.keyGain, 0.02,
-  'shade()：正朝上的面被主光打亮（v9 的亮面是真的亮，不是一片灰）');
-const shBelly = M3.shade(M3.norm([0, -1, 0]), [0, 0, 1], palAmb, M3.LIGHT);
-near(shBelly[0], M3.LIGHT.bellyFloor, 1e-6,
-  'shade()：正朝下的面亮度 = 腹部反射补光下限（v9 参考图里鱼肚是亮的，没有这一项会黑成一块）');
-ok(M3.LIGHT.bellyFloor < 1 && M3.LIGHT.ambient < M3.LIGHT.bellyFloor,
-  'shade()：腹部补光只作用于朝下的面，不是「把整条鱼提亮」的环境光（口径仍是「无环境补光」）');
-
-const palRim = { back: [0.5, 0.5, 0.5], belly: [0.5, 0.5, 0.5], rim: [1, 1, 1], rimK: 1, spec: 0, metallic: 0 };
-const shEdge = M3.shade([0, 0, 1], [1, 0, 0], palRim, M3.LIGHT);   // 法线 ⟂ 视线 → 边缘项拉满
-const shFace = M3.shade([0, 0, 1], [0, 0, 1], palRim, M3.LIGHT);   // 法线正对视线 → 边缘项为 0
-ok(shEdge[0] > shFace[0] + 0.2,
-  'shade()：侧对视线（边缘）显著亮于正对视线（中间）—— 这是「边缘光」成立的前提');
-
-const palNoSpec = { back: [0.2, 0.2, 0.2], belly: [0.2, 0.2, 0.2], rim: [0, 0, 0], rimK: 0, spec: 0, metallic: 0 };
-const palSpec = { back: [0.2, 0.2, 0.2], belly: [0.2, 0.2, 0.2], rim: [0, 0, 0], rimK: 0, spec: 0.9, metallic: 1 };
-let specOk = true;
-[[0, 0, 1], [0.5, 0.5, 0.7], [0.32, -0.72, -0.42]].forEach(v => {
-  const n2 = M3.norm(v);
-  const a = M3.shade(n2, [0, 0, 1], palNoSpec, M3.LIGHT)[0];
-  const b = M3.shade(n2, [0, 0, 1], palSpec, M3.LIGHT)[0];
-  if (b < a - 1e-9) specOk = false;
-});
-ok(specOk, 'shade()：开镜面后各角度都不会比关闭时更暗（黄金 / 闪光档靠它出高光）');
-
-const ord = M3.sortOrder(
-  [[0, 1, 2], [3, 4, 5], [6, 7, 8]],
-  [{ d: 3 }, { d: 3 }, { d: 3 }, { d: 1 }, { d: 1 }, { d: 1 }, { d: 2 }, { d: 2 }, { d: 2 }],
-  [0, 1, 2], new Float32Array(3));
-ok(ord[0] === 0 && ord[1] === 2 && ord[2] === 1,
-  'sortOrder()：远的先画（画家算法），顺序 = 相机距离降序');
-
-const meshFish = FM.build('fish');
-const tgt = M3.makeTarget(meshFish);
-ok(tgt.proj.length === meshFish.verts.length && tgt.order.length === meshFish.tris.length,
-  'makeTarget()：投影 / 排序缓冲长度与网格一致（每帧复用，不新建数组）');
-
-M3.freeze(meshFish, tgt);
-ok(Math.abs(tgt.ax[10] - meshFish.verts[10].x) < 1e-6 &&
-   Math.abs(tgt.az[10] - meshFish.verts[10].z) < 1e-6,
-  'freeze()：不开动画时顶点原样拷贝（缓冲是 Float32Array，比较要给容差）');
-
-M3.animate(meshFish, 0.81, tgt);
-let dispNear = 0, dispTail = 0;
-meshFish.verts.forEach((v, i) => {
-  const dz = Math.abs(tgt.az[i] - v.z);
-  if (v.t > 0.1 && v.t < 0.3) dispNear = Math.max(dispNear, dz);
-  if (v.t > 0.85) dispTail = Math.max(dispTail, dz);
-});
-ok(dispTail > dispNear * 2 && dispTail > 0.01,
-  'animate()：越靠尾摆动越大（身体行进波，幅度按 t^1.7 增长）');
-M3.freeze(meshFish, tgt);        // 还原，别影响后面的渲染断言
-
-let fills = 0, strokes = 0;
-const fakeCtx = {
-  fillStyle: '', strokeStyle: '', lineWidth: 0, lineJoin: '',
-  beginPath() {}, moveTo() {}, lineTo() {}, closePath() {},
-  fill() { fills++; }, stroke() { strokes++; }
-};
-const drawn = M3.render(fakeCtx, meshFish, {
-  target: tgt, view: M3.view(400, 300, 0, 0, 3.05),
-  palette: { back: [0.3, 0.4, 0.5], belly: [0.8, 0.85, 0.85], rim: [0.7, 0.9, 1], rimK: 0.9, spec: 0, metallic: 0 },
-  time: 0, animate: false
-});
-ok(drawn === meshFish.tris.length && fills === meshFish.tris.length,
-  'render()：每个三角面恰好画一次（填充次数 == 面数）');
-ok(strokes === fills,
-  'render()：每面填充后都用同色描一遍（不描的话三角面之间会露底色的发丝缝，像线框）');
-
-G_('FishMesh —— 全 9 种体型的三角网格（队列 T3）');
-const SHAPES9 = ['fish', 'eel', 'ray', 'squid', 'jelly', 'oarfish', 'shark', 'whale', 'dragon'];
-ok(Object.keys(FM.TYPES).length === 9 && SHAPES9.every(k => !!FM.TYPES[k]),
-  'TYPES：9 种体型齐全（与 fishart.js 的 TPL 同一批；漏一种就会有鱼画不出网格）');
-
-// 与 fish.js 实际用到的体型集合对齐（现算，不写死数字）
-const usedShapes = {};
-G.FISH.forEach(f => { usedShapes[f.shape] = true; });
-const shapeMissing = Object.keys(usedShapes).filter(s => !FM.TYPES[s]);
-ok(shapeMissing.length === 0,
-  `渔获实际用到的 ${Object.keys(usedShapes).length} 种体型都能建网格（缺：${shapeMissing.join('、') || '无'}）`);
-
-SHAPES9.forEach(k => {
-  const m = FM.build(k);
-  ok(m.verts.every(v => isFinite(v.x) && isFinite(v.y) && isFinite(v.z)),
-    `build('${k}')：顶点坐标都是有限数（无 NaN / Infinity）`);
-  ok(m.tris.length > 100 && m.tris.length < 900,
-    `build('${k}')：面数落在 100~900（实际 ${m.tris.length}）`);
-  ok(m.verts.every(v => v.t >= 0 && v.t <= 1),
-    `build('${k}')：顶点 t 都在 [0,1]（动画按 t 施加，越界会算出畸形）`);
-  ok(m.verts.every(v => v.b >= -1.001 && v.b <= 1.001),
-    `build('${k}')：顶点 b 都在 [-1,1]（两色身体按 b 分背腹）`);
-  ok(m.tris.every(t => t.length === 3 && t.every(i => i >= 0 && i < m.verts.length)),
-    `build('${k}')：所有三角面的顶点索引都在范围内（越界会画出乱线）`);
-});
-
-function bboxOf(m) {
-  const b = M3.bbox(m);
-  return { x: b.x1 - b.x0, y: b.y1 - b.y0, z: b.z1 - b.z0 };
-}
-const bFish = bboxOf(FM.build('fish'));
-const bRay = bboxOf(FM.build('ray'));
-const bJelly = bboxOf(FM.build('jelly'));
-ok(bFish.x > 1.8 && bFish.x < 2.4, `fish：体长跨度合理（${bFish.x.toFixed(2)}，含尾鳍）—— 比例按 v9 参考图量过`);
-ok(bFish.y > 0.5 && bFish.y < 1.0, `fish：体高跨度合理（${bFish.y.toFixed(2)}，含背鳍 / 胸鳍）`);
-ok(bRay.z > bRay.y * 5, `ray：极扁的盘（展向 ${bRay.z.toFixed(2)} 是厚度 ${bRay.y.toFixed(2)} 的 ${(bRay.z/bRay.y).toFixed(1)} 倍）`);
-ok(bRay.x > bRay.z * 0.9,
-  `ray：算上鞭尾，总长（${bRay.x.toFixed(2)}）与展向（${bRay.z.toFixed(2)}）同量级 —— 不是「一个大盘拖着短线」`);
-ok(bRay.y < 0.3, `ray：极扁（厚度 ${bRay.y.toFixed(2)}）—— 车削式做不出这个平面型，所以它走独立生成器`);
-ok(bJelly.y > bJelly.x, `jelly：伞盖 + 触手在竖直方向展开（高 ${bJelly.y.toFixed(2)} > 宽 ${bJelly.x.toFixed(2)}）`);
-
-near(FM.profileAt('fish', 0.37).hy, 0.3378, 0.05,
-  'profileAt()：最粗处在体长约 37% 位置（流线型鱼的重心偏前）');
-ok(FM.profileAt('fish', 0).hy < 0.05 && FM.profileAt('fish', 1).hy < 0.05,
-  'profileAt()：吻端与尾根趋近于 0（环退化成一个点，三角面自然收尖）');
-ok(FM.profileAt('没这个体型', 0.5) === null, 'profileAt()：未知体型返回 null，不是抛异常');
-near(FM.rad(90), Math.PI / 2, 1e-9, 'rad()：导出给调用方用（角度参数一律过它转弧度）');
-
-// 默认视角必须按体型给：鳐侧视只是一条细缝，正 / 侧面都没有辨识度
-const dvRay = FM.defaultView('ray'), dvFish = FM.defaultView('fish'), dvJelly = FM.defaultView('jelly');
-ok(dvRay.pitch > 1.3 && dvRay.pitch < 1.6,
-  `defaultView('ray')：俯仰 ${(dvRay.pitch * 180 / Math.PI).toFixed(0)}° —— 鳐必须接近正俯视；60° 是斜俯，展向会被压扁`);
-ok(dvFish.pitch === 0 && dvFish.yaw === 0, 'defaultView()：常规鱼默认侧视（辨识度最高的角度）');
-ok(dvJelly.pitch !== 0, 'defaultView()：水母不是正侧视（要看到伞盖内侧）');
-ok(FM.defaultView('没这个体型') === null, 'defaultView()：未知体型返回 null');
-
-G_('FishPaint —— 颜色变异 → 材质参数（队列 T4）');
+G_('FishPaint —— 颜色变异 → 材质参数');
 const FP = G.FishPaint;
 ok(FP.MORPH_KEYS.length === CFG.colorMorphs.length &&
    FP.MORPH_KEYS.every((k, i) => CFG.colorMorphs[i].key === k),
@@ -2232,54 +2076,6 @@ ok(FP.mix([0, 0, 0], [1, 1, 1], 0.5)[0] === 0.5, 'mix()：线性插值');
 const realFish = G.FISH.filter(f => f.rar === 3)[0] || G.FISH[0];
 ok(!!FP.fromFish(realFish, 'golden').back,
   `fromFish()：能吃下 fish.js 的真实字段（body/accent）—— 试了「${realFish.name}」`);
-
-G_('FishMesh —— 传说细节层级（用户口径：传说鱼细节明显更足）');
-ok(FM.detailForRar(0) === 0 && FM.detailForRar(1) === 0 &&
-   FM.detailForRar(2) === 1 && FM.detailForRar(3) === 2,
-  'detailForRar()：普通 / 稀有 = 0 级，史诗 = 1 级，传说 = 2 级');
-ok(FM.DETAIL_TIERS.length === 4 && FM.DETAIL_TIERS[3].detail === 2,
-  'DETAIL_TIERS：稀有度 → 细节层级是单一来源（不在别处再写一份映射）');
-
-/* 稀有度递进按**剪影**验，不按面数：
-   基础档已经给全解剖结构，史诗档是「同样的鳍更长」，面数不变但轮廓变大。
-   按面数验会漏掉这一档（实测踩过：改完之后 detail 1 与 detail 0 面数完全相同）。 */
-const thinTier = [];
-const flatTier = [];
-SHAPES9.forEach(k => {
-  const d0 = FM.build(k, { detail: 0 }), d1 = FM.build(k, { detail: 1 }), d2 = FM.build(k, { detail: 2 });
-  const b0 = bboxOf(d0), b1 = bboxOf(d1), b2 = bboxOf(d2);
-  const g1 = Math.max(b1.x - b0.x, b1.y - b0.y, b1.z - b0.z);
-  const g2 = Math.max(b2.x - b1.x, b2.y - b1.y, b2.z - b1.z);
-  if (g1 < 0.008) flatTier.push(k + '(+' + g1.toFixed(3) + ')');
-  if (g2 < 0.008) thinTier.push(k + '(+' + g2.toFixed(3) + ')');
-  // 加了附属结构之后坐标仍必须是有限数 —— 锚点算错时最容易出 NaN，
-  // 而 NaN 只是「什么都不显示」，不会报错（实测踩过：鳐鱼飘带锚点漏了 span）
-  ok(d2.verts.every(v => isFinite(v.x) && isFinite(v.y) && isFinite(v.z)),
-    `build('${k}', detail 2)：加了飘带 / 棘刺后坐标仍是有限数`);
-});
-ok(flatTier.length === 0,
-  `史诗档比普通档的剪影更大（鳍更长）${flatTier.length ? '；没变的：' + flatTier.join('、') : ''}`);
-ok(thinTier.length === 0,
-  `传说档比史诗档的剪影更大（再叠飘带 / 棘刺）${thinTier.length ? '；没变的：' + thinTier.join('、') : ''}`);
-
-// 关键：细节必须落在**剪影**上 —— 缩到 64px 时表面全糊，只有轮廓外的突起读得出来
-let silBad = [];
-SHAPES9.forEach(k => {
-  const b0 = bboxOf(FM.build(k, { detail: 0 })), b2 = bboxOf(FM.build(k, { detail: 2 }));
-  const grow = Math.max(b2.x - b0.x, b2.y - b0.y, b2.z - b0.z);
-  if (grow < 0.02) silBad.push(k + '(+' + grow.toFixed(3) + ')');
-});
-ok(silBad.length === 0,
-  `传说档的剪影确实变大（不是贴表面纹理）${silBad.length ? '；没变的：' + silBad.join('、') : ''}`);
-
-const f0 = FM.build('fish', { detail: 0 }), f1 = FM.build('fish', { detail: 1 }), f2 = FM.build('fish', { detail: 2 });
-ok(f2.tris.length > f0.tris.length,
-  `传说档的三角面多于普通档（${f0.tris.length} → ${f2.tris.length}）—— 飘带 / 双层尾鳍是新增几何`);
-ok(f2.tris.length >= f0.tris.length * 1.05,
-  `fish：传说档面数至少多 10%（${f0.tris.length} → ${f2.tris.length}）`);
-const bb0 = bboxOf(f0), bb2 = bboxOf(f2);
-ok(bb2.x > bb0.x + 0.2,
-  `fish：传说档尾鳍飘带把剪影拉长（${bb0.x.toFixed(2)} → ${bb2.x.toFixed(2)}）—— 64px 下靠它认出来`);
 })();
 
 /* =========================================================

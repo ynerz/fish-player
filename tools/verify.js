@@ -2405,6 +2405,44 @@ console.log('\n[33-e] 低模精细度：GEOM 要密度不要「大面片」；�
     return;
   }
   ok('闪光档的面片例外（GEOM_COARSE）在位、不含「密集」措辞、且只挂在 shiny 一档');
+
+  /* ⑤ **步数按稀有度 + 档位**（用户口径 2026-10-08：「传说级别的鱼使用 35 步，史诗使用 30」）。
+     口径只有 `steps_for(f, morph)` 一处：**取 max**（史诗的黄金档 = max(30,35) = 35）。
+     ⚠️ 盯两件事：① 两个表都在、`steps_for` 真的取 max（写成覆盖就会让"史诗的黄金档只有 30 步"）
+     ② 「按档句」这类例外只许挂 shiny 一档，且名字只出现两次（定义 + 使用）——
+       多一处就可能有人**在运行期**把它加到别的档上（`GEOM_COARSE` 那次就被这种注入骗过）。 */
+  const rarTbl = src.match(/^STEPS_BY_RAR\s*=\s*\{[^}]*\}/m);
+  const morTbl = src.match(/^STEPS_BY_MORPH\s*=\s*\{[^}]*\}/m);
+  if (!rarTbl || !morTbl) {
+    err('`STEPS_BY_RAR` / `STEPS_BY_MORPH` 不见了 —— 步数按稀有度/档位的口径被改掉了');
+    return;
+  }
+  const sf = src.slice(at(src, 'def steps_for('));
+  const sfBody = sf.slice(0, sf.indexOf('\ndef ', 10) > 0 ? sf.indexOf('\ndef ', 10) : 400);
+  if (!/max\(/.test(sfBody) || !/STEPS_BY_RAR/.test(sfBody) || !/STEPS_BY_MORPH/.test(sfBody)) {
+    err('`steps_for()` 没有「按稀有度与档位取 max」—— 写成覆盖会让「史诗的黄金档」只有 30 步'
+      + '（而黄金档要求 35），两边口径打架');
+    return;
+  }
+  for (const [name, want] of [['PALETTE_SHADE_BY_MORPH', 'shiny'], ['EXTRA_BY_MORPH', 'shiny']]) {
+    const hits = (src.match(new RegExp(name, 'g')) || []).length;
+    if (hits !== 2) {
+      err(name + ' 在代码里出现 ' + hits + ' 次（只许 2 次：定义 + 在 xxx_for() 里引用）——'
+        + ' 多出来的那处可能在运行期把闪光档的句子加到别的档上');
+      return;
+    }
+    const tbl = (src.match(new RegExp('^' + name + '\\s*=\\s*\\{[^}]*\\}', 'm')) || [''])[0];
+    const keys = (tbl.match(/"([a-z]+)"\s*:/g) || []).map(x => x.replace(/["\s:]/g, ''));
+    if (keys.length !== 1 || keys[0] !== want) {
+      err(name + ' 只许挂 ' + want + ' 一档，现在挂的是 ' + JSON.stringify(keys));
+      return;
+    }
+  }
+  if (!/^PALETTE_SHADE\s*=\s*"/m.test(src)) {
+    err('`PALETTE_SHADE`（默认的背腹明暗句）不见了 —— 母版与其它三档要靠它');
+    return;
+  }
+  ok('步数 = max(稀有度 35/30, 档位 35) 只写在 `steps_for()`；按档例外只挂 shiny 且各只出现两处');
 })();
 
 /* ---------------- 33-f. 五档颜色句：候选总表 + 权重池，且抽样必须可复现 ----------------

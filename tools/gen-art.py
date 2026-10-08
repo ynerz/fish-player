@@ -85,11 +85,19 @@ W, H, STEPS = 1152, 768, 25           # 3:2 横构图（图鉴卡面比例，UI 
 # ⚠️ 改了这里，**已生成的那些并不会自动重出**（`--skip-existing` 只看文件在不在）——
 #    所以 `report_stale()` 现在也把「步数与当前口径不符」算作过期。
 STEPS_BY_MORPH = {"golden": 35, "shiny": 35}
+# 稀有度也参与定步数（用户口径 2026-10-08：「传说级别的鱼使用 35 步，史诗使用 30」）。
+# 两者**取 max**：比如「史诗的黄金档」= max(30, 35) = 35；「传说的母版」= 35；普通鱼的母版 = 25。
+STEPS_BY_RAR = {3: 35, 2: 30}
 
 
-def steps_for(morph):
-    """这一档出图用多少步。**唯一口径**（母版 = `None` ⇒ `STEPS`）。"""
-    return STEPS_BY_MORPH.get(morph or "", STEPS)
+def steps_for(f, morph=None):
+    """这一张图出多少步。**唯一口径** = max(按稀有度, 按档位)，都没命中就是 `STEPS`。
+
+    ⚠️ 改这里之后，**已生成的卡不会自动重出**（`--skip-existing` 只看文件在不在）——
+       `report_stale()` 会拿同一个函数算，把「步数不一致」也算作过期。
+    """
+    rar = (f or {}).get("rar") if isinstance(f, dict) else f
+    return max(STEPS_BY_RAR.get(rar, STEPS), STEPS_BY_MORPH.get(morph or "", STEPS))
 
 
 
@@ -259,9 +267,15 @@ MORPH_CANDIDATES = {
                  "molten liquid gold colouring, flowing golden highlights running along the body, "
                  "warm amber and honey gold tones, champagne-bright glints, heavy metallic lustre"),
     # ── 闪光族 ──
+    #                        ⚠️ 尾巴那半句「the same glitter carried right across the belly…」是
+    #                        2026-10-08 用户口径加的（「肚子没那么闪光」）：候选句原本只写了 `body`，
+    #                        而腹部被 `a clearly lighter belly` 提亮成均匀浅色 ⇒ 闪不起来。
+    #                        实测这半句把 Δ腹 从 +15.4pp 压到 +5.7pp（配合按档明暗句到 −5pp）。
     "shiny/1":  ("星点（基准）",
                  "iridescent shimmering body covered in sparkling glittering speckles, "
-                 "bright specular glints, star-shaped sparkle highlights, prismatic sheen"),
+                 "bright specular glints, star-shaped sparkle highlights, prismatic sheen, "
+                 "the same glitter carried right across the belly, "
+                 "belly scales sparkling as brightly as the back"),
     "shiny/2":  ("银底亮片",
                  "body densely covered in tiny mirror-bright metallic speckles that catch the "
                  "light like glitter, hundreds of pinpoint specular glints, cool chrome-bright "
@@ -475,6 +489,36 @@ def luma(hexstr):
 # 🔴 提成常量是因为它必须**同时**出现在母版与五档里 —— 写两遍必然分家，
 #    而 `paint-card.py` 的渐变映射（颜色 = 灰度的函数）就靠这一句撑着。
 PALETTE_SHADE = "a clearly lighter belly and a darker back"
+
+# 🔴 闪光档专用的「明暗句」（2026-10-08 用户报障：「闪光的问题在于肚子没那么闪光」）。
+#    为什么默认那句在闪光档上是**负作用**：`a clearly lighter belly` 命令腹部变成**一块更亮的均匀色**，
+#    而闪光的视觉本质是「局部高对比的亮点」——把腹部整体提亮等于**把局部对比洗掉**。
+#    实测（`tools/measure-shine.py`，Δ = 背 − 腹，正数 = 腹更不闪）：改前 Δ腹 **+14~+17pp**，
+#    腹部**比背部更亮**（166 vs 147）却只有**一半的闪度**（9% vs 27%）⇒ 又亮又平 = 不闪。
+#    换成这句后 Δ腹 → **−4.5~−9.0pp**（腹部反而比背更闪）。
+PALETTE_SHADE_BY_MORPH = {
+    "shiny": "a belly only slightly lighter and still covered in the same bright glitter, a darker back",
+}
+
+
+def shade_for(morph):
+    """这一档用哪句「背腹明暗」。**唯一口径**（只有闪光档例外，其余与母版共用 `PALETTE_SHADE`）。"""
+    return PALETTE_SHADE_BY_MORPH.get(morph or "", PALETTE_SHADE)
+
+# 🔴 闪光档专用的「收尾句」，插在 `LIGHT` **之后**。
+#    为什么必须排在 LIGHT 后面（后说者赢）：`LIGHT` 写的是「光只在背和尾 + 深阴面」，
+#    而亮处（被 rim light 照亮的**头部**、被"lighter belly"提亮的**腹部**）正是闪不起来的两个地方。
+#    `MORPH_SCOPE` 虽然写了 `including the head and the fins`，但它**排在 LIGHT 之前**，压不住 ——
+#    实测头部 Δ **+10.6~+15.8pp**（D14/D16/C02）。加上这句之后 Δ头 → **+3.2~+6.3pp**。
+EXTRA_BY_MORPH = {
+    "shiny": "sparkling glints spread evenly across the head and the belly as well, "
+             "every area glittering, no flat dull patches",
+}
+
+
+def extra_for(morph):
+    """插在 LIGHT 之后的那句（大多数档为空字符串）。**唯一口径**。"""
+    return EXTRA_BY_MORPH.get(morph or "", "")
 
 
 def palette_desc(f):
@@ -978,7 +1022,17 @@ def build_prompt(f, morph=None):
     frame = ("full side view, whole body visible, facing left, "
              "centered with generous margin, " + rar + ".")
     # 面片措辞**按档取**（闪光档用 `GEOM_COARSE`，见 `geom_for()`）；母版传 None ⇒ 用 GEOM
-    return " ".join([head, frame, palette_desc(f), LIGHT, geom_for(morph), BG])
+    # 颜色句 = `palette_color` + **按档**的明暗句（闪光档那句是例外，见 PALETTE_SHADE_BY_MORPH）；
+    # 收尾 = LIGHT + **按档**的补句（只有闪光档非空）+ GEOM + BG
+    # ⚠️ 末尾那个 "." 不能丢：`palette_desc()` 原本返回
+    #    `palette_color(f) + ", " + PALETTE_SHADE + "."` —— 少了它**母版与每一档的提示词都会变**
+    #    （实测母版第 662 字由 "darker back. strong" 变成 "darker back strong"），
+    #    于是全项目所有卡被误判成过期。我第一版就丢过一次，靠"母版与 manifest 逐字相同"这条自检抓回来。
+    parts = [head, frame, palette_color(f) + ", " + shade_for(morph) + ".", LIGHT]
+    if extra_for(morph):
+        parts.append(extra_for(morph))
+    parts += [geom_for(morph), BG]
+    return " ".join(parts)
 
 
 def build_morph_prompt(f, morph, color_desc):
@@ -1320,7 +1374,7 @@ def report_stale(fish):
         # 母版：文件在 + 记的提示词与现算的不一样
         if os.path.exists(os.path.join(OUT, fid + ".png")) and (
                 rec.get("prompt") != build_prompt(f)
-                or rec.get("steps", STEPS) != steps_for(None)):
+                or rec.get("steps", STEPS) != steps_for(f, None)):
             groups.setdefault("母版", []).append(fid)
         for key, _d in MORPHS:
             path = os.path.join(OUT, "%s-%s.png" % (fid, key))
@@ -1335,7 +1389,7 @@ def report_stale(fish):
                     #    老条目里没有这个键，而那时每一档都跑 25 步 ⇒ 缺失 = 25，
                     #    用 -1 会把 bright / albino 这些**本来就没变**的档全算成过期（假警报一串）。
                     or ((rec.get("morphs") or {}).get(key) or {}).get("steps", STEPS)
-                       != steps_for(key)):
+                       != steps_for(f, key)):
                 groups.setdefault(key, []).append(fid)
 
     total = sum(len(v) for v in groups.values())
@@ -1587,8 +1641,8 @@ def main():
             variant_ck, variant_tag, desc = morph_pick(fid, morph)
             dst = os.path.join(OUT, "%s-%s.png" % (fid, morph))
             prompt, label = build_morph_prompt(f, morph, desc), MORPH_CN[morph]
-        # 步数**按档**取（黄金 / 闪光 = 35，其余 = 25）—— 见 `steps_for()`
-        steps = steps_for(morph)
+        # 步数 = max(按稀有度, 按档位) —— 见 `steps_for()`
+        steps = steps_for(f, morph)
 
         if args.skip_existing and os.path.exists(dst):
             print("[%d/%d] %s %-7s 已存在，跳过" % (i, len(jobs), fid, label))

@@ -31,6 +31,8 @@ import io
 import json
 import os
 import re
+import subprocess
+import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -196,7 +198,7 @@ TEMPLATE = u"""<!DOCTYPE html>
     <button id="f-bad">重出</button>
     <button id="exp">导出重出清单</button>
     <button id="rst">清空</button>
-    <span class="stat">快捷键：1=合格　2=重出　·　点图放大　·　<b>这里只记结论</b>：要真的重出，点「导出重出清单」拿命令去跑</span>
+    <span class="stat">快捷键：1=合格　2=重出　·　点图放大　·　<span id="runState">检查本地运行器…</span></span>
   </div>
   <div id="warn"></div>
   <div class="stat" style="margin-top:4px">图片若显示不出来：请用「项目根目录起 http 服务」的方式打开本页（<code>python -m http.server 8765</code> → <code>127.0.0.1:8765/docs/卡片评审.html</code>）。</div>
@@ -206,16 +208,27 @@ TEMPLATE = u"""<!DOCTYPE html>
 <div id="lb"><img alt=""><div class="lb-tip">点任意处关闭（Esc 也可以）</div></div>
 
 <dialog id="dlg">
-  <h2>重出清单（**按单档**给）</h2>
-  <p>下面每条命令都是可以直接跑的。五档**是独立文生图**（2026-10-07 起，曾走图生图已弃用），
-     所以**可以只重出其中一张**；母版重出会顺带刷新它的 <code>-normal</code>（原色档就是母版抠图）。</p>
+  <h2 id="dlgTitle">重出清单（**按单档**给）</h2>
+  <p id="dlgTip">五档**是独立文生图**（2026-10-07 起，曾走图生图已弃用），所以**可以只重出其中一张**；
+     母版重出会顺带刷新它的 <code>-normal</code>（原色档就是母版抠图）。</p>
   <textarea id="out" readonly></textarea>
   <p id="cmds"></p>
-  <div class="acts"><button id="cp">复制</button><button id="close">关闭</button></div>
+  <div class="acts">
+    <button id="cp">复制</button>
+    <button id="run" disabled>开始重出</button>
+    <button id="close">关闭</button>
+  </div>
 </dialog>
 
 <script>
 var DATA = __DATA__;
+/* `--serve` 打开本页时这里会被换成真 token；静态打开时是空串（运行器也不在）。 */
+var TOKEN = '__TOKEN__';
+/* 重出之后设成 `?t=…` —— 否则浏览器会把旧图从缓存里拿出来，看着像「没重出」 */
+var CACHE_BUST = '';
+/* 档位中文名的**唯一来源是 Python 侧的 slot.label**，这里只做索引，不另抄一份 */
+var SLOT_LABEL = {};
+DATA.forEach(function (d) { d.slots.forEach(function (s) { SLOT_LABEL[s.k] = s.label; }); });
 /* v2：状态从「一条鱼一个结论」改成「一条鱼 × **每一档**一个结论」。
    换 key 是为了不把新旧两种结构混在同一个键里。 */
 var KEY = 'fishcard-review-v2';
@@ -281,12 +294,12 @@ function render() {
     var el = document.createElement('div');
     el.className = 'c' + (isDone(d) ? ' ok' : '') + (isBad(d) ? ' bad' : '');
     el.setAttribute('data-id', d.id);
-    var h = '<img src="../assets/cards/' + d.id + '.png" loading="lazy">';
+    var h = '<img src="../assets/cards/' + d.id + '.png' + CACHE_BUST + '" loading="lazy">';
     h += '<div class="slots">';
     d.slots.forEach(function (s) {
       var v = verdict(d, s.k);
       h += '<div class="slot' + (v ? ' ' + v : '') + '">' +
-           '<img src="../assets/cards/' + s.file + '" loading="lazy">' +
+           '<img src="../assets/cards/' + s.file + CACHE_BUST + '" loading="lazy">' +
            '<div class="sl-label">' + s.label + '</div>' +
            '<div class="sl-acts">' +
              '<button class="b-ok' + (v === 'ok' ? ' on' : '') + '" data-id="' + d.id +
@@ -439,8 +452,99 @@ document.getElementById('exp').onclick = function () {
   document.getElementById('dlg').showModal();
 };
 
-document.getElementById('close').onclick = function () { document.getElementById('dlg').close(); };
-document.getElementById('cp').onclick = function () {
+/* =========================================================
+   本地运行器：让「重出」真的能跑（用户口径 2026-10-08）
+   =========================================================
+   页面是静态 HTML，浏览器里**跑不了 python**。要直接跑，得用
+   `python tools/review-cards.py --serve` 打开本页 —— 那个小服务提供 `/api/regen`。
+   静态打开（file:// 或普通 http.server）时探不到运行器 ⇒ 按钮置灰，只能用「复制」。 */
+var RUNNER = false;
+
+function api(path, opt) {
+  opt = opt || {};
+  opt.headers = Object.assign({ 'X-Token': TOKEN }, opt.headers || {});
+  return fetch(path, opt);
+}
+
+function runnerNote(txt) { document.getElementById('runState').textContent = txt; }
+
+api('/api/ping').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+  RUNNER = !!(j && j.ok);
+  var b = document.getElementById('run');
+  b.disabled = !RUNNER;
+  b.textContent = RUNNER ? '开始重出' : '开始重出（未连接运行器）';
+  runnerNote(RUNNER
+    ? '本地运行器：已连接 —— 可以直接「开始重出」'
+    : '本地运行器：未连接 —— 只能用「复制」把命令拿去别处跑');
+}).catch(function () {
+  document.getElementById('run').textContent = '开始重出（未连接运行器）';
+  runnerNote('本地运行器：未连接（静态打开时就是这样）');
+});
+
+/* 把当前标成「重出」的收成 [{morph, ids}] 交给运行器 */
+function collectGroups() {
+  var by = {}, order = [];
+  DATA.forEach(function (d) {
+    d.slots.forEach(function (s) {
+      if (order.indexOf(s.k) < 0) order.push(s.k);
+      if (verdict(d, s.k) === 'bad') { (by[s.k] = by[s.k] || []).push(d.id); }
+    });
+  });
+  return order.filter(function (k) { return by[k] && by[k].length; })
+              .map(function (k) { return { morph: k, ids: by[k].slice().sort() }; });
+}
+
+function pollJob() {
+  api('/api/job').then(function (r) { return r.json(); }).then(function (j) {
+    var out = document.getElementById('out');
+    out.value = (j.log || []).join('\n');
+    out.scrollTop = out.scrollHeight;
+    document.getElementById('cmds').innerHTML = (j.running ? '⏳ 正在重出　' : '✅ 跑完　')
+      + j.done + ' / ' + j.total + ' 张　（成功 ' + j.ok + ' · 失败 ' + j.fail + '）'
+      + (j.cur ? '　当前：' + j.cur : '');
+    if (j.running) setTimeout(pollJob, 1200); else onJobDone(j);
+  }).catch(function () { setTimeout(pollJob, 2000); });
+}
+
+/* 跑完：把图刷成新的（绕开缓存）+ 清掉这些档的结论（新图要重新审） */
+function onJobDone(j) {
+  if (!j.ok) return;
+  CACHE_BUST = '?t=' + Date.now();
+  DATA.forEach(function (d) {
+    if (!state[d.id]) return;
+    d.slots.forEach(function (s) { if (state[d.id][s.k] === 'bad') delete state[d.id][s.k]; });
+    if (!Object.keys(state[d.id]).length) delete state[d.id];
+  });
+  render(); save();
+  document.getElementById('dlgTitle').textContent = '重出完成';
+  document.getElementById('dlgTip').innerHTML = '跑完了 ' + j.ok + ' 张（失败 ' + j.fail + '）。'
+    + '页面的图已刷新、结论已清空 —— **请重新审这几张**。'
+    + '旧图在 <code>assets/cards/_superseded/</code> 下按本轮时间戳归档。';
+}
+
+document.getElementById('run').onclick = function () {
+  var groups = collectGroups();
+  var total = groups.reduce(function (a, g) { return a + g.ids.length; }, 0);
+  if (!total) { alert('还没有把任何一张标成「重出」——先在卡片上点「重出」再来。'); return; }
+  var tip = groups.map(function (g) {
+    return '· ' + (SLOT_LABEL[g.morph] || g.morph) + '：' + g.ids.join(' ');
+  }).join('\n');
+  if (!confirm('要重出这 ' + total + ' 张吗？\n\n' + tip
+      + '\n\n每张约 50 秒；旧图**不会**被覆盖，会移进 assets/cards/_superseded/<本轮时间戳>/。\n'
+      + '跑完这些档的结论会被清掉，等你重新审。')) return;
+  document.getElementById('dlgTitle').textContent = '正在重出…';
+  document.getElementById('dlgTip').innerHTML = '每张约 50 秒，可以放着不管；跑完会自动刷新图片。';
+  document.getElementById('out').value = '正在启动…';
+  api('/api/regen', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ groups: groups }),
+  }).then(function (r) { return r.json(); }).then(function (res) {
+    if (!res.ok) { alert('没能开跑：' + (res.msg || '未知原因')); return; }
+    pollJob();
+  }).catch(function (e) { alert('连不上运行器：' + e); });
+};
+
+document.getElementById('close').onclick = function () { document.getElementById('dlg').close(); };document.getElementById('cp').onclick = function () {
   var t = document.getElementById('out');
   t.select(); document.execCommand('copy');
 };
@@ -460,21 +564,166 @@ render();
 """
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--out", default=os.path.join(ROOT, "docs", "卡片评审.html"))
-    ap.add_argument("--only", default="", help="只列这些 id（逗号分隔）")
-    args = ap.parse_args()
-
-    only = set(x.strip() for x in args.only.split(",") if x.strip()) if args.only else None
+def build_page(only):
+    """把评审页拼出来 —— 写文件与 `--serve` 共用同一份口径。"""
     rows = build_rows(only)
     for r in rows:
         r["rarCn"] = RAR_CN[min(3, r["rar"])]
     data = json.dumps(rows, ensure_ascii=False, separators=(",", ":"))
-    html = TEMPLATE.replace("__DATA__", data)
+    return TEMPLATE.replace("__DATA__", data), len(rows)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--out", default=os.path.join(ROOT, "docs", "卡片评审.html"))
+    ap.add_argument("--only", default="", help="只列这些 id（逗号分隔）")
+    ap.add_argument("--serve", action="store_true",
+                    help="起**本地运行器**：页面上能直接「开始重出」（真的跑 gen-art.py）")
+    ap.add_argument("--port", type=int, default=8770, help="--serve 的端口（只绑 127.0.0.1）")
+    args = ap.parse_args()
+
+    only = set(x.strip() for x in args.only.split(",") if x.strip()) if args.only else None
+
+    if args.serve:
+        serve(args.port, only)
+        return
+
+    html, n = build_page(only)
     io.open(args.out, "w", encoding="utf-8", newline="\n").write(html)
     print("评审台已写出：%s" % args.out)
-    print("  卡片 %d 张（已出图的鱼）；形态描述与拉丁名一并嵌入" % len(rows))
+    print("  卡片 %d 张（已出图的鱼）；形态描述与拉丁名一并嵌入" % n)
+    print("  ⚠️ 静态打开**不能**在页里直接重出（浏览器跑不了 python）。")
+    print("     要能直接跑：python tools/review-cards.py --serve → 开 http://127.0.0.1:8770/")
+
+
+def serve(port, only):
+    """本地运行器：把评审页发出去，并开一个**能真的跑重出**的口子。
+
+    为什么需要它（用户口径 2026-10-08：「导出重出清单时，它自己能直接跑起来」）：
+      评审页是静态 HTML，浏览器里**跑不了 python**。所以给一个只绑本机回环的小服务：
+        GET  /            → 评审页（内存里现拼，把 token 嵌进去）
+        GET  /assets/...  → 直接喂卡的图（不用再另开一个 http.server）
+        GET  /api/ping    → 运行器在不在（页面据此启用「开始重出」）
+        GET  /api/job     → 当前任务状态 + 日志尾部（页面轮询）
+        POST /api/regen   → 真的开跑（后台线程，逐档跑 gen-art.py 子进程）
+
+    ⚠️ 安全：**只绑 127.0.0.1**，且 `/api/regen` 要带页面内嵌的一次性 token ——
+       否则本机任意网页都能往这里 POST、触发跑命令。
+    ⚠️ 出图是**逐个跑子进程**（不 import 进来）：失败只是一个子进程非 0 退出，不会把服务带崩。
+    """
+    import http.server, socketserver, threading, uuid
+    from urllib.parse import urlparse, unquote
+
+    token = uuid.uuid4().hex[:16]
+    job = {"running": False, "log": [], "cur": "", "done": 0, "total": 0, "ok": 0, "fail": 0}
+    lock = threading.Lock()
+
+    def worker(groups):
+        try:
+            for g in groups:
+                morph = g.get("morph") or "master"
+                ids = [str(x) for x in (g.get("ids") or [])]
+                if not ids:
+                    continue
+                cmd = [sys.executable, os.path.join("tools", "gen-art.py"), "--list", ",".join(ids)]
+                if morph != "master":
+                    cmd += ["--only-morph", morph]
+                job["cur"] = "%s ×%d" % (morph, len(ids))
+                job["log"].append("$ " + " ".join(cmd))
+                try:
+                    p = subprocess.Popen(cmd, cwd=ROOT, stdout=subprocess.PIPE,
+                                         stderr=subprocess.STDOUT, text=True,
+                                         errors="replace", bufsize=1)
+                    for line in p.stdout:
+                        job["log"].append(line.rstrip())
+                        del job["log"][:-500]      # 只留尾部，别把内存吃光
+                    rc = p.wait()
+                except Exception as e:
+                    job["log"].append("!! 起不来：%s" % e)
+                    rc = -1
+                (job.__setitem__("ok", job["ok"] + len(ids)) if rc == 0
+                 else job.__setitem__("fail", job["fail"] + len(ids)))
+                job["done"] += len(ids)
+        finally:
+            job["running"] = False
+            job["cur"] = ""
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *a):      # 别把每个请求都刷到控制台
+            pass
+
+        def _send(self, code, body, ctype="application/json; charset=utf-8"):
+            b = body if isinstance(body, bytes) else str(body).encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(b)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(b)
+
+        def do_GET(self):
+            path = unquote(urlparse(self.path).path)
+            if path in ("/", "/index.html"):
+                html, _n = build_page(only)
+                return self._send(200, html.replace("__TOKEN__", token),
+                                  "text/html; charset=utf-8")
+            if path == "/api/ping":
+                return self._send(200, json.dumps({"ok": True}))
+            if path == "/api/job":
+                return self._send(200, json.dumps(job, ensure_ascii=False))
+            if path.startswith("/assets/"):
+                root = os.path.abspath(os.path.join(ROOT, "assets"))
+                fp = os.path.abspath(os.path.join(ROOT, path.lstrip("/")))
+                if fp.startswith(root) and os.path.isfile(fp):
+                    ct = "image/png" if fp.endswith(".png") else "application/octet-stream"
+                    return self._send(200, open(fp, "rb").read(), ct)
+            return self._send(404, "not found", "text/plain; charset=utf-8")
+
+        def do_POST(self):
+            if urlparse(self.path).path != "/api/regen":
+                return self._send(404, json.dumps({"ok": False, "msg": "没有这个接口"}))
+            if self.headers.get("X-Token") != token:
+                return self._send(403, json.dumps({"ok": False, "msg": "token 不对"}))
+            if job["running"]:
+                return self._send(409, json.dumps({"ok": False, "msg": "已经有一轮在跑了"}))
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+                body = json.loads(self.rfile.read(n) or b"{}")
+                groups = [g for g in (body.get("groups") or []) if g.get("ids")]
+            except Exception as e:
+                return self._send(400, json.dumps({"ok": False, "msg": "body 读不出来：%s" % e}))
+            if not groups:
+                return self._send(400, json.dumps({"ok": False, "msg": "没有要重出的"}))
+            with lock:
+                job.update({"running": True, "cur": "排队中", "log": [], "done": 0,
+                            "ok": 0, "fail": 0,
+                            "total": sum(len(g["ids"]) for g in groups)})
+            threading.Thread(target=worker, args=(groups,), daemon=True).start()
+            return self._send(200, json.dumps({"ok": True, "total": job["total"]}))
+
+    # 开机自检：拿 `--stale` 试跑一次 gen-art.py（**不联网、不出图**），
+    # 把「解释器不对 / 管线坏了」在第一次重出**之前**就告诉人。
+    try:
+        chk = subprocess.run([sys.executable, os.path.join("tools", "gen-art.py"), "--stale"],
+                             cwd=ROOT, capture_output=True, text=True,
+                             errors="replace", timeout=180)
+        if chk.returncode != 0:
+            print("⚠️ 自检跑不动 gen-art.py（退出码 %d）：\n%s"
+                  % (chk.returncode, (chk.stderr or "")[-400:]))
+            print("   重出会失败 —— 换个解释器再启动（见 docs/开发者文档.md 的工具表）。")
+    except Exception as e:
+        print("⚠️ 自检异常：%s" % e)
+
+    socketserver.ThreadingTCPServer.allow_reuse_address = True
+    with socketserver.ThreadingTCPServer(("127.0.0.1", port), Handler) as httpd:
+        print("评审台运行器已启动：http://127.0.0.1:%d/" % port)
+        print("   · 标记「重出」后点「开始重出」就会真的跑（逐张约 50 秒）")
+        print("   · 旧图不会被覆盖：移进 assets/cards/_superseded/<本轮时间戳>/")
+        print("   · 只绑本机回环；Ctrl-C 退出")
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            print("\n已退出。")
 
 
 if __name__ == "__main__":

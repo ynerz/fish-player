@@ -1493,6 +1493,38 @@ def main():
             json.dump(manifest, fh, ensure_ascii=False, indent=1, sort_keys=True)
         os.replace(tmp, MANIFEST)
 
+    # ── 「重出」= 把旧图**移走归档**，再把新图放回去 ─────────────────────────
+    # 用户口径（2026-10-08）：「移动废旧图片，生成新的图片替换它」。
+    # 以前是直接写 `dst`，旧图**当场被覆盖、找不回来** —— 而「重出」恰恰是最常走这条路的地方
+    # （重出就是「因为旧的不好所以才重来」），一旦新图更差，连回退的余地都没有。
+    #
+    # ⚠️ 两条硬约束：
+    #   ① **新图确实出来了**才动旧的 —— 出图失败却先把旧图移走，等于任务失败还把资产弄丢；
+    #      所以出图一律先落 `_tmp/`，成功了再 `supersede()` 换上去。
+    #   ② 归档按**本轮时间戳**分子目录（`_superseded/20261008-1430/`），
+    #      不覆盖上一轮归档 —— 否则「移走」等于换个地方丢。
+    # `_superseded/` 已在 .gitignore 里（AI 素材产物不进版本库）。
+    SUPERSEDED = os.path.join(OUT, "_superseded", time.strftime("%Y%m%d-%H%M%S"))
+
+    def archive_only(path):
+        """把 path 移进本轮归档目录（不补新文件）。"""
+        if not os.path.exists(path):
+            return
+        try:
+            os.makedirs(SUPERSEDED, exist_ok=True)
+            os.replace(path, os.path.join(SUPERSEDED, os.path.basename(path)))
+        except OSError as e:
+            print("    ⚠️ 旧图归档失败（%s），继续" % e)
+
+    def supersede(dst, new_tmp):
+        """用 new_tmp 替换 dst；dst 原来那张先移进本轮归档目录。
+
+        ⚠️ 必须在**新图已经落盘**之后调用 —— 这个函数一执行，旧图就不在原位了。
+        """
+        archive_only(dst)
+        os.replace(new_tmp, dst)
+        print("    ↻ 已替换（旧图归档到 %s）" % os.path.relpath(SUPERSEDED, ROOT))
+
     CHECKPOINT = 10          # 每 10 张（≈10 分钟）落一次
     t_start = time.time()
     ok = fail = skip = 0
@@ -1520,15 +1552,25 @@ def main():
                                           ("　[" + variant_tag + "]") if variant_tag else ""))
         if morph is None:
             # 母版：RGB 暗底（与 docs/images/标准/ 一致的外观对照）
-            good, r = run_t2i(prompt, dst)
+            # ⚠️ 先出到 `_tmp/`、成功之后才 `supersede()` —— 见上面那段注释：
+            #    直接写 dst 的话，出图失败就把旧母版留成半张废图（或被覆盖掉）。
+            tmp_master = os.path.join(TMP, "%s.master.png" % fid)
+            good, r = run_t2i(prompt, tmp_master)
             if good:
+                supersede(dst, tmp_master)
                 # 原色档 = 母版的抠图（不重新生成：省一次出图，且与母版必然同色）
+                # 旧的抠图也要归档，否则它就成了「上一版母版」的孤儿
+                archive_only(os.path.join(OUT, fid + "-normal.png"))
                 cutout.cut_one(dst, os.path.join(OUT, fid + "-normal.png"))
         else:
             raw = os.path.join(TMP, "%s-%s.png" % (fid, morph))
             good, r = run_t2i(prompt, raw)
             if good:
-                good = cutout.cut_one(raw, dst)      # 出图后立刻抠成 RGBA
+                # 出图后立刻抠成 RGBA —— 但**先抠到 _tmp/**，成功了再替换原位
+                tmp_cut = os.path.join(TMP, "%s-%s.rgba.png" % (fid, morph))
+                good = cutout.cut_one(raw, tmp_cut)
+                if good:
+                    supersede(dst, tmp_cut)
                 if os.path.exists(raw):
                     os.remove(raw)
 

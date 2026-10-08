@@ -91,7 +91,7 @@
     <button id="f-bad">重出</button>
     <button id="exp">导出重出清单</button>
     <button id="rst">清空</button>
-    <span class="stat">快捷键：1=合格　2=重出　·　点图放大　·　<b>这里只记结论</b>：要真的重出，点「导出重出清单」拿命令去跑</span>
+    <span class="stat">快捷键：1=合格　2=重出　·　点图放大　·　<span id="runState">检查本地运行器…</span></span>
   </div>
   <div id="warn"></div>
   <div class="stat" style="margin-top:4px">图片若显示不出来：请用「项目根目录起 http 服务」的方式打开本页（<code>python -m http.server 8765</code> → <code>127.0.0.1:8765/docs/卡片评审.html</code>）。</div>
@@ -101,16 +101,27 @@
 <div id="lb"><img alt=""><div class="lb-tip">点任意处关闭（Esc 也可以）</div></div>
 
 <dialog id="dlg">
-  <h2>重出清单（**按单档**给）</h2>
-  <p>下面每条命令都是可以直接跑的。五档**是独立文生图**（2026-10-07 起，曾走图生图已弃用），
-     所以**可以只重出其中一张**；母版重出会顺带刷新它的 <code>-normal</code>（原色档就是母版抠图）。</p>
+  <h2 id="dlgTitle">重出清单（**按单档**给）</h2>
+  <p id="dlgTip">五档**是独立文生图**（2026-10-07 起，曾走图生图已弃用），所以**可以只重出其中一张**；
+     母版重出会顺带刷新它的 <code>-normal</code>（原色档就是母版抠图）。</p>
   <textarea id="out" readonly></textarea>
   <p id="cmds"></p>
-  <div class="acts"><button id="cp">复制</button><button id="close">关闭</button></div>
+  <div class="acts">
+    <button id="cp">复制</button>
+    <button id="run" disabled>开始重出</button>
+    <button id="close">关闭</button>
+  </div>
 </dialog>
 
 <script>
-var DATA = [{"id":"C01","name":"溪哥","lat":"","rar":0,"shape":"fish","form":"an elongated body, a small head, a blunt rounded snout, a large oblique mouth, small bumps on the snout in males","fins":"","slots":[{"k":"master","label":"母版（含原色档）","file":"C01-normal.png"},{"k":"bright","label":"彩虹色","file":"C01-bright.png"},{"k":"albino","label":"白化","file":"C01-albino.png"},{"k":"golden","label":"黄金","file":"C01-golden.png"},{"k":"shiny","label":"闪光","file":"C01-shiny.png"}],"rarCn":"普通"},{"id":"C02","name":"马口鱼","lat":"Opsariichthys bidens","rar":0,"shape":"fish","form":"an elongated body, a hump behind the head, a rounded belly, a large rounded head, a short broad snout with a pointed tip, a large wide mouth at the front of the head sloping downward, a pair of short barbels at the corners of the mouth","fins":"a longer anal fin in males, small bumps on the head, pectoral and anal fins in the breeding season","slots":[{"k":"master","label":"母版（含原色档）","file":"C02-normal.png"},{"k":"bright","label":"彩虹色","file":"C02-bright.png"},{"k":"albino","label":"白化","file":"C02-albino.png"},{"k":"golden","label":"黄金","file":"C02-golden.png"}],"rarCn":"普通"},{"id":"D01","name":"麦穗鱼","lat":"Pseudorasbora parva","rar":0,"shape":"fish","form":"a small upward-pointing mouth, thin lips, no barbels","fins":"a soft dorsal fin without spines, set slightly behind the pelvic fin origin, short small pectoral and pelvic fins, a forked tail fin","slots":[{"k":"master","label":"母版（含原色档）","file":"D01-normal.png"},{"k":"bright","label":"彩虹色","file":"D01-bright.png"},{"k":"albino","label":"白化","file":"D01-albino.png"},{"k":"golden","label":"黄金","file":"D01-golden.png"},{"k":"shiny","label":"闪光","file":"D01-shiny.png"}],"rarCn":"普通"},{"id":"D02","name":"白条","lat":"Hemiculter leucisculus","rar":0,"shape":"fish","form":"an elongated body, a slightly arched back, a small pointed head, an upward-pointing mouth, no barbels","fins":"a short dorsal fin with a spine, a deeply forked tail fin","slots":[{"k":"master","label":"母版（含原色档）","file":"D02-normal.png"},{"k":"bright","label":"彩虹色","file":"D02-bright.png"},{"k":"albino","label":"白化","file":"D02-albino.png"},{"k":"golden","label":"黄金","file":"D02-golden.png"},{"k":"shiny","label":"闪光","file":"D02-shiny.png"}],"rarCn":"普通"},{"id":"D03","name":"鲫鱼","lat":"Carassius auratus","rar":0,"shape":"fish","form":"a deep body, a slightly arched back, a small head, a short blunt snout, a mouth at the front of the head, no barbels","fins":"a long dorsal fin with a stout serrated spine, a deeply forked tail fin","slots":[{"k":"master","label":"母版（含原色档）","file":"D03-normal.png"},{"k":"bright","label":"彩虹色","file":"D03-bright.png"},{"k":"albino","label":"白化","file":"D03-albino.png"},{"k":"golden","label":"黄金","file":"D03-golden.png"},{"k":"shiny","label":"闪光","file":"D03-shiny.png"}],"rarCn":"普通"},{"id":"D04","name":"泥鳅","lat":"Misgurnus anguillicaudatus","rar":0,"shape":"eel","form":"an elongated body with a cylindrical anterior part and a laterally compressed posterior part, a pointed head, five pairs of barbels, small degenerate eyes","fins":"","slots":[{"k":"master","label":"母版（含原色档）","file":"D04-normal.png"},{"k":"bright","label":"彩虹色","file":"D04-bright.png"},{"k":"albino","label":"白化","file":"D04-albino.png"},{"k":"golden","label":"黄金","file":"D04-golden.png"},{"k":"shiny","label":"闪光","file":"D04-shiny.png"}],"rarCn":"普通"},{"id":"D05","name":"鳑鲏","lat":"","rar":0,"shape":"fish","form":"a small body, a small mouth, no barbels at the corners of the mouth, no ventral keel","fins":"a forked tail fin","slots":[{"k":"master","label":"母版（含原色档）","file":"D05-normal.png"},{"k":"bright","label":"彩虹色","file":"D05-bright.png"},{"k":"albino","label":"白化","file":"D05-albino.png"},{"k":"golden","label":"黄金","file":"D05-golden.png"},{"k":"shiny","label":"闪光","file":"D05-shiny.png"}],"rarCn":"普通"},{"id":"D06","name":"食蚊鱼","lat":"Gambusia affinis","rar":0,"shape":"fish","form":"an elongated body, a short broad head, a short snout, large eyes, an upward-pointing mouth, no barbels","fins":"small pectoral and pelvic fins, the pelvic fins set very close to the anal fin, a large dorsal fin, a large rounded tail fin","slots":[{"k":"master","label":"母版（含原色档）","file":"D06-normal.png"},{"k":"bright","label":"彩虹色","file":"D06-bright.png"},{"k":"albino","label":"白化","file":"D06-albino.png"},{"k":"golden","label":"黄金","file":"D06-golden.png"},{"k":"shiny","label":"闪光","file":"D06-shiny.png"}],"rarCn":"普通"},{"id":"D07","name":"塘鳢","lat":"","rar":0,"shape":"fish","form":"an elongated stout body, a large broad flat head, a wide short snout","fins":"","slots":[{"k":"master","label":"母版（含原色档）","file":"D07-normal.png"},{"k":"bright","label":"彩虹色","file":"D07-bright.png"},{"k":"albino","label":"白化","file":"D07-albino.png"},{"k":"golden","label":"黄金","file":"D07-golden.png"},{"k":"shiny","label":"闪光","file":"D07-shiny.png"}],"rarCn":"普通"},{"id":"D08","name":"小龙虾","lat":"Procambarus clarkii","rar":0,"shape":"squid","form":"a cylindrical body divided into a cephalothorax covered by a hard carapace and a segmented abdomen, a pair of large chelae on the first pair of legs, a fan-shaped tail","fins":"","slots":[{"k":"master","label":"母版（含原色档）","file":"D08-normal.png"},{"k":"bright","label":"彩虹色","file":"D08-bright.png"},{"k":"albino","label":"白化","file":"D08-albino.png"},{"k":"golden","label":"黄金","file":"D08-golden.png"},{"k":"shiny","label":"闪光","file":"D08-shiny.png"}],"rarCn":"普通"},{"id":"D09","name":"黄颡鱼","lat":"Pelteobagrus fulvidraco","rar":1,"shape":"fish","form":"a large flat head, a short snout, a downward-pointing mouth, four pairs of barbels, naked skin","fins":"","slots":[{"k":"master","label":"母版（含原色档）","file":"D09-normal.png"},{"k":"bright","label":"彩虹色","file":"D09-bright.png"},{"k":"albino","label":"白化","file":"D09-albino.png"},{"k":"golden","label":"黄金","file":"D09-golden.png"},{"k":"shiny","label":"闪光","file":"D09-shiny.png"}],"rarCn":"稀有"},{"id":"D10","name":"小鲤鱼","lat":"Cyprinus carpio","rar":1,"shape":"fish","form":"a deep body, a slightly arched back, a moderate-sized head, a short blunt snout, a mouth at the front of the head, two pairs of barbels","fins":"a long dorsal fin with a stout serrated spine, a deeply forked tail fin","slots":[{"k":"master","label":"母版（含原色档）","file":"D10-normal.png"},{"k":"bright","label":"彩虹色","file":"D10-bright.png"},{"k":"albino","label":"白化","file":"D10-albino.png"},{"k":"golden","label":"黄金","file":"D10-golden.png"},{"k":"shiny","label":"闪光","file":"D10-shiny.png"}],"rarCn":"稀有"},{"id":"D11","name":"黄鳝","lat":"Monopterus albus","rar":1,"shape":"eel","form":"an elongated cylindrical eel-like body, a short stout head, small eyes, a relatively large mouth, smooth scaleless skin, the left and right gill openings merged into a single V-shaped opening on the underside of the head","fins":"no pectoral or pelvic fins in adults, the dorsal and anal fins reduced to low skin folds","slots":[{"k":"master","label":"母版（含原色档）","file":"D11-normal.png"},{"k":"bright","label":"彩虹色","file":"D11-bright.png"},{"k":"albino","label":"白化","file":"D11-albino.png"},{"k":"golden","label":"黄金","file":"D11-golden.png"},{"k":"shiny","label":"闪光","file":"D11-shiny.png"}],"rarCn":"稀有"},{"id":"D12","name":"青虾虎","lat":"Ptereleotris heteroptera","rar":1,"shape":"fish","form":"an elongated oval body","fins":"","slots":[{"k":"master","label":"母版（含原色档）","file":"D12-normal.png"},{"k":"bright","label":"彩虹色","file":"D12-bright.png"},{"k":"albino","label":"白化","file":"D12-albino.png"},{"k":"golden","label":"黄金","file":"D12-golden.png"},{"k":"shiny","label":"闪光","file":"D12-shiny.png"}],"rarCn":"稀有"},{"id":"D13","name":"金鲫","lat":"","rar":2,"shape":"fish","form":"a deep spindle-shaped body","fins":"pelvic fins set slightly ahead of the dorsal fin origin, pelvic fins similar in shape to the pectoral fins, a deeply forked tail fin with rounded lobe tips","slots":[{"k":"master","label":"母版（含原色档）","file":"D13-normal.png"},{"k":"bright","label":"彩虹色","file":"D13-bright.png"},{"k":"albino","label":"白化","file":"D13-albino.png"},{"k":"golden","label":"黄金","file":"D13-golden.png"},{"k":"shiny","label":"闪光","file":"D13-shiny.png"}],"rarCn":"史诗"},{"id":"D14","name":"老塘草鱼","lat":"Ctenopharyngodon idella","rar":2,"shape":"fish","form":"an elongated body, a rounded belly, no keel along the belly, a broad medium-sized head, a short blunt snout","fins":"","slots":[{"k":"master","label":"母版（含原色档）","file":"D14-normal.png"},{"k":"bright","label":"彩虹色","file":"D14-bright.png"},{"k":"albino","label":"白化","file":"D14-albino.png"},{"k":"golden","label":"黄金","file":"D14-golden.png"},{"k":"shiny","label":"闪光","file":"D14-shiny.png"}],"rarCn":"史诗"},{"id":"D15","name":"圆尾斗鱼","lat":"Macropodus ocellatus","rar":0,"shape":"fish","form":"a body covered with scales, cycloid scales on the head, ctenoid scales on the flanks","fins":"long large dorsal and anal fins, pelvic fins set below the pectoral region, a rounded tail fin","slots":[{"k":"master","label":"母版（含原色档）","file":"D15-normal.png"},{"k":"bright","label":"彩虹色","file":"D15-bright.png"},{"k":"albino","label":"白化","file":"D15-albino.png"},{"k":"golden","label":"黄金","file":"D15-golden.png"},{"k":"shiny","label":"闪光","file":"D15-shiny.png"}],"rarCn":"普通"},{"id":"D16","name":"塘主的大青鱼","lat":"Mylopharyngodon piceus","rar":3,"shape":"fish","form":"an elongated body, a rounded belly, no keel along the belly, a broad blunt head, a mouth at the front of the head, no barbels","fins":"a long dorsal fin with no spines, a forked tail fin","slots":[{"k":"master","label":"母版（含原色档）","file":"D16-normal.png"},{"k":"bright","label":"彩虹色","file":"D16-bright.png"},{"k":"albino","label":"白化","file":"D16-albino.png"},{"k":"golden","label":"黄金","file":"D16-golden.png"},{"k":"shiny","label":"闪光","file":"D16-shiny.png"}],"rarCn":"传说"}];
+var DATA = [{"id":"C01","name":"溪哥","lat":"","rar":0,"shape":"fish","form":"an elongated body, a small head, a blunt rounded snout, a large oblique mouth, small bumps on the snout in males","fins":"","slots":[{"k":"master","label":"母版（含原色档）","file":"C01-normal.png"},{"k":"bright","label":"彩虹色","file":"C01-bright.png"},{"k":"albino","label":"白化","file":"C01-albino.png"},{"k":"golden","label":"黄金","file":"C01-golden.png"},{"k":"shiny","label":"闪光","file":"C01-shiny.png"}],"rarCn":"普通"},{"id":"C02","name":"马口鱼","lat":"Opsariichthys bidens","rar":0,"shape":"fish","form":"an elongated body, a hump behind the head, a rounded belly, a large rounded head, a short broad snout with a pointed tip, a large wide mouth at the front of the head sloping downward, a pair of short barbels at the corners of the mouth","fins":"a longer anal fin in males, small bumps on the head, pectoral and anal fins in the breeding season","slots":[{"k":"master","label":"母版（含原色档）","file":"C02-normal.png"},{"k":"bright","label":"彩虹色","file":"C02-bright.png"},{"k":"albino","label":"白化","file":"C02-albino.png"},{"k":"golden","label":"黄金","file":"C02-golden.png"},{"k":"shiny","label":"闪光","file":"C02-shiny.png"}],"rarCn":"普通"},{"id":"D01","name":"麦穗鱼","lat":"Pseudorasbora parva","rar":0,"shape":"fish","form":"a small upward-pointing mouth, thin lips, no barbels","fins":"a soft dorsal fin without spines, set slightly behind the pelvic fin origin, short small pectoral and pelvic fins, a forked tail fin","slots":[{"k":"master","label":"母版（含原色档）","file":"D01-normal.png"},{"k":"bright","label":"彩虹色","file":"D01-bright.png"},{"k":"albino","label":"白化","file":"D01-albino.png"},{"k":"golden","label":"黄金","file":"D01-golden.png"},{"k":"shiny","label":"闪光","file":"D01-shiny.png"}],"rarCn":"普通"},{"id":"D02","name":"白条","lat":"Hemiculter leucisculus","rar":0,"shape":"fish","form":"an elongated body, a slightly arched back, a small pointed head, an upward-pointing mouth, no barbels","fins":"a short dorsal fin with a spine, a deeply forked tail fin","slots":[{"k":"master","label":"母版（含原色档）","file":"D02-normal.png"},{"k":"bright","label":"彩虹色","file":"D02-bright.png"},{"k":"albino","label":"白化","file":"D02-albino.png"},{"k":"golden","label":"黄金","file":"D02-golden.png"},{"k":"shiny","label":"闪光","file":"D02-shiny.png"}],"rarCn":"普通"},{"id":"D03","name":"鲫鱼","lat":"Carassius auratus","rar":0,"shape":"fish","form":"a deep body, a slightly arched back, a small head, a short blunt snout, a mouth at the front of the head, no barbels","fins":"a long dorsal fin with a stout serrated spine, a deeply forked tail fin","slots":[{"k":"master","label":"母版（含原色档）","file":"D03-normal.png"},{"k":"bright","label":"彩虹色","file":"D03-bright.png"},{"k":"albino","label":"白化","file":"D03-albino.png"},{"k":"golden","label":"黄金","file":"D03-golden.png"},{"k":"shiny","label":"闪光","file":"D03-shiny.png"}],"rarCn":"普通"},{"id":"D04","name":"泥鳅","lat":"Misgurnus anguillicaudatus","rar":0,"shape":"eel","form":"an elongated body with a cylindrical anterior part and a laterally compressed posterior part, a pointed head, five pairs of barbels, small degenerate eyes","fins":"","slots":[{"k":"master","label":"母版（含原色档）","file":"D04-normal.png"},{"k":"bright","label":"彩虹色","file":"D04-bright.png"},{"k":"albino","label":"白化","file":"D04-albino.png"},{"k":"golden","label":"黄金","file":"D04-golden.png"},{"k":"shiny","label":"闪光","file":"D04-shiny.png"}],"rarCn":"普通"},{"id":"D05","name":"鳑鲏","lat":"","rar":0,"shape":"fish","form":"a small body, a small mouth, no barbels at the corners of the mouth, no ventral keel","fins":"a forked tail fin","slots":[{"k":"master","label":"母版（含原色档）","file":"D05-normal.png"},{"k":"bright","label":"彩虹色","file":"D05-bright.png"},{"k":"albino","label":"白化","file":"D05-albino.png"},{"k":"golden","label":"黄金","file":"D05-golden.png"},{"k":"shiny","label":"闪光","file":"D05-shiny.png"}],"rarCn":"普通"},{"id":"D06","name":"食蚊鱼","lat":"Gambusia affinis","rar":0,"shape":"fish","form":"an elongated body, a short broad head, a short snout, large eyes, an upward-pointing mouth, no barbels","fins":"small pectoral and pelvic fins, the pelvic fins set very close to the anal fin, a large dorsal fin, a large rounded tail fin","slots":[{"k":"master","label":"母版（含原色档）","file":"D06-normal.png"},{"k":"bright","label":"彩虹色","file":"D06-bright.png"},{"k":"albino","label":"白化","file":"D06-albino.png"},{"k":"golden","label":"黄金","file":"D06-golden.png"},{"k":"shiny","label":"闪光","file":"D06-shiny.png"}],"rarCn":"普通"},{"id":"D07","name":"塘鳢","lat":"","rar":0,"shape":"fish","form":"an elongated stout body, a large broad flat head, a wide short snout","fins":"","slots":[{"k":"master","label":"母版（含原色档）","file":"D07-normal.png"},{"k":"bright","label":"彩虹色","file":"D07-bright.png"},{"k":"albino","label":"白化","file":"D07-albino.png"},{"k":"golden","label":"黄金","file":"D07-golden.png"},{"k":"shiny","label":"闪光","file":"D07-shiny.png"}],"rarCn":"普通"},{"id":"D08","name":"小龙虾","lat":"Procambarus clarkii","rar":0,"shape":"squid","form":"a cylindrical body divided into a cephalothorax covered by a hard carapace and a segmented abdomen, a pair of large chelae on the first pair of legs, a fan-shaped tail","fins":"","slots":[{"k":"master","label":"母版（含原色档）","file":"D08-normal.png"},{"k":"bright","label":"彩虹色","file":"D08-bright.png"},{"k":"albino","label":"白化","file":"D08-albino.png"},{"k":"golden","label":"黄金","file":"D08-golden.png"},{"k":"shiny","label":"闪光","file":"D08-shiny.png"}],"rarCn":"普通"},{"id":"D09","name":"黄颡鱼","lat":"Pelteobagrus fulvidraco","rar":1,"shape":"fish","form":"a large flat head, a short snout, a downward-pointing mouth, four pairs of barbels, naked skin","fins":"","slots":[{"k":"master","label":"母版（含原色档）","file":"D09-normal.png"},{"k":"bright","label":"彩虹色","file":"D09-bright.png"},{"k":"albino","label":"白化","file":"D09-albino.png"},{"k":"golden","label":"黄金","file":"D09-golden.png"},{"k":"shiny","label":"闪光","file":"D09-shiny.png"}],"rarCn":"稀有"},{"id":"D10","name":"小鲤鱼","lat":"Cyprinus carpio","rar":1,"shape":"fish","form":"a deep body, a slightly arched back, a moderate-sized head, a short blunt snout, a mouth at the front of the head, two pairs of barbels","fins":"a long dorsal fin with a stout serrated spine, a deeply forked tail fin","slots":[{"k":"master","label":"母版（含原色档）","file":"D10-normal.png"},{"k":"bright","label":"彩虹色","file":"D10-bright.png"},{"k":"albino","label":"白化","file":"D10-albino.png"},{"k":"golden","label":"黄金","file":"D10-golden.png"},{"k":"shiny","label":"闪光","file":"D10-shiny.png"}],"rarCn":"稀有"},{"id":"D11","name":"黄鳝","lat":"Monopterus albus","rar":1,"shape":"eel","form":"an elongated cylindrical eel-like body, a short stout head, small eyes, a relatively large mouth, smooth scaleless skin, the left and right gill openings merged into a single V-shaped opening on the underside of the head","fins":"no pectoral or pelvic fins in adults, the dorsal and anal fins reduced to low skin folds","slots":[{"k":"master","label":"母版（含原色档）","file":"D11-normal.png"},{"k":"bright","label":"彩虹色","file":"D11-bright.png"},{"k":"albino","label":"白化","file":"D11-albino.png"},{"k":"golden","label":"黄金","file":"D11-golden.png"},{"k":"shiny","label":"闪光","file":"D11-shiny.png"}],"rarCn":"稀有"},{"id":"D12","name":"青虾虎","lat":"Ptereleotris heteroptera","rar":1,"shape":"fish","form":"an elongated oval body","fins":"","slots":[{"k":"master","label":"母版（含原色档）","file":"D12-normal.png"},{"k":"bright","label":"彩虹色","file":"D12-bright.png"},{"k":"albino","label":"白化","file":"D12-albino.png"},{"k":"golden","label":"黄金","file":"D12-golden.png"},{"k":"shiny","label":"闪光","file":"D12-shiny.png"}],"rarCn":"稀有"},{"id":"D13","name":"金鲫","lat":"","rar":2,"shape":"fish","form":"a deep spindle-shaped body","fins":"pelvic fins set slightly ahead of the dorsal fin origin, pelvic fins similar in shape to the pectoral fins, a deeply forked tail fin with rounded lobe tips","slots":[{"k":"master","label":"母版（含原色档）","file":"D13-normal.png"},{"k":"bright","label":"彩虹色","file":"D13-bright.png"},{"k":"albino","label":"白化","file":"D13-albino.png"},{"k":"golden","label":"黄金","file":"D13-golden.png"},{"k":"shiny","label":"闪光","file":"D13-shiny.png"}],"rarCn":"史诗"},{"id":"D14","name":"老塘草鱼","lat":"Ctenopharyngodon idella","rar":2,"shape":"fish","form":"an elongated body, a rounded belly, no keel along the belly, a broad medium-sized head, a short blunt snout","fins":"","slots":[{"k":"master","label":"母版（含原色档）","file":"D14-normal.png"},{"k":"bright","label":"彩虹色","file":"D14-bright.png"},{"k":"albino","label":"白化","file":"D14-albino.png"},{"k":"golden","label":"黄金","file":"D14-golden.png"},{"k":"shiny","label":"闪光","file":"D14-shiny.png"}],"rarCn":"史诗"},{"id":"D15","name":"圆尾斗鱼","lat":"Macropodus ocellatus","rar":0,"shape":"fish","form":"a body covered with scales, cycloid scales on the head, ctenoid scales on the flanks","fins":"long large dorsal and anal fins, pelvic fins set below the pectoral region, a rounded tail fin","slots":[{"k":"master","label":"母版（含原色档）","file":"D15-normal.png"},{"k":"bright","label":"彩虹色","file":"D15-bright.png"},{"k":"albino","label":"白化","file":"D15-albino.png"},{"k":"golden","label":"黄金","file":"D15-golden.png"},{"k":"shiny","label":"闪光","file":"D15-shiny.png"}],"rarCn":"普通"},{"id":"D16","name":"塘主的大青鱼","lat":"Mylopharyngodon piceus","rar":3,"shape":"fish","form":"an elongated body, a rounded belly, no keel along the belly, a broad blunt head, a mouth at the front of the head, no barbels","fins":"a long dorsal fin with no spines, a forked tail fin","slots":[{"k":"master","label":"母版（含原色档）","file":"D16-normal.png"},{"k":"bright","label":"彩虹色","file":"D16-bright.png"},{"k":"albino","label":"白化","file":"D16-albino.png"},{"k":"golden","label":"黄金","file":"D16-golden.png"},{"k":"shiny","label":"闪光","file":"D16-shiny.png"}],"rarCn":"传说"}];
+/* `--serve` 打开本页时这里会被换成真 token；静态打开时是空串（运行器也不在）。 */
+var TOKEN = '__TOKEN__';
+/* 重出之后设成 `?t=…` —— 否则浏览器会把旧图从缓存里拿出来，看着像「没重出」 */
+var CACHE_BUST = '';
+/* 档位中文名的**唯一来源是 Python 侧的 slot.label**，这里只做索引，不另抄一份 */
+var SLOT_LABEL = {};
+DATA.forEach(function (d) { d.slots.forEach(function (s) { SLOT_LABEL[s.k] = s.label; }); });
 /* v2：状态从「一条鱼一个结论」改成「一条鱼 × **每一档**一个结论」。
    换 key 是为了不把新旧两种结构混在同一个键里。 */
 var KEY = 'fishcard-review-v2';
@@ -176,12 +187,12 @@ function render() {
     var el = document.createElement('div');
     el.className = 'c' + (isDone(d) ? ' ok' : '') + (isBad(d) ? ' bad' : '');
     el.setAttribute('data-id', d.id);
-    var h = '<img src="../assets/cards/' + d.id + '.png" loading="lazy">';
+    var h = '<img src="../assets/cards/' + d.id + '.png' + CACHE_BUST + '" loading="lazy">';
     h += '<div class="slots">';
     d.slots.forEach(function (s) {
       var v = verdict(d, s.k);
       h += '<div class="slot' + (v ? ' ' + v : '') + '">' +
-           '<img src="../assets/cards/' + s.file + '" loading="lazy">' +
+           '<img src="../assets/cards/' + s.file + CACHE_BUST + '" loading="lazy">' +
            '<div class="sl-label">' + s.label + '</div>' +
            '<div class="sl-acts">' +
              '<button class="b-ok' + (v === 'ok' ? ' on' : '') + '" data-id="' + d.id +
@@ -334,8 +345,106 @@ document.getElementById('exp').onclick = function () {
   document.getElementById('dlg').showModal();
 };
 
-document.getElementById('close').onclick = function () { document.getElementById('dlg').close(); };
-document.getElementById('cp').onclick = function () {
+/* =========================================================
+   本地运行器：让「重出」真的能跑（用户口径 2026-10-08）
+   =========================================================
+   页面是静态 HTML，浏览器里**跑不了 python**。要直接跑，得用
+   `python tools/review-cards.py --serve` 打开本页 —— 那个小服务提供 `/api/regen`。
+   静态打开（file:// 或普通 http.server）时探不到运行器 ⇒ 按钮置灰，只能用「复制」。 */
+var RUNNER = false;
+
+function api(path, opt) {
+  opt = opt || {};
+  opt.headers = Object.assign({ 'X-Token': TOKEN }, opt.headers || {});
+  return fetch(path, opt);
+}
+
+function runnerNote(txt) { document.getElementById('runState').textContent = txt; }
+
+api('/api/ping').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+  RUNNER = !!(j && j.ok);
+  var b = document.getElementById('run');
+  b.disabled = !RUNNER;
+  b.textContent = RUNNER ? '开始重出' : '开始重出（未连接运行器）';
+  runnerNote(RUNNER
+    ? '本地运行器：已连接 —— 可以直接「开始重出」'
+    : '本地运行器：未连接 —— 只能用「复制」把命令拿去别处跑');
+}).catch(function () {
+  document.getElementById('run').textContent = '开始重出（未连接运行器）';
+  runnerNote('本地运行器：未连接（静态打开时就是这样）');
+});
+
+/* 把当前标成「重出」的收成 [{morph, ids}] 交给运行器 */
+function collectGroups() {
+  var by = {}, order = [];
+  DATA.forEach(function (d) {
+    d.slots.forEach(function (s) {
+      if (order.indexOf(s.k) < 0) order.push(s.k);
+      if (verdict(d, s.k) === 'bad') { (by[s.k] = by[s.k] || []).push(d.id); }
+    });
+  });
+  return order.filter(function (k) { return by[k] && by[k].length; })
+              .map(function (k) { return { morph: k, ids: by[k].slice().sort() }; });
+}
+
+function pollJob() {
+  api('/api/job').then(function (r) { return r.json(); }).then(function (j) {
+    var out = document.getElementById('out');
+    out.value = (j.log || []).join('
+');
+    out.scrollTop = out.scrollHeight;
+    document.getElementById('cmds').innerHTML = (j.running ? '⏳ 正在重出　' : '✅ 跑完　')
+      + j.done + ' / ' + j.total + ' 张　（成功 ' + j.ok + ' · 失败 ' + j.fail + '）'
+      + (j.cur ? '　当前：' + j.cur : '');
+    if (j.running) setTimeout(pollJob, 1200); else onJobDone(j);
+  }).catch(function () { setTimeout(pollJob, 2000); });
+}
+
+/* 跑完：把图刷成新的（绕开缓存）+ 清掉这些档的结论（新图要重新审） */
+function onJobDone(j) {
+  if (!j.ok) return;
+  CACHE_BUST = '?t=' + Date.now();
+  DATA.forEach(function (d) {
+    if (!state[d.id]) return;
+    d.slots.forEach(function (s) { if (state[d.id][s.k] === 'bad') delete state[d.id][s.k]; });
+    if (!Object.keys(state[d.id]).length) delete state[d.id];
+  });
+  render(); save();
+  document.getElementById('dlgTitle').textContent = '重出完成';
+  document.getElementById('dlgTip').innerHTML = '跑完了 ' + j.ok + ' 张（失败 ' + j.fail + '）。'
+    + '页面的图已刷新、结论已清空 —— **请重新审这几张**。'
+    + '旧图在 <code>assets/cards/_superseded/</code> 下按本轮时间戳归档。';
+}
+
+document.getElementById('run').onclick = function () {
+  var groups = collectGroups();
+  var total = groups.reduce(function (a, g) { return a + g.ids.length; }, 0);
+  if (!total) { alert('还没有把任何一张标成「重出」——先在卡片上点「重出」再来。'); return; }
+  var tip = groups.map(function (g) {
+    return '· ' + (SLOT_LABEL[g.morph] || g.morph) + '：' + g.ids.join(' ');
+  }).join('
+');
+  if (!confirm('要重出这 ' + total + ' 张吗？
+
+' + tip
+      + '
+
+每张约 50 秒；旧图**不会**被覆盖，会移进 assets/cards/_superseded/<本轮时间戳>/。
+'
+      + '跑完这些档的结论会被清掉，等你重新审。')) return;
+  document.getElementById('dlgTitle').textContent = '正在重出…';
+  document.getElementById('dlgTip').innerHTML = '每张约 50 秒，可以放着不管；跑完会自动刷新图片。';
+  document.getElementById('out').value = '正在启动…';
+  api('/api/regen', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ groups: groups }),
+  }).then(function (r) { return r.json(); }).then(function (res) {
+    if (!res.ok) { alert('没能开跑：' + (res.msg || '未知原因')); return; }
+    pollJob();
+  }).catch(function (e) { alert('连不上运行器：' + e); });
+};
+
+document.getElementById('close').onclick = function () { document.getElementById('dlg').close(); };document.getElementById('cp').onclick = function () {
   var t = document.getElementById('out');
   t.select(); document.execCommand('copy');
 };

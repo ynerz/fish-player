@@ -2152,6 +2152,58 @@ G_('Assets —— 键 → 地址（纯逻辑）');
   ok(typeof u.ok === 'number' && typeof u.fail === 'number' && typeof u.cached === 'number',
      'used()：返回 { ok, fail, cached } 三个数（开发者面板读它显示家底）');
   ok(A.reset() === undefined && A.used().ok === 0, 'reset()：清空统计（自测之间不许互相污染）');
+
+  /* 音效键（2026-10-08 加）：与图片共用同一套 resolve，但音效名只许小写字母数字 */
+  ok(A.resolve('sfx:cast') === 'assets/audio/cast.mp3',
+     'resolve()：音效键 = assets/audio/<名>.mp3');
+  ok(A.resolve('sfx:') === null && A.resolve('sfx:Cast') === null && A.resolve('sfx:has space') === null,
+     'resolve()：音效名只许小写字母数字（空名 / 大写 / 空格都拦掉）');
+  ok(A.resolve('sfx:a:b') === null, 'resolve()：音效键只有两段');
+  A.setBase('https://cdn.example.com/');
+  ok(A.resolve('sfx:cast') === 'https://cdn.example.com/assets/audio/cast.mp3',
+     'setBase()：音效同样吃 CDN 前缀（路径真相仍只有一处）');
+  A.setBase('');
+})();
+
+/* =========================================================
+   Audio —— 采样回退层没有改动公开 API
+   =========================================================
+   采样音效是「在 API 上包一层」而不是「换一套 API」，所以这里钉的是
+   **公开方法名一个不少** —— 一旦有人把某个方法改成只在有素材时才存在，
+   全项目 56 个播放点会开始静默不出声，而测试只有这一条能拦住。
+   ⚠️ 真正的播放行为（采样 / 回退）在浏览器里实跑验证 —— 本文件没有 WebAudio。
+   ========================================================= */
+G_('Audio —— 采样回退层保持公开 API 不变');
+(function () {
+  /* 本文件早先把 `G.Audio` 换成了空壳 audioStub（见它旁边的注释：定时器要它常在）。
+     这里跟「环境音」那节一样，**按需加载真实模块**，测完再还原成空壳。
+     ⚠️ enabled=false 时采样层在 `ensure()` 之前就返回了，所以这一节**不需要**假 AudioContext。 */
+  new Function(fs.readFileSync(path.join(ROOT, 'src/core/audio.js'), 'utf8')).call(global);
+  const A = G.Audio;
+
+  const NAMES = ['cast', 'splash', 'bite', 'hint', 'tick', 'snap', 'escape', 'success',
+                 'newRecord', 'coin', 'click', 'deny', 'unlock',
+                 'setEnabled', 'setVolume', 'startAmbience', 'stopAmbience'];
+  ok(NAMES.every(k => typeof A[k] === 'function'),
+     `公开方法 ${NAMES.length} 个一个不少（采样层是包一层，不是替换）`);
+  ok(Object.keys(A).length === NAMES.length,
+     `导出面没有多出方法（实得 ${Object.keys(A).length} 个，期望 ${NAMES.length}）—— `
+     + '采样层只许包已有方法，不许顺手导出 probe / reset 这类调试口');
+
+  /* 关掉总开关后逐个调一遍：**必须不抛**。
+     没素材、没 AudioContext 时「静默跳过」是允许的，「抛异常」不是。 */
+  A.setEnabled(false);
+  const threw = [];
+  NAMES.filter(k => k !== 'setEnabled').forEach(k => {
+    try { A[k](2); } catch (e) { threw.push(k); }
+  });
+  A.setEnabled(true);
+  ok(threw.length === 0,
+     `关掉音效后逐个调用都不抛（实得 ${threw.length} 个异常${threw.length ? '：' + threw.join(' / ') : ''}）`);
+
+  ok(typeof G.Assets.sfx === 'function', 'G.Assets.sfx()：音效取用入口存在（采样层的唯一素材来源）');
+
+  G.Audio = audioStub;   // 还原成空壳：后面还有 resolve() 的定时器会调它
 })();
 
 /* ---------- 汇总 ---------- */

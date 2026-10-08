@@ -55,6 +55,29 @@ G.Platform = (function () {
         return new AC();
       } catch (e) { return null; }
     },
+    /* 加载并解码一段音频 → `Promise<AudioBuffer | null>`。
+       **失败一律 resolve(null)，不抛也不 reject** —— 与 `image.load` 同一口径：
+       音频文件可能不存在 / `file://` 下读不了 / 解码失败，这些都是**常态**，
+       调用方要的是「有就用、没有就走回退（合成音）」，不是异常处理。
+       ⚠️ 小程序端**不能用这一套**（它不做解码，`wx.createInnerAudioContext` 直接吃 URL）——
+          那时这个能力要整体替换，所以业务侧**不要假设拿到的是 AudioBuffer**，
+          只使用「非 null 就说明能播」这一条语义。 */
+    load: function (url) {
+      var c = audio.createContext();
+      if (!c || !c.decodeAudioData || typeof fetch !== 'function') return Promise.resolve(null);
+      return fetch(url).then(function (r) {
+        return (r && r.ok) ? r.arrayBuffer() : null;
+      }).then(function (b) {
+        if (!b) return null;
+        return new Promise(function (res) {
+          /* 新旧两种签名都试：老 Safari 只认回调形态（返回值不是 Promise） */
+          try {
+            var p = c.decodeAudioData(b, function (buf) { res(buf); }, function () { res(null); });
+            if (p && p.then) p.then(function (buf) { res(buf); }, function () { res(null); });
+          } catch (e) { res(null); }
+        });
+      }).catch(function () { return null; });
+    },
     /* 兼容位：小程序只能用音频文件，不支持 figure out 波表。
        将来在 platform.weapp.js 里实现 playFile(id) 即可，
        本文件的实现是 no-op，不影响 Web 端的程序化音效。 */

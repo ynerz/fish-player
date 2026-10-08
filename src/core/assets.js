@@ -23,9 +23,10 @@ G.Assets = (function () {
   'use strict';
 
   var DIR = 'assets/cards/';
+  var SFX_DIR = 'assets/audio/';
   /* 上云之后把 CDN 前缀写在这里（或调用 setBase）。空 = 与 index.html 同目录。 */
   var base = '';
-  var cache = {};      // 键 → Image（成功过的不再请求第二次）
+  var cache = {};      // 键 → Image / AudioBuffer（成功过的不再请求第二次）
   var dead = {};       // 键 → true（**失败备忘**：404 过的键不再反复请求）
   var stat = { ok: 0, fail: 0 };
 
@@ -45,16 +46,25 @@ G.Assets = (function () {
     return (G.Platform && G.Platform.sys && G.Platform.sys.isFile()) ? 'inline' : 'external';
   }
 
-  /* 键的形状：`fishcard:<id>`（原色）/ `fishcard:<id>:<档位>`。
+  /* 两类键：
+       `fishcard:<id>` / `fishcard:<id>:<档位>` —— 图鉴卡面（PNG）
+       `sfx:<名字>`                              —— 音效（MP3）
      认不出来的键返回 null —— **宁可返回 null 让调用方走回退，也不要拼一个可能错的路径**。 */
   function resolve(key) {
     var p = String(key == null ? '' : key).split(':');
-    if (p.length < 2 || p.length > 3 || p[0] !== 'fishcard') return null;
-    var fid = p[1];
-    if (!/^[A-Za-z0-9]+$/.test(fid)) return null;
-    var morph = p[2];
-    if (morph && morphKeys().indexOf(morph) < 0) return null;   // 档位名写错 = 直接拦掉
-    return base + DIR + fid + (morph ? '-' + morph : '') + '.png';
+    if (p[0] === 'fishcard') {
+      if (p.length < 2 || p.length > 3) return null;
+      var fid = p[1];
+      if (!/^[A-Za-z0-9]+$/.test(fid)) return null;
+      var morph = p[2];
+      if (morph && morphKeys().indexOf(morph) < 0) return null;   // 档位名写错 = 直接拦掉
+      return base + DIR + fid + (morph ? '-' + morph : '') + '.png';
+    }
+    if (p[0] === 'sfx') {
+      if (p.length !== 2 || !/^[a-z][a-z0-9]*$/.test(p[1])) return null;
+      return base + SFX_DIR + p[1] + '.mp3';
+    }
+    return null;
   }
 
   function fishKey(fid, morph) {
@@ -78,6 +88,22 @@ G.Assets = (function () {
     return load(fishKey(fid, morph));
   }
 
+  /* 音效：按名字拿一段**已解码的音频**。拿不到就是 null（调用方回退到合成音）。
+     与图片共用同一套缓存与失败备忘 —— 键带前缀，不会撞。
+     ⚠️ 小程序端这个返回值的语义会变（那边不做解码，直接吃 URL）——
+        见 `G.Platform.audio.load` 的注释；业务侧只用「非 null = 能播」这一条。 */
+  function sfx(name) {
+    var key = 'sfx:' + name;
+    if (cache[key]) return Promise.resolve(cache[key]);
+    if (dead[key]) return Promise.resolve(null);
+    var url = resolve(key);
+    if (!url || !G.Platform || !G.Platform.audio || !G.Platform.audio.load) return Promise.resolve(null);
+    return G.Platform.audio.load(url).then(function (buf) {
+      if (buf) { cache[key] = buf; stat.ok++; return buf; }
+      dead[key] = true; stat.fail++; return null;
+    });
+  }
+
   /* 家底：成功 / 失败过多少张。开发者面板与自检用。 */
   function used() {
     return { ok: stat.ok, fail: stat.fail, cached: Object.keys(cache).length };
@@ -94,6 +120,7 @@ G.Assets = (function () {
     fishKey: fishKey,
     load: load,
     card: card,
+    sfx: sfx,
     used: used,
     setBase: setBase,
     reset: reset,

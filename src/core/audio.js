@@ -187,5 +187,60 @@ G.Audio = (function () {
     },
   };
 
+  /* ==========================================================================
+   * 采样音效层（2026-10-08 加）
+   *
+   * 做法：**公开 API 一个都不变**（仍是 cast / splash / …），只在下面把 `API` 上
+   * 除开关/环境音之外的每个方法包一层「先试采样、拿不到就照旧走原合成」。
+   * ⇒ 全项目 **56 个播放点零改动**，`tools/test.js` 的 audioStub 也不用动。
+   *
+   * 素材放 `assets/audio/<id>.mp3`（键是 `sfx:<id>`，路径由 `G.Assets` 统一拼）。
+   * ⚠️ **音效清单就是 `API` 自己的方法名** —— 不在这里再列一遍。
+   *    清单写两份必然分家（本项目反复踩过的坑型）；将来加一个音效方法，
+   *    采样回退会自动跟上，不需要记得回来改这里。
+   *
+   * ⚠️ 三条必须守住的：
+   *   1. **未就绪 ≠ 静音**：采样是异步的，首次触发时必然还没回来 —— 本次必须**照旧播合成音**、
+   *      同时后台预取，**不能 return**（否则开局几秒是哑的，而且很难被发现）。
+   *   2. **失败一律不抛**：`G.Assets.sfx` 失败返回 null 并记备忘，这里收到 null 就永久走合成。
+   *      `file://` 下读不到音频文件属预期，也走这条路。
+   *   3. **音量走 `master`** —— 这样 `setVolume` / `setEnabled` 仍然只有一处生效。
+   *
+   * ⚠️ 环境音（startAmbience / stopAmbience）**暂不做采样**：它要循环播放，
+   *    节点管理与一次性音效不同，单独做（见 docs/改进待办.md）。
+   * ======================================================================== */
+  var sampleBuf = {};    // id → AudioBuffer（拿到之后就一直用它）
+  var sampleAsked = {};  // id → true（只请求一次）
+  var NO_SAMPLE = { setEnabled: 1, setVolume: 1, startAmbience: 1, stopAmbience: 1 };
+
+  function playSample(id) {
+    var b = sampleBuf[id];
+    if (!b || !ensure()) return false;
+    try {
+      resume();
+      var s = ctx.createBufferSource();
+      s.buffer = b;
+      s.connect(master);
+      s.start();
+      return true;
+    } catch (e) { return false; }   // 播不出来就当没有采样，让调用方回退合成
+  }
+
+  Object.keys(API).forEach(function (id) {
+    if (NO_SAMPLE[id]) return;
+    var synth = API[id];
+    if (typeof synth !== 'function') return;
+    API[id] = function () {
+      /* 总开关优先。原来这层判断在 tone/noise 内部，而采样路径绕过了它，所以必须在这里补。 */
+      if (!enabled) return;
+      if (playSample(id)) return;               // 有采样 → 播采样
+      if (!sampleAsked[id] && G.Assets && G.Assets.sfx) {
+        sampleAsked[id] = true;                 // 只问一次；失败的键由 G.Assets 记备忘
+        G.Assets.sfx(id).then(function (b) { if (b) sampleBuf[id] = b; });
+      }
+      return synth.apply(null, arguments);      // 没采样：**照旧出声**，绝不是静音
+    };
+  });
+
   return API;
 })();

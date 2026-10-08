@@ -95,6 +95,37 @@ function bodyOf(src, marker) {
   const m = new RegExp('\\n {0,' + indent + '}\\S').exec(rest.slice(nl));
   return m ? rest.slice(0, nl + m.index + 1) : rest;
 }
+/* 从「开括号」起按**括号配平**找它的配对闭括号，返回闭括号**之后**的偏移（找不到返回 -1）。
+   只认 `{` / `[` / `(` 三种；字符串 / 模板串 / 注释里的括号一律跳过（只数真正的代码括号）。
+   为什么需要它（Q38，2026-10-09）—— 用「某字符的**首次出现**」当块尾会**静默**截断 / 越界：
+     · `txt.indexOf('};')`：返回的对象里写 `function () { return {}; }`（里面的 `};`）就提前收；
+     · `mainSrc.indexOf('});')`：回调里调一次 `Hud.toast({ ... });`（`});`）就提前收；
+     · `indexOf('\n}')` / `search(/\nVIEWS\.x =/)`：被嵌套结构提前命中，或（该段是本文件最后一段时）
+       一路切到文件尾 —— 段尾彻底错，**但文本照样拿得出来**，判据于是被喂饱。
+   ⚠️ 它只管「开括号 → 配对闭括号」这一种结构。找「当前行的行尾」「某个唯一标记的偏移」
+      属于**位置**语义（`bodyOf()` 里那个 `indexOf('\n')`、`at()` 自身），不归它管、也别硬套。 */
+function closeOf(src, openAt) {
+  const s = String(src);
+  const open = s[openAt];
+  const close = open === '{' ? '}' : open === '[' ? ']' : open === '(' ? ')' : null;
+  if (!close) return -1;
+  let depth = 0;
+  for (let i = openAt; i < s.length; i++) {
+    const c = s[i];
+    if (c === '/' && s[i + 1] === '/') { const e = s.indexOf('\n', i); if (e < 0) return -1; i = e; continue; }
+    if (c === '/' && s[i + 1] === '*') { const e = s.indexOf('*/', i + 2); if (e < 0) return -1; i = e + 1; continue; }
+    if (c === '"' || c === "'" || c === '`') {
+      for (i++; i < s.length; i++) {
+        if (s[i] === '\\') { i++; continue; }
+        if (s[i] === c) break;
+      }
+      continue;
+    }
+    if (c === open) depth++;
+    else if (c === close) { depth--; if (!depth) return i + 1; }
+  }
+  return -1;
+}
 /* 判据：这个 needle 属于「会被折行影响」的散文式吗？
    含反斜杠转义 = 结构锚点；纯标识符 / 路径（无空格、汉字 <4 个）不受折行影响。 */
 function isProseNeedle(n) {
@@ -600,11 +631,22 @@ if (!/up:\s*function\s*\(\s*fn\s*\)/.test(platSrc)) {
 const sceneAt = mainSrc.indexOf("input.down(U.$('#scene')");
 if (sceneAt < 0) { err('main.js 里找不到画布 pointerdown 绑定（#scene）'); inputBad++; }
 else {
-  const body = mainSrc.slice(sceneAt, mainSrc.indexOf('});', sceneAt));
-  if (!/handlePress\(\)/.test(body)) { err('画布按下回调没有调用 handlePress()'); inputBad++; }
-  if (/getState\(\)|\bst\s*===\s*'/.test(body)) {
-    err('画布按下回调里仍按 state 白名单过滤 —— 漏一个状态就是「按住不收线」，应直接透传 handlePress()');
+  /* 回调块的段尾走**括号配平**（Q38）：原来找 `'})'+';'` 的首次出现 ——
+     回调里只要调一次 `Hud.toast({ ... });` 就会在那里提前截断（`});`），
+     而截断后的文本照样能喂饱下面两条判据（漏掉后面的状态白名单 = 静默假通过）。 */
+  const cbOpen = mainSrc.indexOf('{', sceneAt);
+  const cbEnd = cbOpen < 0 ? -1 : closeOf(mainSrc, cbOpen);
+  if (cbEnd < 0) {
+    err('main.js 的画布按下回调块切不出配对闭括号 —— 本节按括号配平切（Q38），'
+      + '写法改过就要跟着改这一节（不然下面两条判据会被一段空文本喂饱）');
     inputBad++;
+  } else {
+    const body = mainSrc.slice(sceneAt, cbEnd);
+    if (!/handlePress\(\)/.test(body)) { err('画布按下回调没有调用 handlePress()'); inputBad++; }
+    if (/getState\(\)|\bst\s*===\s*'/.test(body)) {
+      err('画布按下回调里仍按 state 白名单过滤 —— 漏一个状态就是「按住不收线」，应直接透传 handlePress()');
+      inputBad++;
+    }
   }
 }
 if (!inputBad) ok('画布按下 = 主按钮按下（无状态白名单，fight 状态也能收线）');
@@ -1645,16 +1687,19 @@ let deadExportBad = 0;
        `return { ... };`（多数模块）与 `var API = { ... }; return API;`（audio.js） */
   function exportKeys(txt) {
     let m = [...txt.matchAll(/^  return \{/gm)];
-    let start = -1;
-    if (m.length) start = m[m.length - 1].index + '  return {'.length;
+    let open = -1;
+    if (m.length) open = m[m.length - 1].index + '  return {'.length - 1;
     else {
       m = [...txt.matchAll(/^  var API = \{/gm)];
-      if (m.length) start = m[m.length - 1].index + '  var API = {'.length;
+      if (m.length) open = m[m.length - 1].index + '  var API = {'.length - 1;
     }
-    if (start < 0) return [];
-    const end = txt.indexOf('};', start);
+    if (open < 0) return [];
+    /* 段尾走**括号配平**（Q38）：原来找 `'}' + ';'` 的首次出现 —— 返回的对象里只要写
+       `function () { return {}; }` 之类，里面的 `};` 就会提前命中，导出键清单被截断，
+       本节的「死导出」网于是**少看一段**（静默假通过）。 */
+    const end = closeOf(txt, open);
     if (end < 0) return [];
-    const block = txt.slice(start, end);
+    const block = txt.slice(open + 1, end - 1);
     const keys = [];
     (block.match(/(^|[\s{,])([A-Za-z_$][\w$]*)\s*:/g) || []).forEach(s => {
       const k = s.replace(/^[\s{,]+/, '').replace(/\s*:$/, '');
@@ -2193,9 +2238,11 @@ console.log('\n[32-h] 存档键必须有消费方（设置子键还必须有界�
   const fnAt = at(stSrc, 'function blank()');
   let blankSrc = '';
   if (fnAt >= 0) {
-    const rest0 = stSrc.slice(fnAt);
-    const end = rest0.search(/\n {4}\};/);
-    blankSrc = end >= 0 ? rest0.slice(0, end) : rest0;
+    /* 段的终点 = blank() 的**函数体**，按缩进切、走顶层 `bodyOf()`（Q38）。
+       原来找「换行 + 4 个空格 + `};`」的首次出现：缩进写死 4 个空格，文件一重排 /
+       换个缩进就切歪；而切歪之后 `v:` 那行**照样认得出来** ⇒ 顶层键清单静默多收 / 少收
+       （多收的键会被当成「零消费」误报，少收的键则整条网看不见）。 */
+    blankSrc = bodyOf(stSrc, 'function blank(');
   }
   /* 顶层缩进**从 `v:` 那一行现取**，不在断言里写死 4 / 6 / 8 个空格
      （否则文件一重排，本节要么误报要么空过）。 */
@@ -2229,9 +2276,13 @@ console.log('\n[32-h] 存档键必须有消费方（设置子键还必须有界�
   const setAt = at(pSrc, 'VIEWS.settings = {');
   let block = '';
   if (setAt >= 0) {
-    const rest = pSrc.slice(setAt + 1);
-    const nx = rest.search(/\n[ \t]*VIEWS\.[A-Za-z_$][\w$]*[ \t]*=/);
-    block = nx >= 0 ? rest.slice(0, nx) : rest;
+    /* 段的终点 = 这个**对象字面量的配对闭括号**（Q38）。原来找「下一个 `VIEWS.<名> =`」：
+       该 view 若是本文件最后一段，段尾会一路切到文件尾（把后面所有 view 都算进来 ⇒
+       任何一处 `settings.<键>` 都能喂饱下面的检查）；段内若嵌套了 `VIEWS.x =` 又会提前收。
+       ⚠️ 段内不含最外层那对花括号 —— 测的是「段内出现 `settings.<键>`」，与括号无关。 */
+    const sOpen = pSrc.indexOf('{', setAt);
+    const sEnd = sOpen < 0 ? -1 : closeOf(pSrc, sOpen);
+    block = sEnd < 0 ? '' : pSrc.slice(sOpen + 1, sEnd - 1);
   }
   if (block.length < 200) {
     err(REL_PANEL + ' 里抓不到 VIEWS.settings 那一段（实得 ' + block.length + ' 字符）—— '
@@ -2645,7 +2696,16 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
   }
   /* ①b 池子里只许有「候选键 + 权重」，不许出现句子原文（连续三个英文单词 = 抄了原文） */
   const poolStart = at(src, 'MORPH_POOL = {');
-  const poolBody = src.slice(poolStart, src.indexOf('\n}', poolStart));
+  /* 字典体走**括号配平**（Q38）：原来找「换行 + `}`」的首次出现 —— 池子里若嵌套了
+     以行首 `}` 结尾的结构，或 `MORPH_POOL` 的闭括号不在行首，段尾就错；姑且不改写法
+     也无从发现。切不出来**必须报错**，不许静默退化成「没有元组要检查」。 */
+  const poolOpen = poolStart < 0 ? -1 : src.indexOf('{', poolStart);
+  const poolEnd = poolOpen < 0 ? -1 : closeOf(src, poolOpen);
+  if (poolEnd < 0) {
+    err('MORPH_POOL 的字典体切不出配对闭括号（本节按括号配平切，Q38）—— '
+      + 'gen-art.py 的写法改过就要跟着改这一节，不许当成「没有元组要检查」而空过'); return;
+  }
+  const poolBody = src.slice(poolOpen + 1, poolEnd - 1);
   if ((poolBody.match(/\(\s*"[a-z]+\/\d+"\s*,\s*\d+\s*\)/g) || []).length < 4) {
     err('MORPH_POOL 里没有找到 ≥4 个 `("候选键", 权重)` 元组 —— 池子结构不对'); return;
   }
@@ -3119,12 +3179,18 @@ console.log('\n[39] 拼装 HTML 的工具：产物脚本必须真解析过（不
   ok('判据自检：合成坏样本必被抓、好样本必放过（单反斜杠 vs 双反斜杠）');
 
   /* ---- (a) 真文件扫描 ---- */
-  if (!TPL_RE.test(py)) {
+  const tplM = TPL_RE.exec(py);
+  if (!tplM) {
     err('tools/review-cards.py 里认不出 TEMPLATE 三引号块 —— 拼装方式改过？判据要跟着改');
     return;
   }
-  const tpl = pick(py);
-  const tplBase = py.slice(0, py.indexOf(tpl)).split('\n').length;   // 模板起始行
+  const tpl = tplM[1];
+  /* ⚠️ 模板的偏移**直接用正则的匹配位置**，不许另拿 `tpl` 反查（Q38）：
+     · `indexOf` 找不到时返回 -1，而 `py.slice(0, -1)` **不报错** —— 只是把最后一行算少一行
+       ⇒ 报出来的行号整体偏 1（静默）；
+     · `at()` 也不行：它把空格换成 `\s+` 建**正则**，25 KB 的 needle 会当场
+       `Invalid regular expression: Stack overflow`（实测，2026-10-09）。 */
+  const tplBase = py.slice(0, tplM.index).split('\n').length;   // 模板起始行
   const badLines = tpl.split('\n')
     .map((l, i) => [tplBase + i, l.trim()])
     .filter(([, l]) => BAD_ESC.test(l));
@@ -3761,16 +3827,17 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
   /* ⑨ 「变量形式的按位置切片」只许出现在白名单里（Q37，2026-10-09）。
      Q36 的两条网（「下一个 def 当终止符」/ 内联 `.slice(at(`）都**抓不到**这种形状：
      先把锚点存进变量、再拿变量去切 —— 而 Q35 出事那一处正是它，Q36 收掉的 10 处里也有 4 处是它。
-     它本身不一定错：`blank()` 的「挖空定义段」与两处「取段落」就该这么写（语义是**挖空 / 取块**，
-     不是切函数体 —— 后者的正解是 `bodyOf()`）。危险的是**新增**一处而没人发现：
-     按位置切片靠「中间恰好没夹东西」成立，范围还容易越过目标（本轮就顺手收掉了 §42② 那处
+     它本身不一定错：`blank()` 的「**挖空**定义段」就该这么写（语义是挖洞，不是切块 ——
+     取块 / 取段落的段尾一律走 `closeOf()`，见下面的 ⑩）。危险的是**新增**一处而没人发现：
+     按位置切片靠「中间恰好没夹东西」成立，范围还容易越过目标（Q37 就顺手收掉了 §42② 那处
      `cc.slice(mi)` —— 它一路切到文件尾，把 `if __name__` 那两行也算进了 main 的体）。
      判据是**多重集相等**（双向一步到位，缺一条就退化成摆设）：
        · 每一处「`at()` 的锚点变量出现在 `.slice(...)` 参数里」都必须在白名单里 —— 多一处即报红；
        · 白名单每一条都必须在文件里**恰好出现一次** —— 删了 / 改了 / 抄了第二份都报红。
      ⚠️ 只认 `at()`（项目自己的「返回**原文偏移**」助手）。`indexOf()` 的短名锚点
         （i / nl / end / nx …）在同一文件里会**撞名**（只读探针实测 31 个候选里 10 处是撞名误报，
-        连 `bodyOf()` 自己内部的 `nl` 也会中枪）⇒ 那批是**结构边界**问题，归 Q38，不按名在这里硬套。
+        连 `bodyOf()` 自己内部的 `nl` 也会中枪）⇒ 那批是**结构边界**问题，不按名在这里硬套 ——
+        已由下面的 **⑩** 用「结构边界」收口（Q38，2026-10-09）。
      ⚠️ 自指防线两道，缺一不可：先剥**注释**（硬规矩 ①），再剥**字符串字面量** ——
         白名单本身就是一堆 `.slice(…)` 文本，不剥就会被自己扫到（自指喂饱）；
         白名单里的 `.slice(` 另用拼接造（`'.' + 'slice' + '('`）再加一道保险。 */
@@ -3810,11 +3877,10 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
     };
     /* 白名单：逐处点名 + 写明为什么不是 bodyOf()。改这里必须同步改代码（多重集相等会拦）。 */
     const AL = [
-      'stSrc' + SL + 'fnAt)',                     // §32-h ① 取 blank() 定义段的**起点**（要到段尾）
       'stSrc' + SL + '0, fnAt)',                  // §32-h ② 挖空 blank 定义段（前半）
       'stSrc' + SL + 'fnAt + blankSrc.length)',   // §32-h ② 挖空（后半）—— 与前半合成「挖洞」
-      'pSrc' + SL + 'setAt + 1)',                 // §32-h ③ 取 VIEWS.settings 段（到下一个 VIEWS.*）
-      'src' + SL + "poolStart, src.indexOf('', poolStart))",  // §33 MORPH_POOL 字典（到行首 `}`）
+      /* Q38（2026-10-09）把「取段落」那三条收成结构边界后，它们不再按位置切：
+         blank() 的段走 bodyOf()、VIEWS.settings 段与 MORPH_POOL 字典走 closeOf() ⇒ 条目已随代码删掉。 */
     ].map(norm);
     /* 判据自检：合成样本 —— 带 at() 锚点变量的切片必被认出、纯数组切片必被放过 */
     const SYN_YES = "const zzAt = at(cc, 'x'); const q = cc" + SL + 'zzAt, 2);';
@@ -3845,12 +3911,124 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
     }
   }
 
+  /* ⑩ 「块尾」不许押在「字符 / 模式的**首次出现**」上（Q38，2026-10-09）。
+     ⑧ 管「按位置切**函数体**」、⑨ 管「变量形式的按位置切片」的位置白名单，
+     ⑩ 管的是**块边界本身**：`.slice(a, b)` 的 `b` 由 `indexOf(<含 } 的字面量>)` /
+     `search(<模式>)` 给出。这种写法把段尾押在「那个字符恰好只出现一次」上：
+       · 返回的对象里写 `function () { return {}; }` ⇒ 里面的 `};` 提前命中（exportKeys）；
+       · 回调里调一次 `Hud.toast({ ... });` ⇒ `});` 提前命中（§12 画布回调）；
+       · 「换行 + 4 个空格 + `};`」把缩进写死 4（32-h 的 blank 段）；
+       · 「下一个 `VIEWS.<名> =`」在该 view 是本文件最后一段时**一路切到文件尾**（32-h 面板段）；
+       · 「换行 + `}`」被嵌套结构提前命中（§33 MORPH_POOL 字典）。
+     截断 / 越界之后文本**照样拿得出来**，判据于是被喂饱 —— 全是**静默**假通过。
+     正解 = 结构边界：`closeOf()`（括号配平，跳过字符串 / 模板串 / 注释里的括号）。
+     ⚠️ 「某一行 / 某个唯一标记」这类**位置**语义不归它管（`bodyOf()` 里的 `indexOf('\n')`、
+        §39 用正则匹配位置取模板行号都是），所以判据只认下面两种「块边界」形状：
+       · 直接形式：`.slice(...)` 的实参里出现 `.indexOf(` / `.search(`；
+       · 变量形式：变量由 `.search(` 或 `.indexOf(<含 } 的字面量>)` 赋值，且出现在 slice 实参里。
+     ⚠️ 变量形式**只认「正则 / 含 `}` 的字面量」**：`i = s.indexOf(marker)`、`nl = s.indexOf('\n')`
+        是「找位置 / 找行尾」，不是块边界 —— 宽口径实测 33 个候选里 29 个只是**短名撞名**
+        （`i` / `end` / `missing` 各被当成同一个变量），全收进来只会变成噪音（Q37 的教训）。
+        收窄后实测命中 = **恰好 Q38 列的 5 处 + §39 的 tplBase**，0 误报（只读探针）。
+     ⚠️ 自指防线两道（与 ⑨ 同理）：剥注释 + 剥**字符串字面量**（判据自检里全是
+        `.slice(` / `.indexOf(` 文本），关键 needle 另用拼接 / 字符码造。 */
+  let blockN = 0;
+  {
+    /* 保留字符串的源码（判「哪个变量是块边界」要看 needle 里的 `}`）与剥字符串的源码（判切片点）各一份 */
+    const selfNS = fs.readFileSync(__filename, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const STRIP = t => String(t)
+      .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
+      .replace(/"(?:[^"\\\n]|\\.)*"/g, '""')
+      .replace(/`(?:[^`\\]|\\.)*`/g, '``');
+    const norm = s => STRIP(s).replace(/\s+/g, '');
+    const SL = '.' + 'slice' + String.fromCharCode(40);
+    const IDXC = '.' + 'indexOf' + String.fromCharCode(40);
+    const SERC = '.' + 'search' + String.fromCharCode(40);
+    const Q1 = String.fromCharCode(39);
+    /* 「块边界变量」：由 `.search(` 或 `.indexOf(<含 } 的字面量>)` 赋值（按**定义形状**认，
+       不是按名字白名单 —— 短名撞名正是 Q37 放弃按名扫的原因）。
+       ⚠️ 判 needle 必须在**保留字符串**的文本上做：`'};'` 里的 `}` 一剥就没了。 */
+    const blockVars = text => {
+      const out = [];
+      const reS = new RegExp('(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*[^;\\n]*?\\'
+        + SERC.slice(0, -1), 'g');
+      const reI = new RegExp('(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*=\\s*[^;\\n]*?\\'
+        + IDXC.slice(0, -1), 'g');
+      let m;
+      while ((m = reS.exec(text))) out.push(m[1]);
+      while ((m = reI.exec(text))) {
+        const needle = text.slice(m.index + m[0].length).split(')')[0];
+        if (needle.indexOf('}') >= 0) out.push(m[1]);
+      }
+      return out;
+    };
+    /* 扫出「.slice() 的边界来自 indexOf/search」的每一处，返回**归一化**的调用文本 */
+    const sites = (text, vs) => {
+      const out = [];
+      let k = 0;
+      while ((k = text.indexOf(SL, k)) >= 0) {
+        const open = k + SL.length;
+        let depth = 1, j = open;
+        while (j < text.length && depth) { const c = text[j++]; if (c === '(') depth++; else if (c === ')') depth--; }
+        const args = text.slice(open, j - 1);
+        const viaVar = vs.some(v => new RegExp('\\b' + v.replace(/\$/g, '\\$') + '\\b').test(args));
+        if (args.indexOf(IDXC) >= 0 || args.indexOf(SERC) >= 0 || viaVar) {
+          let s0 = k;                                    // 把接收者一起切进来（`src` / `stSrc` …）
+          while (s0 > 0 && /[\w$.]/.test(text[s0 - 1])) s0--;
+          out.push(norm(text.slice(s0, j)));
+        }
+        k = j;
+      }
+      return out;
+    };
+    /* 白名单：目前**为空** —— 块尾一律走 closeOf() / bodyOf()。确有非结构边界的正当需求时
+       才加进来（并写明理由）；加了之后「多重集相等」会同时盯住「多一处」与「白名单烂成摆设」。 */
+    const AL = [];
+    /* 判据自检：直接形式 / 变量形式必被抓，「位置语义」与结构边界必被放过（四组各一） */
+    const SYN_BAD1 = 'const q = cc' + SL + '0, cc' + IDXC + Q1 + '};' + Q1 + '));';
+    const SYN_BAD2 = 'const e = cc' + IDXC + Q1 + '};' + Q1 + '); const q = cc' + SL + '0, e);';
+    const SYN_OK1 = 'const i = cc' + IDXC + 'x); const q = cc' + SL + '0, i);';
+    const SYN_OK2 = "const b = bodyOf(cc, 'def x(');";
+    const n1 = sites(STRIP(SYN_BAD1), []).length;
+    const n2 = sites(STRIP(SYN_BAD2), blockVars(SYN_BAD2)).length;
+    const n3 = sites(STRIP(SYN_OK1), blockVars(SYN_OK1)).length;
+    const n4 = sites(STRIP(SYN_OK2), []).length;
+    if (n1 !== 1 || n2 !== 1 || n3 !== 0 || n4 !== 0) {
+      err('第 42 节 ⑩ 判据自检不成立：分不出「块尾来自 indexOf/search」（坏）与'
+        + '「位置语义 / 结构边界」（好）—— 直接形式 ' + n1 + ' / 变量形式 ' + n2
+        + ' / 位置语义 ' + n3 + ' / 结构边界 ' + n4 + '（期望 1 / 1 / 0 / 0）');
+      secBad++;
+    }
+    const got = sites(STRIP(selfNS), blockVars(selfNS));
+    blockN = got.length;
+    if (got.slice().sort().join('\n') !== AL.slice().sort().join('\n')) {
+      const extra = got.filter(s => AL.indexOf(s) < 0);
+      const missing = AL.filter(s => got.indexOf(s) < 0);
+      if (extra.length) {
+        err(`verify.js 里出现了「块尾押在字符首次出现上」的切片（${extra.join(' | ')}）—— `
+          + '块尾一律走 closeOf()（括号配平）/ bodyOf()（按缩进）；真的要按位置切，'
+          + '就得逐处写进 ⑩ 白名单并说明理由');
+      }
+      if (missing.length) {
+        err(`第 42 节 ⑩ 白名单里有 ${missing.length} 条在文件里已不存在（${missing.join(' | ')}）—— `
+          + '删了 / 改了 / 抄了第二份都算，请同步白名单（否则白名单会烂成摆设）');
+      }
+      if (!extra.length && !missing.length) {
+        err(`第 42 节 ⑩：块尾切片的出现次数（${got.length}）与白名单条数（${AL.length}）`
+          + '不符 —— 同一处写法被抄了第二份也算');
+      }
+      secBad++;
+    }
+  }
+
   if (!hit.length && !secBad && !bad) {
     ok(`接触表复用 check-cards 的判定（${forbidden.length} 项口径 0 处重复）、`
       + `judge() / judge_group() / slot_verdicts() / slot_tally() 各自唯一入口`
       + `（跨档提示只进 soft；FAIL 清单与提示段同走槽位口径）、`
       + `跨档中位按档投一票、判定按槽位归组（折版规则只在 morph_key() 一处）、`
       + `切函数体只走 bodyOf()、「变量形式的按位置切片」${sliceN} 处全在 ⑨ 白名单内、`
+      + `块尾全走结构边界（⑩ 命中 ${blockN} 处，白名单 0 条）、`
       + `且与评审页共用同一套 ${vars.length} 色`);
   }
 })();

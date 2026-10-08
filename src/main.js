@@ -16,6 +16,7 @@
 
     G.Audio.setEnabled(s.settings.sound);
     G.Audio.setVolume(s.settings.volume);
+    G.Audio.setMusicVolume(s.settings.musicVol);
 
     /* ---------- 长线目标（每日任务 / 成就 / 称号） ---------- */
     G.Goals.init();

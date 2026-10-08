@@ -1493,7 +1493,18 @@ G.Panels = (function () {
         });
       });
 
-      row('音量', '整体音量 0 ~ 100', '<input type="range" id="setVol" min="0" max="100" value="' +
+      row('音乐音量', '背景音乐相对总音量的比例（0 ~ 100）',
+        '<input type="range" id="setMusicVol" min="0" max="100" value="' +
+        Math.round(s.settings.musicVol * 100) + '">', function (c) {
+        U.on(c.querySelector('#setMusicVol'), 'input', function (e) {
+          var v = e.target.value / 100;
+          s.settings.musicVol = v;
+          G.Audio.setMusicVolume(v);
+          St.scheduleSave();
+        });
+      });
+
+      row('音量', '整体音量 0 ~ 100（所有声音的总闸门）', '<input type="range" id="setVol" min="0" max="100" value="' +
         Math.round(s.settings.volume * 100) + '">', function (c) {
         U.on(c.querySelector('#setVol'), 'input', function (e) {
           var v = e.target.value / 100;

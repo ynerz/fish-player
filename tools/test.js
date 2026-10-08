@@ -352,7 +352,7 @@ let toastSeen = [];
       测试是同步跑完的，定时器在「测试已结束」之后才触发 ——
       还原成 Node 里的 undefined 就会炸成未捕获异常。 */
 const audioStub = {
-  setEnabled() {}, setVolume() {},
+  setEnabled() {}, setVolume() {}, setMusicVolume() {},
   cast() {}, splash() {}, bite() {}, hint() {}, tick() {}, snap() {}, escape() {},
   success() {}, legendary() {}, glint() {}, reward() {}, newRecord() {},
   coin() {}, click() {}, deny() {}, unlock() {},
@@ -2255,6 +2255,86 @@ G_('Audio · 背景音乐的调度与收声');
 })();
 
 /* =========================================================
+   Audio —— 音乐音量：只动音乐子总线一个节点（Q1）
+   ⚠️ **必须新加载一份 audio.js**，不能挂在上面那节后面：那一节跑到末尾时
+     AudioContext 早建好了，`ensure()` 一进来就短路返回 ——
+     「建总线时读不读 volBgm」这条路径**根本没被走到**。
+     （实测：第一版把 `ensure()` 改回写死 `1.00`，断言照样全绿 —— 假通过。
+      这正是本项目反复吃的「看起来对」的亏，所以这条证据单独放在这里。）
+   ========================================================= */
+G_('Audio · 音乐音量（只作用在音乐子总线）');
+(function () {
+  const made = { gain: [] };
+  const param = () => {
+    const o = { value: 0 };
+    o.setValueAtTime = v => { o.value = v; return o; };
+    ['exponentialRampToValueAtTime', 'linearRampToValueAtTime', 'cancelScheduledValues']
+      .forEach(k => { o[k] = () => o; });
+    return o;
+  };
+  const mkNode = () => ({ _dis: false, connect() {}, disconnect() { this._dis = true; } });
+  const fakeCtx = {
+    sampleRate: 48000, state: 'running', get currentTime() { return 10; },
+    destination: mkNode(), resume() {},
+    createGain() { const g = mkNode(); g.gain = param(); made.gain.push(g); return g; },
+    createOscillator() {
+      const o = mkNode(); o.type = ''; o.frequency = param();
+      o.start = () => {}; o.stop = () => {}; return o;
+    },
+    createBuffer(ch, len) { return { getChannelData: () => new Float32Array(len) }; },
+    createBufferSource() { const s = mkNode(); s.start = () => {}; s.stop = () => {}; return s; },
+    createBiquadFilter() { const f = mkNode(); f.frequency = param(); f.Q = param(); return f; },
+  };
+  const realCreate = G.Platform.audio.createContext;
+  G.Platform.audio.createContext = () => fakeCtx;
+  /* 调度器只留个句柄、不真跑（留真 `setInterval` 会让 Node 永远不退出） */
+  const realSI = global.setInterval, realCI = global.clearInterval;
+  global.setInterval = () => ({ ms: 250 });
+  global.clearInterval = () => {};
+
+  new Function(fs.readFileSync(path.join(ROOT, 'src/core/audio.js'), 'utf8')).call(global);
+  const A = G.Audio;
+
+  /* **先设置、再起上下文** —— 就是「音频还没被首次手势激活时玩家先拖了滑块」那条路 */
+  A.setMusicVolume(0.4);
+  A.setEnabled(true);
+  A.startBgm({ root: 261.63, mode: 'major', chords: [1, 6, 4, 5], bar: 3.6 });
+
+  /* 前 4 个 gain 就是既定结构：master / busSfx / busAmb / busBgm。
+     断言「值 0.4 落在第 4 条上」= 同时钉住「建总线时读到了这个值」与「它确实是音乐那条」。 */
+  const musicBus = made.gain.filter(g => g.gain.value === 0.4)[0];
+  ok(!!musicBus && made.gain.indexOf(musicBus) === 3,
+     `setMusicVolume 在设置**早于**上下文建立时也不丢（0.4 落在第 4 条 gain = busBgm，`
+     + `实得第 ${musicBus ? made.gain.indexOf(musicBus) : '—'} 条）；写死 1.00 会静默吃掉这个设置`);
+
+  A.setMusicVolume(0.7);
+  ok(musicBus.gain.value === 0.7,
+     'setMusicVolume 改的是同一个节点（不是每次新建一条总线 —— 那样旧节点会继续响着）');
+  ok(made.gain[1].gain.value === 1 && made.gain[2].gain.value === 1,
+     '音效 / 环境音总线没被一起改（音乐音量不许顺手把水声调小）');
+
+  A.setMusicVolume(5);
+  ok(musicBus.gain.value === 1, `setMusicVolume 越界值夹到 0~1（实得 ${musicBus.gain.value}）`);
+  A.setMusicVolume(-1);
+  ok(musicBus.gain.value === 0, `setMusicVolume 负值夹到 0（实得 ${musicBus.gain.value}）`);
+
+  /* 总开关关着时也**必须记下**这个值：`setVolume` 一直是这么做的（它在 `NO_SAMPLE` 里），
+     音乐音量得同款 —— 否则关着音效拖滑块，开回来时滑块显示 30% 而实际还在放 100%。
+     这一条同时是 `NO_SAMPLE` 少写一个名字的哨兵。 */
+  A.setMusicVolume(0.3);
+  A.setEnabled(false);
+  A.setMusicVolume(0.8);
+  ok(musicBus.gain.value === 0.8,
+     '音效总开关关着时调音乐音量同样生效（采样层不许把它当音效包一层，见 NO_SAMPLE）');
+  A.setEnabled(true);
+
+  A.stopBgm(); A.setEnabled(false);
+  global.setInterval = realSI; global.clearInterval = realCI;
+  G.Platform.audio.createContext = realCreate;
+  G.Audio = audioStub;
+})();
+
+/* =========================================================
    模块导出面 · 清掉的零消费死接口不许悄悄回来
    第 ㉕ 节用白名单钉住了 `G.U`；本轮把同一件事扩到**全部模块**：
    verify 第 ㉜ 节从源码层扫「每个导出都要有消费方」，这里再从运行期
@@ -2465,7 +2545,8 @@ G_('Audio —— 采样回退层保持公开 API 不变');
   const NAMES = ['cast', 'splash', 'bite', 'hint', 'tick', 'snap', 'escape', 'success',
                  'legendary', 'glint', 'reward',
                  'newRecord', 'coin', 'click', 'deny', 'unlock',
-                 'setEnabled', 'setVolume', 'startAmbience', 'stopAmbience',
+                 'setEnabled', 'setVolume', 'setMusicVolume',
+                 'startAmbience', 'stopAmbience',
                  'startBgm', 'stopBgm'];
   ok(NAMES.every(k => typeof A[k] === 'function'),
      `公开方法 ${NAMES.length} 个一个不少（采样层是包一层，不是替换）`);

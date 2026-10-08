@@ -135,7 +135,7 @@ gen-fish.py → solve-drop.js → balance.js → verify.js → gen-collect-time.
 - **背景音乐**：每个钓场一段自己的和声进行（大调 / 小调 / 主音各不相同），
   低音 + 和弦垫 + 稀疏铃音三层，走 lookahead 调度。参数在 `src/data/fields.js` 的 `theme.bgm`。
 - **三条子总线**（`busSfx` / `busAmb` / `busBgm`）：音效、环境水声、音乐分开，
-  设置面板里是三个独立开关。
+  设置面板里是三个独立开关，外加一行「**音乐音量**」滑块（只调音乐，不动音效与水声）。
 - ⏸ 一次性音效支持**采样优先 + 合成回退**（把文件放进 `assets/audio/<方法名>.mp3` 即自动接管），
   目前目录为空 ⇒ 全部走合成。详见 `docs/开发者文档.md` §17.13。
 

@@ -83,7 +83,7 @@ G.State = (function () {
         netMax: 0, tankMax: 0,         // 鱼护 / 水族箱的**历史最大占用**（成就用）
         streak: 0, maxStreak: 0,       // 当前 / 历史最长「连续成功」竿数
       },
-      settings: { sound: true, volume: 0.55, ambient: true, music: true, idle: false },
+      settings: { sound: true, volume: 0.55, ambient: true, music: true, musicVol: 1.0, idle: false },
       lastSeen: Date.now(),
       createdAt: Date.now(),
     };

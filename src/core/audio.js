@@ -15,6 +15,11 @@ G.Audio = (function () {
   var ambLfo = null;   // 环境音的缓慢起伏 LFO（停止时要一起收，见 stopAmbience）
   var enabled = true;
   var vol = 0.55;
+  /* 音乐音量（**相对总音量**的比例）。⚠️ 它是这个量的**唯一真相**：
+     `setMusicVolume()` 与 `ensure()` 建 `busBgm` 时都读它这一处 ——
+     只写在 setter 里的话，「先调滑块、后建上下文」那条路径会把设置丢掉
+     （不报错，只是滑块拖了没反应，属于本项目最高频的「静默失效」坑型）。 */
+  var volBgm = 1.0;
 
   function ensure() {
     if (ctx) return true;
@@ -26,15 +31,17 @@ G.Audio = (function () {
       master.connect(ctx.destination);
       /* 三条子总线（2026-10-08 加）：**音效**、**环境音**、**背景音乐**分开挂在 master 下。
          这不是为了「好看」：环境音要压得很低（0.10）、音效要顶出来，共用一个 gain
-         就只能各调各的绝对值、互相牵制；更要紧的是**将来要加「音乐音量」滑块**时，
-         调的是 `busBgm` 一个节点，**不用碰任何调用点**。
+         就只能各调各的绝对值、互相牵制；更要紧的是**「音乐音量」滑块**（2026-10-08 已做，
+         见 setMusicVolume）调的是 `busBgm` 一个节点，**不用碰任何调用点**。
          ⚠️ 环境音原本也挂在 busBgm 上，这一批**拆成 busAmb** —— 环境音与 BGM 分开开关
             （设置面板已有「环境音」，这次又加了「背景音乐」），
            共一条总线的话「调小音乐」会顺手把水声一起调小，那不是玩家按下那个滑块的意思。
          ⚠️ 三条默认都是 1.00，是为了**不改动既有的音量平衡**（改了等于顺手调了一次音量）。 */
       busSfx = ctx.createGain(); busSfx.gain.value = 1.00; busSfx.connect(master);
       busAmb = ctx.createGain(); busAmb.gain.value = 1.00; busAmb.connect(master);
-      busBgm = ctx.createGain(); busBgm.gain.value = 1.00; busBgm.connect(master);
+      busBgm = ctx.createGain(); busBgm.gain.value = volBgm; busBgm.connect(master);
+      /* ⚠️ `busBgm` 初值读的是 `volBgm` 而不是写死 1.00：玩家在音频还没起来
+         （首次手势之前）就先把「音乐音量」拖小是可能的，写死就把那个设置吃掉了。 */
     } catch (e) { return false; }
     return true;
   }
@@ -213,6 +220,19 @@ G.Audio = (function () {
     setVolume: function (v) {
       vol = G.U.clamp(v, 0, 1);
       if (master) master.gain.value = vol;
+    },
+
+    /* 音乐音量（2026-10-08）—— 「留音效、关小音乐」这个需求现在有办法满足了。
+       只作用在 `busBgm` **一个节点**上 ⇒ 全项目 56 个播放点零改动，
+       而环境音走的是 `busAmb`，所以调小音乐**不会**顺手把水声一起调小
+       （那不是玩家拖这个滑块的意思）。
+       ⚠️ 它盖的是**相对总音量**的比例：最终音量 = master × busBgm，
+          所以「总音量」仍然是唯一的全局闸门，这条只是音乐那一档。
+       ⚠️ 拿不到 AudioContext 时**先记值、不抛** —— 与 setVolume 同款：
+          `ensure()` 建总线时会把这个值补上。 */
+    setMusicVolume: function (v) {
+      volBgm = G.U.clamp(v, 0, 1);
+      if (busBgm) busBgm.gain.value = volBgm;
     },
 
     /* 抛竿：挥竿风切 + 落水 */
@@ -417,8 +437,9 @@ G.Audio = (function () {
    *      同时后台预取，**不能 return**（否则开局几秒是哑的，而且很难被发现）。
    *   2. **失败一律不抛**：`G.Assets.sfx` 失败返回 null 并记备忘，这里收到 null 就永久走合成。
    *      `file://` 下读不到音频文件属预期，也走这条路。
-   *   3. **音量走子总线** —— 音效挂 `busSfx`、环境音挂 `busAmb`，两者最终都汇到 `master`，
-   *      所以 `setVolume` / `setEnabled` 仍然只有一处生效，而环境音与音乐将来能各自调。
+   *   3. **音量走子总线** —— 音效挂 `busSfx`、环境音挂 `busAmb`、音乐挂 `busBgm`，
+   *      三者最终都汇到 `master`，所以 `setVolume` / `setEnabled` 仍然只有一处生效，
+   *      而音乐已经能单独调（`setMusicVolume`）；环境音暂时只有开关（它本来就压到 0.10）。
    *
    * ⚠️ **循环播放的三件事不做采样**：环境音（startAmbience / stopAmbience）
    *    与背景音乐（startBgm / stopBgm）都要循环、都有节点生命周期，
@@ -428,7 +449,7 @@ G.Audio = (function () {
   var sampleBuf = {};    // id → AudioBuffer（拿到之后就一直用它）
   var sampleAsked = {};  // id → true（只请求一次）
   var NO_SAMPLE = {
-    setEnabled: 1, setVolume: 1,
+    setEnabled: 1, setVolume: 1, setMusicVolume: 1,
     startAmbience: 1, stopAmbience: 1,
     startBgm: 1, stopBgm: 1,
   };

@@ -2701,6 +2701,126 @@ console.log('\n[38] 源码子串比对必须走 has()/idx()/at()（折行不许�
 })();
 
 
+/* ---------------- 39. 拼装 HTML 的工具：产物脚本必须真 check 过 ----------------
+   🔴 回归（2026-10-08，用户报「咋现在卡片评审台打不开了？」）：
+   `tools/review-cards.py` 的 `TEMPLATE` 是 Python 三引号**非 raw** 字符串。
+   我在页内 JS 里写了 `x.join('\n')` —— Python 把 `\n` **提前**解释成真换行，
+   于是字符串字面量被截断成跨行，**整段 `<script>` 语法失效**，浏览器打开
+   就是**一片空白**，而 `python tools/review-cards.py` 一句错都不报、退出码 0。
+   「工具跑成功」与「产物能用」是两件事 —— 这一节就是钉住这条缝。
+   判据两条，缺一不可：
+     (a) TEMPLATE 块里不许出现**单反斜杠**的控制类转义（页内想写字面量 `\n`
+         必须写成 `\\n`，由 Python 还原成 `\n` 交给 JS）；
+     (b) `docs/卡片评审.html` 存在时，其页内每一段 `<script>` 都必须过 `node --check`。
+   ⚠️ 静态文本判据最容易写成「装饰」：所以下面每条都配了**行为自检** ——
+      合成的坏样本必须被抓、好样本必须放过，产物文件是**真读真 check**。
+   ⚠️ 为什么还要 (b)：(a) 只盯得住这一个文件、这一种转义；将来若换别的拼装方式
+      （模板字符串 / 正则替换 / 数据里带 `</script>`），只有「把产物真喂给解析器」
+      才拦得住。两道一起才叫门禁。 */
+console.log('\n[39] 拼装 HTML 的工具：产物脚本必须真解析过（不许静默写出空白页）');
+(() => {
+  const PYFILE = path.join(ROOT, 'tools', 'review-cards.py');
+  if (!fs.existsSync(PYFILE)) { err('找不到 tools/review-cards.py（第 39 节的判据没地方落）'); return; }
+  const py = fs.readFileSync(PYFILE, 'utf8');
+
+  /* 单反斜杠 + 会被 Python 解释成控制字符的字母。
+     双反斜杠（`\\n`）不能命中 —— 用「后面不是反斜杠」的前瞻挡掉。 */
+  const BAD_ESC = /(?<!\\)\\[ntrbfva0xuN]/;
+  const TPL_RE = /TEMPLATE\s*=\s*u?"""([\s\S]*?)"""/;
+
+  /* ---- 行为自检：先证明判据本身分得清好坏（用字符码拼反斜杠，避免自指混淆）---- */
+  const BS = String.fromCharCode(92);
+  const Q = String.fromCharCode(39);                     // 单引号
+  const synBad  = 'TEMPLATE = u"""\nvar s = x.join(' + Q + BS + 'n' + Q + ');\n"""';
+  const synGood = 'TEMPLATE = u"""\nvar s = x.join(' + Q + BS + BS + 'n' + Q + ');\n"""';
+  const pick = src => (TPL_RE.exec(src) || [])[1] || '';
+  const flagged = src => !!BAD_ESC.exec(pick(src));
+  if (!flagged(synBad) || flagged(synGood)) {
+    err('第 39 节判据不成立：它分不清「单反斜杠（坏）」与「双反斜杠（好）」——'
+        + `坏样本命中=${flagged(synBad)}、好样本命中=${flagged(synGood)}`);
+    return;
+  }
+  ok('判据自检：合成坏样本必被抓、好样本必放过（单反斜杠 vs 双反斜杠）');
+
+  /* ---- (a) 真文件扫描 ---- */
+  if (!TPL_RE.test(py)) {
+    err('tools/review-cards.py 里认不出 TEMPLATE 三引号块 —— 拼装方式改过？判据要跟着改');
+    return;
+  }
+  const tpl = pick(py);
+  const tplBase = py.slice(0, py.indexOf(tpl)).split('\n').length;   // 模板起始行
+  const badLines = tpl.split('\n')
+    .map((l, i) => [tplBase + i, l.trim()])
+    .filter(([, l]) => BAD_ESC.test(l));
+  if (badLines.length) {
+    err(`TEMPLATE 块里有 ${badLines.length} 处**单反斜杠**转义 —— Python 会提前解释掉，`
+        + `产物脚本会断行（首处 L${badLines[0][0]}：${badLines[0][1].slice(0, 70)}）；`
+        + '页内 JS 要字面量 \\n 必须写 \\\\n');
+  } else {
+    ok('TEMPLATE 块里没有单反斜杠控制转义（页内 JS 的 \\n 全部写成 \\\\n）');
+  }
+
+  /* ---- (a') 生成器里的**自检**本身也得在，而且真的被调用 ----
+     第 (a) 条只盯得住「现在已经写错」。真正防回归的是 review-cards.py 里那道
+     `check_inline_js()`：它在**落盘前**把产物喂给 node --check，写错就直接拒绝写出。
+     少了它，下次改模板又会静默写出一个空白页 —— 所以这里钉住「函数在 + 有调用点」。 */
+  if (!/def check_inline_js\(/.test(py)) {
+    err('review-cards.py 里的 check_inline_js() 不见了 —— 生成物又失去了落盘前自检');
+  } else {
+    const bp = (/def build_page\([\s\S]*?\n(?=\ndef |\nclass )/.exec(py) || [''])[0];
+    if (!/check_inline_js\(/.test(bp)) {
+      err('build_page() 里没有调用 check_inline_js() —— 自检成了死代码（写了不跑等于没写）');
+    } else {
+      ok('review-cards.py 落盘前自检 check_inline_js() 在位、且 build_page() 真的调了它');
+    }
+  }
+
+  /* ---- (b) 产物脚本真解析一遍 ----
+     ⚠️ 这里**故意**不用 `spawnSync(node, ['--check'])`：本机实测起自己那个可执行文件
+        会返回 `EBUSY`（status=null），于是「检查失败」和「起不来」混成同一个红，
+        既报不出错在哪、又必然长期红着 —— 门禁一旦长期红就等于没有。
+        语法校验其实不需要子进程：`new Function(code)` 只做**解析**、不执行，
+        SyntaxError 一样抛出来 —— 也正是本文件开头加载各模块用的同一个办法。
+     边界：`new Function` 是函数体作用域，顶层的 `return` 在它这里是合法的、
+        在真脚本里不合法 ⇒ 这极少见的一类它放得过去（产物里本来也没有顶层 return）。 */
+  const syntaxErr = code => { try { new Function(code); return null; } catch (e) { return e; } };
+
+  /* 行为自检：先证明 syntaxErr 真的拦得住「字符串被截断成跨行」这一类 */
+  const brokenSample = "var s = x.join('\n');";     // 真换行截断了字面量
+  if (!syntaxErr(brokenSample)) {
+    err('第 39 节 syntaxErr 自检不成立：连「字面量被真换行截断」都判成合法 —— 判据是装饰');
+    return;
+  }
+  ok('syntaxErr 自检：字面量被真换行截断的脚本必被判非法（正是本次回归的形态）');
+
+  const ART = path.join(ROOT, 'docs', '卡片评审.html');
+  if (!fs.existsSync(ART)) {
+    warn('docs/卡片评审.html 不在，跳过产物脚本语法检查（python tools/review-cards.py 生成）');
+    return;
+  }
+  const html = fs.readFileSync(ART, 'utf8');
+  const blocks = html.match(/<script[^>]*>[\s\S]*?<\/script>/g) || [];
+  if (!blocks.length) {
+    err('docs/卡片评审.html 里一段 <script> 都没有 —— 页面必然是空白');
+    return;
+  }
+  let bad = 0;
+  blocks.forEach((blk, i) => {
+    const code = blk.replace(/^<script[^>]*>/, '').replace(/<\/script>$/, '');
+    const e = syntaxErr(code);
+    if (e) {
+      bad++;
+      const ln = (e.stack || '').match(/<anonymous>:(\d+)/);
+      const lines = code.split('\n');
+      const at = ln ? lines[Number(ln[1]) - 1] : '';
+      err(`docs/卡片评审.html 第 ${i + 1} 段页内脚本语法不过 —— 打开就是空白。`
+          + `${e.message}${at ? '（约在：' + at.trim().slice(0, 70) + '）' : ''}`);
+    }
+  });
+  if (!bad) ok(`docs/卡片评审.html 的 ${blocks.length} 段页内脚本都能解析（${html.length} 字符）`);
+})();
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

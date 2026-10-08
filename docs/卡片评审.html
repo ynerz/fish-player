@@ -390,8 +390,7 @@ function collectGroups() {
 function pollJob() {
   api('/api/job').then(function (r) { return r.json(); }).then(function (j) {
     var out = document.getElementById('out');
-    out.value = (j.log || []).join('
-');
+    out.value = (j.log || []).join('\n');
     out.scrollTop = out.scrollHeight;
     document.getElementById('cmds').innerHTML = (j.running ? '⏳ 正在重出　' : '✅ 跑完　')
       + j.done + ' / ' + j.total + ' 张　（成功 ' + j.ok + ' · 失败 ' + j.fail + '）'
@@ -422,15 +421,9 @@ document.getElementById('run').onclick = function () {
   if (!total) { alert('还没有把任何一张标成「重出」——先在卡片上点「重出」再来。'); return; }
   var tip = groups.map(function (g) {
     return '· ' + (SLOT_LABEL[g.morph] || g.morph) + '：' + g.ids.join(' ');
-  }).join('
-');
-  if (!confirm('要重出这 ' + total + ' 张吗？
-
-' + tip
-      + '
-
-每张约 50 秒；旧图**不会**被覆盖，会移进 assets/cards/_superseded/<本轮时间戳>/。
-'
+  }).join('\n');
+  if (!confirm('要重出这 ' + total + ' 张吗？\n\n' + tip
+      + '\n\n每张约 50 秒；旧图**不会**被覆盖，会移进 assets/cards/_superseded/<本轮时间戳>/。\n'
       + '跑完这些档的结论会被清掉，等你重新审。')) return;
   document.getElementById('dlgTitle').textContent = '正在重出…';
   document.getElementById('dlgTip').innerHTML = '每张约 50 秒，可以放着不管；跑完会自动刷新图片。';

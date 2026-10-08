@@ -31,6 +31,7 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 
@@ -497,7 +498,7 @@ function collectGroups() {
 function pollJob() {
   api('/api/job').then(function (r) { return r.json(); }).then(function (j) {
     var out = document.getElementById('out');
-    out.value = (j.log || []).join('\n');
+    out.value = (j.log || []).join('\\n');
     out.scrollTop = out.scrollHeight;
     document.getElementById('cmds').innerHTML = (j.running ? '⏳ 正在重出　' : '✅ 跑完　')
       + j.done + ' / ' + j.total + ' 张　（成功 ' + j.ok + ' · 失败 ' + j.fail + '）'
@@ -528,9 +529,9 @@ document.getElementById('run').onclick = function () {
   if (!total) { alert('还没有把任何一张标成「重出」——先在卡片上点「重出」再来。'); return; }
   var tip = groups.map(function (g) {
     return '· ' + (SLOT_LABEL[g.morph] || g.morph) + '：' + g.ids.join(' ');
-  }).join('\n');
-  if (!confirm('要重出这 ' + total + ' 张吗？\n\n' + tip
-      + '\n\n每张约 50 秒；旧图**不会**被覆盖，会移进 assets/cards/_superseded/<本轮时间戳>/。\n'
+  }).join('\\n');
+  if (!confirm('要重出这 ' + total + ' 张吗？\\n\\n' + tip
+      + '\\n\\n每张约 50 秒；旧图**不会**被覆盖，会移进 assets/cards/_superseded/<本轮时间戳>/。\\n'
       + '跑完这些档的结论会被清掉，等你重新审。')) return;
   document.getElementById('dlgTitle').textContent = '正在重出…';
   document.getElementById('dlgTip').innerHTML = '每张约 50 秒，可以放着不管；跑完会自动刷新图片。';
@@ -564,13 +565,48 @@ render();
 """
 
 
+def check_inline_js(html):
+    """生成物自带语法门禁：把页内 <script> 抠出来，交给 node --check 真跑一遍。
+
+    为什么必须有（回归 2026-10-08，用户报「咋现在卡片评审台打不开了？」）：
+      `TEMPLATE` 是 Python 三引号**非 raw** 字符串，所以页内 JS 里写的 `'\\n'`
+      会被 Python **提前**解释成真换行 —— 字符串字面量被截断成跨行，
+      整段 `<script>` 语法失效，浏览器打开就是一片空白（且不报任何服务端错误）。
+      这个坑在**写完文件、打开浏览器之前完全看不出来**，只能真 check 一遍才拦得住。
+      教训：拼装 HTML 的工具，落盘前必须验一遍产物的脚本语法。
+    """
+    node = shutil.which("node")
+    if not node:
+        return          # 没有 node 就别把工具链卡死（本项目门禁本来就依赖 node）
+    blocks = re.findall(r"<script[^>]*>(.*?)</script>", html, re.S)
+    tmpdir = os.path.join(ROOT, "_tmp")
+    if not os.path.isdir(tmpdir):
+        os.makedirs(tmpdir)
+    for i, code in enumerate(blocks):
+        tmp = os.path.join(tmpdir, "inline-js-%d.js" % i)
+        io.open(tmp, "w", encoding="utf-8", newline="\n").write(code)
+        p = subprocess.run([node, "--check", tmp], capture_output=True, text=True)
+        if p.returncode:
+            lines = code.split("\n")
+            m = re.search(r"inline-js-\d+\.js:(\d+)", p.stderr or "")
+            ln = int(m.group(1)) if m else 0
+            raise SystemExit(
+                "✘ 页内脚本第 %d 段有语法错误 —— **拒绝写出**（写成空白页更糟）。\n"
+                "  大概位置：第 %d 行\n     %s\n%s"
+                % (i + 1, ln, (lines[ln - 1].strip() if 0 < ln <= len(lines) else "?"),
+                   (p.stderr or "").strip()[:600]))
+        os.remove(tmp)
+
+
 def build_page(only):
     """把评审页拼出来 —— 写文件与 `--serve` 共用同一份口径。"""
     rows = build_rows(only)
     for r in rows:
         r["rarCn"] = RAR_CN[min(3, r["rar"])]
     data = json.dumps(rows, ensure_ascii=False, separators=(",", ":"))
-    return TEMPLATE.replace("__DATA__", data), len(rows)
+    html = TEMPLATE.replace("__DATA__", data)
+    check_inline_js(html)
+    return html, len(rows)
 
 
 def main():

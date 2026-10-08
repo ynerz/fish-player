@@ -222,6 +222,45 @@ def main():
             except OSError:
                 pass
 
+    print("\n[9] shape_note：内部形态模板键翻成中文；交叉提示只提示不报错")
+    # 为什么这条要有测试：评审页以前把 `fish.js` 第 4 参**裸印**在卡片上（`A03 · 稀有 · fish`），
+    # 第一眼看成占位符 / 脏数据。改法有两半，都必须能被反向验证：
+    #   ① 标签表（SHAPE_CN）的键集与 `fishart.js` 的 `TPL.<键>` **同源**；
+    #   ② 交叉提示**只提示不报错** —— 模板是画法不是分类（八爪鱼用 squid 模板是合理的）。
+    check(R.shape_note("shark", "皱鳃鲨") == ("鲨", ""),
+          "鲨模板 + 名字带「鲨」→ 标签「鲨」、无提示")
+    lb, hint = R.shape_note("fish", "深海龙鱼")
+    check(lb == "通用鱼形" and u"龙鱼" in hint,
+          "名字带「龙鱼」却用通用鱼形 → 出一句提示（%r）" % hint)
+    lb, hint = R.shape_note("squid", "蓝环章鱼")
+    check(lb == u"鱿/章鱼" and hint == "",
+          "章鱼用 squid 模板 = **合理** ⇒ 不许提示（否则是假警报）")
+    lb, hint = R.shape_note("blob", "某鱼")
+    check(lb == "blob" and u"回落" in hint,
+          "认不出的模板键：标签回落成键本身，且提示「画面上会回落成通用鱼形」")
+    art = io.open(os.path.join(ROOT, "src", "render", "fishart.js"), encoding="utf-8").read()
+    tpl = sorted(set(re.findall(r"\bTPL\.([A-Za-z][A-Za-z0-9]*)\s*=", art)))
+    check(sorted(R.SHAPE_CN.keys()) == tpl,
+          "SHAPE_CN 的键 == fishart.js 的 TPL 键（%d 个：%s）" % (len(tpl), "/".join(tpl)))
+    fish = R.load_fish()
+    names = [f["name"] for f in fish]
+    dead = [w for _, ws in R.SHAPE_NAME_HINTS for w in ws
+            if not any(w in n for n in names)]
+    check(not dead, "提示词表里没有零命中的死词（实得 %r）" % (dead or "无"))
+    hinted = [f["id"] for f in fish if R.shape_note(f["shape"], f["name"])[1]]
+    print("      · 现算：%d 条名字里 %d 条出提示 %r"
+          % (len(fish), len(hinted), hinted[:6]))
+    rows = R.build_rows()
+    if not rows:
+        check(False, "build_rows() 一条都没有 —— assets/cards 里没有母版？本项跑不了")
+    else:
+        miss = [r["id"] for r in rows if not r.get("shapeCn")]
+        check(not miss, "build_rows() 每行都带中文标签（%d 行，缺 %d 行）" % (len(rows), len(miss)))
+    html, _n = R.build_page(None)
+    check('"shapeCn"' in html, "产物里嵌了 shapeCn 字段（页内 JS 靠它渲染标签）")
+    check("' · ' + d.shape +" not in html,
+          "产物里不再把内部键裸印（应为 shapeTag(d)）")
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

@@ -3504,6 +3504,142 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
 })();
 
 
+/* ---------------- 43. 评审页：内部形态模板键必须带中文标签 ----------------
+   背景（2026-10-08 真浏览器复核的副产物）：探针打出 `溪哥C01 · 普通 · fish` ——
+   我第一眼把 `fish` 当成占位符 / 脏数据。它其实是 `src/data/fish.js` 的**第 4 参**、
+   由 `fishart.js` 的 `TPL[fish.shape] || TPL.fish` 取用的**画法键**，
+   而画法恰恰是「画错物种」的根因线索（`shape=squid` 的章鱼、`shape=fish` 的八爪鱼）。
+
+   本节钉三条，都是「同一类错法，换个地方再来一次」的通用网：
+     ① **标签表与真实模板键集同源**：`SHAPE_CN` 的键 == `fishart.js` 里 `TPL.<键>` 的键集。
+        少一个 ⇒ 页面上印裸英文；多一个 ⇒ 死配置（模板改名了没人发现）。
+        这就是「同一个事实写两遍」的**反面**：键集只有 fishart 一处真相，这里只是要求它被覆盖。
+     ② **内部键不许裸印**：页内 JS 里 `d.shape` 只许出现在 `shapeTag()` 函数体内
+        （标签 + 提示都由 Python 侧算好，页内不许再写第二份映射）。
+        判据是「位置白名单」而不是「不许出现」—— 键本身要显示出来供核对。
+     ③ **提示词表里不许有零消费死词**：每个家族词都必须在 `G.FISH` 的名字里真命中过
+        （实测排除过「鲼」「八爪」「柔鱼」「海蜇」—— 362 条里一条都不命中）。
+   三条都**反向验证过**：改 fishart 的键名 / 把裸键印回卡片 / 往词表里塞一个死词，本节分别报红。 */
+console.log('\n[43] 评审页：内部形态模板键必须带中文标签（表与 fishart 的 TPL 同源）');
+(() => {
+  const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  /* 「只扫代码」：摘三引号块与 `#` 行注释 —— 说明注释里提到键名不算违规（负对照验证过）。 */
+  const stripPy = t => t.replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
+    .replace(/#[^\n]*/g, '');
+  const pyRaw = read('tools/review-cards.py');
+  const py = stripPy(pyRaw);
+  const uniq = a => a.filter((x, i) => a.indexOf(x) === i);
+
+  /* ---------- ① SHAPE_CN 的键集 == fishart.js 的 TPL 键集（双向） ---------- */
+  const tplKeys = uniq((read('src/render/fishart.js').match(/\bTPL\.([A-Za-z][A-Za-z0-9]*)\s*=/g) || [])
+    .map(s => /TPL\.([A-Za-z][A-Za-z0-9]*)/.exec(s)[1]));
+  const dict = /SHAPE_CN\s*=\s*\{([\s\S]*?)\}/.exec(py);
+  const labelKeys = dict ? uniq((dict[1].match(/"([A-Za-z][A-Za-z0-9]*)"\s*:/g) || [])
+    .map(s => /"([A-Za-z][A-Za-z0-9]*)"/.exec(s)[1])) : [];
+  if (!tplKeys.length || !labelKeys.length) {
+    err(`第 43 节键集抓不到（fishart 的 TPL ${tplKeys.length} 个 / SHAPE_CN ${labelKeys.length} 个）`
+      + ' —— 空集会让下面的判断恒真，所以直接报错；改了写法就来更新本断言');
+    return;
+  }
+  const missingIn = (have, want) => want.filter(k => have.indexOf(k) < 0);
+  /* 判据自检：先证明差集函数真分得出「少一个键」（否则下面两条永远是绿的） */
+  if (missingIn(['x'], ['x', 'y']).join() !== 'y' || missingIn(['x', 'y'], ['x']).length) {
+    err('第 43 节判据自检不成立：差集函数分不出「少一个键」'); return;
+  }
+  const missLabel = missingIn(labelKeys, tplKeys);
+  const extraLabel = missingIn(tplKeys, labelKeys);
+  if (missLabel.length) {
+    err(`fishart.js 有模板键却没有中文标签：${missLabel.join('、')} ——`
+      + '评审页会把内部键裸印出来（去 review-cards.py 的 SHAPE_CN 补上）');
+  }
+  if (extraLabel.length) {
+    err(`SHAPE_CN 里有 fishart.js 不存在的键：${extraLabel.join('、')} ——`
+      + '死配置（模板改名 / 删掉了？）');
+  }
+  if (!missLabel.length && !extraLabel.length) {
+    ok(`形态模板标签表与 fishart 的 TPL 键逐个对上（${tplKeys.length} 个：${tplKeys.join('/')}）`);
+  }
+
+  /* ---------- ② 页内 JS 里裸键只许出现在 shapeTag() 体内 ---------- */
+  const tpl = (/TEMPLATE\s*=\s*u?"""([\s\S]*?)"""/.exec(pyRaw) || [])[1] || '';
+  if (!tpl) { err('第 43 节：review-cards.py 里认不出 TEMPLATE 三引号块'); return; }
+  /* ⚠️ 先剥页内 JS 的注释再判 —— 否则说明注释里写一句 `d.shapeHint` 就把断言喂饱了
+     （本项目反复栽过的「自指喂饱」；反向验证第 ⑥ 条就是为此改的锚点）。 */
+  const tplJS = tpl.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/[^\n]*/gm, '');
+  const bare = t => (t.match(/d\.shape\b/g) || []).length;   // `\b` 保证不把 d.shapeCn / d.shapeHint 算进来
+  const fnBody = (t, sig) => {
+    const i = at(t, sig);
+    if (i < 0) return '';
+    const j = t.indexOf('\nfunction ', i + 1);
+    return t.slice(i, j < 0 ? t.length : j);
+  };
+  const tagBody = t => fnBody(t, 'function shapeTag(');
+  const outside = t => bare(t) - bare(tagBody(t));
+  /* 判据自检：好样本（裸键在 shapeTag 里）与坏样本（裸键印在 render 里）必须被分开 */
+  const SYN_OK = "function shapeTag(d) { return d.shapeCn + '<code>' + d.shape + '</code>'; }\nfunction render() { return 1; }";
+  const SYN_BAD = "function shapeTag(d) { return d.shapeCn; }\nfunction render() { return ' · ' + d.shape; }";
+  if (outside(SYN_OK) !== 0 || outside(SYN_BAD) !== 1) {
+    err(`第 43 节判据自检不成立：分不出「裸键印在 shapeTag 之外」（好样本 ${outside(SYN_OK)}、坏样本 ${outside(SYN_BAD)}）`);
+    return;
+  }
+  const tb = tagBody(tplJS), rb = fnBody(tplJS, 'function render(');
+  if (!tb) {
+    err('评审页的页内 JS 里找不到 shapeTag() —— 形态模板那一格必须走它，不许裸拼内部键');
+  } else if (bare(tb) < 1) {
+    err('shapeTag() 里没有 d.shape（原始键不再显示）—— 键要留着供核对');
+  } else if (outside(tplJS) !== 0) {
+    err(`评审页有 ${outside(tplJS)} 处把形态模板的内部键裸印在 shapeTag() 之外 ——`
+      + '玩家看到的是 `fish` 这种英文原值，而不是「通用鱼形」');
+  } else if (!has(tb, 'd.shapeCn') || !has(tb, 'd.shapeHint')) {
+    err('shapeTag() 没同时用到中文标签与提示字段 —— 标签只算不用，等于没加');
+  } else if (!rb) {
+    err('第 43 节找不到页内 render() —— 判「调没调 shapeTag」要按它的函数体切片');
+  } else if (!has(rb, 'shapeTag(')) {
+    /* ⚠️ 必须切 render() 的函数体来判：直接 `has(tpl,'shapeTag(d)')` 会被
+       **定义行** `function shapeTag(d)` 自己满足 —— 反向验证第 ④ 条实测过（假通过）。 */
+    err('render() 里没有调 shapeTag(...) —— 函数写了但没人用（死代码），卡片还是印裸键');
+  } else {
+    ok('形态模板那一格走 shapeTag()：中文标签 + 原始键 + 提示，内部键没有别处裸印');
+  }
+
+  /* ---------- ③ 交叉提示词表：不许有零消费死词，家族键必须是真模板 ---------- */
+  const hm = /SHAPE_NAME_HINTS\s*=\s*\(([\s\S]*?)\n\)/.exec(py);
+  const fams = [];
+  if (hm) {
+    (hm[1].match(/\("([A-Za-z][A-Za-z0-9]*)",\s*\(([^)]*)\)\)/g) || []).forEach(s => {
+      const g = /\("([A-Za-z][A-Za-z0-9]*)",\s*\(([^)]*)\)\)/.exec(s);
+      fams.push({ key: g[1], words: (g[2].match(/"([^"]*)"/g) || []).map(w => w.slice(1, -1)) });
+    });
+  }
+  if (!fams.length) {
+    err('第 43 节抓不到 SHAPE_NAME_HINTS 的词表 —— 它空了的话这张网什么也不拦（改了写法就来更新本断言）');
+    return;
+  }
+  const names = G.FISH.map(f => f.name);
+  const dead = [], badKey = [], counts = [];
+  fams.forEach(f => {
+    if (labelKeys.indexOf(f.key) < 0) badKey.push(f.key);
+    f.words.forEach(w => {
+      const n = names.filter(x => x.indexOf(w) >= 0).length;
+      counts.push([w, n]);
+      if (!n) dead.push(w);
+    });
+  });
+  if (badKey.length) {
+    err(`提示词表里的家族键不是形态模板键：${badKey.join('、')}（拼错了？）`);
+  }
+  if (dead.length) {
+    err(`提示词表里有零命中的死词：${dead.join('、')} ——`
+      + ` ${G.FISH.length} 条名字里一条都不命中 ⇒ 加了也不会有任何提示，是死配置`);
+  }
+  if (!badKey.length && !dead.length) {
+    const lo = counts.slice().sort((a, b) => a[1] - b[1])[0];
+    ok(`${fams.length} 个家族 / ${counts.length} 个词全部真命中`
+      + `（现算 ${G.FISH.length} 条名字，最少的是「${lo[0]}」${lo[1]} 条）`);
+  }
+})();
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

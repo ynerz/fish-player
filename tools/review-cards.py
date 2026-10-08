@@ -43,6 +43,65 @@ RAR_CN = ["普通", "稀有", "史诗", "传说"]
 MORPH_CN = [("normal", "原色"), ("bright", "彩虹色"), ("albino", "白化"),
             ("golden", "黄金"), ("shiny", "闪光")]
 
+# ---- 形态模板键 → 中文标签（**唯一一处**）--------------------------------------
+# 它就是 `src/data/fish.js` 里 `F(id, name, rar, 'fish')` 的**第 4 参**，
+# 游戏内由 `src/render/fishart.js` 的 `TPL[fish.shape] || TPL.fish` 取用（拿不到就回落通用鱼形）。
+# 为什么要有这张表：评审页原来把这个内部键**裸印**在卡片上（`A03 · 稀有 · fish`），
+#   我第一眼看成占位符 / 脏数据 —— 它其实是有信息量的字段（**画法**），
+#   而「画法」恰恰是「画错物种」那类问题的根因线索（`shape=squid` 的章鱼、
+#   `shape=fish` 的八爪鱼，一眼就能对上病因）。
+# ⚠️ 键集必须与 `fishart.js` 的 `TPL.<键>` **逐个对上**（verify 第 ㊸ 节双向校验：
+#    少一个 / 多一个都报红）⇒ 将来新增一个模板，必须同时来这里补中文标签。
+SHAPE_CN = {
+    "fish": "通用鱼形", "shark": "鲨", "eel": "鳗", "ray": "鳐",
+    "squid": "鱿/章鱼", "jelly": "水母", "whale": "鲸",
+    "dragon": "龙", "oarfish": "带鱼",
+}
+
+# ---- 名字 / 模板交叉提示（**只提示、不报错**）-----------------------------------
+# 含义：名字里出现了某个家族词，用的却是**别的**模板 ⇒ 在卡片上提一句，让人看一眼。
+# 为什么只提示不报错：模板是**画法**不是**分类** —— 八爪鱼用 `squid` 模板、
+#   鲸模板画蛇颈龙 / 鲲，都是**合理**的。硬报错会变成假警报，久了没人看。
+# 词表是**量出来的**，不是猜的（2026-10-08 对着 362 条逐词现算）：
+#   下表 13 个词每个都真命中（最少的「鳝」1 条），**合计只有 1 条鱼出提示**：
+#   S34 深海龙鱼 —— 真实深海鱼（巨目鱼/巨口鱼科），名字带「龙鱼」却用通用鱼形，
+#   属于上面说的「合理」那一类，提示一下即可（人看一眼就过）。
+# ⚠️ 实测**已排除**、别再加回来的写法（都有实证，加之前请先现算一遍）：
+#   · 「鲛」→ 8 条命中里 **3 条是假的**：马鲛 / 蓝点马鲛 / 深海银鲛 都是真实鱼（shape=fish），
+#     「鲛」在「马鲛」里根本不是鲨的意思 ⇒ 加进来就是 3 条噪音（我自己加过一遍又撤了）；
+#   · 「龙」去掉「鱼」→ 小龙虾 / 龙趸石斑 / 原初蛇颈龙 全被误命中（4 命中 3 条是假的）；
+#   · 「鲼」「八爪」「柔鱼」「海蜇」→ 362 条里**一条都不命中** = 零消费死配置，
+#     按项目规矩（不加没有消费方的配置）不写进来（test-review-cards.py 第 [9] 节会报红）。
+SHAPE_NAME_HINTS = (
+    ("shark", ("鲨",)),
+    ("eel", ("鳗", "鳝")),
+    ("ray", ("鳐", "魟")),
+    ("squid", ("鱿", "乌贼", "章鱼")),
+    ("jelly", ("水母",)),
+    ("whale", ("鲸",)),
+    ("dragon", ("龙鱼",)),
+    ("oarfish", ("带鱼", "皇带")),
+)
+
+
+def shape_note(shape, name):
+    """给一条鱼算「形态模板」该显示什么 → `(中文标签, 提示文本或空串)`。
+
+    纯展示口径：**不参与任何判定**（这一页的判定永远是人点的那两个按钮）。
+    """
+    label = SHAPE_CN.get(shape)
+    if label is None:
+        # 认不出的键：`fishart.js` 会回落成通用鱼形 ⇒ 画面上与 fish 无异，**必须说出来**，
+        # 否则又是一个「不报错但静默失效」（数据写了 shark、画面是鱼）。
+        return shape, u"认不出的模板键，画面上会回落成「%s」" % SHAPE_CN["fish"]
+    for want, words in SHAPE_NAME_HINTS:
+        if want == shape:
+            continue
+        hit = [w for w in words if w in name]
+        if hit:
+            return label, u"名字含「%s」，用的却是「%s」模板" % (hit[0], label)
+    return label, u""
+
 
 def load_fish():
     src = io.open(os.path.join(ROOT, "src", "data", "fish.js"), encoding="utf-8").read()
@@ -97,9 +156,10 @@ def build_rows(only_ids=None):
                 continue
             slots.append({"k": m, "label": dict(MORPH_CN)[m],
                           "file": "%s-%s.png" % (f["id"], m)})
+        label, hint = shape_note(f["shape"], f["name"])
         rows.append({
             "id": f["id"], "name": f["name"], "lat": (t.get("species") or "").strip(),
-            "rar": f["rar"], "shape": f["shape"],
+            "rar": f["rar"], "shape": f["shape"], "shapeCn": label, "shapeHint": hint,
             "form": (t.get("form") or "").strip(), "fins": (t.get("fins") or "").strip(),
             "slots": slots,
         })
@@ -168,6 +228,10 @@ TEMPLATE = u"""<!DOCTYPE html>
   .m { padding:8px 10px 10px; }
   .nm { font-size:15px; font-weight:500; }
   .nm span { color:var(--dim); font-weight:400; font-size:12px; margin-left:6px; }
+  /* 形态模板：中文标签 + 内部键（键保留可核对，但不再裸印 —— 它以前看着像脏数据） */
+  .nm span code { background:#16171a; color:#aeb3bd; padding:0 4px; border-radius:3px;
+                  font-size:11px; margin-left:4px; }
+  .nm span b.hint { color:#e0b25c; font-weight:500; margin-left:6px; cursor:help; }
   .lat { color:var(--dim); font-size:12px; font-style:italic; min-height:18px; }
   details { margin:6px 0 0; }
   summary { color:var(--dim); font-size:12px; cursor:pointer; }
@@ -299,6 +363,18 @@ function verdicts(d) { return d.slots.map(function (s) { return verdict(d, s.k);
 function isDone(d) { return verdicts(d).every(function (v) { return !!v; }); }
 function isBad(d) { return verdicts(d).indexOf('bad') >= 0; }
 
+/* 形态模板那一格怎么印。
+   ⚠️ 这里**只拼字符串**：标签中文名与交叉提示都由 Python 侧算好（`shape_note()` 是唯一真相），
+      页内 JS **不许**再写第二份 键→中文 的映射表（写两份必然分家）。
+   为什么要改：原来直接把内部键印出来（`A03 · 稀有 · fish`），第一眼看像占位符 / 脏数据。
+   提示（`d.shapeHint`）是**提示**不是判定 —— 模板是画法不是分类，八爪鱼用 squid 模板是合理的，
+   所以不能报错，只能提醒人看一眼。 */
+function shapeTag(d) {
+  var t = '形态模板：' + d.shapeCn + '<code>' + d.shape + '</code>';
+  if (d.shapeHint) t += '<b class="hint" title="只是提示，不是错误：模板是画法不是分类，判定仍由你点">⚠ ' + d.shapeHint + '</b>';
+  return t;
+}
+
 function render() {
   var g = document.getElementById('grid');
   g.innerHTML = '';
@@ -326,7 +402,7 @@ function render() {
     });
     h += '</div>';
     h += '<div class="m"><div class="nm">' + d.name +
-         '<span>' + d.id + ' · ' + d.rarCn + ' · ' + d.shape + '</span></div>' +
+         '<span>' + d.id + ' · ' + d.rarCn + ' · ' + shapeTag(d) + '</span></div>' +
          '<div class="lat">' + (d.lat || '') + '</div>';
     if (d.form || d.fins) {
       h += '<details><summary>形态描述（提示词里用的）</summary><p>' +

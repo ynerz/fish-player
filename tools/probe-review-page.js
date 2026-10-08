@@ -84,5 +84,18 @@
   out.hasDryBox = !!q('#dryWin');
   out.hasWinNote = !!q('#winNote');
   out.hasWinDone = !!q('#winDone');
+
+  /* ⑥ 形态模板那一格（2026-10-08 加）：必须给「中文标签 + 原始键」，
+        不许把内部键当裸英文印出来（原来就是 `A03 · 稀有 · fish`，看着像脏数据）。 */
+  var nm = q('#grid .c .nm span');
+  out.shapeTagText = nm ? nm.textContent.replace(/\s+/g, ' ').trim() : null;
+  out.shapeHasLabel = !!(nm && /形态模板：/.test(nm.textContent));
+  out.shapeHasRawKey = !!(nm && nm.querySelector('code'));
+  /* 「裸印」的判据：最后一个分隔段**直接**是英文键（没有「形态模板：」前缀） */
+  out.shapeBareEnglish = !!(nm && /·\s*(fish|shark|eel|ray|squid|jelly|whale|dragon|oarfish)\s*$/
+    .test(nm.textContent.replace(/\s+/g, ' ')));
+  /* 交叉提示：只提示不报错 ⇒ 全页**最多**几行有它（当前数据 1 行：S34 深海龙鱼） */
+  out.hintRows = document.querySelectorAll('#grid .nm .hint').length;
+  out.hintSample = (q('#grid .nm .hint') || {}).textContent || null;
   return out;
 })()

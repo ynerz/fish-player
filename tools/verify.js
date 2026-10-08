@@ -2595,6 +2595,9 @@ console.log('\n[33-e] 低模精细度：GEOM 要密度不要「大面片」；�
         后者带 PYTHONHASHSEED 随机盐，**每次进程启动结果都不一样** →
         同一条鱼今天出金色、明天出古铜金，manifest 里的提示词与磁盘上的图对不上。
      ④ 基准句仍在候选总表里（`MORPHS` 取的就是它们，四档各留一句特征词做留证）。
+     ⑤ **按稀有度覆盖池子**（`MORPH_POOL_BY_RAR`，传说档定死）**必须走 `pool_for()`** ——
+        绕过它 = 传说鱼照旧轮换出参差，图上看不出来、也不报错；
+        **一档多版**（`MORPH_VERSIONS_BY_RAR`）的第 1 版必须落在主文件名上。
    ⚠️ 这里只能做**文本结构**检查（verify 不跑 python）。真实抽签分布由
    `python tools/prompt-ab.py --picks` 打印（每套句子的实际占比 vs 期望占比）。 */
 console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生；抽样用 md5 可复现');
@@ -2649,8 +2652,26 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
     err(`基准颜色句被删了或改动了：${miss.join('、')} —— 池子第 0 项引用的就是它们，不许动`);
     return;
   }
-  ok('候选总表 + 权重池齐备；MORPHS 派生、池内只存键与权重；check_pools() 加载即校验；'
-    + 'morph_pick 走 md5（可复现）；四档基准句在册');
+  /* ⑤ 按稀有度覆盖池子 / 一档多版（2026-10-08 用户口径：传说档定死 + 传说闪光出 2 版）
+     🔴 盯「覆盖会被绕过」这一型：只要有人绕过 `pool_for()` 直接读 `MORPH_POOL`，
+        传说鱼就照旧轮换出参差 —— 图上看不出来是哪一步漏了，也不报任何错。 */
+  if (!/MORPH_POOL_BY_RAR\s*=\s*\{/.test(src) || !/MORPH_VERSIONS_BY_RAR\s*=\s*\{/.test(src)) {
+    err('缺少 MORPH_POOL_BY_RAR / MORPH_VERSIONS_BY_RAR —— 传说档定死与「一档出 2 版」没了'); return;
+  }
+  const peFn = src.slice(at(src, 'def pool_entries('), at(src, 'def _check_one_pool('));
+  if (!/pool_for\(/.test(peFn)) {
+    err('pool_entries() 没有走 pool_for() —— 按稀有度的覆盖会被**静默绕过**（传说鱼照旧轮换）');
+    return;
+  }
+  /* 多版的后缀：第 1 版必须落在**主文件名**上（否则清单勾选 / check-cards / --skip-existing 全失配） */
+  const mvFn = src.slice(at(src, 'def morph_versions('), at(src, 'MORPHS = ['));
+  if (!/""\s*if\s+i\s*==\s*0/.test(mvFn)) {
+    err('morph_versions() 没把第 1 版的后缀留成空串 —— 主文件名会漂，清单/验收/断点续跑的既有口径全部失配');
+    return;
+  }
+  ok('候选总表 + 权重池 + 按稀有度覆盖 + 一档多版齐备；MORPHS 派生、池内只存键与权重；'
+    + '覆盖必须走 pool_for()；第 1 版落在主文件名；check_pools() 加载即校验；morph_pick 走 md5；'
+    + '四档基准句在册');
 })();
 
 /* ---------------- 34. 文档里写的「自检 N 节」必须就是本文件的节数 ----------------

@@ -328,20 +328,77 @@ MORPH_POOL = {
                ("albino/4", 5), ("albino/5", 2)],
     # 「黄金选用 1、2、3、5」→ 4 套，权重 5:4:1:1
     "golden": [("golden/1", 5), ("golden/2", 4), ("golden/3", 1), ("golden/5", 1)],
-    # 「闪光仅选用 1」→ 单套（池子可以只有一项，`morph_pick()` 照样成立）
-    "shiny":  [("shiny/1", 1)],
+    # 「1、7 轮换，比例 1:1」（2026-10-08 用户口径，取代「闪光仅选用 1」）
+    "shiny":  [("shiny/1", 1), ("shiny/7", 1)],
 }
 MORPH_CN = {"bright": "彩虹色", "albino": "白化", "golden": "黄金", "shiny": "闪光"}
 MORPH_ORDER = ("bright", "albino", "golden", "shiny")
 
+# ────────────────────────────────────────────────────────────────────────────
+# 🔴 **按稀有度覆盖池子**（2026-10-08 用户口径）
+#
+# 「传说级的是生成 2 版，而且传说级的鱼的白化也是百分之百珍珠白加粉色那一版；
+#   黄金是 24k 镜面金；彩虹色是全息镭射膜那一版」
+#
+# 传说（rar3）是**展示品**：售价 ×100、概率 4~5%，一条鱼才被看到几次 ——
+# 同一档在不同传说鱼之间出参差（今天亮金明天古铜金）反而掉价。
+# 所以传说档把这四档**定死**，不再走加权轮换。
+#
+# ⚠️ 只覆盖点名的档：没点名的档（此处没有）继续用 `MORPH_POOL`。
+#    覆盖表里的池子**同样只存「候选键 + 权重」**，句子仍从 `MORPH_CANDIDATES` 取
+#    —— 这条由 `check_pools()` 与 `verify §33-f` 一起盯。
+# ────────────────────────────────────────────────────────────────────────────
+MORPH_POOL_BY_RAR = {
+    3: {
+        "bright": [("shiny/3", 1)],     # 全息镭射膜
+        "albino": [("albino/4", 1)],    # 珍珠白 + 粉色鳍缘
+        "golden": [("golden/2", 1)],    # 24K 镜面金
+    },
+}
 
-def pool_entries(key):
+# 🔴 **一档出几版**（2026-10-08 用户口径：「传说级的是生成 2 版」）
+#    传说档的闪光按**池子顺序**取前 N 项各出一张，供人工挑 —— 传说鱼本来就「一条一汇报」。
+#    ⚠️ 这是全项目唯一「同一条鱼同一档出两张」的地方：
+#       第 2 版文件名加 `-N` 后缀（第 1 版仍是 `<id>-<档>.png`），
+#       所以清单 / `check-cards.py` / `--skip-existing` 的既有口径都不用改。
+MORPH_VERSIONS_BY_RAR = {3: {"shiny": 2}}
+
+
+def pool_for(key, rar=None):
+    """这一条鱼、这一档该用哪个池子。
+
+    **唯一入口** —— 别在别处直接读 `MORPH_POOL`，否则「按稀有度覆盖」会被绕过，
+    而且**不报错**（传说鱼照旧轮换出参差，图上永远看不出来是哪一步漏了）。
+    `verify §33-f` 会盯 `pool_entries()` 必须走这里。
+    """
+    return MORPH_POOL_BY_RAR.get(rar, {}).get(key, MORPH_POOL[key])
+
+
+def pool_entries(key, rar=None):
     """把池子展开成 `[(候选键, 标签, 颜色句, 权重), …]` —— 出图、挑选、提示词表都走这里。
 
     ⚠️ **带上「候选键」**（如 `bright/1`）而不只是标签：提示词表要能回答
        「这条鱼这一档抽中的是**哪一套**」，光有中文标签对不上 `MORPH_CANDIDATES`。
     """
-    return [(ck, MORPH_CANDIDATES[ck][0], MORPH_CANDIDATES[ck][1], w) for ck, w in MORPH_POOL[key]]
+    return [(ck, MORPH_CANDIDATES[ck][0], MORPH_CANDIDATES[ck][1], w)
+            for ck, w in pool_for(key, rar)]
+
+
+def _check_one_pool(key, pairs, where):
+    """池子结构自检（`MORPH_POOL` 与按稀有度的覆盖表共用一份逻辑）。"""
+    if not pairs:
+        raise RuntimeError("%s：%s 档的池子是空的 —— 整档会退化成没有颜色句" % (where, key))
+    for ck, w in pairs:
+        if ck not in MORPH_CANDIDATES:
+            raise RuntimeError("%s：%s 的池子引用了不存在的候选键：%s" % (where, key, ck))
+        if not isinstance(w, int) or isinstance(w, bool) or w < 1:
+            raise RuntimeError("%s：%s/%s 的权重必须是 ≥1 的整数（≤0 = 这套句子永远抽不到，"
+                               "而且不报错）：%r" % (where, key, ck, w))
+        if not MORPH_CANDIDATES[ck][1].strip():
+            raise RuntimeError("%s：%s/%s 的颜色句是空的" % (where, key, ck))
+    tags = [MORPH_CANDIDATES[ck][0] for ck, _w in pairs]
+    if len(set(tags)) != len(tags):
+        raise RuntimeError("%s：%s 的池子里有重名标签，日志分不清抽到了哪套：%s" % (where, key, tags))
 
 
 def check_pools():
@@ -349,31 +406,41 @@ def check_pools():
 
     为什么不做成「记得手动跑一下」的工具：这几类错误**全都不报错、只出错结果** ——
     权重 ≤0 的句子永远抽不到（静默少一套风格）、候选键打错在抽样时才 KeyError、
-    池子空了让整档退化成无颜色句。而「要记得手动跑检查」正是本项目反复栽跟头的地方。
+    池子空了让整档退化成无颜色句、**按稀有度的覆盖挂到不存在的档上**（那条鱼永远读不到它）。
+    而「要记得手动跑检查」正是本项目反复栽跟头的地方。
     """
     for key in MORPH_ORDER:
         if key not in MORPH_POOL:
             raise RuntimeError("颜色句池子缺档位：%s" % key)
-        entries = pool_entries(key)
-        if not entries:
-            raise RuntimeError("%s 档的池子是空的 —— 整档会退化成没有颜色句" % key)
-        for ck, w in MORPH_POOL[key]:
-            if ck not in MORPH_CANDIDATES:
-                raise RuntimeError("%s 的池子引用了不存在的候选键：%s" % (key, ck))
-            if not isinstance(w, int) or isinstance(w, bool) or w < 1:
-                raise RuntimeError("%s/%s 的权重必须是 ≥1 的整数（≤0 = 这套句子永远抽不到，"
-                                   "而且不报错）：%r" % (key, ck, w))
-            if not MORPH_CANDIDATES[ck][1].strip():
-                raise RuntimeError("%s/%s 的颜色句是空的" % (key, ck))
-        tags = [t for _ck, t, _s, _w in entries]
-        if len(set(tags)) != len(tags):
-            raise RuntimeError("%s 的池子里有重名标签，日志分不清抽到了哪套：%s" % (key, tags))
+        _check_one_pool(key, MORPH_POOL[key], "MORPH_POOL")
+    for rar, ov in MORPH_POOL_BY_RAR.items():
+        if rar not in (0, 1, 2, 3):
+            raise RuntimeError("MORPH_POOL_BY_RAR 里的稀有度不合法：%r" % (rar,))
+        for key, pairs in ov.items():
+            if key not in MORPH_ORDER:
+                raise RuntimeError("MORPH_POOL_BY_RAR[%d] 里挂了不存在的档：%s —— "
+                                   "这条鱼永远读不到它，而且不报错" % (rar, key))
+            _check_one_pool(key, pairs, "MORPH_POOL_BY_RAR[%d]" % rar)
+    for rar, ov in MORPH_VERSIONS_BY_RAR.items():
+        if rar not in (0, 1, 2, 3):
+            raise RuntimeError("MORPH_VERSIONS_BY_RAR 里的稀有度不合法：%r" % (rar,))
+        for key, n in ov.items():
+            if key not in MORPH_ORDER:
+                raise RuntimeError("MORPH_VERSIONS_BY_RAR[%d] 里挂了不存在的档：%s" % (rar, key))
+            if not isinstance(n, int) or isinstance(n, bool) or n < 1:
+                # n == 1 等价于没有这一条；n < 1 会让这档**一张都不出**
+                raise RuntimeError("MORPH_VERSIONS_BY_RAR[%d][%s] 必须是 ≥1 的整数：%r"
+                                   "（<1 会让这一档一张都不出，而且不报错）" % (rar, key, n))
+            if n > len(MORPH_POOL[key]):
+                raise RuntimeError("MORPH_VERSIONS_BY_RAR[%d][%s]=%d 超过了池子长度 %d —— "
+                                   "多出来的版本抽不到，而且不报错"
+                                   % (rar, key, n, len(MORPH_POOL[key])))
 
 
 check_pools()
 
 
-def morph_pick(fid, key):
+def morph_pick(fid, key, rar=None):
     """按鱼 id **稳定加权重**挑一套颜色句 → `(候选键, 标签, 颜色句)`。
 
     ⚠️ 用 md5 而**不是** Python 内置 `hash()`：`hash()` 带 PYTHONHASHSEED 随机盐，
@@ -383,7 +450,7 @@ def morph_pick(fid, key):
     ⚠️ 「按 id 稳定」≠「每档只有一套」：**不同鱼之间是分散的**（这才是用户要的
        「五档颜色句可以随机抽」），只是同一条鱼重跑必须落到同一套。
     """
-    entries = pool_entries(key)
+    entries = pool_entries(key, rar)
     total = sum(e[3] for e in entries)
     r = int(hashlib.md5(("%s/%s" % (fid, key)).encode("utf-8")).hexdigest()[:8], 16) % total
     for ck, tag, sent, w in entries:
@@ -391,6 +458,26 @@ def morph_pick(fid, key):
             return ck, tag, sent
         r -= w
     return entries[-1][0], entries[-1][1], entries[-1][2]      # 不可达，纯防守
+
+
+def morph_versions(f, key):
+    """这条鱼这一档**要出几版** → `[(候选键, 标签, 颜色句, 文件名后缀), …]`。
+
+    常规 = 按鱼 id 稳定加权抽 **1** 套（后缀 `""`）；
+    **传说档的闪光 = 2 版**（后缀 `""` 与 `"-2"`），见 `MORPH_VERSIONS_BY_RAR`。
+
+    ⚠️ 多版走的是**池子顺序前 N 项**、**不抽样** —— 用户要的就是「这两版都给我看」，
+       抽样会把「都出」变成「随机出其中一个」。
+    ⚠️ 后缀 `""` 的那一版必须留在**主文件名**上（`<id>-<档>.png`），
+       否则清单勾选 / `check-cards.py` / `--skip-existing` 的既有口径全部失配。
+    """
+    entries = pool_entries(key, f.get("rar"))
+    n = MORPH_VERSIONS_BY_RAR.get(f.get("rar"), {}).get(key, 1)
+    if n > 1:
+        return [(ck, tag, sent, "" if i == 0 else "-%d" % (i + 1))
+                for i, (ck, tag, sent, _w) in enumerate(entries[:n])]
+    ck, tag, sent = morph_pick(f["id"], key, f.get("rar"))
+    return [(ck, tag, sent, "")]
 
 
 # ⚠️ 保留 `MORPHS` 这个名字与「5 档」语义：`morph_keys()`、耗时常量、manifest 都按它算。
@@ -1198,8 +1285,16 @@ def write_plan(fish):
     nk = len(morph_keys())
     # 每条鱼 = 1 张母版（文生图）+ (nk-1) 张档位（**也是文生图**）+ 1 次抠图（出 `-normal`）
     per_fish = SEC_PER_MASTER + (nk - 1) * SEC_PER_MORPH + SEC_PER_CUT
-    shots = total * (1 + nk) + legend * (LEGEND_ROUNDS - 1) * (1 + nk)
-    secs = (total + legend * (LEGEND_ROUNDS - 1)) * per_fish
+    # 🔴 一档可能出**多版**（传说档的闪光，`MORPH_VERSIONS_BY_RAR`）——
+    #    漏算的话清单会**低估工期**，而清单是排期与「还剩多少」的唯一依据。
+    cnt_rar, rounds = {}, lambda r: LEGEND_ROUNDS if r == 3 else 1
+    for f in fish:
+        cnt_rar[f["rar"]] = cnt_rar.get(f["rar"], 0) + 1
+    extra_shots = sum(cnt_rar[r] * rounds(r)
+                      * sum(n - 1 for n in MORPH_VERSIONS_BY_RAR.get(r, {}).values())
+                      for r in cnt_rar)
+    shots = total * (1 + nk) + legend * (LEGEND_ROUNDS - 1) * (1 + nk) + extra_shots
+    secs = (total + legend * (LEGEND_ROUNDS - 1)) * per_fish + extra_shots * SEC_PER_MORPH
 
     L = []
     L.append("# 图鉴卡面生图清单（%d 条鱼 / %d 批）\n" % (total, len(bs)))
@@ -1218,7 +1313,9 @@ def write_plan(fish):
     L.append("| 鱼种总数 | %d |" % total)
     L.append("| 批次数 | **%d** |" % len(bs))
     L.append("| 传说鱼 | %d 条，每条按 %d 轮迭代（评审轮次） |" % (legend, LEGEND_ROUNDS))
-    L.append("| 出图张数（含传说迭代） | ≈ **%d**（每条 %d 张：1 母版 + %d 档） |" % (shots, 1 + nk, nk))
+    L.append("| 出图张数（含传说迭代） | ≈ **%d**（每条 %d 张：1 母版 + %d 档；"
+             "另传说每条多 %d 张 —— 传说档的闪光出 2 版） |"
+             % (shots, 1 + nk, nk, sum(n - 1 for n in MORPH_VERSIONS_BY_RAR.get(3, {}).values())))
     L.append("| 单条耗时 | ≈ **%d s**（母版 %ds + %d 档 × %ds + 抠图 %ds） |"
              % (per_fish, SEC_PER_MASTER, nk - 1, SEC_PER_MORPH, SEC_PER_CUT))
     L.append("| 纯机器时间 | ≈ **%.1f 小时** |" % (secs / 3600.0))
@@ -1327,13 +1424,18 @@ def write_prompts(fish):
     L.append("颜色句每档有 **5 套候选**（`MORPH_CANDIDATES`），`MORPH_POOL` 给权重，")
     L.append("出图时由 `morph_pick(鱼 id, 档)` **按 md5 稳定加权抽一套** —— "
              "同一条鱼重跑永远是同一套（可复现），**不同鱼之间才会不一样**。")
-    L.append("下表列的就是**实际会被抽中的那一套**（键 = `候选键 中文标签`）。\n")
+    L.append("下表列的就是**实际会被抽中的那一套**（键 = `候选键 中文标签`）。")
+    L.append("⚠️ **传说档例外**：彩虹/白化/黄金**定死**一套，闪光**出 2 版** ——")
+    L.append("下表列的是第 1 版，第 2 版见 `MORPH_VERSIONS_BY_RAR`（开发者文档 §17.12.0）。\n")
     L.append("| id | 名字 | %s |" % " | ".join(MORPH_CN[k] for k in MORPH_ORDER))
     L.append("|---|---|%s" % ("---|" * len(MORPH_ORDER)))
     for f in fish:
         cols = []
         for k in MORPH_ORDER:
-            ck, tag, _sent = morph_pick(f["id"], k)
+            # ⚠️ **必须传 rar** —— 传说档有按稀有度的覆盖（定死四档），
+            #    漏了它这张表就会把传说鱼的实际用句写错，而且看不出来
+            #    （表里照样有值，只是值与真正出图用的不是同一套）。
+            ck, tag, _sent = morph_pick(f["id"], k, f.get("rar"))
             cols.append("`%s` %s" % (ck, tag))
         L.append("| %s | %s | %s |" % (f["id"], f["name"], " | ".join(cols)))
 
@@ -1409,27 +1511,34 @@ def report_stale(fish):
                 or rec.get("steps", STEPS) != steps_for(f, None)):
             groups.setdefault("母版", []).append(fid)
         for key, _d in MORPHS:
-            path = os.path.join(OUT, "%s-%s.png" % (fid, key))
-            old = ((rec.get("morphs") or {}).get(key) or {}).get("prompt")
-            if not (os.path.exists(path) and old):
-                continue
-            _ck, _tag, desc = morph_pick(fid, key)
-            # 🔴 判据有**两个**：提示词不一致 **或** 步数不一致。
-            #    只比提示词的话，「改步数」会**静默漏掉已生成的卡**（既存在、又不会被列为过期）。
-            if (old != build_morph_prompt(f, key, desc)
-                    # ⚠️ 兜底用 `STEPS` 而不是 -1：**按档记 steps 是本次才加的**，
-                    #    老条目里没有这个键，而那时每一档都跑 25 步 ⇒ 缺失 = 25，
-                    #    用 -1 会把 bright / albino 这些**本来就没变**的档全算成过期（假警报一串）。
-                    or ((rec.get("morphs") or {}).get(key) or {}).get("steps", STEPS)
-                       != steps_for(f, key)):
-                groups.setdefault(key, []).append(fid)
+            # ⚠️ 一档可能**出多版**（传说档的闪光）⇒ 逐版比对。
+            #    只按档名找文件的话，第 2 版（`<id>-闪光-2`）**永远不会被列为过期**
+            #    —— 又一个「不报错但静默漏掉」。
+            for _vi, (_ck, _tag, desc, sfx) in enumerate(morph_versions(f, key)):
+                mkey = key + sfx
+                path = os.path.join(OUT, "%s-%s%s.png" % (fid, key, sfx))
+                old = ((rec.get("morphs") or {}).get(mkey) or {}).get("prompt")
+                if not (os.path.exists(path) and old):
+                    continue
+                # 🔴 判据有**两个**：提示词不一致 **或** 步数不一致。
+                #    只比提示词的话，「改步数」会**静默漏掉已生成的卡**（既存在、又不会被列为过期）。
+                if (old != build_morph_prompt(f, key, desc)
+                        # ⚠️ 兜底用 `STEPS` 而不是 -1：**按档记 steps 是本次才加的**，
+                        #    老条目里没有这个键，而那时每一档都跑 25 步 ⇒ 缺失 = 25，
+                        #    用 -1 会把 bright / albino 这些**本来就没变**的档全算成过期（假警报一串）。
+                        or ((rec.get("morphs") or {}).get(mkey) or {}).get("steps", STEPS)
+                           != steps_for(f, key)):
+                    groups.setdefault(mkey, []).append(fid)
 
     total = sum(len(v) for v in groups.values())
     if not total:
         print("✔ 没有过期卡片 —— 已出图的提示词与当前生成口径逐字一致")
         return
     print("过期卡片共 %d 张（提示词与当前生成口径不一致 ⇒ 需要重出）：\n" % total)
-    for k in ["母版"] + [x for x, _ in MORPHS]:
+    known = ["母版"]
+    for x, _ in MORPHS:
+        known += [x, x + "-2"]          # 一档多版时 manifest 键带 `-2` 后缀
+    for k in known:
         ids = sorted(groups.get(k) or [])
         if not ids:
             continue
@@ -1549,12 +1658,14 @@ def main():
                  % (",".join(unknown), "/".join(known)))
     for f in fish:
         if not args.morphs_only and not only:
-            jobs.append((f, None))
+            jobs.append((f, None, 0))
         if not args.masters_only:
             for key, _desc in MORPHS:
                 if only and key not in only:
                     continue
-                jobs.append((f, key))
+                # 一档可能出**多版**（传说档的闪光，见 `MORPH_VERSIONS_BY_RAR`）
+                for vi in range(len(morph_versions(f, key))):
+                    jobs.append((f, key, vi))
     if not jobs:
         sys.exit("没有要出的图 —— 检查 --only-morph / --masters-only / --morphs-only 的组合")
     if only:
@@ -1659,7 +1770,7 @@ def main():
     CHECKPOINT = 10          # 每 10 张（≈10 分钟）落一次
     t_start = time.time()
     ok = fail = skip = 0
-    for i, (f, morph) in enumerate(jobs, 1):
+    for i, (f, morph, vi) in enumerate(jobs, 1):
         # ⏱ 时间预算：**在任务边界收工**（不打断正在进行的那张），剩余下一轮 --skip-existing 续跑
         if args.budget_min and (time.time() - t_start) / 60.0 >= args.budget_min:
             print("\n⏱ 时间预算 %.0f 分钟已到，干净收工。本轮到第 %d/%d 张，"
@@ -1667,12 +1778,15 @@ def main():
             break
         fid = f["id"]
         variant_tag = ""
+        mkey = None                      # manifest 里的键 = 档位 + 版本后缀
         if morph is None:
             dst, prompt, label = os.path.join(OUT, fid + ".png"), build_prompt(f), "母版"
         else:
-            variant_ck, variant_tag, desc = morph_pick(fid, morph)
-            dst = os.path.join(OUT, "%s-%s.png" % (fid, morph))
-            prompt, label = build_morph_prompt(f, morph, desc), MORPH_CN[morph]
+            variant_ck, variant_tag, _sent, sfx = morph_versions(f, morph)[vi]
+            mkey = morph + sfx
+            dst = os.path.join(OUT, "%s-%s%s.png" % (fid, morph, sfx))
+            prompt = build_morph_prompt(f, morph, _sent)
+            label = MORPH_CN[morph] + (("　第%d版" % (vi + 1)) if sfx else "")
         # 步数 = max(按稀有度, 按档位) —— 见 `steps_for()`
         steps = steps_for(f, morph)
 
@@ -1696,11 +1810,11 @@ def main():
                 archive_only(os.path.join(OUT, fid + "-normal.png"))
                 cutout.cut_one(dst, os.path.join(OUT, fid + "-normal.png"))
         else:
-            raw = os.path.join(TMP, "%s-%s.png" % (fid, morph))
+            raw = os.path.join(TMP, "%s-%s%s.png" % (fid, morph, sfx))
             good, r = run_t2i(prompt, raw, steps)
             if good:
                 # 出图后立刻抠成 RGBA —— 但**先抠到 _tmp/**，成功了再替换原位
-                tmp_cut = os.path.join(TMP, "%s-%s.rgba.png" % (fid, morph))
+                tmp_cut = os.path.join(TMP, "%s-%s%s.rgba.png" % (fid, morph, sfx))
                 good = cutout.cut_one(raw, tmp_cut)
                 if good:
                     supersede(dst, tmp_cut)
@@ -1719,12 +1833,12 @@ def main():
                 # ⚠️ **必须把「抽中的是哪个候选键」写进 manifest** ——
                 #    颜色句现在是从池子里抽的，只记 prompt 就还得反查是哪一套；
                 #    记了键，`MORPH_CANDIDATES` 一改就能立刻看出哪些图受影响。
-                manifest.setdefault(fid, {}).setdefault("morphs", {})[morph] = {
+                manifest.setdefault(fid, {}).setdefault("morphs", {})[mkey] = {
                     "candidate": variant_ck, "label": variant_tag, "prompt": prompt,
                     # 每个档也记步数（各档步数不再相同了）—— 供 `report_stale()` 与人工核对
                     "steps": steps}
                 # 抽到哪一套也记下来 —— 光看提示词能反查，但列出标签便于人核对分布与复现
-                manifest.setdefault(fid, {}).setdefault("morphVariant", {})[morph] = variant_tag
+                manifest.setdefault(fid, {}).setdefault("morphVariant", {})[mkey] = variant_tag
             print("    ok")
         else:
             fail += 1

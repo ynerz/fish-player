@@ -154,22 +154,39 @@ def report_picks(fish_all):
     print("按鱼 id 稳定加权抽取的实际分布（共 %d 条鱼）\n" % len(ids))
     dead = 0
     for tier in TIERS:
-        entries = GA.pool_entries(tier)
-        total = sum(e[3] for e in entries)
-        hit = {}
+        # ⚠️ 池子必须**按每条鱼自己的稀有度**读，统计也要**分稀有度分组** ——
+        #    传说档有覆盖（四档定死），混在一起算会报一个**永远对不上**的期望占比，
+        #    然后让人去怀疑权重写错了（其实只是这里读错了池子）。
+        by_rar = {}
         for fid in ids:
-            tag = GA.morph_pick(fid, tier)[1]      # [0]=候选键 [1]=中文标签
-            hit[tag] = hit.get(tag, 0) + 1
+            r = fish_all[fid].get("rar")
+            g = by_rar.setdefault(r, {"entries": GA.pool_entries(tier, r), "hit": {}, "n": 0})
+            tag = GA.morph_pick(fid, tier, r)[1]         # [0]=候选键 [1]=中文标签
+            g["hit"][tag] = g["hit"].get(tag, 0) + 1
+            g["n"] += 1
         print("== %s（%s）" % (GA.MORPH_CN[tier], tier))
-        for _ck, tag, _sent, w in entries:
-            n = hit.get(tag, 0)
-            if n == 0:
-                dead += 1
-            print("   %-14s 权重 %2d  期望 %5.1f%%  实际 %3d 条 %5.1f%%"
-                  % (tag, w, 100.0 * w / total, n, 100.0 * n / len(ids)))
+        for r in sorted(by_rar):
+            g = by_rar[r]
+            entries, hit, n = g["entries"], g["hit"], g["n"]
+            total = sum(e[3] for e in entries)
+            if len(by_rar) > 1:
+                print("   — 稀有度 %s 的池子：%s（%d 条鱼）"
+                      % (r, " / ".join("%s×%d" % (e[0], e[3]) for e in entries), n))
+            # ⚠️ 这一档这个稀有度是**一档多版**（传说档闪光）⇒ 它根本不抽样，
+            #    打出概率分布会让人以为「这一档也是一半一半抽」。
+            nv = GA.MORPH_VERSIONS_BY_RAR.get(r, {}).get(tier, 1)
+            if nv > 1:
+                print("   ⓘ 这一档**不抽样**：池子前 %d 项各出一版（`MORPH_VERSIONS_BY_RAR`）" % nv)
+                continue
+            for _ck, tag, _sent, w in entries:
+                c = hit.get(tag, 0)
+                if c == 0:
+                    dead += 1
+                print("   %-14s 权重 %2d  期望 %5.1f%%  实际 %3d 条 %5.1f%%"
+                      % (tag, w, 100.0 * w / total, c, 100.0 * c / n))
         print()
     if dead:
-        print("🔴 有 %d 套句子在 362 条鱼里一次都没抽到 —— 权重或候选键有问题" % dead)
+        print("🔴 有 %d 个「稀有度 × 档位 × 候选」组合一次都没抽到 —— 权重或候选键有问题" % dead)
     else:
         print("✔ 每一套句子都真被抽到过（池子里没有「永远抽不到」的死权重）")
 

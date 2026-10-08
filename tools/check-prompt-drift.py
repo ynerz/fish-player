@@ -52,7 +52,8 @@ def prompts_of(mod, fish):
     for f in fish:
         out["master"][f["id"]] = mod.build_prompt(f)
         for k in ("bright", "albino", "golden", "shiny"):
-            desc = mod.morph_pick(f["id"], k)[2]
+            # ⚠️ 传 `rar` —— 传说档有按稀有度的覆盖，不传的话漂移检测比的是**另一套句子**
+            desc = mod.morph_pick(f["id"], k, f.get("rar"))[2]
             out[k][f["id"]] = mod.build_morph_prompt(f, k, desc)
     return out
 

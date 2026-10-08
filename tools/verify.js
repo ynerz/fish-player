@@ -1467,8 +1467,9 @@ console.log('\n[29-b] 生态值颜色系数：独立配置，不许从售价倍�
 (function () {
   const st = fs.readFileSync(path.join(ROOT, 'src/core/state.js'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-  const fn = st.slice(at(st, 'function ecoValue'));
-  const body = fn.slice(0, fn.indexOf('\n  }'));
+  /* 函数体切片走顶层共用的 `bodyOf()`（按**缩进**终止，不看「下一处 `}` / 下一个 def」）——
+     「一个名字只许在两处出现」之外还有一条：**切函数体只许有一种机制**，见第 ㊷ ⑧。 */
+  const body = bodyOf(st, 'function ecoValue(');
   if (body.indexOf('valueMul') >= 0) {
     err('state.js 的 ecoValue() 又去读 valueMul 了 —— 售价倍率一改，生态值会被连锁放大（曾放大到 15.4 倍）');
     return;
@@ -2400,8 +2401,9 @@ console.log('\n[33-c] 五档提示词必须复用母版骨架，只换颜色句'
   if (!/def build_morph_prompt/.test(src)) {
     err('gen-art.py 里没有 build_morph_prompt() —— 五档提示词没走「复用母版骨架」那条路'); return;
   }
-  const body = src.slice(at(src, 'def build_morph_prompt'));
-  const fn = body.slice(0, body.indexOf('\ndef ', 10));
+  /* 函数体切片走 bodyOf()：原来那句是「从 `def build_morph_prompt` 切到**下一个 def**」，
+     会把紧随其后的模块常量（`MORPH_SCOPE`）也算进来 —— 范围偏大 ⇒ 判据可能被无关文本喂饱。 */
+  const fn = bodyOf(src, 'def build_morph_prompt(');
   const miss = ['build_prompt(', 'palette_color(', '.replace('].filter(k => fn.indexOf(k) < 0);
   if (miss.length) {
     err(`build_morph_prompt() 没有「调 build_prompt → 只换颜色半句」的写法（缺 ${miss.join('、')}）`
@@ -2577,8 +2579,10 @@ console.log('\n[33-e] 低模精细度：GEOM 要密度不要「大面片」；�
     err('`STEPS_BY_RAR` / `STEPS_BY_MORPH` 不见了 —— 步数按稀有度/档位的口径被改掉了');
     return;
   }
-  const sf = src.slice(at(src, 'def steps_for('));
-  const sfBody = sf.slice(0, sf.indexOf('\ndef ', 10) > 0 ? sf.indexOf('\ndef ', 10) : 400);
+  /* ⚠️ 原来这一处是「切到下一个 def」+ `: 400` 兜底 —— 实测它把 steps_for() **之后的**
+     一批模块常量（MODEL / CFG / BASE / GEOM）一起算了进来（997 字符 vs 函数体 184），
+     典型「被后面的人喂饱」；改成 bodyOf() 后范围收到函数体本身（三个 needle 都在体内）。 */
+  const sfBody = bodyOf(src, 'def steps_for(');
   if (!/max\(/.test(sfBody) || !/STEPS_BY_RAR/.test(sfBody) || !/STEPS_BY_MORPH/.test(sfBody)) {
     err('`steps_for()` 没有「按稀有度与档位取 max」—— 写成覆盖会让「史诗的黄金档」只有 30 步'
       + '（而黄金档要求 35），两边口径打架');
@@ -2654,8 +2658,7 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
     err('check_pools() 没定义或**没在模块加载时被调用** —— 权重 ≤0 / 候选键写错会静默通过'); return;
   }
   /* ③ 可复现：必须 md5，不许内置 hash() */
-  const pk = src.slice(at(src, 'def morph_pick'));
-  const pickFn = pk.slice(0, pk.indexOf('\ndef ', 10));
+  const pickFn = bodyOf(src, 'def morph_pick(');
   if (!/hashlib\.md5/.test(pickFn)) {
     err('morph_pick() 没有用 hashlib.md5 —— 抽样不可复现，跨进程会变'); return;
   }
@@ -2684,13 +2687,13 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
   if (!/MORPH_POOL_BY_RAR\s*=\s*\{/.test(src) || !/MORPH_VERSIONS_BY_RAR\s*=\s*\{/.test(src)) {
     err('缺少 MORPH_POOL_BY_RAR / MORPH_VERSIONS_BY_RAR —— 传说档定死与「一档出 2 版」没了'); return;
   }
-  const peFn = src.slice(at(src, 'def pool_entries('), at(src, 'def _check_one_pool('));
+  const peFn = bodyOf(src, 'def pool_entries(');
   if (!/pool_for\(/.test(peFn)) {
     err('pool_entries() 没有走 pool_for() —— 按稀有度的覆盖会被**静默绕过**（传说鱼照旧轮换）');
     return;
   }
   /* 多版的后缀：第 1 版必须落在**主文件名**上（否则清单勾选 / check-cards / --skip-existing 全失配） */
-  const mvFn = src.slice(at(src, 'def morph_versions('), at(src, 'MORPHS = ['));
+  const mvFn = bodyOf(src, 'def morph_versions(');
   if (!/""\s*if\s+i\s*==\s*0/.test(mvFn)) {
     err('morph_versions() 没把第 1 版的后缀留成空串 —— 主文件名会漂，清单/验收/断点续跑的既有口径全部失配');
     return;
@@ -3140,7 +3143,8 @@ console.log('\n[39] 拼装 HTML 的工具：产物脚本必须真解析过（不
   if (!/def check_inline_js\(/.test(py)) {
     err('review-cards.py 里的 check_inline_js() 不见了 —— 生成物又失去了落盘前自检');
   } else {
-    const bp = (/def build_page\([\s\S]*?\n(?=\ndef |\nclass )/.exec(py) || [''])[0];
+    /* 函数体切片走 bodyOf()：原正则「切到下一个 def / class」同样会超范围（实测 1456 vs 332）。 */
+    const bp = bodyOf(py, 'def build_page(');
     if (!/check_inline_js\(/.test(bp)) {
       err('build_page() 里没有调用 check_inline_js() —— 自检成了死代码（写了不跑等于没写）');
     } else {
@@ -3524,19 +3528,19 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
   const drDefs = (cc.match(/def\s+drift_warnings\s*\(/g) || []).length;
   if (ggDefs !== 1) { err(`check-cards.py 里 def judge_group( 有 ${ggDefs} 处（应为 1）`); secBad++; }
   if (drDefs !== 1) { err(`check-cards.py 里 def drift_warnings( 有 ${drDefs} 处（应为 1）`); secBad++; }
-  const ji = at(cc, 'def judge('), di = at(cc, 'def drift_warnings('),
-    gi = at(cc, 'def judge_group(');
-  if (ji < 0 || di < 0 || gi < 0 || mi < 0 || !(ji < di && di < gi && gi < mi)) {
-    err('check-cards.py 的函数顺序变了（analyze → judge → drift_warnings → judge_group → main）'
-      + ' —— 本条按位置切片，改了就来更新');
+  /* 函数体一律走顶层共用的 `bodyOf()`（按缩进切），**不再**用「两个位置锚点之间的全部文本」
+     —— 那套写法靠「两者之间恰好没夹别的函数」成立（Q35 往中间加 `slot_tally()` 时当场假红），
+     而且把「谁在谁前面」变成一条本不该存在的耦合（函数顺序本来可以随便调）。
+     ⇒ 因此**连「函数顺序」那条断言一起摘掉**：它守护的那个前提（按位置切片要算得对）
+     已经不存在了；留一条守不住任何东西的守卫 = 让下一个人以为这条路还封着（见 §8 硬规矩 6）。
+     存在性仍然要报错（找不到函数 = 本节形同虚设），改由 `bodyOf()` 返回空串来体现。 */
+  const judgeBody = bodyOf(cc, 'def judge(');
+  const groupBody = bodyOf(cc, 'def judge_group(');
+  if (!judgeBody || !groupBody || !has(cc, 'def drift_warnings(')) {
+    err('check-cards.py 里认不出判定链的函数（judge / drift_warnings / judge_group）—— '
+      + '本节按**函数名**切片，改名 / 搬家就来更新（不许静默跳过）');
     secBad++;
   } else {
-    const judgeBody = cc.slice(ji, di);
-    // ⚠️ 用 `bodyOf()` 只切 judge_group 自己，**不要**用 `cc.slice(gi, mi)`
-    //    —— 那是「judge_group 到 main 之间的**全部**代码」，`slot_verdicts` / `slot_tally`
-    //    都夹在中间 ⇒ 它们体内的 `hard` 会被算成 judge_group 的（Q35 加 `slot_tally` 时
-    //    当场假红一次）。同族的坑见 bodyOf 上面那段注释。
-    const groupBody = bodyOf(cc, 'def judge_group');
     // ⚠️ 判据用 `drift_warnings` / `DRIFT_` 而不是裸 `drift`：`bg_drift` 是**单张**判据
     //    自己的字段名，裸 `drift` 会把它当成跨档判据（第一版就这么误报过）。
     const leaked = ['drift_warnings', 'DRIFT_'].filter(n => has(judgeBody, n));
@@ -3582,15 +3586,15 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
     secBad++;
   }
   const litCount = cc.split(VER_SUFFIX).length - 1;
-  const mkBody = bodyOf(cc, 'def morph_key');
+  const mkBody = bodyOf(cc, 'def morph_key(');
   if (litCount !== 1 || !has(mkBody, VER_SUFFIX)) {
     err(`check-cards.py 里版本后缀正则（${VER_SUFFIX}）出现 ${litCount} 处`
       + '（应为 1，且落在 morph_key() 里）—— 折版规则抄了第二份 ⇒ 同一档的多版会在'
       + '一条路上被折叠、在另一条路上没有');
     secBad++;
   }
-  [['slot_of', bodyOf(cc, 'def slot_of')],
-    ['drift_warnings', bodyOf(cc, 'def drift_warnings')]].forEach(pair => {
+  [['slot_of', bodyOf(cc, 'def slot_of(')],
+    ['drift_warnings', bodyOf(cc, 'def drift_warnings(')]].forEach(pair => {
     if (!has(pair[1], 'morph_key(')) {
       err(`check-cards.py 的 ${pair[0]}() 没走 morph_key() —— 档键口径分家，`
         + '同一档的多版会被当成两个档（中位被候选数拽走）');
@@ -3620,7 +3624,7 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
     err(`check-cards.py 里 def slot_verdicts( 有 ${svDefs} 处（应为 1 —— 判定归组只许一处）`);
     secBad++;
   }
-  const svBody = bodyOf(cc, 'def slot_verdicts');
+  const svBody = bodyOf(cc, 'def slot_verdicts(');
   if (!has(svBody, 'slot_key(')) {
     err('check-cards.py 的 slot_verdicts() 没走 slot_key() —— 判定按什么单位归组分家了'
       + '（原色档那一对会判出两种结论 / 同一档的多版会共用一份判定）');
@@ -3633,7 +3637,7 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
       + '被挤掉那张本该 fail 也照样写 ok（假阴性通道）');
     secBad++;
   }
-  if (!has(bodyOf(cc, 'def slot_of'), 'slot_key(')) {
+  if (!has(bodyOf(cc, 'def slot_of('), 'slot_key(')) {
     err('check-cards.py 的 slot_of() 没走 slot_key() —— 槽位键与档键两条口径分家');
     secBad++;
   }
@@ -3653,7 +3657,7 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
     err(`check-cards.py 里 def slot_tally( 有 ${stDefs} 处（应为 1 —— 「一个槽位一行」只许一处）`);
     secBad++;
   }
-  const stBody = bodyOf(cc, 'def slot_tally');
+  const stBody = bodyOf(cc, 'def slot_tally(');
   if (!has(stBody, 'sorted(slots)')) {
     err('check-cards.py 的 slot_tally() 没按槽位遍历（`sorted(slots)`）—— '
       + '报表段落按什么单位列组分家了');
@@ -3665,7 +3669,7 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
     secBad++;
   }
   if (mi >= 0) {
-    const mb = cc.slice(mi);
+    const mb = bodyOf(cc, 'def main(');
     if (!has(mb, 'slot_tally(')) {
       err('check-cards.py 的 main() 没走 slot_tally() —— FAIL 清单与跨档提示段的口径会分家'
         + '（一个按文件、一个按槽位）');
@@ -3694,11 +3698,67 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
     }
   });
 
+  /* ⑧ 切函数体只许有**一种机制**：`bodyOf()`（Q36，2026-10-09）。
+     「两个位置锚点之间的全部文本」与「切到下一个 def」这两种写法有两个共同毛病：
+       ① **靠巧合成立** —— 「中间恰好没夹别的函数」「中间恰好只有一个 def」。加个函数就假红
+          （Q35 往 `judge_group` 与 `main` 之间加 `slot_tally()` 时当场踩到），
+          而且让「函数写的顺序」变成一条本不该存在的耦合；
+       ② **范围会超** —— 实测 `steps_for()` 的原写法把**后面**的 MODEL / CFG / BASE / GEOM
+          常量一起算了进来（997 vs 函数体 184 字符）⇒ 判据可能被无关文本喂饱（假通过那一类）。
+     本节的函数体切片已全部改走顶层 `bodyOf()`（按缩进终止，全项目只有一处实现）。三条判据：
+       · 不许出现「反斜杠 + ndef + 空格」这个字面量（= 拿「下一个 def」当终止符）；
+       · 不许出现内联形式的「两个位置锚点」（`X.slice(at(`）；
+       · 每个 `bodyOf()` 的 marker 必须是**带左括号的定义形态**（`'def xxx('` / `'function xxx('`）
+         —— marker 少了左括号就会先命中**调用点**（`judge(`），缩进按调用点算 ⇒ 函数体被切成
+         一行 ⇒ 判据静默变成摆设（「放行条件写宽了」那一类）。
+     ⚠️ needle 全部用 `String.fromCharCode` / 拼接**造出来**，不写成字面量 —— 否则本断言自己
+        就把自己喂饱了（本项目反复栽过的自指）。扫之前先剥行注释与块注释（硬规矩 ①）。
+     ⚠️ **已知网眼（写明，不假装覆盖）**：把锚点先存进变量再切片（`const a = at(...); cc.slice(a, b)`）
+        这两条网**抓不到** —— 而 `blank()` 那处「挖空定义段」正是这种形状（`stSrc.slice(0, fnAt)`），
+        它与「切函数体」语义不同，硬套会误报。要堵它得先能区分「挖空」与「切体」，已追加待办。 */
+  {
+    const selfSrc = fs.readFileSync(__filename, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const BS = String.fromCharCode(92), OP = String.fromCharCode(40);
+    const NDEF = BS + 'ndef ';                    // 反斜杠 + ndef + 空格
+    const ANCHOR = '.' + 'slice' + OP + 'at' + OP;   // 内联的双位置锚点
+    const MARKER = /bodyOf\(\s*[^,()]+,\s*'([^']*)'/g;
+    const badMarker = (selfSrc.match(MARKER) || [])
+      .filter(s => !/'(def|function)\s+[A-Za-z_$][\w$]*\s*\(/.test(s));
+    const posBody = t => t.indexOf(NDEF) >= 0 || t.indexOf(ANCHOR) >= 0;
+    /* 判据自检：坏样本必被抓、好样本必放过（三个 needle 各来一个）
+       ⚠️ 坏样本 1 用拼接写：写字面量 `.indexOf(` 会让**第 ㊳ 节**把这条合成样本当成真违规
+          （它扫的是本文件，且只剥整行注释）—— 自指喂饱的老坑。 */
+    const SYN_OK = "const b = bodyOf(src, 'def judge(');";
+    const SYN_BAD1 = 'const b = body.' + 'indexOf(' + JSON.stringify(NDEF) + ', 10);';
+    const SYN_BAD2 = 'const b = src' + ANCHOR + "src, 'def main('));";
+    if (!posBody(SYN_BAD1) || !posBody(SYN_BAD2) || posBody(SYN_OK)) {
+      err('第 42 节 ⑧ 判据自检不成立：分不出「按位置切函数体」（坏）与 bodyOf()（好）——'
+        + `坏样本1 ${posBody(SYN_BAD1)} / 坏样本2 ${posBody(SYN_BAD2)} / 好样本 ${posBody(SYN_OK)}`);
+      secBad++;
+    }
+    const posN = selfSrc.split(NDEF).length - 1;
+    const anchorN = selfSrc.split(ANCHOR).length - 1;
+    if (posN || anchorN) {
+      err(`verify.js 自己又出现了「按位置切函数体」的写法（拿下一个 def 当终止 ${posN} 处 /`
+        + ` 内联双锚点 ${anchorN} 处）—— 切函数体只许走 bodyOf()（按缩进切）：`
+        + '按位置切片靠「中间恰好没夹别的函数」成立，且范围会越过函数体（会喂饱自己的判据）');
+      secBad++;
+    }
+    if (badMarker.length) {
+      err(`verify.js 里有 ${badMarker.length} 处 bodyOf() 的 marker 不是带左括号的定义形态`
+        + `（${badMarker.join(' | ')}）—— marker 少了左括号会先命中调用点，函数体被切成一行，`
+        + '整条判据静默失效；写成 `\'def 名字(\'` / `\'function 名字(\'`');
+      secBad++;
+    }
+  }
+
   if (!hit.length && !secBad && !bad) {
     ok(`接触表复用 check-cards 的判定（${forbidden.length} 项口径 0 处重复）、`
       + `judge() / judge_group() / slot_verdicts() / slot_tally() 各自唯一入口`
       + `（跨档提示只进 soft；FAIL 清单与提示段同走槽位口径）、`
       + `跨档中位按档投一票、判定按槽位归组（折版规则只在 morph_key() 一处）、`
+      + `切函数体只走 bodyOf()（按位置切片的写法 0 处）、`
       + `且与评审页共用同一套 ${vars.length} 色`);
   }
 })();

@@ -65,11 +65,16 @@ def img_path(fid, seg):
     return os.path.join(OUT, "%s-%s.png" % (fid, seg))
 
 
-def run_t2i(prompt, dst):
-    """出一张图。返回是否成功。"""
+def run_t2i(prompt, dst, steps):
+    """出一张图。返回是否成功。
+
+    ⚠️ `steps` 必须由调用方按 `GA.steps_for()` 给 —— 2026-10-08 起步数**按稀有度 + 按档**
+       走（黄金/闪光 35、史诗 30、传说 35），这里写死 `GA.STEPS` 会让对拍图与实际卡面
+       步数不一致，比出来的结论不成立。
+    """
     r = subprocess.run([GA.PY, GA.COMFY, "-p", prompt, "-n", GA.NEG, "--cfg", str(GA.CFG),
                         "-o", dst, "-W", str(GA.W), "-H", str(GA.H),
-                        "--steps", str(GA.STEPS), "--seed", str(GA.SEED)],
+                        "--steps", str(steps), "--seed", str(GA.SEED)],
                        capture_output=True, text=True, errors="replace")
     if not os.path.exists(dst):
         print("    失败：" + (r.stdout or r.stderr or "")[-300:])
@@ -96,8 +101,8 @@ def make_sheet(fid, tier, name, entries, use_candidates):
     from PIL import Image, ImageDraw
 
     cells = [("原色", os.path.join(OUT, "%s-master.png" % fid))]
-    for i, (_ck, tag, _sent, w, seg) in enumerate(entries, 1):
-        label = "%d  %s" % (i, tag)
+    for _ck, tag, _sent, w, seg in entries:
+        label = "%s  %s" % (seg.replace("-", "/", 1), tag)
         if w is not None:
             label += "　权重 %d" % w
         cells.append((label, img_path(fid, seg)))
@@ -215,22 +220,23 @@ def main():
         print("== %s %s（%s）" % (fid, f["name"], f["shape"]))
         master = os.path.join(OUT, "%s-master.png" % fid)
         if not args.sheet_only and args.master and not os.path.exists(master):
-            print("   原色参照…", "ok" if run_t2i(GA.build_prompt(f), master) else "失败")
+            print("   原色参照…",
+                  "ok" if run_t2i(GA.build_prompt(f), master, GA.steps_for(f)) else "失败")
         for tier in tiers:
             entries = sel_entries(tier, args.candidates)
+            if want is not None:
+                entries = [e for i, e in enumerate(entries, 1) if i in want]
             if args.sheet_only:
                 print("   拼表 %s → %s" % (tier, make_sheet(fid, tier, f["name"],
                                                            entries, args.candidates)))
                 continue
             for i, (ck, tag, sent, _w, seg) in enumerate(entries, 1):
-                if want is not None and i not in want:
-                    continue
                 dst = img_path(fid, seg)
                 if os.path.exists(dst) and want is None:
                     print("   [%s %s] %s 已存在，跳过" % (tier, ck, tag))
                     continue
                 print("   [%s %s] %s …" % (tier, ck, tag))
-                run_t2i(GA.build_morph_prompt(f, sent), dst)
+                run_t2i(GA.build_morph_prompt(f, tier, sent), dst, GA.steps_for(f, tier))
     print("\n完成 → %s" % OUT)
     if not args.sheet_only:
         print("拼对照表（需 conda python）：\n  %s %s --list %s --sheet-only%s"

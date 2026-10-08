@@ -292,6 +292,29 @@ MORPH_CANDIDATES = {
                  "thin aurora film coating, green and violet shimmer travelling along the flanks, "
                  "sharp bright specular streaks, luminous metallic base, "
                  "iridescent sparkle concentrated on the lit edge"),
+    # ── 闪光族：**保留本色**的一组（`{base}` = 这条鱼自己的原色句）──────────────
+    # 🔴 2026-10-08 用户口径：「不能简单的在原始图片的提示词下加全身闪光特效吗？」
+    #    —— 上面 shiny/1~5 都是**把原色句整句删掉**换成一套虹彩材质；
+    #    而**游戏内**那一侧根本不是这么做的，见 `src/render/fishpaint.js` 的 shiny 分支：
+    #       `// 手段 = 加光效（虹彩 + 移动高光 + 星点）。保留鱼本色的色相，但拉到高明度`
+    #       `back: hslToRgb(hd[0], …, 0.62)`   ← hd[0] 就是这条鱼自己的色相
+    #    外加 `config.colorMorphs` 里 `shiny.tint = '#9be7ff'`（叠加色，不是替换）。
+    #    `docs/画风与颜色标准.md` 也写着两侧「共用同一套颜色口径，这是不分家的保证」——
+    #    所以**删掉本色句的那一侧是偏离方**，这里补上「保留本色 + 叠光效」的候选。
+    # ⚠️ 文生图里「保留本色」只是**软约束**：写满虹彩/棱镜类词时色相会被拉向银白
+    #    （i2i 时代吃过「泛化描述干不过参考图色相」的亏；t2i 里是「词更长 / 越靠后越占优」）。
+    #    所以这一组必须实测，别凭联想下结论。对拍见 docs/images/prompt-ab/。
+    "shiny/6":  ("本色+细碎闪粉",
+                 "{base}, plus a dense dusting of tiny bright sparkling glints over the whole "
+                 "surface, fine glittering highlights catching the light on every facet, "
+                 "brilliant pinpoint sparkle"),
+    "shiny/7":  ("本色+金属亮片",
+                 "{base}, sprinkled with hundreds of tiny mirror-bright metallic flecks that "
+                 "flash as the light moves, crisp pinpoint specular glints, "
+                 "glittering metal-dust finish"),
+    "shiny/8":  ("本色+虹彩高光",
+                 "{base}, under a thin iridescent film that lights up only in the highlights, "
+                 "bright travelling specular glints, sharp sparkling streaks along the lit edge"),
 }
 
 # 🔴 正式池子（2026-10-08 用户拍板：从 A03 黑鲷的 4 张对照表上逐档挑定）
@@ -1057,6 +1080,15 @@ def build_morph_prompt(f, morph, color_desc):
         raise RuntimeError("颜色句前半句没出现在提示词里 —— build_prompt 的结构改过？")
     # ⚠️ 候选句带不带末尾句号都要能接上后半句，先统一去掉
     desc = color_desc.strip().rstrip(".")
+    # 🔴 `{base}` = **这条鱼自己的原色句** → 用于「保留本色 + 叠加效果」型的档位
+    #    （目前只有闪光族在用，见 `MORPH_CANDIDATES` 里 shiny/6~8 的说明）。
+    #    为什么要有这条通道：游戏内 `fishpaint.js` 的 shiny 分支明确「保留鱼本色的色相、
+    #    只加光效」，而五档这边的默认做法是**把原色句整句换掉** ——
+    #    两边就此分家（文档写着「共用同一套颜色口径，这是不分家的保证」）。
+    #    ⚠️ 替换是**一次性的**：`str.replace` 不会再扫描替换进去的内容，
+    #       所以 `pc` 出现在 `desc` 里不会被二次替换掉。
+    if "{base}" in desc:
+        desc = desc.replace("{base}", pc)
     return p.replace(pc, desc + ", " + MORPH_SCOPE, 1)
 
 

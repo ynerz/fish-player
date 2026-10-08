@@ -3447,7 +3447,7 @@ console.log('\n[41] 背景音乐随条件换参数：修饰量单一来源、键
    它要在缩略图上画红 / 黄框，**最省事的写法就是自己再判一遍几何** ——
    一旦两处阈值分家，就会出现「评审台说合格、接触表画红框」（本项目最忌的「第二份真相」，
    同族事故见 §41 与 MEMORY.md 的「同一个事实被写 N 遍 = 高危」）。
-   这里把五件事钉死：
+   这里把七件事钉死：
      ① 接触表里**不许出现** check-cards 的任何阈值标识符与判定文案 —— 必须 import 现成的；
      ② 判定只有**一个入口** `judge()`，`main()` 自己不许再比一次阈值（这段原来就是inline在 main 里的）；
      ③ 接触表与 `docs/卡片评审.html` 用**同一套色**（一个视觉体系，颜色不许抄歪）；
@@ -3464,6 +3464,10 @@ console.log('\n[41] 背景音乐随条件换参数：修饰量单一来源、键
         三条：`slot_key()`（槽位键，**不折**版本后缀）只许一处；`slot_verdicts()` 的归组
         必须走 `slot_key()` 且**不许**出现 `slot_of(` / `morph_key(`；`slot_of()` 必须走
         `slot_key()`。⚠️ 与 ⑤ 合起来才说得清：**槽位键不折、档键折，折的地方只有一处**。
+     ⑦ **报表两个「一行一槽」段落口径合一**（Q35，2026-10-09 加）：FAIL 清单原来按**文件**
+        累加、跨档提示段按**槽位**累加 ⇒ 原色档那一对同槽位被印两遍、头条计数双计。
+        三条：`slot_tally()` 只许一处；它按 `sorted(slots)` 遍历且**不许**出现 `per_path`；
+        `main()` 必须走它、且**不许**再自己 `fails.append(` / `drift.append(`。
    ⚠️ ① 必须**只扫代码不扫注释**（开发者文档 §8 硬规矩第 1 条）：散文里提一句颜色判定
       是正当的，`stripPy()` 因此把 docstring 与 `#` 注释都拿掉再扫。
    ⚠️ 反向验证（两向都要做）：注释里写违规词 → 必须**仍然绿**；代码里写 → 必须红。 */
@@ -3528,7 +3532,11 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
     secBad++;
   } else {
     const judgeBody = cc.slice(ji, di);
-    const groupBody = cc.slice(gi, mi);
+    // ⚠️ 用 `bodyOf()` 只切 judge_group 自己，**不要**用 `cc.slice(gi, mi)`
+    //    —— 那是「judge_group 到 main 之间的**全部**代码」，`slot_verdicts` / `slot_tally`
+    //    都夹在中间 ⇒ 它们体内的 `hard` 会被算成 judge_group 的（Q35 加 `slot_tally` 时
+    //    当场假红一次）。同族的坑见 bodyOf 上面那段注释。
+    const groupBody = bodyOf(cc, 'def judge_group');
     // ⚠️ 判据用 `drift_warnings` / `DRIFT_` 而不是裸 `drift`：`bg_drift` 是**单张**判据
     //    自己的字段名，裸 `drift` 会把它当成跨档判据（第一版就这么误报过）。
     const leaked = ['drift_warnings', 'DRIFT_'].filter(n => has(judgeBody, n));
@@ -3630,6 +3638,47 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
     secBad++;
   }
 
+  /* ⑦ 报表两个「一行一槽」段落的**口径合一**（Q35，2026-10-09）。
+     FAIL 清单与跨档提示段原来是**两处各写一遍遍历**：FAIL 在 `for p in order`（按**文件**）
+     里累加，提示段在 `for fid in sorted(slots)`（按**槽位**）里累加 —— 而原色档那一对
+     （`<id>.png` / `<id>-normal.png`）是**同一个槽位、两个文件** ⇒ 一个坏槽被印成两行、
+     头条「硬性不合格 N 张」也双计（实测：母版与抠图都裁到贴边 ⇒ 报「2 张」+ 两行 ✗）。
+     现在两段都从 `slot_tally()` 出来。三条判据（都按**函数体**切片）：
+       · `slot_tally()` 只许一处定义 —— 「一个槽位一行」只有一处真相；
+       · 它的遍历必须按**槽位**（`sorted(slots)`），**不许**出现 `per_path`（那是按文件的口径）；
+       · `main()` 必须走它，且 `main()` 里**不许**再自己 `fails.append(` / `drift.append(`
+         —— 那就是又开了一处口径。 */
+  const stDefs = (cc.match(/def\s+slot_tally\s*\(/g) || []).length;
+  if (stDefs !== 1) {
+    err(`check-cards.py 里 def slot_tally( 有 ${stDefs} 处（应为 1 —— 「一个槽位一行」只许一处）`);
+    secBad++;
+  }
+  const stBody = bodyOf(cc, 'def slot_tally');
+  if (!has(stBody, 'sorted(slots)')) {
+    err('check-cards.py 的 slot_tally() 没按槽位遍历（`sorted(slots)`）—— '
+      + '报表段落按什么单位列组分家了');
+    secBad++;
+  }
+  if (has(stBody, 'per_path')) {
+    err('check-cards.py 的 slot_tally() 里出现了 per_path —— 那是按**文件**的口径：'
+      + '原色档那一对（同一个槽位、两个文件）会被印两遍、头条计数也双计（Q35）');
+    secBad++;
+  }
+  if (mi >= 0) {
+    const mb = cc.slice(mi);
+    if (!has(mb, 'slot_tally(')) {
+      err('check-cards.py 的 main() 没走 slot_tally() —— FAIL 清单与跨档提示段的口径会分家'
+        + '（一个按文件、一个按槽位）');
+      secBad++;
+    }
+    const dup2 = ['fails.append(', 'drift.append('].filter(t => has(mb, t));
+    if (dup2.length) {
+      err(`check-cards.py 的 main() 里又自己累加了 ${dup2.join('、')} —— `
+        + '「一个槽位一行」只许在 slot_tally() 一处（FAIL 段按文件加会把同槽位印两遍）');
+      secBad++;
+    }
+  }
+
   /* ③ 同一套色：评审页 `:root` 里的每个色都要在接触表里有同名常量、且逐值相同 */
   const root = /:root\s*\{([\s\S]*?)\}/.exec(read('tools/review-cards.py'));
   const vars = root ? (root[1].match(/--([a-z]+)\s*:\s*(#[0-9a-fA-F]{6})/g) || []) : [];
@@ -3647,7 +3696,8 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
 
   if (!hit.length && !secBad && !bad) {
     ok(`接触表复用 check-cards 的判定（${forbidden.length} 项口径 0 处重复）、`
-      + `judge() / judge_group() / slot_verdicts() 各自唯一入口（跨档提示只进 soft）、`
+      + `judge() / judge_group() / slot_verdicts() / slot_tally() 各自唯一入口`
+      + `（跨档提示只进 soft；FAIL 清单与提示段同走槽位口径）、`
       + `跨档中位按档投一票、判定按槽位归组（折版规则只在 morph_key() 一处）、`
       + `且与评审页共用同一套 ${vars.length} 色`);
   }

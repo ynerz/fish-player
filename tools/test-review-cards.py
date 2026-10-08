@@ -502,6 +502,47 @@ def main():
           and C.slot_key("x/C24-shiny-2.png") == ("C24", "shiny-2"),
           "slot_key()：原色档那一对折成同一槽、版本后缀原样保留（判定才按槽位）")
 
+    print("\n[13] slot_tally：FAIL 清单 / 跨档提示段都按**槽位**一行（同一个坏槽只印一次）")
+    # 为什么要有这一节（Q35，2026-10-09）：这两段原来是**两处各写一遍**的遍历 ——
+    #   FAIL 清单在 `for p in order`（按**文件**）里累加、跨档提示段按**槽位**累加。
+    #   原色档那一对（`<id>.png` / `<id>-normal.png`）是**同一个槽位、两个文件** ⇒
+    #   一个坏槽被印成两行、头条「硬性不合格 N 张」也双计
+    #   （实测把母版与抠图都裁到贴边 ⇒ 报「硬性不合格 2 张」+ 两行 ✗，而两行数字逐项相同）。
+    # ⚠️ 全部用**构造的 per_path**（假文件名 + 假数值），不读磁盘 —— 用户随时在重出图。
+    KEYS5 = ("bright", "albino", "golden", "shiny")
+
+    # ① FAIL：母版那一对**都**贴边 —— 同一个槽位（游戏里真显示的是抠图那张）
+    pair_fail = {"A01.png": rp(clipped=True), "A01-normal.png": rp(clipped=True)}
+    pair_fail.update({("A01-%s.png" % k): rp() for k in KEYS5})
+    res2, slots2 = C.slot_verdicts(pair_fail)
+    fails2, drift2 = C.slot_tally(slots2, res2)
+    by_file = sum(1 for p in pair_fail if res2[p]["hard"])
+    check(by_file == 2, "（对照）按**文件**数确实 2 个带 hard —— 旧口径就是照它计数")
+    check(len(fails2) == 1 and fails2[0][0] == "A01-normal",
+          "FAIL 清单按**槽位**去重：一个坏槽只一行（取游戏里真显示的那张）：%r" % (fails2,))
+    check(len(fails2) != by_file,
+          "判据自检：这份样本分得出旧口径（%d 行）与新口径（%d 行）" % (by_file, len(fails2)))
+    check(not drift2, "这份样本没有跨档漂移 ⇒ 提示段为空（FAIL 的槽不重复出现在提示段）")
+
+    # ② 跨档提示：掉队的是**母版那一槽**（两个文件）⇒ 提示也只一行
+    drift_pair = {"A01.png": rp(area=0.10), "A01-normal.png": rp(area=0.10)}
+    drift_pair.update({("A01-%s.png" % k): rp(area=0.30) for k in KEYS5})
+    res3, slots3 = C.slot_verdicts(drift_pair)
+    fails3, drift3 = C.slot_tally(slots3, res3)
+    check(len(drift3) == 1 and drift3[0][0] == "A01-normal"
+          and drift3[0][1][0].startswith(C.DRIFT_TAG),
+          "掉队的是母版那一槽 ⇒ 提示只一行（不是 <id>.png / <id>-normal.png 各一行）：%r" % (drift3,))
+    check(not fails3, "这份样本没什么该 FAIL 的（提示级不许混进 FAIL 清单）")
+
+    # ③ 多版是**两个槽位** ⇒ 各自一行（归并不许减少覆盖）—— 与 ① 的「同槽去重」是两件事
+    multi = {"B33.png": rp(), "B33-normal.png": rp(), "B33-bright.png": rp(),
+             "B33-albino.png": rp(), "B33-golden.png": rp(),
+             "B33-shiny.png": rp(clipped=True), "B33-shiny-2.png": rp(clipped=True)}
+    res4, slots4 = C.slot_verdicts(multi)
+    fails4, _d4 = C.slot_tally(slots4, res4)
+    check(sorted(n for n, _ in fails4) == ["B33-shiny", "B33-shiny-2"],
+          "同一档的多版**各占一槽** ⇒ 各自一行（与「同槽去重」互不冲突）：%r" % (fails4,))
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

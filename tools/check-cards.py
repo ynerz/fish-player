@@ -30,6 +30,9 @@
     （`<id>.png` / `<id>-normal.png`）是**同一个槽位**（评审台一槽一张图）；
     而同一档的**多版**是**两个槽位**（每版都是要给人看的候选）⇒ 各判各的。
   · **中位**的单位 = **档**（`morph_key()`/`slot_of()`）：每档只投一票。
+  · **报表段落**的单位 = **槽位**（`slot_tally()`）：硬性不合格清单与跨档提示段都是
+    「一个槽位一行」—— 原色档那一对同槽 ⇒ 只印一行、头条计数也只算一次
+    （原来 FAIL 段按**文件**累加 ⇒ 1 个坏槽被印成两行、计数还双计，见 Q35）。
   · 把「判定」按**档**归并 = 「同一档的多版只判其中一个、另一个沿用别人的结论」——
     留下那张 ok、被挤掉那张本该 fail 也照样写 ok（验收工具里的假阴性通道）。见 `slot_verdicts()`。
 
@@ -366,6 +369,37 @@ def slot_verdicts(per_path):
     return out, slots
 
 
+def slot_tally(slots, verdicts):
+    """`slot_verdicts()` 的两份产物 → `(fails, drift)`，两个清单**各是「一个槽位一行」**。
+
+    返回：
+      · `fails` = `[(代表文件名, hard 理由), …]` —— 报表的「✗ …」清单与头条计数都读它；
+      · `drift` = `[(代表文件名, 跨档提示原文), …]` —— 跨档一致性提示段。
+
+    ⚠️ 为什么要有这个函数（Q35，2026-10-09）：这两段本来是**两处各写一遍**的遍历 ——
+      FAIL 清单在 `main()` 的 `for p in order`（按**文件**）里累加，跨档提示段在
+      `for fid in sorted(slots)`（按**槽位**）里累加。原色档那一对
+      （`<id>.png` / `<id>-normal.png`）是**同一个槽位、两个文件** ⇒ 一个坏槽被印成两行、
+      头条「硬性不合格 N 张」也双计（实测：把 A01 的母版与抠图都裁到贴边 ⇒ 报 2 张）。
+      两段口径合一到一个遍历 ⇒ 「一个槽位一行」只有一处真相。
+    ⚠️ **行数 ≠ 扫过的文件数**：原色档那一对同槽（只出一行），而**同一档的多版各占一槽**
+      （各出一行，见 `slot_key()`）。所以报表头写「共 N 张」时指的是**扫了几张图**，
+      与这里的行数是两回事 —— 别拿 `len(fails)` 去当「几张图坏了」。
+    """
+    fails, drift = [], []
+    for fid in sorted(slots):
+        for k, p in slots[fid].items():
+            j = verdicts[p]
+            name = os.path.basename(p)[:-4]
+            if j["hard"]:
+                fails.append((name, j["hard"]))
+                continue
+            msgs = [s for s in j["soft"] if s.startswith(DRIFT_TAG)]
+            if msgs:
+                drift.append((name, msgs))
+    return fails, drift
+
+
 def main():
     args = sys.argv[1:]
     if args:
@@ -395,15 +429,19 @@ def main():
         order.append(p)
     judged, slots = slot_verdicts(per_path)
 
-    rows, fails = [], []
+    rows = []
     for p in order:
         r = per_path[p]
         j = judged[p]
         r["reasons"] = j["hard"]
         r["soft"] = j["soft"]
-        if j["hard"]:
-            fails.append((r["id"], j["hard"]))
         rows.append(r)
+
+    # ⚠️ FAIL 清单与跨档提示段**共用 `slot_tally()` 的槽位口径**（Q35，2026-10-09）：
+    #    原来 `fails` 是在上面那个 `for p in order`（按**文件**）里累加的 ⇒ 原色档那一对
+    #    同槽位、两个文件都计入 ⇒ 「1 个坏槽」被印成两行，头条数字也双计。
+    #    现在两段都从同一个「一个槽位一行」的遍历出来（`slot_tally()` 是唯一一处）。
+    fails, drift = slot_tally(slots, judged)
 
     print("%-12s %6s %7s %6s %6s %7s  %s" % ("id", "占比", "宽高比", "重心", "背腹", "主色", "判定"))
     print("-" * 78)
@@ -423,23 +461,17 @@ def main():
                  r["rgb"][0], r["rgb"][1], r["rgb"][2], mark, note))
 
     print("-" * 78)
-    print("共 %d 张，硬性不合格 %d 张" % (len(rows), len(fails)))
+    # ⚠️ 两个数的口径不同，文案必须写清（Q35）：`共 N 张` 是**扫了几张图**（一文件一张），
+    #    而「不合格」按**槽位**数 —— 原色档那一对是同一个槽位（`<id>.png` / `<id>-normal.png`），
+    #    它坏了只算 1 个槽位、清单也只列 1 行（原来按文件加 ⇒ 1 个坏槽说成 2 张）。
+    print("共 %d 张（按文件计），硬性不合格 %d 个槽位" % (len(rows), len(fails)))
     for fid, why in fails:
         print("  ✗ %s  %s" % (fid, "、".join(why)))
     # 跨档一致性**单独列**：它是提示级（不影响上面的 FAIL 计数），
     # 但它是「同一条鱼的 5 档不像同一条鱼」的唯一线索，藏在软提示里会被淹没。
-    # ⚠️ 按**槽位**列（不是按文件行）：原色档有两个文件（`<id>.png` / `<id>-normal.png`，
-    #    同一个槽位），按文件行会把它同一条提示印两遍；而**同一档的多版是两个槽位**
-    #    ⇒ 第 2 版有自己的一行（Q34）。
-    drift = []
-    for fid in sorted(slots):
-        for k, p in slots[fid].items():
-            j = judged[p]
-            if j["hard"]:
-                continue
-            msgs = [s for s in j["soft"] if s.startswith(DRIFT_TAG)]
-            if msgs:
-                drift.append((os.path.basename(p)[:-4], msgs))
+    # ⚠️ 与 FAIL 清单一样按**槽位**列（`slot_tally()` 一个遍历出两段）：原色档有两个文件
+    #    （`<id>.png` / `<id>-normal.png`，同一个槽位）⇒ 按文件列会把它同一条提示印两遍；
+    #    而**同一档的多版是两个槽位** ⇒ 第 2 版有自己的一行（Q34）。
     if drift:
         print("跨档一致性提示 %d 张（同鱼各档之间漂移偏大；**只是提示、不是不合格**）：" % len(drift))
         for fid, why in drift:

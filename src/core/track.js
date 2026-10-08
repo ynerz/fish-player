@@ -256,8 +256,6 @@ G.Track = (function () {
   function count() { return buf.length; }
   /* 清空内存缓冲，并把「空」写回磁盘 —— 否则刷新一次旧的日志又会冒出来 */
   function clear() { buf = []; restored = 0; save(true); return true; }
-  /* 去重后的条数（合并过的连击只算一条） */
-  function kinds() { return buf.length; }
   /* 本次启动从磁盘接回上次会话的条数（0 = 干净启动） */
   function restoredCount() { return restored; }
   /* 手动把缓冲写下去（设置面板/开发者面板用得到），返回是否写成功 */
@@ -288,7 +286,7 @@ G.Track = (function () {
 
   return {
     init: init, error: error, warn: warn, event: event,
-    list: list, count: count, kinds: kinds, clear: clear,
+    list: list, count: count, clear: clear,
     dump: dump, dumpJson: dumpJson,
     restored: restoredCount, persist: persist,
     flush: flush, onFlush: onFlush,

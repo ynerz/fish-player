@@ -1558,13 +1558,24 @@ if (!wireBad) ok('鱼影的「写 → 读 → 收尾」三处接线都在，且 
    `Track.kinds`（与 count() 完全同义的重复接口）、`Hud.clearCatchLog`、
    `FishArt.paintTo`（开发者文档 §5.2 说它给图鉴 / 结算卡用，实际那两处都直接调
    `G.FishArt.draw`，所以它零调用）…… 全是同一类：**看着像基础设施，实际没人用**。
-   判据：某个导出名在**它自己文件之外**的 `src/` / `tools/` / `docs/` / `index.html`
-   里一次都没出现过 → 报错；但只在**本模块内**被成员调用（`API.<名>(`）过 → 也算有消费方。
-   ⚠️ 后半条是 2026-10-08 补的，起因是一次**假通过**：`Audio.legendary` 只被同文件的
-      `success()` 委派，本该被本节抓住，却因为 `verify.js` 里恰好有个叫 `legendary`
-      的局部变量而蒙混过关；同一天 `Audio.sparkle` 也是靠与 `Scene.sparkle` **撞名**混过去的。
-      没有这条，本节的通过与否取决于「名字有没有在别处撞上」，而不是「有没有人用」——
-      那样的门禁比没有更糟：它给出的是虚假的安心。
+   判据（2026-10-08 二度收口）：某个导出名必须在**它自己文件之外**被一次
+   **指向该模块的成员访问**用到 —— `G.<挂载名>.<名>` 或 `<别名>.<名>`
+   （别名 = 该消费方文件里 `X = G.<挂载名>` 的绑定）→ 才算有消费方；
+   但只在**本模块内**被调用（`API.<名>(` / 裸名 `<名>(`）过 → 也算有消费方。
+   ⚠️ 第一次收口（同一天）只要求「成员访问 `X.名字`」，**X 是什么对象不看** ⇒ 于是
+      `Audio.legendary`（只被同文件 `success()` 委派，本该被本节抓住）因为 `verify.js`
+      里恰好有个叫 `legendary` 的局部变量而蒙混过关；`Audio.sparkle` 靠与
+      `Scene.sparkle` **撞名**混过去。没有这条，本节的通过与否取决于「名字有没有在别处
+      撞上」而不是「有没有人用」——那样的门禁比没有更糟：它给出的是虚假的安心。
+   ⚠️ 第二次收口（本轮，队列 Q3）补上了「X 是哪个对象」：`fight.js` 的 `F.warn` 会
+      让 `Track.warn` 看起来被用过。**实证收益**（都是靠撞名活了很久的死接口）：
+       · `Track.kinds` —— 与 `count()` 完全同义的重复接口，零调用，靠 `panels.js` 的
+         `r.kinds`（那是渔获结果对象）+ `test.js` 的 `oc.kinds` 两个**同名局部量**混过；
+       · `Assets.card` —— 零调用，靠 `docs/*.html` 里 CSS 的 `.card{...}` 类选择器混过。
+      ⚠️ 别名按**文件**收集（只在绑定了它的那个文件里算数）—— 否则 `main.js` 的
+         `S = G.Scene` 会让别的文件里任何一个叫 `S` 的局部量都变成 Scene 的消费方；
+         文件内仍有残留（同一文件里 `A = G.Audio` 与 `A = G.Assets` 并存时会互相串），
+         所以本节是**网**不是证明：短名字（`list` / `count` / `set`）的结论仍要人看一眼。
    白名单只留「按设计就不该被代码调用」的：控制台 API 与将来接外部服务的接入点。 */
 console.log('\n[32] 所有模块的导出面：除白名单外，每个导出都要有消费方');
 let deadExportBad = 0;
@@ -1592,6 +1603,13 @@ let deadExportBad = 0;
       'dumpTrack', 'trackCount', 'mount'],
     /* G.Track 的「将来接外部服务」接入点：文档 §16.4 明确说上线时才实现 flush。 */
     'src/core/track.js': ['flush', 'onFlush', 'dumpJson'],
+    /* 图片链的**业务入口**：图鉴 / 鱼护 / 水族箱现在还是程序化绘制（`fishart.js`），
+       改用 AI 贴图是队列 **Q8 → Q9**（卡面后处理 spec → 接进三处 UI + 回退链）的事，
+       在那之前它确实零调用 —— 它的兄弟 `load` 也只是被它自己调（本节按「同模块内调用」放行）。
+       ⚠️ **Q9 落地时必须删掉本条白名单**（`docs/改进待办.md` 里已记下这个约定）：
+          「将来会用」当豁免理由，只有在**有明确接盘条目**时才成立。
+       ⚠️ 它此前是靠 `docs/*.html` 里 CSS 的 `.card{...}` 类选择器混过本节的（Q3 实证）。 */
+    'src/core/assets.js': ['card'],
     /* 定点调试用（按 key 强制天气 / 时段，复现某个环境下的数值），文档 §11 已列。 */
     'src/core/weather.js': ['set'],
   };
@@ -1634,24 +1652,60 @@ let deadExportBad = 0;
       .replace(new RegExp('(^|[\\s{,])' + n + '\\s*:', 'g'), '$1');
     return new RegExp('(^|[^A-Za-z0-9_$])' + n + '\\s*\\(').test(body);
   }
-  /* 「别的文件里用到过」判据：必须是**成员访问**（`X.名字` / `X['名字']`）。
-     ⚠️ 裸名不算 —— 只按裸名扫的话，`verify.js` 里一个叫 `legendary` 的局部变量、
-        视觉层一个与 `Audio.sparkle` 同名的 `Scene.sparkle`，都会把「零调用」判成
-        「有调用」。**名字撞上就通过**，等于这条门禁在赌运气。
-     （仍有一个已知的漏网形态：`X.名字` 里的 X 是不是**那个**模块，按名字看不出来，
-        例如 fight 的 `F.warn` 会让 `Track.warn` 看起来被用过。这类只能靠「接上真实用例」解决。） */
-  const crossUsed = (txt, k) =>
-    new RegExp('(\\.\\s*|\\[\\s*[\'"])' + escRe(k) + '(?![A-Za-z0-9_$])').test(txt);
+  /* 「别的文件里用到过」判据：必须是**指向该模块的表达式**的成员访问。
+     两处收口：① 必须是成员访问（`X.名字` / `X['名字']`），裸名不算；
+     ② **X 必须真的指向那个模块** —— `G.<挂载名>`，或该文件里 `X = G.<挂载名>` 绑出来的别名。
+     ⚠️ 少了 ② 时，「名字撞上就通过」：`r.kinds`（面板里的渔获结果局部量）会把
+        `Track.kinds` 判成有人用；`docs/*.html` 的 `.card{...}` 会把 `Assets.card` 判成有人用。
+        那样的门禁比没有更糟 —— 它给出的是虚假的安心。
+     实现拆两层，是为了「判据自检」能拿合成别名直接调 usedVia()（自己算一份必然分家）。 */
+  function usedVia(txt, mod, aliases, k) {
+    const ref = '(?:G\\.' + escRe(mod) + '|\\b(?:'
+      + (aliases.length ? aliases.map(escRe).join('|') : '(?!)') + '))';
+    return new RegExp(ref + '\\s*(?:\\.\\s*' + escRe(k) + '(?![A-Za-z0-9_$])'
+      + '|\\[\\s*[\'"]' + escRe(k) + '[\'"])').test(txt);
+  }
+  /* 模块的「挂载名」：`G.<名> =`（行首、顶层）。认不出来 ⇒ ② 无从生效 ⇒ 后面报错，
+     **不许静默退回 ①**（静默放宽正是本节历史上两次假通过的来源）。 */
+  function mountName(txt) {
+    const m = [...txt.matchAll(/^G\.([A-Za-z_$][\w$]*)\s*=/gm)];
+    return m.length ? m[m.length - 1][1] : null;
+  }
+  /* 每个文件里「指向某模块」的别名。一行声明多个也要认（`var U = G.U, CFG = G.CONFIG;`），
+     所以扫全文而不是按行切；`X = G.X`（挂载名与别名同字，如 `U = G.U`）**是合法别名，不许跳过** ——
+     第一版把它当自指跳过了，当场让 util.js / hud.js / panels.js 整片误报成死导出（实测）。
+     ⚠️ **不给 `=` 加「左边不许是运算符」的守卫** —— 已实测（`_tmp/probe-alias-guard.js`，13 组样本）：
+        `a === G.M` / `a <= G.M` / `a += G.M` / `i < G.M` 在本形态下**本来就匹配不上**
+        （模式要求赋值号紧贴 `G.`，而比较 / 复合赋值那个 `=` 的左边不是标识符）。
+        第一版加了这条守卫、并在自检里声称「比较运算的左值不会被算成别名」—— **那是一句假话**：
+        守卫在合法 JS 里不可达，摘掉它自检照样通过。永不生效的守卫 + 声称验过它 = 双重假通过。 */
+  function aliasesOf(txt) {
+    const map = {};
+    const re = /([A-Za-z_$][\w$]*)\s*=\s*G\.([A-Za-z_$][\w$]*)(?![\w$])/g;
+    for (const m of txt.matchAll(re)) (map[m[2]] || (map[m[2]] = [])).push(m[1]);
+    return map;
+  }
+  const aliasOf = {};
+  rel.forEach(f => { aliasOf[f] = aliasesOf(code[f]); });
+  const crossUsed = (f, mod, k) =>
+    usedVia(code[f], mod, (aliasOf[f] && aliasOf[f][mod]) || [], k);
 
   rel.filter(r => r.startsWith('src/') && r.endsWith('.js')).forEach(r => {
     const keys = exportKeys(code[r]);
     if (!keys.length) return;
+    const mod = mountName(code[r]);
+    if (!mod) {
+      err(`${r} 有顶层导出块，却找不到 \`G.<名> =\` 挂载点 —— 第 ㉜ 节的「消费方必须指向该模块」`
+        + `这条判据会无从生效（要么按模块的写法补挂载，要么本节改成看得懂的新写法）`);
+      deadExportBad++;
+      return;
+    }
     checked += keys.length;
     modCount++;
     const allow = WHITELIST[r] || [];
     const dead = keys.filter(k => {
       if (allow.indexOf(k) >= 0) return false;
-      if (rel.some(g => g !== r && crossUsed(code[g], k))) return false;
+      if (rel.some(g => g !== r && crossUsed(g, mod, k))) return false;
       if (selfUsed(code[r], k)) { selfOnly.push(r.replace(/^src\//, '') + '.' + k); return false; }
       return true;
     });
@@ -1661,15 +1715,36 @@ let deadExportBad = 0;
     }
   });
 
-  /* 两条判据各自的行为自检：必须**认得出**真调用、又**没有宽到**把无关形态算进来。
+  /* 判据自检：必须**认得出**真消费方、又**没有宽到**把撞名 / 裸名算进来。
      宽了本节形同虚设，窄了会把真消费方误报成死代码 —— 两头都得钉住。
      ⚠️ 样例名用 `zzz*` 前缀：verify.js 自己也在被扫描的消费方名单里，
         样例里出现一个**真实存在的导出名**就会把它「喂」成已消费（自指的坑，㉓ / 38 都栽过）。 */
   (function () {
     const K = 'zzzCrossProbe', K2 = 'zzzSelfProbe';
-    if (!crossUsed('var a = API.' + K + '();', K) || crossUsed('var ' + K + ' = 1; ' + K + '(2);', K)) {
-      err('第 ㉜ 节「跨文件消费方必须是成员访问」判据不成立：' +
-          '认不出 `X.xxx`，或把裸名局部量也算成了消费方（后者会让本节形同虚设）');
+    const hitDirect = 'var a = G.Zzz.' + K + '();';          // ✓ 直接成员访问
+    const hitAlias = 'var a = ZzzAlias.' + K + '(2);';       // ✓ 经该文件里绑定的别名
+    const missOther = 'var a = Other.' + K + '(3);';         // ✗ 别的对象上的**同名成员**（撞名）
+    const missBare = 'var ' + K + ' = 1; ' + K + '(4);';     // ✗ 裸名
+    const missNoAlias = 'var a = ZzzAlias.' + K + '(5);';    // ✗ 别名表为空时不许放行
+    if (!usedVia(hitDirect, 'Zzz', [], K) || !usedVia(hitAlias, 'Zzz', ['ZzzAlias'], K)
+        || usedVia(missOther, 'Zzz', ['ZzzAlias'], K) || usedVia(missBare, 'Zzz', [], K)
+        || usedVia(missNoAlias, 'Zzz', [], K)) {
+      err('第 ㉜ 节「跨文件消费方必须指向该模块」判据不成立：' +
+          '要么认不出 `G.<挂载名>.名字` / `<别名>.名字`，要么把**别的对象上的同名成员**或裸名'
+          + '算成了消费方（后者会让本节重新退化成「撞名即通过」—— 正是 Q3 要收掉的那个口子）');
+      deadExportBad++;
+    }
+    /* 别名收集的行为契约只有两条，自检也只验这两条：
+       ① 一行声明多个都要认（`var U = G.U, CFG = G.CONFIG;` 是全项目最常见的写法）；
+       ② 别名按**挂载名**归属 —— `W = G.Other` 不许给 `Zzz` 添上 W。
+       ⚠️ 样本里的模块名必须是**假名**：verify.js 自己也在被扫描的消费方名单里，
+          而 `aliasesOf` 扫的是剥注释后的**全文** —— 样本字符串本身就会造出一个别名，
+          写真实模块名等于亲手喂饱自己的判据（自指的第 N 种形态，㉓ / 38 / 32-g 都栽过）。 */
+    const al = aliasesOf('var ZzzA = G.Zzz, ZzzB = G.Zzz;\nvar ZzzC = G.Other;');
+    if (!al.Zzz || al.Zzz.indexOf('ZzzA') < 0 || al.Zzz.indexOf('ZzzB') < 0
+        || al.Zzz.indexOf('ZzzC') >= 0) {
+      err('第 ㉜ 节别名收集判据不成立：要么认不出「一行声明多个」'
+        + '（`var A = G.M, B = G.M;`），要么把别的模块的别名算到了本模块头上');
       deadExportBad++;
     }
     const self = ['function ' + K2 + '(a){ return a; }\nvar b = ' + K2 + '(1);',   // ✓ 声明之外还有调用
@@ -1703,7 +1778,12 @@ console.log('\n[32-b] 已清理过的死接口不许复活（运行时按路径�
     'Panels.getPendingCatch', 'Panels.hideCatch', 'FishArt.paintTo', 'Hud.el',
     /* 平台适配层自己的两个零消费子能力（32-c 扫出来的）：删存储的入口没人用过 ——
        `G.Track.clear()` 是「写一份空表」而不是删键，全项目没有第二处要删存储的地方。 */
-    'Platform.storage.remove', 'Platform.sys.size'];
+    'Platform.storage.remove', 'Platform.sys.size',
+    /* 与 `count()` 完全同义的重复接口（连注释都在说假话：它写「去重后的条数」，
+       实际 `return buf.length` 与 count() 一模一样）。它靠 `panels.js` 的 `r.kinds`
+       （渔获结果局部量）与 `test.js` 的 `oc.kinds` 两个**同名局部量**混过了 ㉜ 很久，
+       2026-10-08 把 ㉜ 的判据硬化（消费方必须指向该模块）后才现形。 */
+    'Track.kinds'];
   const at = p => p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), sandbox.G);
   const back = REMOVED.filter(p => at(p) !== undefined);
   if (back.length) {

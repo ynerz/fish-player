@@ -434,6 +434,74 @@ def main():
           % (len(rows), len([r for r in rows if any("-" in x["k"] for x in r["slots"])]),
              "、".join(r["id"] for r in rows if any("-" in x["k"] for x in r["slots"])) or "无"))
 
+    print("\n[12] slot_verdicts：判定的单位是**槽位**（每版各自判 / 原色档一对共用一份）")
+    # 为什么要有这一节（Q34，2026-10-09）：`main()` 原来按**档**归并 —— 同一档出 2 版时
+    #   只有其中一个文件真的被判过，另一个「沿用」它的判定，而报表里印的仍是**自己的数字**
+    #   ⇒ 出现「自己的数字 + 别人的判定」。留下的那张 ok、被挤掉的那张若单独判本该 fail，
+    #   **报表照样写 ok**：验收工具里的一条**假阴性通道**（真实数据当前 100% 命中「两张结论
+    #   相同」，所以真图测不出来 —— 必须用构造数值，见本节末尾的判据自检）。
+    # ⚠️ 全部用**构造的 per_path**（假文件名 + 假数值），不读磁盘 —— 用户随时在重出图。
+    def rp(ok=True, area=0.20, wh=3.0, cx=0.50, clipped=False):
+        return {"ok": ok, "area": area, "wh": wh, "cx": cx, "bg_drift": 0,
+                "clipped": clipped, "reasons": []}
+
+    # 一条传说鱼：母版（原图 + 抠图）+ 4 档，其中**闪光出 2 版**、第 1 版贴边裁切（该 FAIL）
+    base = {"C24.png": rp(), "C24-normal.png": rp(), "C24-bright.png": rp(),
+            "C24-albino.png": rp(), "C24-golden.png": rp(),
+            "C24-shiny.png": rp(clipped=True), "C24-shiny-2.png": rp()}
+    res, slots = C.slot_verdicts(base)
+
+    check(sorted(slots["C24"]) == ["albino", "bright", "golden", "master", "shiny", "shiny-2"],
+          "多版各占一个槽位（母版 + 4 档 + 闪光第 2 版 = 6 槽，实得 %s）" % sorted(slots["C24"]))
+    check(slots["C24"]["master"] == "C24-normal.png",
+          "母版那一槽的代表是**游戏里真正显示的那张**（抠图）：%r" % slots["C24"]["master"])
+    check(res["C24-shiny.png"]["verdict"] == "fail",
+          "被新加的那一版**不再沿用别人的判定**：第 1 版贴边该 FAIL（实得 %s）"
+          % res["C24-shiny.png"]["verdict"])
+    check(res["C24-shiny-2.png"]["verdict"] == "ok",
+          "第 2 版仍是它自己的结论（ok），不受第 1 版影响：%s" % res["C24-shiny-2.png"]["verdict"])
+    check(res["C24.png"] == res["C24-normal.png"] and res["C24.png"] is res["C24-normal.png"],
+          "原色档那一对吧**共用同一份判定**（同一个槽位 —— 一槽一张图，不许判出两种结论）")
+    check(len(res) == len(base), "每个文件都有一行自己的判定（%d 文件 → %d 行，「共 N 张」口径不变）"
+          % (len(base), len(res)))
+    check(res["C24-normal.png"]["verdict"] == "ok",
+          "抠图那一版自己判出来仍是 ok（共用不会把「谁的数字」也换掉）")
+
+    # 判据自检：这份样本必须能分出**旧口径**（按档归并 + 其余沿用）—— 否则这条测试是摆设
+    def old_style(per_path):
+        """复刻 Q34 之前的 `main()` 归组口径（按 `slot_of()` 折，只判代表、其余沿用）。"""
+        groups = {}
+        for p in sorted(per_path):
+            fid, k = C.slot_of(p)
+            g = groups.setdefault(fid, {})
+            if k not in g or p.endswith("-normal.png"):
+                g[k] = p
+        out = {}
+        for fid, g in groups.items():
+            gj = C.judge_group([(k, per_path[pp]) for k, pp in g.items()])
+            for k, pp in g.items():
+                out[pp] = gj[k]
+        for p in per_path:
+            if p not in out:
+                fid, k = C.slot_of(p)
+                out[p] = out[groups[fid][k]]
+        return out
+
+    old = old_style(base)
+    check(old["C24-shiny.png"]["verdict"] == "ok",
+          "判据自检：旧口径真的把那一版藏起来了（第 1 版贴边却报 %s —— 正是要堵的假阴性通道）"
+          % old["C24-shiny.png"]["verdict"])
+    check(res["C24-shiny.png"]["verdict"] != old["C24-shiny.png"]["verdict"],
+          "新口径与旧口径在这份样本上**结论不同**（否则本节的断言证明不了任何事）")
+
+    # 档键（给中位用）与槽位键（给判定用）是同一条折版规则的两种用法
+    check(C.slot_of("x/C24-shiny-2.png") == ("C24", C.morph_key("shiny-2")),
+          "slot_of() = morph_key(slot_key())（折版规则只有 morph_key() 一处）")
+    check(C.slot_key("x/C24-normal.png") == ("C24", "master")
+          and C.slot_key("x/C24.png") == ("C24", "master")
+          and C.slot_key("x/C24-shiny-2.png") == ("C24", "shiny-2"),
+          "slot_key()：原色档那一对折成同一槽、版本后缀原样保留（判定才按槽位）")
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

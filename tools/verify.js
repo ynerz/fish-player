@@ -3458,6 +3458,12 @@ console.log('\n[41] 背景音乐随条件换参数：修饰量单一来源、键
      ⑤ **中位的样本口径**（Q33，2026-10-08 加）：同一档出了多版（传说闪光 2 版）时，
         每档在「该鱼中位」里**只投一票** —— 折版规则（槽位键 → 档键）只许有
         `morph_key()` 一处定义，且 `slot_of()` / `drift_warnings()` 都走它。
+     ⑥ **判定的单位是槽位、中位的单位是档**（Q34，2026-10-09 加）：`main()` 原来按**档**
+        归并 ⇒ 同一档出 2 版时只判其中一个、另一个「沿用」别人的判定，而报表里印的仍是
+        自己的数字 = 一条**假阴性通道**（被挤掉那张本该 fail 也照样写 ok）。
+        三条：`slot_key()`（槽位键，**不折**版本后缀）只许一处；`slot_verdicts()` 的归组
+        必须走 `slot_key()` 且**不许**出现 `slot_of(` / `morph_key(`；`slot_of()` 必须走
+        `slot_key()`。⚠️ 与 ⑤ 合起来才说得清：**槽位键不折、档键折，折的地方只有一处**。
    ⚠️ ① 必须**只扫代码不扫注释**（开发者文档 §8 硬规矩第 1 条）：散文里提一句颜色判定
       是正当的，`stripPy()` 因此把 docstring 与 `#` 注释都拿掉再扫。
    ⚠️ 反向验证（两向都要做）：注释里写违规词 → 必须**仍然绿**；代码里写 → 必须红。 */
@@ -3493,10 +3499,13 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
   if (mi < 0) { err('check-cards.py 里找不到 def main( —— 本断言按它切片，改了名就来更新'); secBad++; }
   else {
     const body = cc.slice(mi);
-    // 主入口调**任一个**判定入口都算接上了（成组工具的接入点是 `judge_group`，
-    // 它自己再调 `judge` —— 那一条由下面 ④ 单独盯）。
-    if (!has(body, 'judge(') && !has(body, 'judge_group(')) {
-      err('check-cards.py 的 main() 既没调 judge() 也没调 judge_group() —— 判定入口没接上'); secBad++;
+    // 主入口必须接上**判定入口**：自 Q34（2026-10-09）起那唯一一处是 `slot_verdicts()`
+    // （它内部再调 `judge_group()` → `judge()`，那两条由下面 ④ / ⑥ 单独盯）。
+    // ⚠️ 原来这里放行 `judge(` / `judge_group(`：判定逻辑一旦被抽进 `slot_verdicts()`，
+    //    main() 里残留的那两个名字就只是「曾经接上」的痕迹 ⇒ 改成要求**那个唯一入口**。
+    if (!has(body, 'slot_verdicts(')) {
+      err('check-cards.py 的 main() 没走 slot_verdicts() —— 判定入口没接上'
+        + '（主线是 analyze → slot_verdicts → judge_group → judge）'); secBad++;
     }
     const dup = ['AREA_MIN', 'AREA_MAX', 'BG_TOL', 'EDGE_PAD', 'MASK_THRESH',
       'DRIFT_AREA', 'DRIFT_WH', 'DRIFT_CX']
@@ -3581,6 +3590,46 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
     }
   });
 
+  /* ⑥ 判定的单位 = **槽位**（Q34，2026-10-09）。
+     `main()` 原来按**档**归并：同一档出 2 版（传说闪光）时只判其中一个、另一个「沿用」
+     它的判定 —— 而报表里印的仍是自己的数字 ⇒ 留下那张 ok、被挤掉那张本该 fail 也照样写 ok，
+     这是**验收工具里的一条假阴性通道**（「留下了但没人看」正是这一页存在的唯一理由）。
+     三条判据，全部按**函数体**切片（不扫全文件）：
+       · `slot_key()`（槽位键，**不折版本后缀**）只许一处定义；`slot_verdicts()` 只许一处；
+       · `slot_verdicts()` 必须走 `slot_key()`，且**不许**出现 `slot_of(` / `morph_key(`
+         —— 拿档键去归并**判定**就是要堵的那个漏口（判据用带括号的调用形态，
+         免得「槽位」这两个字在别处撞名；两条都做过负对照：注释里写它仍绿）；
+       · `slot_of()`（档键，给中位用）必须走 `slot_key()`，两条口径串在一处。
+     ⚠️ 「折版规则只许一处」由上面 ⑤ 盯（版本后缀正则只许出现在 `morph_key()` 里）——
+        ⑤ 与 ⑥ 合起来才说得清：**槽位键不折、档键折，折的地方只有一处**。 */
+  const skDefs = (cc.match(/def\s+slot_key\s*\(/g) || []).length;
+  const svDefs = (cc.match(/def\s+slot_verdicts\s*\(/g) || []).length;
+  if (skDefs !== 1) {
+    err(`check-cards.py 里 def slot_key( 有 ${skDefs} 处（应为 1 —— 槽位口径只许一处定义）`);
+    secBad++;
+  }
+  if (svDefs !== 1) {
+    err(`check-cards.py 里 def slot_verdicts( 有 ${svDefs} 处（应为 1 —— 判定归组只许一处）`);
+    secBad++;
+  }
+  const svBody = bodyOf(cc, 'def slot_verdicts');
+  if (!has(svBody, 'slot_key(')) {
+    err('check-cards.py 的 slot_verdicts() 没走 slot_key() —— 判定按什么单位归组分家了'
+      + '（原色档那一对会判出两种结论 / 同一档的多版会共用一份判定）');
+    secBad++;
+  }
+  const svLeak = ['slot_of(', 'morph_key('].filter(n => has(svBody, n));
+  if (svLeak.length) {
+    err(`check-cards.py 的 slot_verdicts() 里出现了 ${svLeak.join('、')} —— `
+      + '判定的单位是**槽位**：拿档键归并 ⇒ 同一档的多版只判一个、另一个沿用别人的判定，'
+      + '被挤掉那张本该 fail 也照样写 ok（假阴性通道）');
+    secBad++;
+  }
+  if (!has(bodyOf(cc, 'def slot_of'), 'slot_key(')) {
+    err('check-cards.py 的 slot_of() 没走 slot_key() —— 槽位键与档键两条口径分家');
+    secBad++;
+  }
+
   /* ③ 同一套色：评审页 `:root` 里的每个色都要在接触表里有同名常量、且逐值相同 */
   const root = /:root\s*\{([\s\S]*?)\}/.exec(read('tools/review-cards.py'));
   const vars = root ? (root[1].match(/--([a-z]+)\s*:\s*(#[0-9a-fA-F]{6})/g) || []) : [];
@@ -3598,8 +3647,8 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
 
   if (!hit.length && !secBad && !bad) {
     ok(`接触表复用 check-cards 的判定（${forbidden.length} 项口径 0 处重复）、`
-      + `judge() / judge_group() 各自唯一入口（跨档提示只进 soft）、`
-      + `跨档中位按档投一票（折版规则只在 morph_key() 一处）、`
+      + `judge() / judge_group() / slot_verdicts() 各自唯一入口（跨档提示只进 soft）、`
+      + `跨档中位按档投一票、判定按槽位归组（折版规则只在 morph_key() 一处）、`
       + `且与评审页共用同一套 ${vars.length} 色`);
   }
 })();

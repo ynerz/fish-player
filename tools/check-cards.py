@@ -25,6 +25,14 @@
        （`morph_key()`），但**每一版**都会被比一遍 —— 见 `drift_warnings()`。
        ⚠️ 成组消费者（`tools/contact-sheet.py`）请走 `judge_group()`，别再自己逐张调 `judge()`。
 
+判定 / 归并的**单位**（三者别混，Q34 立的规矩）：
+  · **判定**的单位 = **槽位**（`slot_key()`）：一槽一份判定。原色档那一对
+    （`<id>.png` / `<id>-normal.png`）是**同一个槽位**（评审台一槽一张图）；
+    而同一档的**多版**是**两个槽位**（每版都是要给人看的候选）⇒ 各判各的。
+  · **中位**的单位 = **档**（`morph_key()`/`slot_of()`）：每档只投一票。
+  · 把「判定」按**档**归并 = 「同一档的多版只判其中一个、另一个沿用别人的结论」——
+    留下那张 ok、被挤掉那张本该 fail 也照样写 ok（验收工具里的假阴性通道）。见 `slot_verdicts()`。
+
 用法：
   python tools/check-cards.py                 # 查全部卡片（母版 + 5 档）
   python tools/check-cards.py A01 A02         # 查指定几条（**裸 id 会把它的各档一起拉进来**）
@@ -81,6 +89,26 @@ DRIFT_CX = 0.035          # 重心与同鱼中位的绝对差（占画面宽度�
 DRIFT_TAG = "跨档漂移"     # 提示文案的主词（**唯一一处**；接触表只显示原文，不自己拼）
 
 
+def slot_key(path):
+    """文件名 → (鱼 id, **槽位键**) —— 与评审台 / 接触表的**槽位口径同源**。
+
+    · `<id>.png` 与 `<id>-normal.png` → **同一个槽位** `master`
+      （`-normal` 是母版的抠图；评审台那一槽的图**就是**它，见 `review-cards.morph_slots()`）。
+    · `<id>-<档>.png` → 槽位 `<档>`；`<id>-<档>-N.png` → 槽位 `<档>-N`
+      （评审台自 Q32 起**每一版一个槽位** —— 每一版都是要给人看的候选）。
+
+    ⚠️ 本函数**故意不折版本后缀**：折版（槽位键 → 档键）是 `morph_key()` 的事，
+       那条规则（结尾 `-<数字>`）只许有**一处**定义 —— verify 第 ㊷ 节盯的就是这个。
+       「**判定按槽位、中位按档**」是本文件的核心口径，两者由 `slot_of()` 串起来。
+    """
+    b = os.path.basename(path)[:-4]
+    m = re.match(r"^([A-Z]+\d+)(?:-(.+))?$", b)
+    if not m:
+        return b, "?"
+    suf = m.group(2) or "normal"
+    return m.group(1), ("master" if suf == "normal" else suf)
+
+
 def morph_key(slot):
     """**槽位键 → 档键**：`shiny` 与 `shiny-2` 同属一档。**全项目唯一一处**定义这条规则。
 
@@ -92,21 +120,20 @@ def morph_key(slot):
        规则写两遍，必然有一天只有一边被改（本项目「同一个事实写 N 遍」的老账）。
     ⚠️ 折版规则只有这一条：去掉**结尾**的 `-<数字>`。档名本身不含数字（bright / albino /
        golden / shiny），所以不会误折。
+    ⚠️ 它**只管「中位投几票」**，不管「判定按哪个单位」—— 后者是 `slot_key()`。
+       拿 `morph_key()` 去归并**判定**就是要堵的那个假阴性通道（见 `slot_verdicts()`）。
     """
     return re.sub(r"-\d+$", "", slot or "")
 
 
 def slot_of(path):
-    """文件名 → (鱼 id, 档键)。档键口径与评审台 / 接触表**同源**：
-    `<id>.png` 与 `<id>-normal.png` 都是**原色档**（槽键 `master`，normal 就是母版抠图）；
+    """文件名 → (鱼 id, **档键**) = `morph_key(slot_key(path))`。档键口径与跨档判据 / 接触表
+    **同源**：`<id>.png` 与 `<id>-normal.png` 都是**原色档**（槽键 `master`，normal 就是母版抠图）；
     `<id>-<档>[-N].png` 的档键是 `<档>`（第 N 版并入同一档，见 `MORPH_RE` 那条注释）。
-    ⚠️ 「折掉版本后缀」这一步走 `morph_key()`，与接触表喂进来的槽位键**同一条规则**。"""
-    b = os.path.basename(path)[:-4]
-    m = re.match(r"^([A-Z]+\d+)(?:-(.+))?$", b)
-    if not m:
-        return b, "?"
-    suf = morph_key(m.group(2) or "normal")
-    return m.group(1), ("master" if suf == "normal" else suf)
+    ⚠️ 「折掉版本后缀」这一步走 `morph_key()`，与接触表喂进来的槽位键**同一条规则**。
+    ⚠️ 只有**中位 / 跨档判据**该用档键；**判定**请用 `slot_key()`（每版各自判，见 `slot_verdicts()`）。"""
+    fid, s = slot_key(path)
+    return fid, morph_key(s)
 
 
 def corners_bg(im):
@@ -268,7 +295,10 @@ def drift_warnings(items):
 def judge_group(items):
     """把**同一条鱼的全部档**一起判：单张判定（`judge()`）+ 跨档一致性提示（⑦）。
 
-    `items` = `[(档键, analyze() 结果), ...]` → `{档键: judge() 的那个 dict}`。
+    `items` = `[(槽位键, analyze() 结果), ...]` → `{槽位键: judge() 的那个 dict}`。
+    ⚠️ **槽位键**（`slot_key()` 的口径）而不是档键：同一档的多版各自是一个槽位、
+       各自要有一份自己的判定（否则被挤掉那版会沿用别人的结论，见 `slot_verdicts()`）；
+       而 `drift_warnings()` 内部会把槽位键折成档再算中位（每档只投一票）。
     ⚠️ 跨档提示**只并进 `soft`**：所以它最多把 `ok` 抬成 `warn`，
        **绝不会**产生 hard 理由、也绝不会把 fail 改掉（失败的卡不必再叠提示）。
        这条边界就是「⑦ 是提示级」的可执行表述 —— verify 第 ㊷ 节盯着它。
@@ -286,6 +316,54 @@ def judge_group(items):
                 j["verdict"] = "warn"
         out[k] = j
     return out
+
+
+def slot_verdicts(per_path):
+    """`{文件路径: analyze() 结果}` → `(每个文件的判定, 槽位代表文件)`。
+
+    返回：
+      · `verdicts` = `{文件路径: judge_group() 给出的那个 dict}` —— **报表里每个文件都有一份**
+        （数字是它自己的、判定也是它自己的）；
+      · `slots`    = `{鱼 id: {槽位键: 代表文件}}` —— 跨档提示段按它逐**槽位**列一遍
+        （原色档那一对同槽位 ⇒ 只列一行，不会把同一条提示印两遍）。
+
+    ⚠️ **判定的单位是「槽位」，不是「文件」，也不是「档」**（Q34，2026-10-09）：
+      · 按**档**归并（原实现）会把**同一档的多版**（传说闪光 `<id>-shiny.png` /
+        `<id>-shiny-2.png`）折成一个键，于是只判**其中一个**、另一个"沿用"它的判定 ——
+        而被挤掉那行印的仍是**自己的数字** ⇒ 报表里出现「自己的数字 + 别人的判定」。
+        留下的那张 ok、被挤掉的那张若单独判本该 fail，**报表照样写 ok**：
+        这是验收工具里的一条**假阴性通道**（「留下了但没人看」正是这一页存在的唯一理由）。
+      · 按**槽位**归并两边都对：多版各判各的（每版一槽 —— 评审台自 Q32 起就是一槽一张图），
+        原色档那一对（`<id>.png` / `<id>-normal.png`）仍共用一份判定，
+        因为它们是**同一个槽位**，同一槽位判出两种结论才是「看着像 bug」的那种不一致。
+        ⚠️ 这不是「凑巧无差别」：实测**全部 104 组**原色档，两张图的 `area` / `cx` 差
+        **恰好 0**、`bg_drift` 逐组相同（抠图保留底色像素 ⇒ 掩膜一样）——
+        共用在**信息上**也不丢东西（探针 `_tmp/probe-q34b.py` 的口径）。
+      · 槽位的代表文件取「游戏里真正显示的那张」（`-normal` 抠图）：中位数不能把同一个
+        东西数两遍。多版各占一槽 ⇒ 每一版都会进中位，而 `drift_warnings()` 里每档只投一票。
+    """
+    slots, by_file = {}, {}
+    for p in sorted(per_path):
+        fid, k = slot_key(p)
+        if k == "?":                    # 认不出档位 ⇒ 自己单独一组，免得跟别人瞎比
+            fid, k = os.path.basename(p)[:-4], "?"
+        by_file[p] = (fid, k)
+        g = slots.setdefault(fid, {})
+        # 同一个槽位出现两个文件时（`<id>.png` 与 `<id>-normal.png` 都是 `master`）
+        # 留**游戏里真正显示的那张**（`-normal` 抠图）：中位数不能把同一个东西数两遍。
+        if k not in g or os.path.basename(p).endswith("-normal.png"):
+            g[k] = p
+
+    out = {}
+    for fid, g in slots.items():
+        gj = judge_group([(k, per_path[p]) for k, p in g.items()])
+        for k, p in g.items():
+            out[p] = gj[k]
+    # 同一槽位的**其它**文件沿用该槽位的判定（只有原色档那一对会走到这里）
+    for p, (fid, k) in by_file.items():
+        if p not in out:
+            out[p] = out[slots[fid][k]]
+    return out, slots
 
 
 def main():
@@ -307,35 +385,15 @@ def main():
     if not files:
         print("assets/cards/ 下没有卡片（<id>.png / <id>-<档>.png）"); return
 
-    # ① 先按鱼归组：跨档判据（⑦）要「同一批的其它档」才算得出来。
-    #    顺手把 analyze() 的结果留在 per_path 里 —— 一张图只算一次（它要扫像素，不便宜）。
-    per_path, groups, order = {}, {}, []
+    # ① 先把每张图算一遍（`analyze()` 要扫像素，不便宜 ⇒ 一张图只算一次），
+    #    ② 再按**鱼 → 槽位**归组判（跨档判据要「同一批的其它档」才算得出来）。
+    per_path, order = {}, []
     for p in files:
         if not os.path.exists(p):
             print("  缺文件：%s" % p); continue
-        r = analyze(p)
-        per_path[p] = r
+        per_path[p] = analyze(p)
         order.append(p)
-        fid, k = slot_of(p)
-        if k == "?":                    # 认不出档位 ⇒ 自己单独一组，免得跟别人瞎比
-            fid, k = os.path.basename(p)[:-4], "?"
-        g = groups.setdefault(fid, {})
-        # 同一个档位出现两个文件时（`<id>.png` 与 `<id>-normal.png` **都是原色档**）
-        # 留**游戏里真正显示的那张**（`-normal` 抠图）：中位数不能把同一个东西数两遍。
-        if k not in g or os.path.basename(p).endswith("-normal.png"):
-            g[k] = p
-
-    judged = {}
-    for fid, g in groups.items():
-        gj = judge_group([(k, per_path[p]) for k, p in g.items()])
-        for k, p in g.items():
-            judged[p] = gj[k]
-    # 被挤掉的那个「同档重复」文件（`<id>.png` 与 `<id>-normal.png` 是同一张原色档）
-    # 沿用留下那位的判定 —— 否则同一张图在报表里会出现两种判定，看着像 bug。
-    for p in order:
-        if p not in judged:
-            fid, k = slot_of(p)
-            judged[p] = judged[groups[fid][k]]
+    judged, slots = slot_verdicts(per_path)
 
     rows, fails = [], []
     for p in order:
@@ -370,11 +428,12 @@ def main():
         print("  ✗ %s  %s" % (fid, "、".join(why)))
     # 跨档一致性**单独列**：它是提示级（不影响上面的 FAIL 计数），
     # 但它是「同一条鱼的 5 档不像同一条鱼」的唯一线索，藏在软提示里会被淹没。
-    # ⚠️ 按**槽位**列（不是按文件行）：原色档有两个文件（`<id>.png` / `<id>-normal.png`），
-    #    按行会把它同一条提示印两遍。
+    # ⚠️ 按**槽位**列（不是按文件行）：原色档有两个文件（`<id>.png` / `<id>-normal.png`，
+    #    同一个槽位），按文件行会把它同一条提示印两遍；而**同一档的多版是两个槽位**
+    #    ⇒ 第 2 版有自己的一行（Q34）。
     drift = []
-    for fid in sorted(groups):
-        for k, p in groups[fid].items():
+    for fid in sorted(slots):
+        for k, p in slots[fid].items():
             j = judged[p]
             if j["hard"]:
                 continue

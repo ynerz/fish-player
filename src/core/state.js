@@ -85,7 +85,6 @@ G.State = (function () {
       },
       settings: { sound: true, volume: 0.55, ambient: true, music: true, musicVol: 1.0, idle: false },
       lastSeen: Date.now(),
-      createdAt: Date.now(),
     };
   }
 
@@ -171,6 +170,10 @@ G.State = (function () {
        却每档都写进去 —— 留着只会让人读代码时误以为它已经实现了。
        老档里残留的那份也一并清掉（不再是 blank() 的一部分）。 */
     delete d.locked;
+    /* 同理：`createdAt` 也是零消费字段 —— 每份存档都写「建档时间」，全项目没有一处读它
+       （verify 32-h 上线时逮到的第一条真鱼）。删掉它不再写，老档里残留的那份一并清掉。
+       ⚠️ 删字段**不需要**升 SAVE_V：浅合并只会补默认值，这里显式 delete 就够。 */
+    delete d.createdAt;
 
     // 浅合并，保证新增字段有默认值
     Object.keys(b).forEach(function (k) { if (d[k] === undefined) d[k] = b[k]; });

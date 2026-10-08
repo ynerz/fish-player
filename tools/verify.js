@@ -2108,6 +2108,140 @@ console.log('\n[32-g] 数据文件的字段必须有消费方（零出现 = 死�
 })();
 
 
+/* ---------------- 32-h. 存档键必须有消费方（设置子键还必须有界面控件） ----------------
+   由来（2026-10-08，Q26）：`state.js` 的 `blank()` 是**整份存档结构**的唯一真相，
+   它有两类静默失效，之前都没有网：
+     ① 顶层键**零消费** —— 上线时逮到第一条真鱼：`createdAt` 从 v0.1.0 起
+        每份存档都写它、全项目没有一处读它（已删）。这种键会一直攒下去，没人会发现。
+     ② `settings` 的子键**界面看不见** —— 新增一个键却忘了在设置面板补一行，
+        表现是「存档里有这个字段、界面上永远看不见」。
+   「零消费」这条线此前有三张网：模块**导出面**（㉜）、模块**内部状态对象**（32-d）、
+   **数据文件字段**（32-g）—— 存档结构是唯一漏掉的那类：它既不是模块导出，
+   又在 `blank()` 的返回值里（`S` 逃出模块 ⇒ 32-d 按判据明确不收）。
+   判据（静态扫，只扫代码不扫注释）：
+     ① `blank()` 的**顶层**键清单现算（抓不到就报错，不许当成「没有键要检查」而空过）；
+     ② 把 `blank()` 那一段**挖空**（否则键的定义行自己就算一次「消费」）后，
+        每个顶层键都要在 src/ + tools/*.js + index.html 里至少出现一次 —— 零出现 = 死存档字段；
+     ③ `settings` 的每个子键还要出现在 `src/ui/panels.js` 的 `VIEWS.settings` 段内
+        （形如 `settings.<键>`）= 设置面板里真有那个控件；段边界现算，抓不到就报错。
+   为什么 ③ 收窄到「设置面板那一段」而不是整个 panels.js：
+     设置面板是**唯一**能让玩家改这些键的地方。main.js 启动时那三处只是**套用**存档值、
+     不是控件；hud.js 的两处是**显示**、tutorial.js 的两处是**闸门**。把这些也算
+     「有消费方」的话，新增键只要在别处被读一次就能通过，而设置面板里仍然没有开关 —— 网眼就瞎了。
+   为什么处处「抓不到就报错」：空集会让人断言**恒真**（假通过），比不写还危险 ——
+     存档结构被搬走 / 设置面板被改名时，本节必须红着脸说「我失效了」，而不是安静地放行。
+   已知网眼（有意不写断言，附「为什么不需要」）：
+     · 短键名（`v` / `net` / `tank` …）撞名多，只会**假阴性**（漏报）不会误报 ——
+       当网用，不当证明（32-g 同款边界；实测 34 个顶层键里 0 处误报）。
+     · `settings` 段内若出现 `var se = St.get().settings` 这类**别名**，③ 会**报红**
+       （fail-safe 而非漏网），不需要再加守卫（main.js 真有一个别名，但它不在扫描范围内）。
+     · 动态键（方括号取值）全项目没有这种写法，真出现时 ③ 也会报红。
+   ⚠️ 本节**行尾注释也要剥**：否则一句「记得补 xxx」的说明就能把自己喂饱（32-g 栽过同款）。 */
+console.log('\n[32-h] 存档键必须有消费方（设置子键还必须有界面控件）');
+(function () {
+  const stripCode = t => t
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[ \t])\/\/[^\n]*/gm, '$1');
+  const REL_STATE = 'src/core/state.js', REL_PANEL = 'src/ui/panels.js';
+  const readCode = r => stripCode(fs.readFileSync(path.join(ROOT, r), 'utf8'));
+
+  /* 扫描集：src/ 全部 + tools/ 的 js + index.html（与 32-g 同一张网面） */
+  const rel = [];
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+      const p = path.join(ROOT, dir, n);
+      if (fs.statSync(p).isDirectory()) walk(dir + '/' + n);
+      else if (/\.(js|html)$/.test(n)) rel.push(dir + '/' + n);
+    });
+  })('src');
+  fs.readdirSync(path.join(ROOT, 'tools')).forEach(n => { if (/\.js$/.test(n)) rel.push('tools/' + n); });
+  rel.push('index.html');
+  const code = {};
+  rel.forEach(r => { code[r] = readCode(r); });
+
+  /* ① blank() 的顶层键：现算，不写死任何一个键名
+     ⚠️ 锚点走共用的 `at()`（词间允许空白、返回**原文偏移**，要拿去 slice）；
+        局部名不能取 `at` —— 会把顶部那个助手遮住（第 ㊳ 节因此当场报红过一次）。 */
+  const stSrc = code[REL_STATE];
+  const fnAt = at(stSrc, 'function blank()');
+  let blankSrc = '';
+  if (fnAt >= 0) {
+    const rest0 = stSrc.slice(fnAt);
+    const end = rest0.search(/\n {4}\};/);
+    blankSrc = end >= 0 ? rest0.slice(0, end) : rest0;
+  }
+  /* 顶层缩进**从 `v:` 那一行现取**，不在断言里写死 4 / 6 / 8 个空格
+     （否则文件一重排，本节要么误报要么空过）。 */
+  const vLine = blankSrc.match(/^([ \t]*)v\s*:\s*SAVE_V,/m);
+  const keys = (blankSrc && vLine)
+    ? (blankSrc.match(new RegExp('^' + vLine[1] + '([A-Za-z_$][\\w$]*)\\s*:', 'gm')) || [])
+      .map(s => s.trim().replace(/\s*:$/, ''))
+    : [];
+  if (!keys.length) {
+    err(REL_STATE + ' 里抓不到 blank() 的顶层键清单（实得 0 个）—— '
+      + '存档结构被改名 / 搬家 / 换写法了，本节必须跟着改，不许当成「没有键要检查」而空过');
+  }
+
+  /* ② 顶层键的消费方：**先把 blank() 那一段挖空**，否则键的定义行自己就算一次出现 */
+  if (keys.length && fnAt >= 0) {
+    code[REL_STATE] = stSrc.slice(0, fnAt) + stSrc.slice(fnAt + blankSrc.length);
+    const bare = k => new RegExp('(^|[^A-Za-z0-9_$])' + k.replace(/\$/g, '\\$') + '(?![A-Za-z0-9_$])');
+    const deadKey = keys.filter(k => !rel.some(r => bare(k).test(code[r])));
+    if (deadKey.length) {
+      err('这些存档顶层键全项目零消费（挖掉 blank() 定义后再无出现）：' + deadKey.join('、')
+        + ' —— 删掉它（老档残留可在 migrate() 里 delete 掉），或写明它服务于哪一处读取');
+    } else {
+      ok('blank() 的 ' + keys.length + ' 个顶层键在 src/ 与 tools/ 里都有真实消费方'
+        + '（清单现算；blank() 定义行已挖空，不会自己算一次消费）');
+    }
+  }
+
+  /* ③ settings 子键：设置面板里必须有控件
+     ⚠️ 锚点同样走 `at()`；段边界 = 到下一个顶层 `VIEWS.<名> =` 之前。 */
+  const pSrc = code[REL_PANEL];
+  const setAt = at(pSrc, 'VIEWS.settings = {');
+  let block = '';
+  if (setAt >= 0) {
+    const rest = pSrc.slice(setAt + 1);
+    const nx = rest.search(/\n[ \t]*VIEWS\.[A-Za-z_$][\w$]*[ \t]*=/);
+    block = nx >= 0 ? rest.slice(0, nx) : rest;
+  }
+  if (block.length < 200) {
+    err(REL_PANEL + ' 里抓不到 VIEWS.settings 那一段（实得 ' + block.length + ' 字符）—— '
+      + '设置面板被改名 / 拆分 / 挪到别的文件了，本节必须跟着改，不许当成「都通过」');
+  }
+  /* settings 的子键：从①那份 blankSrc 里单独再取一层（现算） */
+  const setLine = blankSrc.match(/^([ \t]*)settings\s*:\s*\{([\s\S]*?)\},/m);
+  const subKeys = setLine
+    ? (setLine[2].match(/(^|[\s{,])[ \t]*([A-Za-z_$][\w$]*)\s*:/g) || [])
+      .map(s => s.replace(/^[\s{,]+/, '').replace(/\s*:$/, '').trim())
+    : [];
+  if (!subKeys.length) {
+    err(REL_STATE + ' 的 blank() 里抓不到 settings 的子键（实得 0 个）—— '
+      + '它被改名 / 改形状了，本节必须跟着改，不许当成「没有键要检查」而空过');
+  } else if (block.length >= 200) {
+    /* 判据自检：认得出正形态，且**拒收**「名字只多带一截」的伪形态 ——
+       少了这半段，「拿前缀撞上就算过」这种网眼没人会发现（32-d 的放行条件栽过同款）。 */
+    const hit = k => new RegExp('settings\\.' + k.replace(/\$/g, '\\$') + '(?![A-Za-z0-9_$])');
+    if (!hit('zzz').test('a.settings.zzz = 1')
+        || hit('zzz').test('a.settings.zzzMore = 1')
+        || hit('zzz').test('a.settings.zzz2 = 1')) {
+      err('32-h 的取值正则自检失败：它认不出 settings.<键>，或把 settings.<键>X 也算成了同一个键');
+    } else {
+      const missing = subKeys.filter(k => !hit(k).test(block));
+      if (missing.length) {
+        err('这些设置键在设置面板里没有任何控件（' + REL_PANEL + ' 的 VIEWS.settings 段内看不到对应的 '
+          + 'settings.<键>）：' + missing.join('、') + ' —— 补一行 row(...)，或把该键从 blank().settings 里删掉');
+      } else {
+        /* ⚠️ 这句话里不许写死任何键名（自指喂饱的老坑）；键名一律现算后拼进来。 */
+        ok('blank().settings 的 ' + subKeys.length + ' 个键在设置面板里都有控件消费方'
+          + '（键清单与面板段落都是现算的，不写死）');
+      }
+    }
+  }
+})();
+
+
 /* ---------------- 33. 体型数量：文档 / 出图工具必须与代码一致 ----------------
    代码里是 **9 种**（`TPL.fish / eel / ray / squid / jelly / oarfish / shark / whale / dragon`），
    而 GDD 两处 + 开发者文档一处都写着「10 种体型」，开发者文档 §5.2 自己又写着 9 ——

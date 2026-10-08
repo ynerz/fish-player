@@ -473,7 +473,7 @@ node tools/build.js --check    # 只跑断言不写盘
   medals, eco,                      // 纪念币 / 生态值（只能换限定装饰）
   tankSec, tankFrac,                // 水族箱被动收益的结算余量与零头
   medalSeen{}, titleSel, achSeen[], achInit,
-  locked[],                         // 隐藏钓场被「发现」的记录
+  /* 注：`locked` 与 `createdAt` 都已删除（零消费字段）；老档里残留的那份由 `migrate()` 清掉 */
 
   /* 新手引导（v4） */
   tut: { step, done },
@@ -484,8 +484,8 @@ node tools/build.js --check    # 只跑断言不写盘
     netKept, released, netMax, tankMax,
     streak, maxStreak,
   },
-  settings: { sound, volume, ambient, idle },
-  lastSeen, createdAt
+  settings: { sound, volume, ambient, music, musicVol, idle },
+  lastSeen
 }
 ```
 

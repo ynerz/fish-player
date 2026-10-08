@@ -1959,6 +1959,95 @@ G_('Panels · 底栏禁用态的类名挂载与摘除');
 })();
 
 /* =========================================================
+   Panels · 设置键必须能从界面改（真渲染 + 真触发注册上来的回调）
+   =========================================================
+   由来（2026-10-08，Q26）：`state.js` 的 `blank().settings` 是设置键的唯一真相，
+   新增一个键却忘了在设置面板补一行时，界面上永远看不见 —— **不报错、不告警**。
+   verify `[32-h]` 用静态扫描盯「键有没有出现在设置面板那一段里」；
+   这一节盯**它盯不到的那一半**：控件画出来了、**却写不回去**
+   （例如只调了 `G.Audio.setEnabled(v)`、忘了 `s.settings.<键> = v`）——
+   这种坏法两边自洽，源码扫描看不出任何异常。
+   做法：造一个「会记录监听器」的 DOM 桩 → 真渲染一次设置面板 →
+   逐个触发注册上来的回调 → 看**哪个设置键真的变了**（对照触发前后各拍一份快照）。
+   ⚠️ 面板里还有「重置 / 导出 / 导入」三个危险按钮，所以先把它们的
+      `dialog.confirm` / `dialog.prompt` / `clipboard.write` 换成无害桩，
+      再统一触发 —— 否则一次「重置」就把整轮测试的存档清了。
+   ========================================================= */
+G_('Panels · 设置键必须能从界面改（真渲染 + 真触发注册的回调）');
+(function () {
+  const handlers = [];
+  function mkNode(tag) {
+    const n = {
+      tagName: tag, className: '', innerHTML: '', textContent: '', value: '', checked: false,
+      children: [], style: {}, disabled: false,
+      classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
+      appendChild(c) { n.children.push(c); return c; },
+      removeChild(c) { n.children = n.children.filter(x => x !== c); return c; },
+      insertBefore(c) { n.children.unshift(c); return c; },
+      get lastChild() { return n.children[n.children.length - 1] || null; },
+      /* 关键：把监听器记下来，后面逐个触发（这是本节唯一比源码扫描强的地方） */
+      addEventListener(type, fn) { handlers.push({ type: type, fn: fn }); },
+      setAttribute() {}, getAttribute() { return null; },
+      querySelector() { return mkNode('span'); },
+      querySelectorAll() { return []; },
+      getContext() { return null; },
+    };
+    return n;
+  }
+  const els = {};
+  ['#modal', '#app', '#modalTitle', '#modalBody', '#modalClose',
+   '#catchCard', '#catchCanvas', '#chkIdle'].forEach(s => { els[s] = mkNode('div'); });
+  const realDoc = global.document;
+  global.document = {
+    createElement: mkNode,
+    querySelector: s => els[s] || null,
+    querySelectorAll: () => [],
+    addEventListener() {},
+  };
+
+  const realDialog = G.Platform.dialog, realClip = G.Platform.clipboard;
+  G.Platform.dialog = { confirm: () => false, prompt: () => null, alert() {} };
+  /* 剪贴板那条路是异步回调（只发一条 toast，与设置键无关）——
+     用一个「then 空转」的 thenable 把它挂住，免得它的回调在本节收尾之后才跑。 */
+  G.Platform.clipboard = { write: () => ({ then() {} }), read: () => ({ then() {} }) };
+
+  Panels.init();
+  handlers.length = 0;            // init 挂的（关闭按钮 / 遮罩）不参与
+  let openErr = null;
+  try { Panels.open('settings'); } catch (e) { openErr = e; }
+  ok(!openErr, 'VIEWS.settings.render 能在 Node 里真跑完（不依赖浏览器专有 API）', openErr && openErr.message);
+  ok(handlers.length > 0,
+     `设置面板渲染时注册了 ${handlers.length} 个控件回调（桩把每个 addEventListener 都记下来了）`);
+
+  const keys = Object.keys(St.get().settings);
+  const before = JSON.parse(JSON.stringify(St.get().settings));
+  const writable = {}, threw = [];
+  handlers.slice().forEach(h => {
+    const was = JSON.parse(JSON.stringify(St.get().settings));
+    try { h.fn({ target: { value: '37' }, key: '', preventDefault() {} }); }
+    catch (e) { threw.push(e.message); return; }
+    const now = JSON.parse(JSON.stringify(St.get().settings));
+    keys.forEach(k => { if (JSON.stringify(now[k]) !== JSON.stringify(was[k])) writable[k] = true; });
+  });
+  ok(threw.length === 0,
+     '逐个触发设置面板的控件都不抛错（含重置 / 导出 / 导入三个危险按钮，它们的对话框已被换成无害桩）',
+     threw.join(' / '));
+
+  /* 还原成触发前的值 —— 后面还有一大堆断言在用同一份存档 */
+  keys.forEach(k => { St.get().settings[k] = before[k]; });
+  Panels.close();
+  global.document = realDoc;
+  G.Platform.dialog = realDialog;
+  G.Platform.clipboard = realClip;
+
+  const missing = keys.filter(k => !writable[k]);
+  ok(missing.length === 0,
+     `设置面板的控件真的能改每一个设置键：${keys.length} 个键逐个触发后都变了`
+     + (missing.length ? '' : `（${keys.join(' / ')}）`),
+     '改不动：' + missing.join('、'));
+})();
+
+/* =========================================================
    Hud —— 拉扯提示的四个分支，以及阈值必须来自 config
    ========================================================= */
 new Function(fs.readFileSync(path.join(ROOT, 'src/ui/hud.js'), 'utf8')).call(global);

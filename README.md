@@ -19,7 +19,7 @@
 
 **最简单**：双击 `index.html` 就能玩（刻意不用 ES Module，`file://` 直接可跑）。
 
-**单文件版**（把 21 个脚本 + 样式表压成一个 HTML，方便分发）：
+**单文件版**（把 `index.html` 引用的脚本与样式表内联成一个 HTML，方便分发）：
 
 ```bash
 node tools/build.js --release    # → dist/fish-player.release.html，双击即玩
@@ -119,10 +119,11 @@ gen-fish.py → solve-drop.js → balance.js → verify.js → gen-collect-time.
 
 ## 美术风格
 
-`src/render/fishart.js` 里有 **6 套候选画风**（flat / bold / water / real / neon / pixel），
-同一套几何可横向对比，开发期用 `G.FishArt.setStyle('bold')` 切换。
+`src/render/fishart.js` 里有 **6 套画风**（flat / bold / water / real / neon / pixel），
+同一套几何可横向对比。**已选定 `flat`（扁平卡通）为默认**，其余 5 套是开发期对比用的备选，
+开发期用 `G.FishArt.setStyle('bold')` 切换。
 
-⚠️ 这**不是给玩家的功能** —— 最终会拍板固化 1 套，上线前把没选中的从 `STYLES` 里删掉即可。
+⚠️ 这**不是给玩家的功能** —— 收口时把没选中的从 `STYLES` 里删掉即可。
 交互页 `tools/style-preview.html`（原 `docs/style-preview/` 的对比图已清空，需要时用它重新生成）。
 
 ## 音效与音乐

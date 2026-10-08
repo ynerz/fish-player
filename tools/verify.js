@@ -2552,6 +2552,44 @@ let secBad = 0;
 })();
 if (!secBad) ok(`文档里的节数与 verify.js 实际节数一致（如实写 ${(fs.readFileSync(path.join(ROOT, 'tools/verify.js'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').match(/console\.log\('\\n\[\d+\]/g) || []).length} 节）`);
 
+/* ---------------- 34-b. 文档里不许再把 test.js 的「总项数」写死 ----------------
+   本节上面那句「测试的项数不再写进文档，只说『以输出为准』」写于 2026-10-07，
+   但**没有任何东西盯着它** ⇒ 它又漂回来了：2026-10-08 实测仍有 3 处写着旧项数
+   （开发者文档 §18 验证口径 / 规范 §6 验证口径 / AI素材方案 §8.4 的门禁结论），
+   而实际数早就不是那个。**「规则写在注释里、没有机制」= 这条规则不成立**，补一张网。
+
+   判据（窄到不误伤）：**同一行**里既有 `test.js`、又有「<2~4 位数字> 项 + 全…」。
+   ⚠️ 边界连同反例一起写死：
+     · 「`test.js` 有 30 项断言覆盖某功能」**不算** —— 那是范围说明，不是门禁总数；
+     · GDD 变更记录里「当时的 `test.js` 398 项」**不算** —— 没有「全」字，是历史留档。
+   ⚠️ **故意不做的**：不去校验文档里的数字「对不对」—— verify 算不出 test.js 的项数
+     （它不能跑外部命令：本机 `spawnSync(node, …)` 返回 EBUSY）。所以改判「不许写死」，
+     让**唯一的现行基线**留在 `docs/优化队列.md` §1「门禁基线」（每轮收工都要更新）。
+   ⚠️ 扫描面**不含** `docs/优化队列.md` 与 `docs/改进待办.md`：它们按规矩是「只追加」的
+     台账 / 日志，历史行里的旧数字必须留得住。 */
+console.log('\n[34-b] 文档里不许写死 test.js 的总项数（改说「以实跑输出为准」）');
+let gateNumBad = 0;
+(function () {
+  const docs = ['README.md', 'docs/开发者文档.md', 'docs/GDD.md', 'docs/说明书.html',
+                'docs/AI素材方案.md', 'docs/画风与颜色标准.md', 'docs/每小时优化轮次规范.md'];
+  let scanned = 0;
+  docs.forEach(rel => {
+    const p = path.join(ROOT, rel);
+    if (!fs.existsSync(p)) return;
+    scanned++;
+    fs.readFileSync(p, 'utf8').split(/\r?\n/).forEach((line, i) => {
+      if (line.indexOf('test.js') < 0) return;
+      const m = line.match(/(\d{2,4})\s*项\s*全/);
+      if (!m) return;
+      err(`${rel}:${i + 1} 写死了 test.js 的总项数（「${m[1]} 项全…」）—— ` +
+          `改成「以实跑输出为准」，现行基线只留 docs/优化队列.md §1`);
+      gateNumBad++;
+    });
+  });
+  if (!scanned) { err('34-b 要扫的文档一个都不存在（改了文件名就来更新这条断言）'); gateNumBad++; }
+})();
+if (!gateNumBad) ok('7 份现行口径文档都没写死 test.js 的总项数（现行基线只留在 docs/优化队列.md §1）');
+
 
 /* ---------------- 35. 主循环的三条守则（三条都是踩过的坑） ----------------
    ① **失焦时不许渲染**：失焦 = 暂停（St.tick / Weather / F.update 全按 focused 拦住了），

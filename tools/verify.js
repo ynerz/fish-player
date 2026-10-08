@@ -3447,7 +3447,7 @@ console.log('\n[41] 背景音乐随条件换参数：修饰量单一来源、键
    它要在缩略图上画红 / 黄框，**最省事的写法就是自己再判一遍几何** ——
    一旦两处阈值分家，就会出现「评审台说合格、接触表画红框」（本项目最忌的「第二份真相」，
    同族事故见 §41 与 MEMORY.md 的「同一个事实被写 N 遍 = 高危」）。
-   这里把四件事钉死：
+   这里把五件事钉死：
      ① 接触表里**不许出现** check-cards 的任何阈值标识符与判定文案 —— 必须 import 现成的；
      ② 判定只有**一个入口** `judge()`，`main()` 自己不许再比一次阈值（这段原来就是inline在 main 里的）；
      ③ 接触表与 `docs/卡片评审.html` 用**同一套色**（一个视觉体系，颜色不许抄歪）；
@@ -3455,6 +3455,9 @@ console.log('\n[41] 背景音乐随条件换参数：修饰量单一来源、键
         接触表必须走 `judge_group()`（逐张 `judge()` 读不到跨档提示），
         且跨档判据**只能是提示级** —— `judge_group()` 体内不许出现 `hard`，
         `judge()` 体内不许出现 `drift`（单张判定不许受成组结果影响，否则两套口径混在一处）。
+     ⑤ **中位的样本口径**（Q33，2026-10-08 加）：同一档出了多版（传说闪光 2 版）时，
+        每档在「该鱼中位」里**只投一票** —— 折版规则（槽位键 → 档键）只许有
+        `morph_key()` 一处定义，且 `slot_of()` / `drift_warnings()` 都走它。
    ⚠️ ① 必须**只扫代码不扫注释**（开发者文档 §8 硬规矩第 1 条）：散文里提一句颜色判定
       是正当的，`stripPy()` 因此把 docstring 与 `#` 注释都拿掉再扫。
    ⚠️ 反向验证（两向都要做）：注释里写违规词 → 必须**仍然绿**；代码里写 → 必须红。 */
@@ -3546,6 +3549,38 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
     }
   }
 
+  /* ⑤ 跨档中位的**样本口径**：同一档的多版只许投一票（Q33）
+     `MORPH_RE` 认得第 N 版（`<id>-<档>-N.png`），评审台自 Q32 起给**每一版**一个槽位，
+     接触表把**槽位键**原样喂进 `judge_group()` ⇒ 传说鱼（闪光 2 版）的组里有 6 个样本、
+     其中 2 个同档。若按样本算中位，中位就被「候选数」拽走 —— 症状是**别的档被误标掉队**
+     （谁掉队认错人）；而 4 条多版鱼当前恰好都还没触发 ⇒ 属于「不报错的静默口径错」。
+     三条判据都按**函数体**切片（不扫全文件），且第三条盯的是**字面量的位置**：
+       · 「槽位键 → 档键」的折版规则只许有**一处**定义（`morph_key()`）；
+       · 从文件名推档键的 `slot_of()` 必须走它；
+       · 算中位的 `drift_warnings()` 必须走它。 */
+  const VER_SUFFIX = '-' + '\\d+$';
+  const mkDefs = (cc.match(/def\s+morph_key\s*\(/g) || []).length;
+  if (mkDefs !== 1) {
+    err(`check-cards.py 里 def morph_key( 有 ${mkDefs} 处（应为 1 —— 「槽位键 → 档键」只许一处定义）`);
+    secBad++;
+  }
+  const litCount = cc.split(VER_SUFFIX).length - 1;
+  const mkBody = bodyOf(cc, 'def morph_key');
+  if (litCount !== 1 || !has(mkBody, VER_SUFFIX)) {
+    err(`check-cards.py 里版本后缀正则（${VER_SUFFIX}）出现 ${litCount} 处`
+      + '（应为 1，且落在 morph_key() 里）—— 折版规则抄了第二份 ⇒ 同一档的多版会在'
+      + '一条路上被折叠、在另一条路上没有');
+    secBad++;
+  }
+  [['slot_of', bodyOf(cc, 'def slot_of')],
+    ['drift_warnings', bodyOf(cc, 'def drift_warnings')]].forEach(pair => {
+    if (!has(pair[1], 'morph_key(')) {
+      err(`check-cards.py 的 ${pair[0]}() 没走 morph_key() —— 档键口径分家，`
+        + '同一档的多版会被当成两个档（中位被候选数拽走）');
+      secBad++;
+    }
+  });
+
   /* ③ 同一套色：评审页 `:root` 里的每个色都要在接触表里有同名常量、且逐值相同 */
   const root = /:root\s*\{([\s\S]*?)\}/.exec(read('tools/review-cards.py'));
   const vars = root ? (root[1].match(/--([a-z]+)\s*:\s*(#[0-9a-fA-F]{6})/g) || []) : [];
@@ -3563,7 +3598,8 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
 
   if (!hit.length && !secBad && !bad) {
     ok(`接触表复用 check-cards 的判定（${forbidden.length} 项口径 0 处重复）、`
-      + `judge() / judge_group() 各自唯一入口（跨档提示只进 soft），`
+      + `judge() / judge_group() 各自唯一入口（跨档提示只进 soft）、`
+      + `跨档中位按档投一票（折版规则只在 morph_key() 一处）、`
       + `且与评审页共用同一套 ${vars.length} 色`);
   }
 })();

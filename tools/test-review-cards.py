@@ -275,7 +275,7 @@ def main():
     check("' · ' + d.shape +" not in html,
           "产物里不再把内部键裸印（应为 shapeTag(d)）")
 
-    print("\n[10] check-cards 的跨档判据：提示级、指得准、阈值真的在比")
+    print("\n[10] check-cards 的跨档判据：提示级、指得准、阈值真的在比、同档多版只投一票")
     # 为什么放在本文件：`tools/` 下只有这一个 python 测试宿主（`test.js` 够不着 python）。
     # 判据本身在 `check-cards.py`（⑦ 跨档一致性，2026-10-08 做 Q30 时加）。
     # ⚠️ 全部用**构造的数值**喂进去，不依赖真实卡面 —— 用户随时在重出图，
@@ -342,6 +342,38 @@ def main():
     same_as_judge = all(C.judge_group(plain)[k] == C.judge(plain[i][1])
                         for i, k in enumerate(KEYS))
     check(same_as_judge, "没有跨档提示时，judge_group 与 judge 的结果逐项相同（没偷偷改口径）")
+
+    # ── 样本口径：同档多版只许投一票（Q33，2026-10-08）──────────────────────
+    # 为什么单列：传说档的闪光会出 2 版（`<id>-shiny-2.png`），而评审台自 Q32 起
+    #   **每一版一个槽位**、接触表把**槽位键**原样喂进来 ⇒ 组里 6 个样本、其中 2 个同档。
+    #   两版本来就是「都给我看」的候选，若按样本算中位，中位被**候选数**拽走 ——
+    #   症状是**别的档被误标「掉队」**（谁掉队认错人）。⚠️ 4 条多版鱼当前恰好都没触发
+    #   ⇒ 属于「不报错的静默口径错」，只能用构造数值钉住（真图会跟着用户重出而变）。
+    check(C.morph_key("shiny-2") == "shiny" and C.morph_key("shiny") == "shiny"
+          and C.morph_key("master") == "master" and C.morph_key("") == "",
+          "morph_key()：槽位键 → 档键（第 N 版折回同一档，别的键原样）")
+    check(C.slot_of("x/D16-shiny-2.png")[1] == "shiny" == C.morph_key("shiny-2"),
+          "slot_of()（从文件名推）与喂进来的槽位键用**同一条**折版规则")
+    # 五个档铺开成一列，**第 3、4 位之间**留有间隔 —— 只有这种分布才看得出「多一个样本
+    # 会不会挪中位」（同档多版全挤在两端时两种口径算出来一样，测不出东西）。
+    spread = [slot("master", 0.10, 3.0, 0.5),
+              slot("bright", 0.20, 3.0, 0.5),
+              slot("albino", 0.30, 3.0, 0.5),
+              slot("golden", 0.40, 3.0, 0.5),
+              slot("shiny", 0.40, 3.0, 0.5)]
+    w5 = C.drift_warnings(spread)
+    w6 = C.drift_warnings(spread + [slot("shiny-2", 0.40, 3.0, 0.5)])
+    m5 = sorted(set(C.morph_key(k) for k in w5))
+    m6 = sorted(set(C.morph_key(k) for k in w6))
+    check(bool(w6) and m6 == m5,
+          "多一版候选**不许改变别的档的判定**（5 档 %s → 6 槽 %s）—— 中位被候选数拽走就会改判"
+          % (m5, m6))
+    check(sorted(k for k in w6 if C.morph_key(k) == "shiny") == ["shiny", "shiny-2"],
+          "归并只影响「投几票」、**不减少覆盖**：第 2 版照样被比、照样被点名（实得 %s）"
+          % sorted(k for k in w6 if C.morph_key(k) == "shiny"))
+    check(C.drift_warnings([slot("shiny", 0.10, 3.0, 0.5),
+                            slot("shiny-2", 0.40, 3.0, 0.5)]) == {},
+          "只有 1 个**档**（哪怕有 2 版）⇒ 不比：同一个档的两个候选之间没有「谁掉队」")
 
     print("\n[11] morph_slots：槽位按磁盘文件枚举（一档出了几版就占几槽）")
     # 为什么这条要有测试：槽位原来是**写死 5 个**（`MORPH_CN`）。2026-10-08 传说档的闪光

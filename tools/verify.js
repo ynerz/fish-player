@@ -1883,6 +1883,73 @@ let thrBad = 0;
 })();
 
 
+/* ---------------- 32-g. 数据文件的字段必须有消费方（零出现 = 死字段） ----------------
+   由来（2026-10-08）：`src/data/fields.js` 的 `refHoursText` 从 v0.1.0 起就没人读过 ——
+   7 条手写字符串（「约 1 小时」…），值还恰好与 `unlockHours` 一一对应，
+   属于**同一件事的第二份真相**：改了 `unlockHours` 文案也不会跟着动，而且永远不会有人发现。
+   「零消费」这条线之前只覆盖了模块**导出面**（㉜）与模块**内部状态对象**（32-d），
+   **数据文件里的字段两边都不在网内**。
+   判据（静态扫，只扫代码不扫注释）：`src/data/*.js` 里形如 `key:` 的键，
+   在**它自己文件之外**的 `src/` `tools/` `index.html` 里一次都没出现 → 报错。
+   ⚠️ 这张网对付的是「真死字段」；短名字（n / x / …）撞名多，只会假阴性 —— 当网用，不当证明。 */
+console.log('\n[32-g] 数据文件的字段必须有消费方（零出现 = 死字段）');
+(function () {
+  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  /* 有意保留、而非「过时重复」的字段：白名单里必须写清为什么留。 */
+  const DATA_WHITELIST = {
+    /* `misc.biteWindow` 是**按稀有度 key 动态取值**的
+       （`fishing.js`：`CFG.misc.biteWindow[CFG.rarity[pending.rar].key]`），
+       键名 `common` / `rare` / … 只是表里的行名，静态扫描看不到这层间接 —— 属于「分析不了」。 */
+    'src/data/config.js': ['common', 'rare', 'epic', 'legend'],
+    /* C 场（溪流浅滩）主题里写着「有石头」，但至今没有任何绘制路径读它 ——
+       它属于「未实现的表现」，不是过时数据，删掉就看不到这个意图了（已记进改进待办）。 */
+    'src/data/fields.js': ['rocks'],
+  };
+  const rel = [];
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+      const p = path.join(ROOT, dir, n);
+      if (fs.statSync(p).isDirectory()) walk(dir + '/' + n);
+      else if (/\.(js|html)$/.test(n)) rel.push(dir + '/' + n);
+    });
+  })('src');
+  fs.readdirSync(path.join(ROOT, 'tools')).forEach(n => { if (/\.js$/.test(n)) rel.push('tools/' + n); });
+  rel.push('index.html');
+  const code = {};
+  rel.forEach(r => { code[r] = strip(fs.readFileSync(path.join(ROOT, r), 'utf8')); });
+
+  const dataFiles = rel.filter(r => /^src\/data\/.*\.js$/.test(r));
+  let checked = 0;
+  const dead = [];
+  dataFiles.forEach(r => {
+    const allow = DATA_WHITELIST[r] || [];
+    const keys = [];
+    /* ⚠️ 键**不必在行首**：`items.js` 大量写成单行对象 `{ id:'worm', price:0, speed:1.00 }`，
+       第一版按 `^\\s*key:` 取键 → 整个 items.js 只认出 2 个键，注入的死字段**不报红**（假通过）。
+       改成「行首 / `{` / `,` 之后的 key:」才认全（反向验证见提交说明）。 */
+    (code[r].match(/(^|[\s{,])[ \t]*([A-Za-z_$][\w$]*)\s*:/g) || []).forEach(s => {
+      const k = s.replace(/^[\s{,]+/, '').replace(/\s*:$/, '').trim();
+      if (k && keys.indexOf(k) < 0) keys.push(k);
+    });
+    keys.forEach(k => {
+      if (allow.indexOf(k) >= 0) return;
+      checked++;
+      const re = new RegExp('(^|[^A-Za-z0-9_$])' + k.replace(/\$/g, '\\$') + '(?![A-Za-z0-9_$])');
+      if (!rel.some(g => g !== r && re.test(code[g]))) dead.push(r + ' 的 ' + k);
+    });
+  });
+  if (dead.length) {
+    err(`数据文件里这些字段全项目零消费：${dead.join('、')}`
+      + '（删掉，或加进 DATA_WHITELIST 并写明理由）');
+  } else {
+    /* ⚠️ 这句话里**不许出现任何被扫描的键名** —— 第一版写了「只留 rocks」，
+       `rocks` 就成了 verify.js 里的一个「消费方」，把白名单摘掉也不报红（自指喂饱，㉓/33-f 同款坑）。 */
+    ok(`${dataFiles.length} 个数据文件共 ${checked} 个字段都有真实消费方`
+      + '（白名单只留 2 类：按 key 动态取值表的行名、未实现的表现，理由见代码注释）');
+  }
+})();
+
+
 /* ---------------- 33. 体型数量：文档 / 出图工具必须与代码一致 ----------------
    代码里是 **9 种**（`TPL.fish / eel / ray / squid / jelly / oarfish / shark / whale / dragon`），
    而 GDD 两处 + 开发者文档一处都写着「10 种体型」，开发者文档 §5.2 自己又写着 9 ——

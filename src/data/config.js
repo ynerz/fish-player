@@ -33,7 +33,7 @@ G.CONFIG = {
      --------------------------------------------------------- */
   rarity: [
     {
-      key: 'common', name: '普通', short: '普',
+      key: 'common', name: '普通',
       color: '#8b98a5', color2: '#c3ced8',
       timeMin: 8,   timeMax: 22,
       valueMul: 1.00,
@@ -48,7 +48,7 @@ G.CONFIG = {
       },
     },
     {
-      key: 'rare', name: '稀有', short: '稀',
+      key: 'rare', name: '稀有',
       color: '#2b8fe0', color2: '#8fd0ff',
       timeMin: 38,  timeMax: 100,
       valueMul: 1.00,
@@ -60,7 +60,7 @@ G.CONFIG = {
       },
     },
     {
-      key: 'epic', name: '史诗', short: '史',
+      key: 'epic', name: '史诗',
       color: '#8b5cf6', color2: '#cbb6ff',
       timeMin: 150, timeMax: 320,
       valueMul: 1.00,
@@ -72,7 +72,7 @@ G.CONFIG = {
       },
     },
     {
-      key: 'legend', name: '传说', short: '传',
+      key: 'legend', name: '传说',
       color: '#e8901a', color2: '#ffd977',
       timeMin: 380, timeMax: 600,
       valueMul: 1.00,

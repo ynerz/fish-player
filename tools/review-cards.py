@@ -31,7 +31,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 CARDS = os.path.join(ROOT, "assets", "cards")
 RAR_CN = ["普通", "稀有", "史诗", "传说"]
-MORPH_CN = [("normal", "原色"), ("bright", "亮色"), ("albino", "白化"),
+MORPH_CN = [("normal", "原色"), ("bright", "彩虹色"), ("albino", "白化"),
             ("golden", "黄金"), ("shiny", "闪光")]
 
 
@@ -73,11 +73,26 @@ def build_rows(only_ids=None):
         t = traits.get(f["id"]) or {}
         morphs = [k for k, _ in MORPH_CN
                   if os.path.exists(os.path.join(CARDS, "%s-%s.png" % (f["id"], k)))]
+        # 可评审单元 = **每一档单独一个**（不再「一条鱼一个结论」）。
+        # ⚠️ `normal` 不是独立出图，它是母版的抠图 —— 所以并进 `master` 这个单元，
+        #    不单独列（列了会逼人给同一个东西判两次，而且两次判反了也不知道听谁的）。
+        #    但缩略图用的是**抠图**（`<id>-normal.png`）：那才是游戏里真正会显示的图。
+        slots = []
+        if os.path.exists(os.path.join(CARDS, f["id"] + ".png")):
+            normal = f["id"] + "-normal.png"
+            slots.append({"k": "master", "label": "母版（含原色档）",
+                          "file": normal if os.path.exists(os.path.join(CARDS, normal))
+                                  else f["id"] + ".png"})
+        for m in morphs:
+            if m == "normal":
+                continue
+            slots.append({"k": m, "label": dict(MORPH_CN)[m],
+                          "file": "%s-%s.png" % (f["id"], m)})
         rows.append({
             "id": f["id"], "name": f["name"], "lat": (t.get("species") or "").strip(),
             "rar": f["rar"], "shape": f["shape"],
             "form": (t.get("form") or "").strip(), "fins": (t.get("fins") or "").strip(),
-            "morphs": morphs,
+            "morphs": morphs, "slots": slots,
         })
     rows.sort(key=lambda r: r["id"])
     return rows
@@ -114,6 +129,14 @@ TEMPLATE = u"""<!DOCTYPE html>
   .c > img { width:100%; display:block; background:#2b2b2e; aspect-ratio:3/2; object-fit:contain; }
   .morphs { display:flex; gap:3px; padding:3px 3px 0; }
   .morphs img { width:20%; aspect-ratio:3/2; object-fit:contain; background:#2b2b2e; border-radius:3px; }
+  .slots { border-top:1px solid var(--line); }
+  .slot { display:flex; align-items:center; gap:8px; padding:5px 10px; border-bottom:1px solid var(--line); }
+  .slot.ok  { background:rgba(63,158,106,.14); }
+  .slot.bad { background:rgba(192,80,63,.16); }
+  .slot img { width:76px; aspect-ratio:3/2; object-fit:contain; background:#2b2b2e; border-radius:3px; flex:0 0 auto; }
+  .sl-label { flex:1 1 auto; font-size:12px; }
+  .sl-acts { display:flex; gap:6px; flex:0 0 auto; }
+  .sl-acts button { min-width:52px; }
   .m { padding:8px 10px 10px; }
   .nm { font-size:15px; font-weight:500; }
   .nm span { color:var(--dim); font-weight:400; font-size:12px; margin-left:6px; }
@@ -156,8 +179,9 @@ TEMPLATE = u"""<!DOCTYPE html>
 <div class="grid" id="grid"></div>
 
 <dialog id="dlg">
-  <h2>重出清单</h2>
-  <p>这些 id 需要重出。<b>必须连五档一起重出</b>（共 6 个文件），只重母版的话五档还停在旧形态。</p>
+  <h2>重出清单（**按单档**给）</h2>
+  <p>下面每条命令都是可以直接跑的。五档**是独立文生图**（2026-10-07 起，曾走图生图已弃用），
+     所以**可以只重出其中一张**；母版重出会顺带刷新它的 <code>-normal</code>（原色档就是母版抠图）。</p>
   <textarea id="out" readonly></textarea>
   <p id="cmds"></p>
   <div class="acts"><button id="cp">复制</button><button id="close">关闭</button></div>
@@ -165,33 +189,58 @@ TEMPLATE = u"""<!DOCTYPE html>
 
 <script>
 var DATA = __DATA__;
-var KEY = 'fishcard-review-v1';
+/* v2：状态从「一条鱼一个结论」改成「一条鱼 × **每一档**一个结论」。
+   换 key 是为了不把新旧两种结构混在同一个键里。 */
+var KEY = 'fishcard-review-v2';
+var OLD_KEY = 'fishcard-review-v1';
 var state = {};
 try { state = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { state = {}; }
+/* 迁移：老状态是 `{id:'ok'|'bad'}`（整条鱼一个结论）→ 展开到它的每一档，
+   以前审过的结论不白丢。 */
+try {
+  var older = JSON.parse(localStorage.getItem(OLD_KEY) || '{}');
+  var byId = {};
+  DATA.forEach(function (d) { byId[d.id] = d; });
+  Object.keys(older).forEach(function (id) {
+    if (!older[id] || !byId[id]) return;
+    state[id] = state[id] || {};
+    byId[id].slots.forEach(function (s) { if (!state[id][s.k]) state[id][s.k] = older[id]; });
+  });
+} catch (e) { /* 老状态坏了不影响使用 */ }
 var filter = 'all';
 
 function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+function verdict(d, k) { return ((state[d.id] || {})[k]) || ''; }
+function verdicts(d) { return d.slots.map(function (s) { return verdict(d, s.k); }); }
+function isDone(d) { return verdicts(d).every(function (v) { return !!v; }); }
+function isBad(d) { return verdicts(d).indexOf('bad') >= 0; }
 
 function render() {
   var g = document.getElementById('grid');
   g.innerHTML = '';
   var shown = 0;
   DATA.forEach(function (d) {
-    var st = state[d.id] || '';
-    if (filter === 'pending' && st) return;
-    if (filter === 'bad' && st !== 'bad') return;
+    if (filter === 'pending' && isDone(d)) return;
+    if (filter === 'bad' && !isBad(d)) return;
     shown++;
     var el = document.createElement('div');
-    el.className = 'c' + (st ? ' ' + st : '');
+    el.className = 'c' + (isDone(d) ? ' ok' : '') + (isBad(d) ? ' bad' : '');
     el.setAttribute('data-id', d.id);
     var h = '<img src="../assets/cards/' + d.id + '.png" loading="lazy">';
-    if (d.morphs.length) {
-      h += '<div class="morphs">';
-      d.morphs.forEach(function (m) {
-        h += '<img src="../assets/cards/' + d.id + '-' + m + '.png" loading="lazy" title="' + m + '">';
-      });
-      h += '</div>';
-    }
+    h += '<div class="slots">';
+    d.slots.forEach(function (s) {
+      var v = verdict(d, s.k);
+      h += '<div class="slot' + (v ? ' ' + v : '') + '">' +
+           '<img src="../assets/cards/' + s.file + '" loading="lazy">' +
+           '<div class="sl-label">' + s.label + '</div>' +
+           '<div class="sl-acts">' +
+             '<button class="b-ok' + (v === 'ok' ? ' on' : '') + '" data-id="' + d.id +
+               '" data-k="' + s.k + '" data-v="ok">合格</button>' +
+             '<button class="b-bad' + (v === 'bad' ? ' on' : '') + '" data-id="' + d.id +
+               '" data-k="' + s.k + '" data-v="bad">重出</button>' +
+           '</div></div>';
+    });
+    h += '</div>';
     h += '<div class="m"><div class="nm">' + d.name +
          '<span>' + d.id + ' · ' + d.rarCn + ' · ' + d.shape + '</span></div>' +
          '<div class="lat">' + (d.lat || '') + '</div>';
@@ -200,8 +249,6 @@ function render() {
            (d.form || '') + (d.fins ? '<br>' + d.fins : '') + '</p></details>';
     }
     h += '<div class="acts">' +
-         '<button class="b-ok' + (st === 'ok' ? ' on' : '') + '" data-id="' + d.id + '" data-v="ok">合格</button>' +
-         '<button class="b-bad' + (st === 'bad' ? ' on' : '') + '" data-id="' + d.id + '" data-v="bad">重出</button>' +
          '<button class="b-go" data-go="' + d.name + '">对照百科</button>' +
          '</div></div>';
     el.innerHTML = h;
@@ -217,15 +264,21 @@ function render() {
 }
 
 function updateStats() {
-  var done = 0, ok = 0, bad = 0;
+  var done = 0, ok = 0, bad = 0, all = 0;
   DATA.forEach(function (d) {
-    if (state[d.id]) { done++; if (state[d.id] === 'ok') ok++; else bad++; }
+    d.slots.forEach(function (s) {
+      all++;
+      var v = verdict(d, s.k);
+      if (!v) return;
+      done++;
+      if (v === 'ok') ok++; else bad++;
+    });
   });
   document.getElementById('s-done').textContent = done;
-  document.getElementById('s-all').textContent = DATA.length;
+  document.getElementById('s-all').textContent = all;
   document.getElementById('s-ok').textContent = ok;
   document.getElementById('s-bad').textContent = bad;
-  document.getElementById('s-bar').style.width = (DATA.length ? done * 100 / DATA.length : 0) + '%';
+  document.getElementById('s-bar').style.width = (all ? done * 100 / all : 0) + '%';
 }
 
 /* 只改这一张卡 —— **不要整页重绘**：122 张图重新建元素会全部重新解码、屏幕闪一下，
@@ -233,10 +286,18 @@ function updateStats() {
 function paintCard(id) {
   var el = document.querySelector('.c[data-id="' + id + '"]');
   if (!el) return;
-  var st = state[id] || '';
-  el.className = 'c' + (st ? ' ' + st : '');
-  el.querySelector('.b-ok').classList.toggle('on', st === 'ok');
-  el.querySelector('.b-bad').classList.toggle('on', st === 'bad');
+  var d = null;
+  DATA.forEach(function (x) { if (x.id === id) d = x; });
+  if (!d) return;
+  el.className = 'c' + (isDone(d) ? ' ok' : '') + (isBad(d) ? ' bad' : '');
+  var boxes = el.querySelectorAll('.slot');
+  d.slots.forEach(function (s, i) {
+    var v = verdict(d, s.k);
+    if (!boxes[i]) return;
+    boxes[i].className = 'slot' + (v ? ' ' + v : '');
+    boxes[i].querySelector('.b-ok').classList.toggle('on', v === 'ok');
+    boxes[i].querySelector('.b-bad').classList.toggle('on', v === 'bad');
+  });
 }
 
 document.getElementById('grid').addEventListener('click', function (ev) {
@@ -246,10 +307,11 @@ document.getElementById('grid').addEventListener('click', function (ev) {
     window.open('https://www.bing.com/search?q=' + encodeURIComponent(b.dataset.go + ' 鱼 形态特征'), '_blank');
     return;
   }
-  var id = b.dataset.id, v = b.dataset.v;
-  if (!id) return;
-  state[id] = (state[id] === v) ? '' : v;
-  if (!state[id]) delete state[id];
+  var id = b.dataset.id, k = b.dataset.k, v = b.dataset.v;
+  if (!id || !k) return;
+  state[id] = state[id] || {};
+  state[id][k] = (state[id][k] === v) ? '' : v;
+  if (!state[id][k]) delete state[id][k];
   save(); paintCard(id); updateStats();
 });
 
@@ -269,25 +331,41 @@ document.getElementById('rst').onclick = function () {
 };
 
 document.getElementById('exp').onclick = function () {
-  var bad = [], ok = [], pend = [];
+  var bySlot = {}, okN = 0, pendN = 0, allN = 0, order = [];
   DATA.forEach(function (d) {
-    if (state[d.id] === 'bad') bad.push(d.id);
-    else if (state[d.id] === 'ok') ok.push(d.id);
-    else pend.push(d.id);
+    d.slots.forEach(function (s) {
+      if (order.indexOf(s.k) < 0) order.push(s.k);
+      allN++;
+      var v = verdict(d, s.k);
+      if (v === 'ok') okN++;
+      if (!v) pendN++;
+      if (v === 'bad') { (bySlot[s.k] = bySlot[s.k] || []).push(d.id); }
+    });
   });
-  var L = [];
-  L.push('# 重出清单（' + bad.length + ' 条）');
-  L.push('# 每条必须重出 6 个文件：<id>.png + <id>-normal/bright/albino/golden/shiny.png');
-  L.push('# 步骤：① 先备份并移走这 6 个文件  ② 跑下面这条命令');
+  var keys = order.filter(function (k) { return bySlot[k] && bySlot[k].length; });
+  var total = keys.reduce(function (a, k) { return a + bySlot[k].length; }, 0);
+  var L = ['# 重出清单：' + total + ' 张（**按单档给**，可以直接执行）',
+           '# 五档是独立文生图（2026-10-07 起；曾走图生图，已弃用）⇒ 可以只重出其中一张。',
+           '# 母版那一行会顺带刷新 <id>-normal.png（原色档就是母版抠图）；',
+           '# 五档单张重出**不动**别的档。'];
   L.push('');
-  L.push('IDS=' + bad.join(','));
-  L.push('');
-  L.push('python tools/gen-art.py --list ' + bad.join(','));
-  L.push('');
-  L.push('# 未审 ' + pend.length + ' 条 / 已合格 ' + ok.length + ' 条');
-  document.getElementById('out').value = bad.length ? L.join('\\n') : '（还没有标记为「重出」的）';
-  document.getElementById('cmds').innerHTML = bad.length
-    ? '把上面 <code>--list</code> 那行发给助手即可。'
+  keys.forEach(function (k) {
+    var ids = bySlot[k].slice().sort();
+    var label = k === 'master' ? '母版（含原色档）'
+              : ({ bright: '彩虹色', albino: '白化', golden: '黄金', shiny: '闪光' }[k] || k);
+    L.push('# ' + label + '（' + ids.length + ' 张）');
+    L.push('python tools/gen-art.py --list ' + ids.join(',') +
+           (k === 'master' ? '' : ' --only-morph ' + k));
+    L.push('');
+  });
+  L.push('# 未判 ' + pendN + ' / 已合格 ' + okN + '（共 ' + allN + ' 个可评审单元）');
+  L.push('#');
+  L.push('# 另一种更省事的做法：若你只想「把口径改过的卡全部重出」，不用逐条审 ——');
+  L.push('#   python tools/gen-art.py --stale');
+  L.push('# 它拿当前生成器**现算**提示词去和 manifest 比，直接列出过期的那些（判据不会过期）。');
+  document.getElementById('out').value = total ? L.join('\\n') : '（还没有标记为「重出」的）';
+  document.getElementById('cmds').innerHTML = total
+    ? '把上面 <code>python tools/gen-art.py ⋯</code> 那些行原样跑一遍即可。'
     : '';
   document.getElementById('dlg').showModal();
 };

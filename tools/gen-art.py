@@ -436,6 +436,12 @@ def luma(hexstr):
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
+# 颜色句的**后半句**：背腹明暗。
+# 🔴 提成常量是因为它必须**同时**出现在母版与五档里 —— 写两遍必然分家，
+#    而 `paint-card.py` 的渐变映射（颜色 = 灰度的函数）就靠这一句撑着。
+PALETTE_SHADE = "a clearly lighter belly and a darker back"
+
+
 def palette_desc(f):
     """颜色句 —— 用**该鱼自己的色名**。
 
@@ -457,6 +463,18 @@ def palette_desc(f):
 
     ⚠️ 唯一必须保住的是**背腹明暗层次**（`clearly lighter belly and darker back`）——
        渐变映射的前提就是「背部暗、腹部亮」。
+       🔴 2026-10-08：它现在被提成常量 `PALETTE_SHADE`，**母版与五档共用同一份** ——
+          五档以前是整句替换 `palette_desc`，把这半句一起换掉了（实测五档 **0/508** 条含它），
+          于是「背腹明暗」这个前提在五档里整个消失。见 `build_morph_prompt` 的注释。
+    """
+    return palette_color(f) + ", " + PALETTE_SHADE + "."
+
+
+def palette_color(f):
+    """颜色句的**前半句**：主色 + 鳍色。不带末尾句号，也不含背腹明暗。
+
+    ⚠️ 拆两半的唯一原因，是五档要**只换这半句**（见 `build_morph_prompt`）。
+       这一段的输出**必须与拆分前逐字一致** —— 改了它，已出的**全部母版卡**都会变成陈旧。
     """
     body_name = color_name(f["body"])
     accent_name = color_name(f["accent"])
@@ -467,8 +485,7 @@ def palette_desc(f):
         fin_desc = fin + " fins"
     else:
         fin_desc = accent_name + " fins"
-    return ("natural realistic colouring, %s body with %s, "
-            "a clearly lighter belly and a darker back." % (body_name, fin_desc))
+    return "natural realistic colouring, %s body with %s" % (body_name, fin_desc)
 
 
 # 「躯干胖瘦」（`body_ratio`）对哪些体型成立 —— 鳐是扁平菱形、水母是伞盖，
@@ -929,20 +946,41 @@ def build_prompt(f):
 
 
 def build_morph_prompt(f, color_desc):
-    """五档的提示词 = 母版提示词**只换颜色句**，其余逐字相同。
+    """五档的提示词 = 母版提示词**只换颜色句的前半句**，其余逐字相同。
 
     ⚠️ 别在这里另起一套骨架 —— 那会让「母版」和「五档」两套口径分家，
        最后变成「同一条鱼不同档不像一家人」。做法同 `GEOM`：
-       **同一个 `build_prompt`，挖掉原色颜色句，换上该档的颜色句。**
+       **同一个 `build_prompt`，挖掉主色那半句，换上该档的颜色句。**
+
+    🔴 2026-10-08 修（用户报障「部分鱼的闪光，鱼头部分和身体部分不一样」）：
+       这里原来是整句替换 `palette_desc`，把 `PALETTE_SHADE`（背腹明暗）**一起换掉了**
+       —— 实测五档提示词 **0/508** 条含它，而母版 122/127 条有。
+       后果不是"少一句形容词"：`paint-card.py` 的着色是**灰度渐变映射**
+       （`gray = im.convert("L")` → `apply_palette`，**颜色 = 灰度的函数**），
+       「背腹明暗」正是它的前提。前提没了 ⇒ 模型对**头部**与**躯干**的明暗处理不再受约束
+       ⇒ **明暗差直接变成颜色差**。实测 D07 头/身中位亮度差被放大到 68（母版只有 25）。
+       ⇒ 现在只换 `palette_color()` 那半句，`PALETTE_SHADE` 一律保留（两档共用同一份常量）。
     """
     p = build_prompt(f)
-    pd = palette_desc(f)
-    if pd not in p:
-        raise RuntimeError("颜色句没出现在提示词里 —— build_prompt 的结构改过？")
-    # ⚠️ `palette_desc` 自带句号，五档的颜色句没有 —— 补上，
-    #    否则会和后面的 LIGHT 黏成「…lively strong rim light…」
-    desc = color_desc if color_desc.rstrip().endswith(".") else color_desc.rstrip() + "."
-    return p.replace(pd, desc, 1)
+    pc = palette_color(f)
+    if pc not in p:
+        raise RuntimeError("颜色句前半句没出现在提示词里 —— build_prompt 的结构改过？")
+    # ⚠️ 候选句带不带末尾句号都要能接上后半句，先统一去掉
+    desc = color_desc.strip().rstrip(".")
+    return p.replace(pc, desc + ", " + MORPH_SCOPE, 1)
+
+
+# 五档颜色句的**统一作用范围**，追加在每一档后面 —— 与 `GEOM` / `LIGHT` 同一个套路：
+# 共享从句挂**一处**，不让十几个候选句各写各的（本次出问题的地方正是「各写各的」：
+# `albino/1` 点到了 body+fins+eye，而 `shiny/1` 只写了 body）。
+#
+# 🔴 为什么必须有它：候选句大多只写 `body`（`shiny/1`：「iridescent shimmering **body**
+#    covered in sparkling glittering speckles」），而提示词里**头部与鳍是独立描述的区域**
+#    （83/127 条的形态句里有 `head`，如 `a large broad flat head`）。于是亮片 / 薄膜只落在躯干，
+#    头部没有 —— 又因为颜色是灰度的函数，躯干亮度被抬高、头部没有
+#    ⇒ **明暗差直接变成颜色差**，看起来就是「头身不是一个色」。
+#    实测 6/17 条可比样本的闪光卡「身−头 高光占比」比自己的母版失衡 ≥10 个百分点。
+MORPH_SCOPE = "with the same treatment over the whole fish including the head and the fins"
 
 
 def load_fish():
@@ -1216,6 +1254,62 @@ def write_forms(fish):
     print("形态档案已写出：%s（%d 条）" % (out, len(fish)))
 
 
+def report_stale(fish):
+    """列出「**已出图、但 manifest 里记的提示词 ≠ 现在会生成的提示词**」的卡片。
+
+    🔴 为什么必须有它：`--skip-existing` 的判据是**文件在不在**，不是**内容对不对**。
+       所以一旦改过生成口径（提示词 / 颜色句 / 形态档案），已存在的卡会被
+       **静默跳过、永不重出** —— 图还在盘上、看起来也没坏，但它与新口径不一致，
+       而且**不报任何错**（这条本身就是待办里的一条，`--skip-existing` 那条）。
+       本报告就是那种情况下的「该重出哪些」清单，并且直接给出可执行的命令。
+
+    ⚠️ 判据是**与当前生成器现算的结果逐字比较**，不是与某个基准文件比 ——
+       所以它永远不会过期：口径一改，这个报告自动就准了。
+    """
+    if not os.path.exists(MANIFEST):
+        print("还没有 %s，无法比较（先跑一轮生图）" % os.path.basename(MANIFEST))
+        return
+    try:
+        m = json.load(open(MANIFEST, encoding="utf-8"))
+    except Exception as e:
+        print("manifest 读不出来：%s" % e)
+        return
+
+    groups = {}
+    for f in fish:
+        fid = f["id"]
+        rec = m.get(fid)
+        if not rec:
+            continue
+        # 母版：文件在 + 记的提示词与现算的不一样
+        if os.path.exists(os.path.join(OUT, fid + ".png")) and rec.get("prompt") != build_prompt(f):
+            groups.setdefault("母版", []).append(fid)
+        for key, _d in MORPHS:
+            path = os.path.join(OUT, "%s-%s.png" % (fid, key))
+            old = ((rec.get("morphs") or {}).get(key) or {}).get("prompt")
+            if not (os.path.exists(path) and old):
+                continue
+            _ck, _tag, desc = morph_pick(fid, key)
+            if old != build_morph_prompt(f, desc):
+                groups.setdefault(key, []).append(fid)
+
+    total = sum(len(v) for v in groups.values())
+    if not total:
+        print("✔ 没有过期卡片 —— 已出图的提示词与当前生成口径逐字一致")
+        return
+    print("过期卡片共 %d 张（提示词与当前生成口径不一致 ⇒ 需要重出）：\n" % total)
+    for k in ["母版"] + [x for x, _ in MORPHS]:
+        ids = sorted(groups.get(k) or [])
+        if not ids:
+            continue
+        print("  %-7s %3d 条" % (k, len(ids)))
+        print("          %s" % " ".join(ids))
+        print("          重出：python tools/gen-art.py --list %s%s\n"
+              % (",".join(ids), "" if k == "母版" else " --only-morph " + k))
+    print("⚠️ 母版重出会顺带刷新它的 `-normal`（原色档就是母版的抠图）；"
+          "五档是独立文生图，单档重出只影响那一张，不会连带动别的档。")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--list", default="")
@@ -1230,6 +1324,11 @@ def main():
     ap.add_argument("--dry", default="", help="（快捷）等价于 --prompt-only --list X")
     ap.add_argument("--masters-only", action="store_true", help="只出母版，不出五档")
     ap.add_argument("--morphs-only", action="store_true", help="只出五档（跳过已有母版）")
+    ap.add_argument("--only-morph", default="",
+                    help="只出这些档（逗号分隔，如 shiny 或 shiny,albino）。"
+                         "⚠️ 给了它就**不再出母版** —— 你要的就是那几张单档卡")
+    ap.add_argument("--stale", action="store_true",
+                    help="只报告「已出图但提示词已过期」的卡片（口径改过之后该重出哪些）")
     ap.add_argument("--skip-existing", action="store_true", help="已有成品跳过（断点续跑）")
     ap.add_argument("--budget-min", type=float, default=0,
                     help="时间预算（分钟）：到点**在任务边界干净收工**，不等当前这张之外的更多任务。"
@@ -1275,6 +1374,10 @@ def main():
             print(build_prompt(f)); print()
         return
 
+    if args.stale:
+        report_stale(fish)
+        return
+
     os.makedirs(OUT, exist_ok=True)
     manifest = {}
     if os.path.exists(MANIFEST):
@@ -1307,12 +1410,24 @@ def main():
     # ⚠️ 五档的任务里**只带档位名**，颜色句在出图那一刻才按鱼 id 挑（`morph_pick`）——
     #    提前挑好会导致「挑一次、后面复用」，manifest 与图反而更容易对不上。
     jobs = []
+    only = [x.strip() for x in (args.only_morph or "").split(",") if x.strip()]
+    known = [k for k, _ in MORPHS]
+    unknown = [x for x in only if x not in known]
+    if unknown:
+        sys.exit("--only-morph 里有不认识的档：%s（可选：%s）"
+                 % (",".join(unknown), "/".join(known)))
     for f in fish:
-        if not args.morphs_only:
+        if not args.morphs_only and not only:
             jobs.append((f, None))
         if not args.masters_only:
             for key, _desc in MORPHS:
+                if only and key not in only:
+                    continue
                 jobs.append((f, key))
+    if not jobs:
+        sys.exit("没有要出的图 —— 检查 --only-morph / --masters-only / --morphs-only 的组合")
+    if only:
+        print("只出档位：%s（不出母版）" % "/".join(only))
 
     per = len(jobs) // len(fish) if fish else 0
     print("待生成 %d 张（%d 条鱼 × %d 张）" % (len(jobs), len(fish), per))

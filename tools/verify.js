@@ -2162,12 +2162,25 @@ console.log('\n[33-c] 五档提示词必须复用母版骨架，只换颜色句'
   }
   const body = src.slice(at(src, 'def build_morph_prompt'));
   const fn = body.slice(0, body.indexOf('\ndef ', 10));
-  const miss = ['build_prompt(', 'palette_desc(', '.replace('].filter(k => fn.indexOf(k) < 0);
+  const miss = ['build_prompt(', 'palette_color(', '.replace('].filter(k => fn.indexOf(k) < 0);
   if (miss.length) {
-    err(`build_morph_prompt() 没有「调 build_prompt → 换掉 palette_desc」的写法（缺 ${miss.join('、')}）`
+    err(`build_morph_prompt() 没有「调 build_prompt → 只换颜色半句」的写法（缺 ${miss.join('、')}）`
       + ` —— 五档会另起一套骨架，与母版口径分家`); return;
   }
-  ok('build_morph_prompt() 复用 build_prompt 骨架 + 只替换颜色句');
+  /* 🔴 反向判据：**不许整句替换 `palette_desc`**。
+     2026-10-08 用户报障「部分鱼的闪光，鱼头部分和身体部分不一样」，根因就在这一句：
+     整句替换会把颜色句的后半句 `PALETTE_SHADE`（`a clearly lighter belly and a darker back`）
+     一起换掉 —— 实测五档提示词 **0/508** 条含它，而母版 122/127 条有。
+     它为什么致命：`paint-card.py` 的着色是**灰度渐变映射**（`gray = im.convert("L")`，
+     **颜色 = 灰度的函数**），背腹明暗正是它的前提。前提被换掉 ⇒ 模型对**头部**与**躯干**的
+     明暗处理不再受约束 ⇒ **明暗差直接变成颜色差**（实测 D07 头/身中位亮度差被放大到 68，
+     母版只有 25）。所以：只换 `palette_color()` 那半句，`PALETTE_SHADE` 必须留下。 */
+  if (fn.indexOf('palette_desc(') >= 0) {
+    err('build_morph_prompt() 又在**整句**替换 `palette_desc` —— 会把「背腹明暗」这句着色前提'
+      + '一起换掉，头身明暗的不一致会被灰度渐变映射放大成「头身颜色不一样」（2026-10-08 报障原因）');
+    return;
+  }
+  ok('build_morph_prompt() 复用母版骨架 + 只换颜色半句 + 保住背腹明暗（不许整句替换）');
 })();
 
 

@@ -318,6 +318,26 @@ G.DECORS.forEach(d => {
 });
 if (!noDraw) ok(`${G.DECORS.length} 件装饰全部有绘制实现`);
 
+/* theme 里的**舞台开关**同理：写了 `rocks: true` 却没有绘制分支 →
+   那就是一句「看着有用、其实没人读」的数据（C 场这样躺了整整一个版本，直到 32-g 抓出来）。
+   判据（只扫代码不扫注释）：每个开了开关的钓场，`scene.js` 里必须读到它 ——
+   `buildStatic()` 里没有 `th` 参数，读的是 `field.theme.<键>`，绘制函数里读 `th.<键>`，两种都认。 */
+let noStage = 0;
+const stageBody = sceneSrc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+(G.FIELDS || []).forEach(f => {
+  const th = f.theme || {};
+  Object.keys(th).forEach(k => {
+    if (typeof th[k] !== 'boolean') return;
+    const re = new RegExp('(th|field\\.theme)\\.' + k + '(?![A-Za-z0-9_$])');
+    if (!re.test(stageBody)) {
+      err(`${f.id} 场（${f.name}）的 theme.${k} = ${th[k]}，但 scene.js 里没人读它`
+        + '（要么补绘制分支，要么删掉这个开关）');
+      noStage++;
+    }
+  });
+});
+if (!noStage) ok('所有钓场的 theme 布尔开关都有对应的绘制分支');
+
 const CURS = ['coin', 'eco', 'medal'];
 const badCur = G.DECORS.filter(d => d.cur && CURS.indexOf(d.cur) < 0);
 if (badCur.length) err(`装饰货币字段非法：${badCur.map(d => d.id + '=' + d.cur).join('、')}`);
@@ -1901,9 +1921,9 @@ console.log('\n[32-g] 数据文件的字段必须有消费方（零出现 = 死�
        （`fishing.js`：`CFG.misc.biteWindow[CFG.rarity[pending.rar].key]`），
        键名 `common` / `rare` / … 只是表里的行名，静态扫描看不到这层间接 —— 属于「分析不了」。 */
     'src/data/config.js': ['common', 'rare', 'epic', 'legend'],
-    /* C 场（溪流浅滩）主题里写着「有石头」，但至今没有任何绘制路径读它 ——
-       它属于「未实现的表现」，不是过时数据，删掉就看不到这个意图了（已记进改进待办）。 */
-    'src/data/fields.js': ['rocks'],
+    /* ⚠️ fields.js 的 `rocks` 曾在这里（「未实现的表现」）—— 2026-10-08 用户拍板补绘制，
+       `scene.js` 现在真的读 `th.rocks` 了，所以它**不在白名单里**：
+       哪天绘制代码被删掉，本节会立刻报红（另见第 ⑨ 节的「theme 开关必须有绘制分支」）。 */
   };
   const rel = [];
   (function walk(dir) {
@@ -1945,7 +1965,7 @@ console.log('\n[32-g] 数据文件的字段必须有消费方（零出现 = 死�
     /* ⚠️ 这句话里**不许出现任何被扫描的键名** —— 第一版写了「只留 rocks」，
        `rocks` 就成了 verify.js 里的一个「消费方」，把白名单摘掉也不报红（自指喂饱，㉓/33-f 同款坑）。 */
     ok(`${dataFiles.length} 个数据文件共 ${checked} 个字段都有真实消费方`
-      + '（白名单只留 2 类：按 key 动态取值表的行名、未实现的表现，理由见代码注释）');
+      + '（白名单只留 1 类：按 key 动态取值表的行名，理由见代码注释）');
   }
 })();
 

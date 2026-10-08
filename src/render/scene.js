@@ -27,6 +27,7 @@ G.Scene = (function () {
     stars: [],
     clouds: [],
     decor: {},
+    rocks: [],         // 浅滩石头 [{x, y, rx, ry, sub, wy, body, top}]
     rain: [],          // 雨丝 [{x, y, len, v, a}]
     wxKey: null,       // 上一帧的天气 key，用来在变天时重建雨丝
     fogPhase: 0,
@@ -77,6 +78,12 @@ G.Scene = (function () {
         s: 0.55 + Math.random() * 0.95,
         sp: field.theme.clouds.speed * (0.6 + Math.random() * 0.8),
       });
+    }
+    /* 浅滩石头（theme.rocks）：轮廓与位置在这里一次算好，绘制时不再掷随机数 */
+    S.rocks = [];
+    if (field.theme.rocks) {
+      var sy = surfaceY();
+      for (var r = 0; r < ROCK_SPECS.length; r++) S.rocks.push(makeRock(ROCK_SPECS[r], sy));
     }
   }
 
@@ -386,6 +393,7 @@ G.Scene = (function () {
     drawHills(th);
     drawWater(th);
     drawUnderwater(th);
+    drawRocks(th);
     drawDock(th);
     drawFisher(th);
     drawRod(th);
@@ -606,6 +614,100 @@ G.Scene = (function () {
       ctx.filter = 'none';
       ctx.restore();
     }
+  }
+
+  /* ---------------- 浅滩石头（theme.rocks） ----------------
+     C 场「溪流浅滩」的主题里一直写着 `rocks: true`，但**自 v0.1.0 起没有任何绘制路径读它**
+     （2026-10-08 被 verify 32-g 的「数据文件死字段」网抓出来，用户拍板走「补绘制」而不是删字段）。
+     画法与其他场景道具同一套：纯色 + 简单多边形，**不建渐变**（verify ⑰ 会盯）。
+     位置**手工摆放**，刻意避开两处玩法信息：码头（左侧 40%）与浮漂落点（floatHomeX ≈ 56%）。
+     顶点抖动写死在 specs 里而不是用随机数 → 换分辨率 / resize 时石头不会跳动。 */
+  var ROCK_SPECS = [
+    /* 露出水面的卵石：x = 画布宽度占比，rx/ry = 半宽 / 半高，
+       rise = 顶端露出水面多少（px），wob = 6 个顶点的半径抖动。
+       ry 给到 rx 的六成左右才像鹅卵石 —— 太扁会看成一排小筏子。 */
+    { x: 0.655, rx: 30, ry: 19, rise: 14, wob: [ 0.08, -0.14,  0.14, -0.06,  0.18, -0.10] },
+    { x: 0.742, rx: 18, ry: 12, rise:  8, wob: [-0.12,  0.10, -0.08,  0.14, -0.06,  0.08] },
+    { x: 0.850, rx: 42, ry: 27, rise: 18, wob: [ 0.12, -0.08,  0.06, -0.16,  0.04, -0.12] },
+    { x: 0.945, rx: 24, ry: 15, rise: 10, wob: [-0.06,  0.14, -0.10,  0.08, -0.12,  0.10] },
+    /* 近处水下的碎石：depth = 从水线往画面下方的进度（越大离镜头越近、越大）
+       —— 隔着水看，颜色偏水色、整体淡一档 */
+    { x: 0.315, rx: 26, ry: 13, sub: true, depth: 0.46, wob: [ 0.10, -0.08,  0.14, -0.12,  0.06, -0.10] },
+    { x: 0.500, rx: 34, ry: 16, sub: true, depth: 0.58, wob: [-0.12,  0.06, -0.08,  0.14, -0.10,  0.10] },
+    { x: 0.705, rx: 42, ry: 19, sub: true, depth: 0.74, wob: [ 0.08, -0.12,  0.06, -0.08,  0.12, -0.06] },
+  ];
+
+  function makeRock(spec, sy) {
+    var k = Math.min(1, Math.max(0.6, W / 1180));   // 窄窗口里按比例缩一档（与鱼长度同一套思路）
+    var rx = spec.rx * k, ry = spec.ry * k;
+    var x = W * spec.x;
+    var y = spec.sub ? (sy + (H - sy) * spec.depth) : (sy + ry - spec.rise * k);
+    /* 6 个顶点（从正上方顺时针）+ 只属于上半身的受光面 */
+    var pts = [];
+    [-90, -30, 30, 90, 150, -150].forEach(function (deg) {
+      var a = deg * Math.PI / 180, i = pts.length, w = 1 + spec.wob[i % 6];
+      pts.push([x + Math.cos(a) * rx * w, y + Math.sin(a) * ry * w]);
+    });
+    function mid(i, j) { return [(pts[i][0] + pts[j][0]) / 2, (pts[i][1] + pts[j][1]) / 2]; }
+    return {
+      x: x, y: y, rx: rx, ry: ry, sub: !!spec.sub, wy: sy,
+      body: pts,
+      /* 三段面：受光的顶面（左上）· 中间调石身 · 背光的底面（右下）
+         —— 只有两段的话石头看着像一块平板（第一版就是，实测截图后补的） */
+      top: [mid(5, 3), pts[5], pts[0], pts[1], mid(1, 2)],
+      bot: [mid(1, 2), pts[2], pts[3], pts[4], mid(4, 5)],
+    };
+  }
+
+  function poly(pts) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+  }
+
+  function drawRocks(th) {
+    if (!S.rocks.length) return;
+    var lit = th.gloom ? 0.62 : 1;      // 暗场里压暗一档（与码头台面同一套处理）
+    ctx.save();
+    for (var i = 0; i < S.rocks.length; i++) {
+      var r = S.rocks[i];
+
+      /* 水下的暗影：把石头「压」进水里 */
+      ctx.globalAlpha = (r.sub ? 0.12 : 0.20) * lit;
+      ctx.fillStyle = '#0b3a40';
+      ctx.beginPath();
+      ctx.ellipse(r.x, r.y + r.ry * 0.62, r.rx * 1.10, r.ry * 0.30, 0, 0, 6.3);
+      ctx.fill();
+
+      /* 石身 + 受光顶面 + 背光底面（沉在水里的那几块整体淡一档，像隔着一层水）
+         ⚠️ 水下那几块的配色要比水**浅**，不能比水暗 —— 第一版用了暗灰，
+            实机截图里读成了几个黑洞（不是石头）。 */
+      ctx.globalAlpha = r.sub ? 0.58 : 1;
+      ctx.fillStyle = r.sub ? '#5e8b88' : '#7e776a';
+      poly(r.body); ctx.fill();
+      ctx.fillStyle = r.sub ? '#497875' : '#665f54';
+      poly(r.bot); ctx.fill();
+      ctx.fillStyle = r.sub ? '#7fab9f' : '#9b9384';
+      poly(r.top); ctx.fill();
+
+      /* 露在水面的那几块：水线处压一条亮边（浅滩的白沫）。
+         沿石身裁切后再画，否则短线会伸到轮廓外（截图里看得出来）。 */
+      if (!r.sub) {
+        ctx.save();
+        poly(r.body); ctx.clip();
+        ctx.globalAlpha = 0.5;
+        ctx.strokeStyle = '#eafaf8';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(r.x - r.rx, r.wy);
+        ctx.lineTo(r.x + r.rx, r.wy);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
   }
 
   function updateShadow(dt) {

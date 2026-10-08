@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>闪光档措辞 A/B · 钓鱼人生</title>
+<style>
+  :root { --bg:#16171a; --card:#22242a; --line:#33363e; --fg:#e8e9ec; --dim:#9a9ea8;
+          --ok:#3f9e6a; --bad:#c0503f; --accent:#5b8fd6; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:13px/1.65 "Microsoft YaHei","PingFang SC",system-ui,sans-serif; }
+  header { padding:16px 18px 10px; border-bottom:1px solid var(--line); }
+  h1 { font-size:16px; font-weight:500; margin:0 0 6px; }
+  h2 { font-size:14px; font-weight:500; margin:22px 0 8px; padding-left:18px; }
+  .sub { color:var(--dim); font-size:12px; }
+  .wrap { padding:0 18px 40px; }
+  table { border-collapse:collapse; font-size:12.5px; margin:6px 0 10px; }
+  th,td { border:1px solid var(--line); padding:4px 10px; text-align:left; vertical-align:top; }
+  th { background:#1d1f24; color:var(--dim); font-weight:400; }
+  .concl { margin:10px 0 0; padding:10px 12px; border-radius:8px; font-size:12.5px;
+           background:rgba(91,143,214,.13); border:1px solid var(--accent); }
+  .warn { margin:10px 0 0; padding:9px 12px; border-radius:8px; font-size:12.5px;
+          background:rgba(192,80,63,.14); border:1px solid var(--bad); }
+  .row { display:grid; gap:10px; padding:10px 0; grid-template-columns:repeat(3,1fr); }
+  .cell { background:var(--card); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .cell.on { border-color:var(--ok); }
+  .cell img { width:100%; display:block; background:#2b2b2e; cursor:zoom-in; }
+  .cap { padding:5px 9px; font-size:12px; color:var(--dim); }
+  .cap b { color:var(--fg); font-weight:500; }
+  .full { background:var(--card); border:1px solid var(--line); border-radius:8px;
+          overflow:hidden; margin:8px 0; }
+  .full img { width:100%; display:block; cursor:zoom-in; }
+  .m { color:var(--dim); }
+  code { background:#16171a; padding:1px 5px; border-radius:4px; font-size:12px; }
+  #lb { position:fixed; inset:0; z-index:50; background:rgba(0,0,0,.92); display:none;
+        align-items:center; justify-content:center; cursor:zoom-out; }
+  #lb.on { display:flex; }
+  #lb img { max-width:97vw; max-height:92vh; object-fit:contain; }
+  #lb .tip { position:absolute; bottom:12px; left:0; right:0; text-align:center;
+             color:#c9cdd5; font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>闪光档「面片措辞」A/B —— 「不用以前很多面的格式，防止有些部分看起来像小像素块」</h1>
+  <div class="sub">三张都是 <b>35 步</b>、<b>同提示词同种子</b>，<b>只差 GEOM 那一句</b>（模型 Qwen-Image-2.1 int8、1152×768、cfg 3.0）。
+    <b>点任意一张放大到原图</b>（Esc 或点任意处关闭）。绿色框 = 已采用。</div>
+</header>
+
+<div class="wrap">
+  <div class="concl">
+    <b>已采用 BROAD（大而分开的块面）。</b>它在 1:1 下最直接地消掉「一堆小碎面」——
+    尾鳍从「密集马赛克」变成清楚的大块面。代价是面片密度从 2.39 掉到 <b>2.04</b>
+    （低于 2.5 的下限）：<b>这是明知掉密度也要换的定向取舍</b>，因为密度标尺量的是「块面多不多」，
+    量不出「碎不碎」——而你要解决的是后者。
+  </div>
+
+  <h2>① 全图（三选一）</h2>
+  <div class="row">
+    <div class="cell"><img src="images/card-ab/geom-ab-shiny-now.png" alt="now">
+      <div class="cap"><b>NOW</b> · 现状：<code>dense triangular polygon mesh</code><br>密度 2.39</div></div>
+    <div class="cell on"><img src="images/card-ab/geom-ab-shiny-broad.png" alt="broad">
+      <div class="cap"><b>BROAD ✅ 已采用</b> · <code>larger clearly separated flat facets,
+        no dense mesh, no busy micro-facets</code><br>密度 2.04</div></div>
+    <div class="cell"><img src="images/card-ab/geom-ab-shiny-nodense.png" alt="nodense">
+      <div class="cap"><b>NODENSE</b> · 只删掉「密集网格」与「相邻面色调微差」两句（改动最小）<br>密度 2.13</div></div>
+  </div>
+
+  <h2>② 1:1 局部（决定性证据：左=head 头部 / 右=tail 尾鳍）</h2>
+  <div class="full"><img src="images/card-ab/geom-ab-1to1.png" alt="1:1 crops"></div>
+  <div class="sub m">看图要点：<b>NOW 的尾鳍是一片密集小碎面</b>（就是「小像素块」的来源）；
+    <b>BROAD 换成大块面后干净得多</b>；NODENSE 介于两者之间、尾部仍偏碎。
+    头部区域三者差别较小（亮斑密度是颜色句决定的，这次没动）。</div>
+
+  <h2>③ 数字</h2>
+  <table>
+    <tr><th>候选</th><th>GEOM 那句</th><th>面片密度</th><th>1:1 观感</th></tr>
+    <tr><td>NOW（旧）</td><td>dense triangular polygon mesh covering the body…</td><td>2.39</td>
+      <td>尾部一片小碎面 ← 你要避免的</td></tr>
+    <tr><td><b>BROAD ✅</b></td><td>larger clearly separated flat facets, no dense mesh, no busy micro-facets</td>
+      <td><b>2.04</b></td><td>块面清楚、不再碎；代价是密度更低</td></tr>
+    <tr><td>NODENSE</td><td>只去掉「密集网格」+「相邻面色调微差」</td><td>2.13</td>
+      <td>比 NOW 好、但尾部仍偏碎</td></tr>
+  </table>
+  <div class="warn">
+    <b>⚠️ 这条改动与既有的 §33-e 规矩是相反的</b>（那条要求 GEOM 必须写「密集」，因为实测
+    <code>large / minimal</code> 曾把密度拉到 1.5）。所以它被写成<b>只挂闪光档一档的显式例外</b>，
+    并加了机制检查：<code>GEOM_COARSE</code> 只许出现两处、不许含「密集」措辞、
+    例外多挂一档就报红（三处注入都反向验证过）。
+    <b>别把这条"顺手改回去"。</b>
+  </div>
+
+  <h2>④ 想更温和？</h2>
+  <div class="sub m">把 <code>gen-art.py</code> 的 <code>GEOM_COARSE</code> 换成 NODENSE 那句
+    （<code>Finely faceted low-poly surface, crisp visible polygon edges, flat shading per facet,
+    no texture, no gradients.</code>）即可 —— 一行。但按 1:1 看，尾部仍会偏碎。</div>
+
+  <div class="sub m" style="margin-top:14px">
+    原始三张与切图在 <code>docs/images/card-ab/geom-ab-*.png</code>；口径记在
+    <code>docs/画风与颜色标准.md</code> §7.4；步数（黄金/闪光 = 35）也在同一节。
+  </div>
+</div>
+
+<div id="lb"><img alt=""><div class="tip">点任意处关闭（Esc 也可以）</div></div>
+<script>
+var lb = document.getElementById('lb'), lbi = lb.querySelector('img');
+function zoom(src) { lbi.src = src; lb.classList.add('on'); }
+function unzoom() { lb.classList.remove('on'); lbi.removeAttribute('src'); }
+document.addEventListener('click', function (e) {
+  if (lb.classList.contains('on')) { unzoom(); return; }
+  var im = e.target.closest('img');
+  if (im) zoom(im.src);
+});
+document.addEventListener('keydown', function (e) { if (e.key === 'Escape') unzoom(); });
+</script>
+</body>
+</html>

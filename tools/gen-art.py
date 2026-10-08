@@ -75,6 +75,24 @@ TMP = os.path.join(OUT, "_tmp")       # 五档出图的中间 RGB，抠完即删
 
 SEED = 20261007
 W, H, STEPS = 1152, 768, 25           # 3:2 横构图（图鉴卡面比例，UI 容器按这个做）
+
+# 步数**按档**给（用户口径 2026-10-08：「让黄金档和闪光档都使用 35 步来操作」）。
+# 只给这两档 +10 步的理由：它们的颜色句最"花"（黄金要金属高光、闪光要细碎亮斑），
+# 多一点步数能把材质收稳一点。
+# ⚠️ **别把步数当画质旋钮**：实测 25 → 40 步面片密度只 +9%、40 → 60 反而 −3%（已到平台），
+#    而耗时是**线性**的（≈1.79 秒/步 + 7.4 秒固定开销）。全表与证据图见
+#    `docs/画风与颜色标准.md` §7.4 与 `docs/images/card-ab/steps-ab-*`。
+# ⚠️ 改了这里，**已生成的那些并不会自动重出**（`--skip-existing` 只看文件在不在）——
+#    所以 `report_stale()` 现在也把「步数与当前口径不符」算作过期。
+STEPS_BY_MORPH = {"golden": 35, "shiny": 35}
+
+
+def steps_for(morph):
+    """这一档出图用多少步。**唯一口径**（母版 = `None` ⇒ `STEPS`）。"""
+    return STEPS_BY_MORPH.get(morph or "", STEPS)
+
+
+
 MODEL = "qwen-image-2.1-int8"
 CFG = 3.0                             # ⚠️ 必须 > 1，否则 NEG 不生效（见坑 2）
 
@@ -109,6 +127,23 @@ BASE = ("low poly 3D render, faceted polygonal surfaces, flat shading per face, 
 GEOM = ("Finely faceted low-poly surface, a dense triangular polygon mesh covering the body, "
         "crisp visible polygon edges, flat shading per facet with subtle tone variation "
         "between neighbouring facets, no texture, no gradients.")
+
+# ⑤ 闪光档专用面片措辞 —— **只用在这一档**（用户口径 2026-10-08：
+#    「闪光档不用是以前很多面的格式，防止有些部分看起来像小像素块」）。
+#    为什么单独给闪光档：它的颜色句本来就要求「布满细碎亮斑」（`sparkling glittering speckles`），
+#    再叠一层**密集三角网格**，局部就会碎成「小像素块」。
+#    ⇒ 保留低模大块面的读法，但明确**不要**密集网格 / 碎小面。
+#    ⚠️ 只改这一档：母版与其它三档仍是 `GEOM`（那是 v9 标定过的、最贴面片密度靶子 3.6 的措辞）。
+GEOM_COARSE = ("Broad faceted low-poly surface, larger clearly separated flat facets, "
+               "crisp straight edges between facets, even flat shading across each facet, "
+               "no dense mesh, no busy micro-facets, no texture, no gradients.")
+GEOM_BY_MORPH = {"shiny": GEOM_COARSE}
+
+
+def geom_for(morph):
+    """这一档用哪套面片措辞。**唯一口径** —— 别在别处再写一份（母版 = None ⇒ 用 GEOM）。"""
+    return GEOM_BY_MORPH.get(morph or "", GEOM)
+
 
 # ③ 光照 —— 逐字取自 v9（`gen9.py` 的 LIGHT）。用户口径：边缘光、不加环境补光。
 #    ⚠️ **绝对不许出现 soft** —— v10 首版把 `strong rim light` 改成
@@ -846,7 +881,7 @@ def proportion_line(f):
     return "%s, its body depth %s, " % (lead, frac)
 
 
-def build_prompt(f):
+def build_prompt(f, morph=None):
     """拼提示词。顺序**照 v9**，别改：
 
         BASE + " of <主语>." + <构图句> + <颜色句> + LIGHT + GEOM + BG
@@ -942,10 +977,11 @@ def build_prompt(f):
     head = BASE + " of " + subject + ", ".join([b for b in bits if b]) + "."
     frame = ("full side view, whole body visible, facing left, "
              "centered with generous margin, " + rar + ".")
-    return " ".join([head, frame, palette_desc(f), LIGHT, GEOM, BG])
+    # 面片措辞**按档取**（闪光档用 `GEOM_COARSE`，见 `geom_for()`）；母版传 None ⇒ 用 GEOM
+    return " ".join([head, frame, palette_desc(f), LIGHT, geom_for(morph), BG])
 
 
-def build_morph_prompt(f, color_desc):
+def build_morph_prompt(f, morph, color_desc):
     """五档的提示词 = 母版提示词**只换颜色句的前半句**，其余逐字相同。
 
     ⚠️ 别在这里另起一套骨架 —— 那会让「母版」和「五档」两套口径分家，
@@ -961,7 +997,7 @@ def build_morph_prompt(f, color_desc):
        ⇒ **明暗差直接变成颜色差**。实测 D07 头/身中位亮度差被放大到 68（母版只有 25）。
        ⇒ 现在只换 `palette_color()` 那半句，`PALETTE_SHADE` 一律保留（两档共用同一份常量）。
     """
-    p = build_prompt(f)
+    p = build_prompt(f, morph)
     pc = palette_color(f)
     if pc not in p:
         raise RuntimeError("颜色句前半句没出现在提示词里 —— build_prompt 的结构改过？")
@@ -1282,7 +1318,9 @@ def report_stale(fish):
         if not rec:
             continue
         # 母版：文件在 + 记的提示词与现算的不一样
-        if os.path.exists(os.path.join(OUT, fid + ".png")) and rec.get("prompt") != build_prompt(f):
+        if os.path.exists(os.path.join(OUT, fid + ".png")) and (
+                rec.get("prompt") != build_prompt(f)
+                or rec.get("steps", STEPS) != steps_for(None)):
             groups.setdefault("母版", []).append(fid)
         for key, _d in MORPHS:
             path = os.path.join(OUT, "%s-%s.png" % (fid, key))
@@ -1290,7 +1328,14 @@ def report_stale(fish):
             if not (os.path.exists(path) and old):
                 continue
             _ck, _tag, desc = morph_pick(fid, key)
-            if old != build_morph_prompt(f, desc):
+            # 🔴 判据有**两个**：提示词不一致 **或** 步数不一致。
+            #    只比提示词的话，「改步数」会**静默漏掉已生成的卡**（既存在、又不会被列为过期）。
+            if (old != build_morph_prompt(f, key, desc)
+                    # ⚠️ 兜底用 `STEPS` 而不是 -1：**按档记 steps 是本次才加的**，
+                    #    老条目里没有这个键，而那时每一档都跑 25 步 ⇒ 缺失 = 25，
+                    #    用 -1 会把 bright / albino 这些**本来就没变**的档全算成过期（假警报一串）。
+                    or ((rec.get("morphs") or {}).get(key) or {}).get("steps", STEPS)
+                       != steps_for(key)):
                 groups.setdefault(key, []).append(fid)
 
     total = sum(len(v) for v in groups.values())
@@ -1383,7 +1428,7 @@ def main():
     if os.path.exists(MANIFEST):
         manifest = json.load(open(MANIFEST, encoding="utf-8"))
 
-    def run_t2i(prompt, path):
+    def run_t2i(prompt, path, steps):
         """出图 + 等落盘。返回 (是否成功, CompletedProcess)。
 
         ⚠️ **必须给等待设上限**。`txt2img.py` 自己的默认是 **3600 秒** ——
@@ -1396,7 +1441,7 @@ def main():
         for attempt in (1, 2):
             r = subprocess.run([PY, COMFY, "-p", prompt, "-n", NEG, "--cfg", str(CFG),
                                 "-o", path, "-W", str(W), "-H", str(H),
-                                "--steps", str(STEPS), "--seed", str(SEED),
+                                "--steps", str(steps), "--seed", str(SEED),
                                 "--timeout", str(args.img_timeout)],
                                capture_output=True, text=True, errors="replace")
             if os.path.exists(path):
@@ -1541,7 +1586,9 @@ def main():
         else:
             variant_ck, variant_tag, desc = morph_pick(fid, morph)
             dst = os.path.join(OUT, "%s-%s.png" % (fid, morph))
-            prompt, label = build_morph_prompt(f, desc), MORPH_CN[morph]
+            prompt, label = build_morph_prompt(f, morph, desc), MORPH_CN[morph]
+        # 步数**按档**取（黄金 / 闪光 = 35，其余 = 25）—— 见 `steps_for()`
+        steps = steps_for(morph)
 
         if args.skip_existing and os.path.exists(dst):
             print("[%d/%d] %s %-7s 已存在，跳过" % (i, len(jobs), fid, label))
@@ -1555,7 +1602,7 @@ def main():
             # ⚠️ 先出到 `_tmp/`、成功之后才 `supersede()` —— 见上面那段注释：
             #    直接写 dst 的话，出图失败就把旧母版留成半张废图（或被覆盖掉）。
             tmp_master = os.path.join(TMP, "%s.master.png" % fid)
-            good, r = run_t2i(prompt, tmp_master)
+            good, r = run_t2i(prompt, tmp_master, steps)
             if good:
                 supersede(dst, tmp_master)
                 # 原色档 = 母版的抠图（不重新生成：省一次出图，且与母版必然同色）
@@ -1564,7 +1611,7 @@ def main():
                 cutout.cut_one(dst, os.path.join(OUT, fid + "-normal.png"))
         else:
             raw = os.path.join(TMP, "%s-%s.png" % (fid, morph))
-            good, r = run_t2i(prompt, raw)
+            good, r = run_t2i(prompt, raw, steps)
             if good:
                 # 出图后立刻抠成 RGBA —— 但**先抠到 _tmp/**，成功了再替换原位
                 tmp_cut = os.path.join(TMP, "%s-%s.rgba.png" % (fid, morph))
@@ -1580,14 +1627,16 @@ def main():
                 manifest[fid] = {
                     "name": f["name"], "rar": f["rar"], "shape": f["shape"],
                     "prompt": prompt, "negative": NEG, "seed": SEED, "cfg": CFG,
-                    "size": [W, H], "steps": STEPS, "model": MODEL,
+                    "size": [W, H], "steps": steps, "model": MODEL,
                 }
             else:
                 # ⚠️ **必须把「抽中的是哪个候选键」写进 manifest** ——
                 #    颜色句现在是从池子里抽的，只记 prompt 就还得反查是哪一套；
                 #    记了键，`MORPH_CANDIDATES` 一改就能立刻看出哪些图受影响。
                 manifest.setdefault(fid, {}).setdefault("morphs", {})[morph] = {
-                    "candidate": variant_ck, "label": variant_tag, "prompt": prompt}
+                    "candidate": variant_ck, "label": variant_tag, "prompt": prompt,
+                    # 每个档也记步数（各档步数不再相同了）—— 供 `report_stale()` 与人工核对
+                    "steps": steps}
                 # 抽到哪一套也记下来 —— 光看提示词能反查，但列出标签便于人核对分布与复现
                 manifest.setdefault(fid, {}).setdefault("morphVariant", {})[morph] = variant_tag
             print("    ok")

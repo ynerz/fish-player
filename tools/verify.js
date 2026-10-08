@@ -2369,6 +2369,42 @@ console.log('\n[33-e] 低模精细度：GEOM 要密度不要「大面片」；�
     return;
   }
   ok('GEOM 明确要求密集三角网；骨架常量全项目只有 gen-art.py 一份定义（密度判据见 tools/facet-count.py）');
+
+  /* ④ **闪光档的显式例外**（用户口径 2026-10-08）：
+     「闪光档不用是以前很多面的格式，防止有些部分看起来像小像素块」。
+     上面的 ② 要求 GEOM 必须写「密集」；而闪光档**故意反着来**（`GEOM_COARSE`）。
+     这不是自相矛盾，是**有理由的定向例外**：闪光档的颜色句本来就要求「布满细碎亮斑」，
+     再叠一层密集三角网 ⇒ 尾部与鳍在 1:1 下就是一片小碎面（用户原话「小像素块」）。
+     实测（D16 闪光档 @35 步，同提示词只差这一句，`tools/facet-count.py`）：
+       密集网格 2.39 ／ 只删「密集网格」两句 2.13 ／ 大而分开的块面 **2.04**。
+     ⚠️ 所以这一档是**明知掉密度也要换**的取舍，别再"顺手改回去"。
+     这一条是**机制检查**，不是散文约定：例外只许挂 `shiny` 一档，多挂一档就报红。 */
+  /* ⚠️ 只查字面量是不够的：把「密集」在**运行期**加回去（`GEOM_COARSE += "…"`）静态文本看不出来
+     —— 第一版判据就被这种注入骗过了（反向验证当场发现）。
+     所以再加一条**只许出现在两处**：定义 + `GEOM_BY_MORPH` 里那一次引用（同项目「死代码判据」的老办法）。 */
+  const coarseHits = (src.match(/GEOM_COARSE/g) || []).length;
+  if (coarseHits !== 2) {
+    err(`GEOM_COARSE 在代码里出现了 ${coarseHits} 次（只许 2 次：定义 + GEOM_BY_MORPH 引用）`
+      + ` —— 多出来的那处可能在运行期把「密集」措辞加回闪光档`);
+    return;
+  }
+  const coarse = toStr(src.match(/^GEOM_COARSE\s*=\s*\(([\s\S]*?)\)\s*$/m));
+  const byMorph = (src.match(/^GEOM_BY_MORPH\s*=\s*(\{[^}]*\})/m) || [])[1] || '';
+  if (!coarse) {
+    err('闪光档的 `GEOM_COARSE` 不见了 —— 用户口径「闪光档不用很多面的格式」被改掉了');
+    return;
+  }
+  if (/dense triangular polygon mesh|many small|tessellation/.test(coarse)) {
+    err('`GEOM_COARSE` 里又出现了「密集 / 碎小」的措辞 —— 那正是闪光档要避免的东西（尾鳍会碎成小像素块）');
+    return;
+  }
+  const keys = (byMorph.match(/"([a-z]+)"\s*:/g) || []).map(x => x.replace(/["\s:]/g, ''));
+  if (keys.length !== 1 || keys[0] !== 'shiny') {
+    err('GEOM_BY_MORPH 的例外只许挂 shiny 一档，现在挂的是 ' + JSON.stringify(keys)
+      + ' —— 其它档（尤其母版与其他三档）必须继续用 GEOM（那是 v9 标定过、最贴靶子 3.6 的措辞）');
+    return;
+  }
+  ok('闪光档的面片例外（GEOM_COARSE）在位、不含「密集」措辞、且只挂在 shiny 一档');
 })();
 
 /* ---------------- 33-f. 五档颜色句：候选总表 + 权重池，且抽样必须可复现 ----------------

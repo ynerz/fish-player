@@ -2465,6 +2465,99 @@ G_('Weather · 游戏内时钟的偏移读自 config');
 })();
 
 /* =========================================================
+   Weather —— 背景音乐随「时段 / 天气」换参数（队列 Q2）
+   口径：钓场主题的 `theme.bgm` 是 **base**；`config.weather.times[].bgm` /
+   `types[].bgm` 是那个条件的**修饰量**；`G.Weather.bgmSpec(base)` 是唯一合成点。
+   这一节钉住四件容易静默失效的事：
+     ① **基准态（昼 + 晴）必须恒等** —— 否则「钓场原曲」这个基线口径就悄悄漂了，
+        而且没有任何报错（玩家只会觉得音乐怎么变了）；
+     ② **只认 major / minor** —— `deg2freq` 写的是 `SCALES[spec.mode] || SCALES.major`，
+        调式名打错一个字母会**静默退回大调**（夜晚听不出是"没生效"还是"本来就该这样"）；
+     ③ **不许就地改 base** —— base 是 `fields.js` 里的常量对象，就地改会把钓场数据污染掉；
+     ④ **有效 bar 必须落在人耳舒服的区间** —— 倍率相乘跑飞（比如 0.2 秒一小节）不报错。
+   ⚠️ 这里用**真实钓场**的 base（不自造假对象）：假对象永远发现不了
+      「fields.js 里 mode 打错字」这类问题，而那恰恰是要防的。
+   ========================================================= */
+G_('Weather · 背景音乐随条件换参数（修饰量单一来源）');
+(function () {
+  const W = G.CONFIG.weather;
+  if (!G.Weather.isReady()) G.Weather.init(0);
+  const snapshotBefore = G.Weather.snapshot();
+
+  const baseD = G.FIELD_MAP.D.theme.bgm;     // 大调钓场
+  const baseS = G.FIELD_MAP.S.theme.bgm;     // 本来就写小调的钓场
+  const beforeD = { mode: baseD.mode, bar: baseD.bar, root: baseD.root };
+  /* 所有条件 key 由数据自己列（不写死 'night' / 'rain' —— 加一个时段不用回来改这里） */
+  const wxKeys = W.types.map(t => t.key);
+  const tmKeys = W.times.map(t => t.key);
+  const wxName = k => (W.types.filter(t => t.key === k)[0] || {}).name;
+  const tmName = k => (W.times.filter(t => t.key === k)[0] || {}).name;
+  const specAt = (wx, tm, base) => { G.Weather.set(wx, tm); return G.Weather.bgmSpec(base); };
+
+  /* ---------- ① 域：调式只有两个合法值，bar 是有限正数 ---------- */
+  let badMode = [], badBar = [];
+  wxKeys.forEach(w => tmKeys.forEach(t => {
+    [baseD, baseS].forEach(b => {
+      const s = specAt(w, t, b);
+      if (s.mode !== 'major' && s.mode !== 'minor') badMode.push(`${w}/${t}=${s.mode}`);
+      if (!(isFinite(s.bar) && s.bar > 0.5 && s.bar < 12)) badBar.push(`${w}/${t}=${s.bar}`);
+    });
+  }));
+  ok(badMode.length === 0,
+     `所有 天气×时段 组合的调式都是 major / minor（${wxKeys.length}×${tmKeys.length}×2 个钓场）`,
+     badMode.join('、'));
+  ok(badBar.length === 0,
+     `所有组合的有效 bar 都落在 (0.5, 12) 秒内（跑出这个区间就是倍率相乘飞了）`,
+     badBar.join('、'));
+
+  /* ---------- ② 基准态恒等：昼 + 晴 = 钓场原曲 ---------- */
+  const idD = specAt('clear', 'day', baseD);
+  ok(idD.mode === beforeD.mode && idD.bar === beforeD.bar && idD.root === beforeD.root,
+     `基准态（${wxName('clear')} + ${tmName('day')}）与钓场原曲逐字段相同 —— 基线口径不漂`);
+
+  /* ---------- ③ 夜：大调钓场转小调、速度放慢 ---------- */
+  const nightD = specAt('clear', 'night', baseD);
+  ok(nightD.mode === 'minor',
+     `夜里大调钓场转小调（${beforeD.mode} → ${nightD.mode}）`);
+  ok(nightD.bar > beforeD.bar,
+     `夜的 bar 比基准慢（${beforeD.bar} → ${nightD.bar.toFixed(2)}s）`);
+
+  /* ---------- ④ 本来就写小调的钓场：调式不动，但速度照样变 ---------- */
+  const baseSBefore = { mode: baseS.mode, bar: baseS.bar };
+  const nightS = specAt('clear', 'night', baseS);
+  ok(nightS.mode === baseSBefore.mode,
+     `小调钓场夜里仍是小调（${nightS.mode}）—— 「转小调」是相对 base 的，不是硬写 minor`);
+  ok(nightS.bar > baseSBefore.bar,
+     `小调钓场夜间辨识度来自速度（${baseSBefore.bar} → ${nightS.bar.toFixed(2)}s）`);
+
+  /* ---------- ⑤ 晨：比基准快 ---------- */
+  const dawnD = specAt('clear', 'dawn', baseD);
+  ok(dawnD.bar < beforeD.bar,
+     `${tmName('dawn')}的 bar 比基准快（${beforeD.bar} → ${dawnD.bar.toFixed(2)}s）`);
+
+  /* ---------- ⑥ 天气只改速度，不许动调式 ---------- */
+  const rainD = specAt('rain', 'day', baseD);
+  ok(rainD.mode === beforeD.mode && rainD.bar > beforeD.bar,
+     `${wxName('rain')}白天：调式不变（${rainD.mode}）、速度放慢（→ ${rainD.bar.toFixed(2)}s）`
+     + ' —— 天气每几分钟随机换一次，跟着换调式会像音乐在抽风');
+
+  /* ---------- ⑦ 合成不许就地改 base（fields.js 的常量对象被污染了没人会知道） ---------- */
+  ok(baseD.mode === beforeD.mode && baseD.bar === beforeD.bar && baseD.root === beforeD.root,
+     'base 一个字段都没被就地改（换条件不该动钓场数据）');
+  ok(specAt('fog', 'night', baseD).chords === baseD.chords,
+     '有效 spec 的 chords 仍是 base 那个数组的引用（只读，没必要每换一次条件就复制一份）');
+
+  /* ---------- ⑧ 空参数不抛（调用方拿不到钓场时会传 null） ---------- */
+  let threw = '';
+  try { if (G.Weather.bgmSpec(null) !== null) threw = 'null 应返回 null'; }
+  catch (e) { threw = e.message; }
+  ok(!threw, 'bgmSpec(null) 返回 null 且不抛（audio.js 那条「没参数静默返回」的口径）', threw);
+
+  /* 复位：条件放回本节开始时那样（后面的用例还在用同一份 Weather 实例） */
+  G.Weather.set(snapshotBefore.wx.key, snapshotBefore.tm.key);
+})();
+
+/* =========================================================
    Assets —— 素材表（外部素材的唯一取用口径）
    规格：docs/开发者文档.md §7
    ⚠️ 这里**只测「键 → 地址」这一段纯逻辑**。真正的图片加载是异步的，

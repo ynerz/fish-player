@@ -134,6 +134,8 @@ gen-fish.py → solve-drop.js → balance.js → verify.js → gen-collect-time.
   拉扯阶段按「**收进多少进度**」打点咔哒声 —— 收得动就响得密，不看张力条也听得出这条拉不拉得动。
 - **背景音乐**：每个钓场一段自己的和声进行（大调 / 小调 / 主音各不相同），
   低音 + 和弦垫 + 稀疏铃音三层，走 lookahead 调度。参数在 `src/data/fields.js` 的 `theme.bgm`。
+  还会**随时段 / 天气换参数**：夜里转小调、雨雾天放慢（`config.weather` 的 `times[].bgm` /
+  `types[].bgm`，由 `G.Weather.bgmSpec()` 合成有效参数）—— 只换参数，不重启，也不打断正在放的这段。
 - **三条子总线**（`busSfx` / `busAmb` / `busBgm`）：音效、环境水声、音乐分开，
   设置面板里是三个独立开关，外加一行「**音乐音量**」滑块（只调音乐，不动音效与水声）。
 - ⏸ 一次性音效支持**采样优先 + 合成回退**（把文件放进 `assets/audio/<方法名>.mp3` 即自动接管），

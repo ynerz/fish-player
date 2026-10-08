@@ -2918,6 +2918,171 @@ console.log('\n[40] 评审台运行器：命令口径单源 + 窗口脚本注入
 })();
 
 
+/* ---------------- 41. 背景音乐随「时段 / 天气」换参数（修饰量单一来源） ----------------
+   由来（2026-10-08，队列 Q2）：BGM 原来只按钓场 —— 白天 / 夜里、晴天 / 暴雨是同一首，
+   画面在变、音乐不变。做法：钓场主题 `theme.bgm` 是 **base**，
+   `config.weather.times[].bgm` / `types[].bgm` 是那个条件的**修饰量**，
+   `G.Weather.bgmSpec(base)` 是唯一把它们合起来的地方。
+
+   三类「不报错但静默失效」在这里被钉住：
+     ① **调式名写错一个字母** → `deg2freq` 里是 `SCALES[spec.mode] || SCALES.major`，
+        静默退回大调。夜里"本来就没变"和"改了但没生效"听起来一模一样；
+     ② **修饰表的键名打错**（`barmul`）→ 整条修饰被无声忽略，功能等于没做；
+     ③ **有人在别处再合一遍**（或某个调用点直接把 `theme.bgm` 丢给 `startBgm`）
+        → 同一件事的第二份真相，表现是「某个入口切过去音乐不跟着变」，极难发现。
+   判据**全部现算**：真跑 `bgmSpec` 过 7 个钓场 × 4 天气 × 4 时段，不写死任何期望值。 */
+console.log('\n[41] 背景音乐随条件换参数：修饰量单一来源、键名合法、且真的起作用');
+(() => {
+  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const Wx = sandbox.G && sandbox.G.Weather;
+  const wxList = CFG.weather.types, tmList = CFG.weather.times;
+
+  /* ① 修饰表的键名白名单 —— 键名是**数据**，拼错了没人会知道。
+        · 时段能给 `mode` + `barMul`（20 分钟一轮，换调式是可预期的）
+        · 天气**只给 `barMul`**（3~8 分钟随机换一次，跟着换调式会像音乐在抽风） */
+  const ALLOW = { types: ['barMul'], times: ['mode', 'barMul'] };
+  [['types', wxList], ['times', tmList]].forEach(([kind, list]) => {
+    list.forEach(e => {
+      const m = e.bgm;
+      if (!m) return;
+      Object.keys(m).forEach(k => {
+        if (ALLOW[kind].indexOf(k) < 0) {
+          err(`config.weather.${kind} 的「${e.key}」带了不该有的音乐修饰键 `
+            + `（${kind} 只允许 ${ALLOW[kind].join(' / ')}）`
+            + ' —— 拼错的键会被静默忽略，功能等于没做');
+        }
+      });
+      if (m.barMul != null && !(isFinite(m.barMul) && m.barMul > 0.5 && m.barMul < 2)) {
+        err(`config.weather.${kind} 的「${e.key}」速度修饰 = ${m.barMul}，超出 (0.5, 2)`);
+      }
+      if (m.mode != null && m.mode !== 'major' && m.mode !== 'minor') {
+        err(`config.weather.${kind} 的「${e.key}」调式 = ${m.mode}，不是 major / minor`
+          + '（写成别的值会让 deg2freq 静默退回大调）');
+      }
+    });
+  });
+
+  /* ② 现算：把 7 个钓场 × 每种「天气 × 时段」都过一遍 */
+  if (!Wx || typeof Wx.bgmSpec !== 'function') {
+    err('G.Weather.bgmSpec 不见了 —— 音乐与条件的合成口径没了（判据要跟着改）');
+  } else {
+    const badIdent = [], badRange = [], badMode = [], badRef = [], dirty = [];
+    let neutralPairs = 0, movedPairs = 0, modeMoved = 0;
+    const lo = { bar: Infinity }, hi = { bar: 0 };
+    sandbox.G.FIELDS.forEach(f => {
+      const b = f.theme.bgm, chords = b.chords;
+      const snapshot = { mode: b.mode, bar: b.bar, root: b.root };
+      wxList.forEach(wx => tmList.forEach(tm => {
+        Wx.set(wx.key, tm.key);
+        const s = Wx.bgmSpec(b);
+        const neutral = !wx.bgm && !tm.bgm;
+        if (neutral) {
+          neutralPairs++;
+          if (s.mode !== snapshot.mode || s.bar !== snapshot.bar
+            || s.root !== snapshot.root || s.chords !== chords) {
+            badIdent.push(`${f.id} @ ${wx.key}/${tm.key}`);
+          }
+        } else {
+          movedPairs++;
+          if (s.mode !== snapshot.mode) modeMoved++;
+        }
+        if (b.mode !== snapshot.mode || b.bar !== snapshot.bar || b.root !== snapshot.root) {
+          dirty.push(`${f.id} @ ${wx.key}/${tm.key}`);
+        }
+        if (s.chords !== chords) badRef.push(`${f.id} @ ${wx.key}/${tm.key}`);
+        if (s.mode !== 'major' && s.mode !== 'minor') badMode.push(`${f.id} @ ${wx.key}/${tm.key}=${s.mode}`);
+        if (!(isFinite(s.bar) && s.bar > 0.5 && s.bar < 12)) badRange.push(`${f.id} @ ${wx.key}/${tm.key}=${s.bar}`);
+        if (s.bar < lo.bar) lo.bar = s.bar;
+        if (s.bar > hi.bar) hi.bar = s.bar;
+      }));
+    });
+
+    if (badIdent.length) err(`「不带任何修饰」的条件本该是**恒等**（= 钓场原曲），这几处不是：${badIdent.join('、')}`);
+    else ok(`基准态恒等：${neutralPairs} 组不带修饰的条件（${sandbox.G.FIELDS.length} 个钓场）与钓场原曲逐字段相同 —— 基线口径不漂`);
+
+    if (!neutralPairs) err('一个「不带修饰」的条件都没有 —— 玩家永远听不到钓场原曲，也没有基线可比');
+    if (!movedPairs) err('所有条件都没有音乐修饰 —— 这个功能等于没做（而文档 / 门禁都写着"已做"）');
+    else if (!modeMoved) {
+      err('没有任何条件改变调式 —— 昼夜只体现在速度上，对比弱到听不出来'
+        + '（要么给它一个调式修饰，要么把这条判据连同理由一起删掉）');
+    } else ok(`${movedPairs} 组带修饰的条件里 ${modeMoved} 组真的换了调式，且有效 bar 落在 `
+      + `${lo.bar.toFixed(2)}~${hi.bar.toFixed(2)}s`);
+
+    if (badMode.length) err(`有效 spec 的调式只许 major / minor：${badMode.join('、')}`);
+    if (badRange.length) err(`有效 bar 必须落在 (0.5, 12) 秒内（倍率相乘跑飞了）：${badRange.join('、')}`);
+    if (badRef.length) err(`有效 spec 应该复用 base 的 chords 引用（每换一次条件就复制一份是白给 GC 找活）：${badRef.join('、')}`);
+    if (dirty.length) err(`bgmSpec 就地改了 fields.js 的常量对象（换了条件就把钓场数据污染了）：${dirty.join('、')}`);
+  }
+
+  /* ③ 合成口径不许分家（静态扫**全部 src/**，只扫代码不扫注释）：
+        每个 `startBgm(<实参>)` 的实参只许是这两种形态 ——
+          · `bgmOf()`            （main.js 的本地助手，内部调 bgmSpec）
+          · `G.Weather.bgmSpec(<当前钓场的 base>)`
+        实参里直接出现 `theme.bgm` = 绕开时段 / 天气修饰。
+        ⚠️ **必须是全 src/ 扫描，不能只扫 main.js** —— 第一版只扫了 main.js，
+           于是 `panels.js` 里那处「从设置面板重新打开音乐」漏了网：它的表现是
+           「只有设置面板这一个入口恢复的音乐不随时段变」，其它入口全正常，极难复现。
+           这正是本项目踩过的「同一件事的第二份真相」的形状。
+        ⚠️ 取实参要**配平括号**：`[^)]*` 会在 `startBgm(bgmOf())` 的第一个 `)` 处刹住，
+           切出 `startBgm(bgmOf()` → 明明写对了却报红（第一版就是这么假红的）。 */
+  const srcFiles = [];
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+      const rel = dir + '/' + n;
+      if (fs.statSync(path.join(ROOT, rel)).isDirectory()) walk(rel);
+      else if (/\.js$/.test(n)) srcFiles.push(rel);
+    });
+  })('src');
+  const calls = [];
+  srcFiles.forEach(rel => {
+    /* 扫源码里的**调用**，不扫 audio.js 自己的定义 */
+    if (rel === 'src/core/audio.js') return;
+    const js = strip(fs.readFileSync(path.join(ROOT, rel), 'utf8'));
+    for (let i = js.indexOf('startBgm('); i >= 0; i = js.indexOf('startBgm(', i + 1)) {
+      let j = i + 'startBgm('.length, depth = 1;
+      while (j < js.length && depth) {
+        if (js[j] === '(') depth++;
+        else if (js[j] === ')') depth--;
+        j++;
+      }
+      calls.push({ rel, arg: js.slice(i + 'startBgm('.length, j - 1).trim() });
+    }
+  });
+  const OK_ARG = /^(bgmOf\(\)|G\.Weather\.bgmSpec\([\s\S]+\))$/;
+  const wrong = calls.filter(c => !OK_ARG.test(c.arg));
+  const mainJs = strip(fs.readFileSync(path.join(ROOT, 'src/main.js'), 'utf8'));
+  if (!calls.length) err('src/ 里找不到 startBgm 调用 —— 判据要跟着改');
+  else if (wrong.length) {
+    err('这些 startBgm 调用点没走合成口径（实参不是 bgmOf() / G.Weather.bgmSpec(...)）：'
+      + wrong.map(c => c.rel + ' → ' + c.arg).join('；')
+      + ' —— 绕开修饰的表现是「只有这个入口的音乐不随时段变」');
+  } else if (!/function bgmOf\(\)[\s\S]*?G\.Weather\.bgmSpec\(/.test(mainJs)) {
+    err('main.js 的合成助手没去调 G.Weather.bgmSpec —— 那它自己算的是什么？');
+  } else {
+    const files = calls.map(c => c.rel).filter((v, i, a) => a.indexOf(v) === i).sort();
+    ok(`src/ 里 ${calls.length} 处 startBgm 全部走合成口径（${files.join(' / ')}），`
+      + 'main.js 的 bgmOf() 体内也真的调了 G.Weather.bgmSpec');
+  }
+
+  /* ④ 「修饰量只有那个合成函数读」的字面量白名单：
+        扫 src/（**不含 tools/**，否则本文件里这条断言自己的文案就把网喂饱了 —— 32-g 同款坑）。
+        多一处 / 少一处都报红 ⇒ 新增任何包装器都会立刻暴露，不用去猜还有什么写法能绕。 */
+  const stray = [];
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+      const rel = dir + '/' + n;
+      if (fs.statSync(path.join(ROOT, rel)).isDirectory()) walk(rel);
+      else if (/\.(js|html)$/.test(n)) {
+        if (rel === 'src/data/config.js' || rel === 'src/core/weather.js') return;
+        if (strip(fs.readFileSync(path.join(ROOT, rel), 'utf8')).indexOf('barMul') >= 0) stray.push(rel);
+      }
+    });
+  })('src');
+  if (stray.length) err(`速度修饰的字面量只许出现在 config.js（定义）与 weather.js（合成）：${stray.join('、')}`);
+  else ok('速度修饰的字面量只出现在 config.js 与 weather.js 两处（其余模块无从"自己再算一遍"）');
+})();
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

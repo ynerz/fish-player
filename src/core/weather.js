@@ -85,6 +85,30 @@ G.Weather = (function () {
     return { wx: null, tm: null, rareMul: 1, colorBoost: 1 };
   }
 
+  /* 当前条件下该放的那首曲子：把钓场主题的 base spec 与「时段 / 天气」自己的
+     修饰量（`config.weather.times[].bgm` / `types[].bgm`）合成**有效 spec**。
+
+     ★ 这是**唯一**一处把 base 与修饰合起来的地方。调用方只管把结果丢给
+       `G.Audio.startBgm()`，不许自己再乘一遍 —— base 与修饰分处两个数据表，
+       谁再算一遍就是「同一件事的第二份真相」（本项目踩最多的坑型）。
+     ★ 纯函数：只读当前状态，**不就地改 base**（base 是 `fields.js` 里的常量对象，
+       就地改会把钓场数据污染掉，而且改了不报错 —— 典型静默失效）。
+     ★ 修饰量跟着「那个条件」自己走，而不是单独建一张按 key 索引的表：
+       rareMul / colorBoost / tint 本来就是这么放的，同一个条件的全部效果待在同一行，
+       改一个条件只需要看一处。新增条件的默认行为是「音乐不变」（不写 bgm 即恒等）。
+     ★ `mode` 只有时段能给（天气跟换调式会像音乐抽风，见 config 里的说明）。
+     ★ `chords` 是**同一个数组的引用**（不是复制）—— 它只被读，没必要每换一次条件
+       就复制一份、给 GC 添活。 */
+  function bgmSpec(base) {
+    if (!base) return null;
+    var t = W.times[tIdx] || W.times[0];
+    var tm = t && t.bgm, wx = cur && cur.bgm;
+    var mode = base.mode, barMul = 1;
+    if (tm) { if (tm.mode) mode = tm.mode; barMul *= (tm.barMul || 1); }
+    if (wx) { barMul *= (wx.barMul || 1); }
+    return { root: base.root, mode: mode, chords: base.chords, bar: base.bar * barMul };
+  }
+
   function snapshot() {
     var t = timeDef();
     var dayPct = tClock / W.dayLen;
@@ -123,6 +147,7 @@ G.Weather = (function () {
   return {
     init: init, update: update, on: on,
     env: env, neutral: neutral, snapshot: snapshot,
+    bgmSpec: bgmSpec,
     set: set,
     isReady: function () { return !!cur; },
   };

@@ -1477,14 +1477,18 @@ G.Panels = (function () {
         });
       });
 
-      row('背景音乐', '按钓场切换的和弦垫乐（程序化合成，不占素材）',
+      row('背景音乐', '随钓场 / 时段 / 天气变化的和弦垫乐（程序化合成，不占素材）',
         '<button class="btn-ghost" id="setBgm">' +
         (s.settings.music ? '已开启' : '已关闭') + '</button>', function (c) {
         U.on(c.querySelector('#setBgm'), 'click', function () {
           s.settings.music = !s.settings.music;
           if (s.settings.music && s.settings.sound) {
-            /* 从**当前钓场**重新起 —— 恢复播放时不能放成上一个钓场那一首 */
-            G.Audio.startBgm((G.FIELD_MAP[s.field] || G.FIELDS[0]).theme.bgm);
+            /* 从**当前钓场 + 当前时段 / 天气**重新起 —— 恢复播放时不能放成上一个钓场那一首，
+               也不能放成上一个时段的调式（关着音乐时变过天，`bgmOf()` 那条路是走不到的）。
+               ⚠️ 实参必须过 `G.Weather.bgmSpec()` 合一次：直接传 `theme.bgm` 就是绕开
+                  时段 / 天气修饰，而且**表现只在这一个入口**（其它入口正常）——
+                  本项目踩过的「同一件事的第二份真相」正是这个形状。verify 第 ㊶ 节盯着所有调用点。 */
+            G.Audio.startBgm(G.Weather.bgmSpec((G.FIELD_MAP[s.field] || G.FIELDS[0]).theme.bgm));
           } else {
             /* ⚠️ 必须是 `stopBgm` 而不是 `setEnabled(false)`：后者会把音效一起关掉 */
             G.Audio.stopBgm();

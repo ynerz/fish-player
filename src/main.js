@@ -5,6 +5,28 @@
   var U = G.U, St = G.State, Hud = G.Hud, S = G.Scene, F = G.Fishing, P = G.Panels;
   var last = 0, hudTimer = 0, lastState = '', hiddenAt = 0, bootDone = false;
   var blurred = false;   /* 窗口失焦（切到别的应用）时也停掉逻辑与计时 */
+  /* 音频有没有被「用户第一次手势」激活（见 boot 里的 arm）。放在模块级是因为
+     「时段 / 天气变了要不要顺手换音乐」那个回调也要看它 —— 见 retuneBgm。 */
+  var armed = false;
+
+  /* 当前条件（钓场 + 时段 + 天气）该放的那首曲子。
+     三个调用点（首次手势 / 切钓场 / 时段天气变化）共用这一处合成 ——
+     「同一件事写 N 遍」是本项目踩得最多的坑型，这里一开始就收口。 */
+  function bgmOf() {
+    var f = G.FIELD_MAP[St.get().field] || G.FIELDS[0];
+    return G.Weather.bgmSpec(f.theme.bgm);
+  }
+
+  /* 只在「玩家要音乐」时才换参数。⚠️ 不能无条件调 `startBgm()` ——
+     它会把「用户想听音乐」的意图位（`bgmWant`）点亮，于是
+     「关掉音乐 → 变一次天 → 音乐自己回来了」，而玩家压根没按过音乐开关。
+     （同一条理由：arm()` 之前也不许调，否则会凭空建一个 suspended 的
+       AudioContext，还提前把意图位置成 true。） */
+  function retuneBgm() {
+    if (!armed) return;
+    var se = St.get().settings;
+    if (se.sound && se.music) G.Audio.startBgm(bgmOf());
+  }
 
   function boot() {
     /* ---------- 错误采集（先挂上：后面任何一步崩了，日志里都有「崩在哪一步」） ---------- */
@@ -23,7 +45,15 @@
 
     /* ---------- 天气与时段 ---------- */
     G.Weather.init(Math.random());
-    G.Weather.on(function (sn) { Hud.setWeather(sn); });
+    /* 天气 / 时段一变：顶栏芯片刷新 + 音乐换参数。
+       ⚠️ `Weather.on` 是这些条件变化的**唯一**出口（随机换天、跨时段、devtools 的
+          `Weather.set` 都会走到这里），所以音乐接线挂这儿就够了，不用逐处接。
+       ⚠️ `startBgm` 只换参数、**不重启调度器**（见 audio.js）—— 换时段时音乐
+          接着往下走、和弦自然换过去，不会「从头来一遍」。 */
+    G.Weather.on(function (sn) {
+      Hud.setWeather(sn);
+      retuneBgm();
+    });
     Hud.setWeather(G.Weather.snapshot());
 
     /* ---------- 场景 ---------- */
@@ -87,9 +117,9 @@
        钓场能从钓场列表 / 鱼种面板 / 重置存档好几处切换，
        逐个接线迟早漏一处（而漏了的表现是「音乐还是上一个湖的」，很难被发现）。 */
     St.on('field', function (fid) {
-      var f = G.FIELD_MAP[fid];
+      if (!G.FIELD_MAP[fid]) return;
       var se = St.get().settings;
-      if (f && se.sound && se.music) G.Audio.startBgm(f.theme.bgm);
+      if (se.sound && se.music) G.Audio.startBgm(bgmOf());
     });
     St.on('goals', function () {
       Hud.setTitle(G.Goals.equipped());
@@ -103,14 +133,13 @@
        ⚠️ 必须在**用户第一次手势**里做：浏览器的自动播放策略会把没有手势的
        AudioContext 挂成 suspended。环境音与 BGM 都是**常驻节点**（不像一次性音效
        那样每次调用都有机会补救），这一步漏了就是「整局没声音」，而且不报任何错。 */
-    var armed = false;
     function arm() {
       if (armed) return; armed = true;
       var se = St.get().settings;
       G.Audio.setEnabled(se.sound);
       if (!se.sound) return;
       if (se.ambient) G.Audio.startAmbience();
-      if (se.music) G.Audio.startBgm(field.theme.bgm);
+      if (se.music) G.Audio.startBgm(bgmOf());
     }
     G.Platform.input.down(window, arm);
     G.Platform.input.key(arm, true);

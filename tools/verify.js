@@ -3237,6 +3237,80 @@ console.log('\n[41] 背景音乐随条件换参数：修饰量单一来源、键
 })();
 
 
+/* ---------------- 42. 接触表：判定口径不许有第二份 ----------------
+   背景：`tools/contact-sheet.py`（把一批卡面拼成一张大图，人一次过 20~40 张）。
+   它要在缩略图上画红 / 黄框，**最省事的写法就是自己再判一遍几何** ——
+   一旦两处阈值分家，就会出现「评审台说合格、接触表画红框」（本项目最忌的「第二份真相」，
+   同族事故见 §41 与 MEMORY.md 的「同一个事实被写 N 遍 = 高危」）。
+   这里把三件事钉死：
+     ① 接触表里**不许出现** check-cards 的任何阈值标识符与判定文案 —— 必须 import 现成的；
+     ② 判定只有**一个入口** `judge()`，`main()` 自己不许再比一次阈值（这段原来就是inline在 main 里的）；
+     ③ 接触表与 `docs/卡片评审.html` 用**同一套色**（一个视觉体系，颜色不许抄歪）。
+   ⚠️ ① 必须**只扫代码不扫注释**（开发者文档 §8 硬规矩第 1 条）：散文里提一句颜色判定
+      是正当的，`stripPy()` 因此把 docstring 与 `#` 注释都拿掉再扫。
+   ⚠️ 反向验证（两向都要做）：注释里写违规词 → 必须**仍然绿**；代码里写 → 必须红。 */
+console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写、配色与评审页一致');
+(() => {
+  const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  /* Python 的「只扫代码」：先摘 docstring（三引号整块 = 散文），再摘 `#` 行注释。
+     ⚠️ 单行字符串里的 `#`（如调色板的 "#16171a"）会被一并切掉 —— 对 ①② 无害
+        （它们找的是标识符与判定文案，本来就不该出现在字符串里；真出现了更该报红）。
+        ③ 用的是**原文**，不走本函数。 */
+  const stripPy = t => t.replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
+    .replace(/#[^\n]*/g, '');
+
+  const sheet = stripPy(read('tools/contact-sheet.py'));
+  const cc = stripPy(read('tools/check-cards.py'));
+
+  /* ① 阈值与判定文案：接触表里一个都不许有 */
+  const forbidden = ['AREA_MIN', 'AREA_MAX', 'BG_TOL', 'EDGE_PAD', 'MASK_THRESH',
+    '背景漂移', '贴边裁切', '主体占比越界'];
+  const hit = forbidden.filter(t => has(sheet, t));
+  if (hit.length) {
+    err(`tools/contact-sheet.py 里出现了 check-cards 的判定口径（${hit.join('、')}）`
+      + ' —— 判定必须 import check-cards 的 judge()；阈值抄一份 = 两份真相');
+  }
+
+  /* ② 判定只有一个入口：`def judge(` 恰好一处，且 `main()` 体内不再比阈值 */
+  let secBad = 0;
+  const judgeDefs = (cc.match(/def\s+judge\s*\(/g) || []).length;
+  if (judgeDefs !== 1) { err(`check-cards.py 里 def judge( 有 ${judgeDefs} 处（应为 1）`); secBad++; }
+  const mi = at(cc, 'def main(');
+  if (mi < 0) { err('check-cards.py 里找不到 def main( —— 本断言按它切片，改了名就来更新'); secBad++; }
+  else {
+    const body = cc.slice(mi);
+    if (!has(body, 'judge(')) {
+      err('check-cards.py 的 main() 没调 judge() —— 判定入口没接上（等于接触表读不到判定）'); secBad++;
+    }
+    const dup = ['AREA_MIN', 'AREA_MAX', 'BG_TOL', 'EDGE_PAD', 'MASK_THRESH']
+      .filter(t => has(body, t));
+    if (dup.length) {
+      err(`check-cards.py 的 main() 里又出现了阈值（${dup.join('、')}）—— 判定只许有 judge() 一处`); secBad++;
+    }
+  }
+
+  /* ③ 同一套色：评审页 `:root` 里的每个色都要在接触表里有同名常量、且逐值相同 */
+  const root = /:root\s*\{([\s\S]*?)\}/.exec(read('tools/review-cards.py'));
+  const vars = root ? (root[1].match(/--([a-z]+)\s*:\s*(#[0-9a-fA-F]{6})/g) || []) : [];
+  if (vars.length < 8) {
+    err(`解析不出评审页的调色板（只认出 ${vars.length} 个色）—— 改了措辞就来更新本断言`); secBad++;
+  }
+  let bad = 0;
+  const sheetRaw = read('tools/contact-sheet.py');
+  vars.forEach(v => {
+    const m = /--([a-z]+)\s*:\s*(#[0-9a-fA-F]{6})/.exec(v);
+    if (!new RegExp('\\b' + m[1].toUpperCase() + '\\s*=\\s*"' + m[2] + '"').test(sheetRaw)) {
+      err(`接触表的调色板没跟上评审页：${m[1]} 应为 ${m[2]}`); bad++;
+    }
+  });
+
+  if (!hit.length && !secBad && !bad) {
+    ok(`接触表复用 check-cards 的判定（${forbidden.length} 项口径 0 处重复）、judge() 是唯一入口，`
+      + `且与评审页共用同一套 ${vars.length} 色`);
+  }
+})();
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

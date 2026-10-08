@@ -109,6 +109,37 @@ def analyze(path):
     }
 
 
+def judge(r):
+    """把 `analyze()` 的数值定成 ok / warn / fail —— **判定口径的唯一一处**。
+
+    ⚠️ 2026-10-08：这段原来inline在 `main()` 里。`tools/contact-sheet.py`（接触表）要在
+       缩略图上画红/黄框，如果它自己再判一遍，就会出现「评审台说合格、接触表说红框」
+       这种两套口径 —— 所以抽成函数，接触表直接 import 本函数（verify 第 ㊷ 节盯着
+       「本文件的判定文案只许出现一次」）。
+    ⚠️ 本函数**只读** `r`，不改它（`main()` 做完自己想记的字段再调它）。
+    """
+    if not r["ok"]:
+        return {"hard": list(r["reasons"]), "soft": [], "verdict": "fail"}
+
+    hard = []
+    if r["bg_drift"] > BG_TOL:
+        hard.append("背景漂移(Δ%d)" % r["bg_drift"])
+    if r["clipped"]:
+        hard.append("贴边裁切")
+    # ⚠️ 超细长鱼（鳗类，宽高比 > 5）单独放宽下限 —— 它们在图里天然是一条细线，
+    #    构图占比已由 paint-card.py 的「构图归一」按最长边统一处理，
+    #    这里只用来抓「真的画崩了」。实测 A14 海鳗 7% / D11 黄鳝 5%。
+    amin = 0.03 if r["wh"] > 5 else AREA_MIN
+    if not (amin <= r["area"] <= AREA_MAX):
+        hard.append("主体占比越界(%.0f%%)" % (r["area"] * 100))
+
+    soft = []
+    if r["cx"] > 0.56:
+        soft.append("重心偏右(朝向?)")
+    return {"hard": hard, "soft": soft,
+            "verdict": "fail" if hard else ("warn" if soft else "ok")}
+
+
 def main():
     args = sys.argv[1:]
     if args:
@@ -125,30 +156,18 @@ def main():
         if not os.path.exists(p):
             print("  缺文件：%s" % p); continue
         r = analyze(p)
-        rs = r["reasons"]
         if not r["ok"]:
-            fails.append((r["id"], rs)); rows.append(r); continue
-        if r["bg_drift"] > BG_TOL:
-            rs.append("背景漂移(Δ%d)" % r["bg_drift"])
-        if r["clipped"]:
-            rs.append("贴边裁切")
-        # ⚠️ 超细长鱼（鳗类，宽高比 > 5）单独放宽下限 —— 它们在图里天然是一条细线，
-        #    构图占比已由 paint-card.py 的「构图归一」按最长边统一处理，
-        #    这里只用来抓「真的画崩了」。实测 A14 海鳗 7% / D11 黄鳝 5%。
-        amin = 0.03 if r["wh"] > 5 else AREA_MIN
-        if not (amin <= r["area"] <= AREA_MAX):
-            rs.append("主体占比越界(%.0f%%)" % (r["area"] * 100))
-        hard = [x for x in rs if not x.startswith("提示")]
-        soft = []
-        if r["cx"] > 0.56:
-            soft.append("重心偏右(朝向?)")
+            j = judge(r)
+            fails.append((r["id"], j["hard"])); rows.append(r); continue
         # ⚠️ 「背腹明暗」**只报告不判定** —— 实测这条判据不可靠：v9 的光照是
         #    **边缘光打在背上**（背部反而亮），加上深色鱼与长条鱼，
         #    25 张里 4 张误报（16%）。数值已在「背腹」列显示，人工看趋势就行。
         #    `[待补]` 想找个可靠替代：算主体灰度的 p10~p90 跨度（对比度不足 = 图发平）。
-        r["soft"] = soft
-        if hard:
-            fails.append((r["id"], hard))
+        j = judge(r)
+        r["reasons"] = j["hard"]
+        r["soft"] = j["soft"]
+        if j["hard"]:
+            fails.append((r["id"], j["hard"]))
         rows.append(r)
 
     print("%-12s %6s %7s %6s %6s %7s  %s" % ("id", "占比", "宽高比", "重心", "背腹", "主色", "判定"))
@@ -156,7 +175,7 @@ def main():
     for r in rows:
         if not r["ok"]:
             print("%-12s  %s" % (r["id"], "、".join(r["reasons"]))); continue
-        hard = [x for x in r["reasons"] if not x.startswith("提示")]
+        hard = r["reasons"]
         soft = r.get("soft") or []
         mark = "FAIL" if hard else ("warn" if soft else "ok")
         note = "、".join(hard + soft)

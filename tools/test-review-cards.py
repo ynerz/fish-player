@@ -20,6 +20,7 @@ import argparse
 import importlib.util
 import io
 import os
+import re
 import subprocess
 import sys
 import time
@@ -115,16 +116,31 @@ def main():
     check("--prompt-only" in R.build_console_script(groups, dry=True), "干跑：带 --prompt-only")
     check(txt.rstrip().endswith("pause"), "结尾 pause（窗口不会一跑完就没了、看不清）")
     check("\r\n" in txt and "\n\n" not in txt.replace("\r\n", ""), "用 CRLF 换行（.cmd 的规矩）")
-    # 控制字符：& | < > 在 echo 文本里会改行为；命令行的引号必须是成对的结构
-    for ch in ("&", "|"):
-        check(ch not in txt, "内容里没有裸的 %s（cmd 控制字符）—— 注入面收干净" % ch)
+    # 🔴 echo 文本里不许有 cmd 的控制字符 —— 2026-10-08 真栽过：
+    #    第一版写了 `echo [1/4] glitter x1  ->  C01,D12`，`>` 是**重定向**、`,` 是分隔符
+    #    ⇒ 效果是「在仓库根写出一个叫 `C01` 的文件」，而且不报错（用户跑完才发现根目录多了垃圾）。
+    #    ⚠️ 必须**只看 echo 行**：`chcp 65001 >nul` 里的 `>` 是正当用法。
+    bad_echo = [l for l in txt.split("\r\n")
+                if l.strip().startswith("echo") and any(c in l for c in "><&|^")]
+    check(not bad_echo, "所有 echo 行都没有 cmd 控制字符（`>` `<` `&` `|` `^`），"
+                        "要分隔用 `:` 不要用箭头 —— 实得 %r" % (bad_echo[:1] or "无"))
+    # 反向自检：这条判据必须真能抓到原来的写法
+    SYN_ECHO = "echo [1/4] glitter x1  ->  C01,D12"
+    check(any(c in SYN_ECHO for c in "><&|^"),
+          "判据自检：原来那个 `->` 写法会被上面这条抓到")
 
     print("\n[5] write_console_script：真的落一个文件，且能双击重跑")
     p = R.write_console_script(groups)
     check(os.path.exists(p), "文件已写出：%s" % os.path.relpath(p, ROOT))
-    check(io.open(p, encoding="ascii").read() == txt.replace("\n", "\r\n") or
-          io.open(p, encoding="ascii").read().count("@echo off") == 1,
-          "文件内容与生成器一致")
+    raw = io.open(p, "rb").read()
+    # 🔴 踩过：写文件用 `newline="\r\n"` 会把已经是 CRLF 的文本**再转一遍**成 `\r\r\n`，
+    #    盘上 33 行全中。cmd 会把多余的 `\r` 当行内容，而且「删掉结尾 pause 再跑」会静默失配。
+    check(raw.count(b"\r\r\n") == 0,
+          "盘上没有 CRCRLF（newline='\\r\\n' 的二次转换）—— 实得 %d 处"
+          % raw.count(b"\r\r\n"))
+    check(raw.count(b"\r\n") == txt.count("\r\n"),
+          "盘的 CRLF 数（%d）与生成器一致（%d）" % (raw.count(b"\r\n"), txt.count("\r\n")))
+    check(raw.count(b"\n") == raw.count(b"\r\n"), "没有裸 LF 行尾")
     check(os.path.abspath(p).startswith(os.path.abspath(TMP)),
           "写在 _tmp/ 下（.gitignore 已忽略，不会把仓库弄脏）")
 
@@ -142,7 +158,7 @@ def main():
             os.remove(marker)
         probe = os.path.join(TMP, "launch-probe.cmd")
         # 写标记后自己退出（不 pause）—— 免得测试在桌面上留一个窗口
-        io.open(probe, "w", encoding="ascii", newline="\r\n").write(
+        io.open(probe, "w", encoding="ascii", newline="").write(
             "@echo off\r\necho launched-ok > \"%s\"\r\nexit /b 0\r\n" % marker)
         R.launch_console(probe)
         for _ in range(30):
@@ -156,6 +172,55 @@ def main():
               "（顺带）cmd.exe 可查 —— 窗口是不可见状态时也能被查")
     else:
         print("\n[7] 跳过「真开窗口」验证（要跑加 --window）")
+
+    print("\n[8] 真跑一遍生成的脚本：仓库根**不许**多出垃圾文件")
+    # 为什么值得真跑：上面第 4 节只拦「已知的控制字符」。而 2026-10-08 那次事故的形态是
+    # 「echo 里的 `>` 变成重定向、在**仓库根**写了个文件，还一点错都不报」——
+    # 脚本里 `cd /d ROOT` 是写死的，所以任何重定向都会落在仓库根。
+    # 判据：跑一遍（干跑模式，几秒）前后**对比仓库根的文件清单**。
+    before = set(os.listdir(ROOT))
+    dry_script = R.write_console_script(groups, dry=True)
+    # ⚠️ 读的时候必须 `newline=""`：默认的「通用换行」会把 CRLF 翻成 LF，
+    #    于是下面删 pause 的正则静默失配 → 脚本停在 pause 上 → 测试挂死（我栽过一次）。
+    body = io.open(dry_script, encoding="ascii", newline="").read()
+    # 去掉结尾的 pause（不然要等按键），其余原样跑 —— 要测的就是原样那条脚本
+    body = re.sub(r"\r?\npause\r?\n?$", "\r\n", body)
+    check("pause" not in body.split("\r\n")[-2:], "测试用的脚本已去掉 pause（不会挂死）")
+    runnable = os.path.join(TMP, "dry-run.cmd")
+    io.open(runnable, "w", encoding="ascii", newline="").write(body)
+    try:
+        p = subprocess.run(["cmd", "/c", runnable], capture_output=True, text=True,
+                           errors="replace", cwd=ROOT, timeout=60)
+        rc = p.returncode
+    except subprocess.TimeoutExpired:
+        rc = None
+        check(False, "干跑脚本 60 秒没跑完 —— 多半是脚本里有 pause / 在等输入")
+    after = set(os.listdir(ROOT))
+    added = sorted(after - before)
+    check(not added, "跑完仓库根没多出文件（多出来的是 %r）" % (added or "无"))
+    if rc is not None:
+        check(rc == 0, "干跑脚本退出码 0（实得 %d）" % rc)
+    # 反向自检：把 `:` 换回 `->` 再跑一次，**必须**多出文件 —— 否则这条判据是摆设
+    bad_body = body.replace("   :   ", "  ->  ")
+    if bad_body == body:
+        check(False, "反向自检没造出差异（分隔符写法变了？判据要跟着改）")
+    else:
+        bad_cmd = os.path.join(TMP, "dry-run-bad.cmd")
+        io.open(bad_cmd, "w", encoding="ascii", newline="").write(bad_body)
+        before2 = set(os.listdir(ROOT))
+        try:
+            subprocess.run(["cmd", "/c", bad_cmd], capture_output=True, text=True,
+                           errors="replace", cwd=ROOT, timeout=60)
+        except subprocess.TimeoutExpired:
+            pass
+        added2 = sorted(set(os.listdir(ROOT)) - before2)
+        check(bool(added2), "判据自检：改回 `->` 的写法**确实**会在仓库根写出文件（%r）"
+                            "—— 这正是要拦的那个 bug" % (added2[:3] or "居然没写出来"))
+        for junk in added2:                      # 自检产物当场清掉
+            try:
+                os.remove(os.path.join(ROOT, junk))
+            except OSError:
+                pass
 
     print("\n" + "=" * 52)
     if fails:

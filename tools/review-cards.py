@@ -784,7 +784,11 @@ def build_console_script(groups, dry=False):
     ⚠️ 内容**全 ASCII**：cmd.exe 按系统 ANSI 代码页读 .cmd 文件，UTF-8 中文会被
        拆成乱命令 —— 这条教训是 `tools/gen-art-loop.cmd` 用血换来的（它开头就写着）。
        Python 那侧的中文输出不受影响（`chcp 65001` + `PYTHONUTF8=1` 两行罩着）。
-    ⚠️ 不要把 `(` `)` 之外的 `&` `|` `<` `>` 放进 echo 文本 —— 那是 cmd 的控制字符。
+    🔴 **echo 文本里不许出现 `>` `<` `&` `|` `^`**（cmd 的控制字符）：
+       我第一版图省事写了 `echo [1/4] glitter x1  ->  C01,D12` —— `>` 是**重定向**，
+       而 `,` 又是 cmd 的分隔符 ⇒ 这句话的效果是「**在仓库根写出一个叫 `C01` 的文件**，
+       内容是 `[1/4] glitter x1  -,D12`」，而且**不报错**。实测复现 + 已在测试里钉死。
+       要分隔就用 `:`，不要用箭头。
     """
     n = sum(len(g["ids"]) for g in groups)
     L = ["@echo off",
@@ -822,7 +826,7 @@ def build_console_script(groups, dry=False):
                 shown.append(os.path.relpath(x, ROOT) if os.path.isabs(x) else x)
             except ValueError:
                 shown.append(x)
-        L.append("echo [%d/%d] %s x%d  ->  %s"
+        L.append("echo [%d/%d] %s x%d   :   %s"
                  % (i, len(groups), label, len(g["ids"]), ",".join(g["ids"])))
         # `-u` 是为了让 Python 的输出**即时**刷进 cmd 窗口（不然要等缓冲满）
         L.append('"%PY%" -u ' + " ".join('"%s"' % c if " " in c else c for c in shown[1:]))
@@ -858,12 +862,18 @@ def launch_console(script):
 
 
 def write_console_script(groups, dry=False):
-    """把窗口脚本写到 `_tmp/`（不会进版本库）并返回路径。"""
+    """把窗口脚本写到 `_tmp/`（不会进版本库）并返回路径。
+
+    🔴 `newline=""`：**不要写 `newline="\\r\\n"`** —— `build_console_script()` 返回的
+       文本里已经是 `\\r\\n`，再用 `newline="\\r\\n"` 写会把 `\\n` 又转一遍 ⇒ 盘上是 `\\r\\r\\n`
+       （实测 33 行全中）。cmd 拿到多余的 `\\r` 会把它当成行内容的一部分，而且
+       「把结尾 pause 删掉再跑」这类加工会静默失配（我的测试就是这么卡住的）。
+    """
     tmpdir = os.path.join(ROOT, "_tmp")
     if not os.path.isdir(tmpdir):
         os.makedirs(tmpdir)
     path = os.path.join(tmpdir, "regen-%s.cmd" % time.strftime("%Y%m%d-%H%M%S"))
-    io.open(path, "w", encoding="ascii", newline="\r\n").write(
+    io.open(path, "w", encoding="ascii", newline="").write(
         build_console_script(groups, dry))
     return path
 

@@ -1902,6 +1902,63 @@ if (realRAF === undefined) delete global.requestAnimationFrame; else global.requ
 if (realCAF === undefined) delete global.cancelAnimationFrame; else global.cancelAnimationFrame = realCAF;
 
 /* =========================================================
+   Panels · 底栏禁用态（`#app` 上的 `modal-open`）
+   =========================================================
+   口径（2026-10-08 用户拍板）：**面板打开时底栏不可点**。
+   ⚠️ 而「不可点」原来只是遮罩几何 + z-index 的**巧合结果** —— 谁哪天改了 `.modal` 的
+      `top` 或 `z-index`，底栏就会**静默变成可点**，而口径早就定了（这种失效不报错）。
+      所以 panels.js 现在显式维护一个类，由 style.css 的 `#app.modal-open #deck` 画出来。
+   这一节盯的是**最容易坏的那一半**：`close()` 必须把类摘干净 ——
+   漏一次，底栏就永久压暗**且永久不可点**（玩家只能重开页面）。
+   （真正的压暗与命中测试在浏览器里做，见 `docs/每小时优化轮次规范.md` §6；
+     Node 里只验「类名的挂 / 摘是对称的」。）
+   ========================================================= */
+G_('Panels · 底栏禁用态的类名挂载与摘除');
+(function () {
+  const mkCls = set => ({
+    add: c => set.add(c),
+    remove: c => set.delete(c),
+    toggle: (c, on) => { if (on) set.add(c); else set.delete(c); },
+    contains: c => set.has(c),
+  });
+  const node = (tag, set) => { const e = mkEl(tag); if (set) e.classList = mkCls(set); return e; };
+
+  const appSet = new Set(), modalSet = new Set(['hidden']);
+  const els = {
+    '#app': node('div', appSet), '#modal': node('div', modalSet),
+    '#modalTitle': node('div'), '#modalBody': node('div'), '#modalClose': node('button'),
+    '#catchCard': node('div'), '#catchCanvas': node('canvas'),
+  };
+  const realDoc = global.document;
+  global.document = {
+    createElement: mkEl, querySelector: s => els[s] || null, querySelectorAll: () => [],
+    addEventListener() {},
+  };
+
+  Panels.init();
+  ok(appSet.size === 0 && modalSet.has('hidden'),
+     '初始态：弹层隐藏、`#app` 上没有任何类（底栏正常可用）');
+
+  Panels.open('offline');
+  ok(!modalSet.has('hidden') && appSet.has('modal-open'),
+     'open() 显示弹层并给 #app 挂上 modal-open（底栏进入禁用态）');
+
+  Panels.close();
+  ok(modalSet.has('hidden') && !appSet.has('modal-open'),
+     'close() 摘掉 modal-open（底栏恢复）—— 漏一次底栏就永久压暗且不可点');
+
+  for (let i = 0; i < 3; i++) { Panels.open('offline'); Panels.close(); }
+  ok(appSet.size === 0, '连开连关 3 次后 #app 的类名集合为空（不许残留状态）',
+     Array.from(appSet).join(','));
+
+  let closeThrew = '';
+  try { Panels.close(); } catch (e) { closeThrew = e.message; }
+  ok(!closeThrew && !appSet.has('modal-open'), '没开面板时调 close() 不抛、也不留残影', closeThrew);
+
+  global.document = realDoc;
+})();
+
+/* =========================================================
    Hud —— 拉扯提示的四个分支，以及阈值必须来自 config
    ========================================================= */
 new Function(fs.readFileSync(path.join(ROOT, 'src/ui/hud.js'), 'utf8')).call(global);

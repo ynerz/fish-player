@@ -313,6 +313,24 @@ html,body{
   background:var(--c-panel); border-top:1px solid var(--c-line);
   box-shadow:0 -1px 3px rgba(29,52,70,.06);
   z-index:20;
+  /* 面板打开时底栏要压暗，过渡与 .modal 的淡入同长（.18s），两张片子一起呼吸 */
+  transition:opacity .18s ease, filter .18s ease;
+}
+/* 面板打开 ⇒ 底栏进入「禁用态」。
+   口径（2026-10-08 用户拍板）：**面板打开时底栏不可点**。
+   遮罩从 `--hud-h` 开始，底栏确实被盖住、点不到 —— 但它**看起来完全正常**，
+   于是玩家会连点几次、并且认为「卡了」。这一条就是把「不可点」**画出来**。
+   ⚠️ 两个细节不是随手加的：
+     ① `pointer-events:none` 让口径**显式**。原来「不可点」只是遮罩几何 + z-index
+        的**巧合结果**：谁哪天改了 .modal 的 top 或 z-index，底栏就会**静默变成可点**，
+        而口径早就定了 —— 那种失效不会报错、也没人会发现。
+     ② 刻意**不动顶栏**：顶栏在遮罩之上是有意的（面板开着时能就地切标签页，
+        见 .modal 上面那段注释），所以禁用态只落在底栏这一个元素上。
+   类名 `modal-open` 挂在 `#app` 上，由 panels.js 的 open() / close() 维护。 */
+#app.modal-open #deck{
+  opacity:.45;
+  filter:saturate(.45);
+  pointer-events:none;
 }
 .deck-left{ display:flex; align-items:center; gap:8px; min-width:0; overflow:hidden; }
 .slot{

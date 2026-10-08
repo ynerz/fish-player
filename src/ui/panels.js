@@ -6,6 +6,7 @@ window.G = window.G || {};
 G.Panels = (function () {
   var U = G.U, St = G.State, CFG = G.CONFIG;
   var modal, titleEl, bodyEl, closeBtn;
+  var appEl;      // #app —— 「面板开着」这个全局态挂在它身上（底栏禁用态的样式靠它选）
   var catchCard, catchCanvas;
   var current = null;
   var onCloseCb = null;
@@ -60,6 +61,7 @@ G.Panels = (function () {
 
   function init() {
     modal = U.$('#modal');
+    appEl = U.$('#app');
     titleEl = U.$('#modalTitle');
     bodyEl = U.$('#modalBody');
     closeBtn = U.$('#modalClose');
@@ -98,6 +100,10 @@ G.Panels = (function () {
     if (refreshTimer) { clearTimeout(refreshTimer); refreshTimer = 0; }
     renderCurrent(arg);
     modal.classList.remove('hidden');
+    /* 底栏进入禁用态（样式见 style.css 的 `#app.modal-open #deck`）——
+       口径是「面板打开时底栏不可点」，但**必须画出来**：底栏被遮罩盖住后
+       看起来仍然完全正常，玩家会连点几次并以为卡了。见 style.css 里那段注释。 */
+    if (appEl) appEl.classList.add('modal-open');
     G.Audio.click();
   }
 
@@ -108,6 +114,7 @@ G.Panels = (function () {
     /* 面板关了就把列表的懒绘制观察器也断了（它一直握着已经脱离文档的节点） */
     if (netIO) { netIO.disconnect(); netIO = null; }
     modal.classList.add('hidden');
+    if (appEl) appEl.classList.remove('modal-open');
     bodyEl.innerHTML = '';
     current = null;
     /* ⚠️ 这里**不要**把 onCloseCb 置空。它是 hud.js 在 init 时注册一次的

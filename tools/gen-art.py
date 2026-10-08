@@ -1338,8 +1338,17 @@ def write_plan(fish):
         #    清单说 001 批已完成，实际它们只有母版，下一轮直接跳到 002 批，
         #    这两条鱼的档位图**再也没人补**。交付物是 6 张图，检测条件也必须覆盖 6 张。
         def complete(f):
-            return all(os.path.exists(os.path.join(OUT, "%s%s.png" % (f["id"], sfx)))
-                       for sfx in ("",) + tuple("-" + k for k in morph_keys()))
+            """母版 + 每一档的**每一版**都存在才算完成。
+
+            ⚠️ 只按固定档名找文件的话，传说档闪光**第 2 版**（`<id>-shiny-2.png`）
+               永远不参与判定 —— 缺了也照样打勾，而清单的勾是「下一轮跳不跳」的依据。
+               交付物是「母版 1 张 + 每一档每一版」，检测条件就必须覆盖它们。
+            """
+            names = [f["id"] + ".png", f["id"] + "-normal.png"]
+            for key, _d in MORPHS:
+                names += ["%s-%s%s.png" % (f["id"], key, v[3])
+                          for v in morph_versions(f, key)]
+            return all(os.path.exists(os.path.join(OUT, n)) for n in names)
         have = all(complete(f) for f in b)
         mark = "[x]" if have else "[ ]"
         L.append("| %s | %03d | %s | %d | %s |" % (mark, i, RAR_CN[b[0]["rar"]], len(b), names))

@@ -36,7 +36,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CARDS = os.path.join(ROOT, "assets", "cards")
 
 MASTER_RE = re.compile(r"^[A-Z]+\d+\.png$")     # 母版 = <id>.png
-MORPH_RE = re.compile(r"^[A-Z]+\d+-[a-z_]+\.png$")   # 档位 = <id>-<档>.png（独立产出）
+# 档位 = <id>-<档>.png（独立产出）+ **第 N 版** `<id>-<档>-N.png`
+# ⚠️ 2026-10-08：传说档的闪光会出 2 版（`gen-art.py:MORPH_VERSIONS_BY_RAR`）。
+#    正则不认 `-N` 后缀的话，第 2 版**根本不进验收** —— 缺了也照样「查过了」，
+#    正是本项目「检测条件 ≠ 交付物」的老坑。
+MORPH_RE = re.compile(r"^[A-Z]+\d+-[a-z_]+(-\d+)?\.png$")
 
 MASK_THRESH = 20          # 与背景色的差异超过它才算主体（与 paint-card.py 同口径）
 BG_TOL = 26               # 四角之间允许的最大通道差

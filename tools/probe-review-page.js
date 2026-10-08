@@ -1,0 +1,79 @@
+/* =========================================================
+   tools/probe-review-page.js  —  docs/卡片评审.html 的交互复核探针
+   =========================================================
+   用法（交给 tools/browser-probe.js 在页面里求值）：
+     # 静态打开
+     node tools/browser-probe.js "file:///D:/fish%20player/docs/%E5%8D%A1%E7%89%87%E8%AF%84%E5%AE%A1.html" \
+          _tmp/评审台-静态.png tools/probe-review-page.js
+     # 带运行器（页面上能直接「开始重出」）
+     python tools/review-cards.py --serve --port 8770
+     node tools/browser-probe.js http://127.0.0.1:8770/ _tmp/评审台-运行器.png tools/probe-review-page.js
+
+   为什么要有它：这一页是**给人手动打开**的交付物，而它静默坏过一次
+   （页内 JS 的 `\n` 被 Python 提前解释掉 → 整页空白，而生成工具退出码 0）。
+   `verify.js` 第 ㊴ 节现在能拦「语法坏了」，但拦不住「语法对了、点下去没反应」。
+   ⇒ 真打开一次、把该点的都点一遍，才是这一页的终局判据。
+   返回：各步骤的布尔结果（见下）；`node tools/browser-probe.js` 会连同
+         正文长度 / 破图数 / 页面报错一起打出来。
+   ========================================================= */
+(async function () {
+  var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  var q = function (s) { return document.querySelector(s); };
+  var out = {};
+
+  /* ① 卡面渲染：每条鱼一行，每行 5 个可评审单元（母版 + 4 档） */
+  var grid = q('#grid');
+  out.hasGrid = !!grid;
+  out.cells = grid ? grid.children.length : 0;
+  var cellImgs = grid ? grid.querySelectorAll('img') : [];
+  var broken = 0;
+  for (var i = 0; i < cellImgs.length; i++) {
+    var src = cellImgs[i].getAttribute('src') || '';
+    if (src && cellImgs[i].complete && cellImgs[i].naturalWidth === 0) broken++;
+  }
+  out.cellImgs = cellImgs.length;
+  out.brokenImgs = broken;
+  out.firstCell = grid && grid.children[0]
+    ? grid.children[0].innerText.replace(/\s+/g, ' ').slice(0, 80) : null;
+
+  /* ② 点图放大到原图（#lb 层），Esc 能关 */
+  if (cellImgs.length) {
+    cellImgs[0].click();
+    await sleep(350);
+    out.lightboxOn = q('#lb').classList.contains('on');
+    out.lightboxSrc = (q('#lb img') || {}).getAttribute ? q('#lb img').getAttribute('src') : null;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await sleep(250);
+    out.lightboxClosedByEsc = !q('#lb').classList.contains('on');
+  }
+
+  /* ③ 判「重出」：按钮亮起 + 计数增加 + 落 localStorage */
+  var bad = q('#grid .b-bad');
+  out.hasBadBtn = !!bad;
+  if (bad) bad.click();
+  await sleep(300);
+  out.badBtnOn = bad ? bad.classList.contains('on') : null;
+  out.markedLabel = (document.body.innerText.match(/重出\s*\d+/) || [])[0] || null;
+  try {
+    var raw = localStorage.getItem('fishcard-review-v2');
+    out.saved = !!raw;
+    out.savedIds = raw ? Object.keys(JSON.parse(raw)).length : 0;
+  } catch (e) { out.saved = 'localStorage 不可用：' + e.name; }
+
+  /* ④ 导出重出清单：对话框内容要能直接执行（含 gen-art.py --list） */
+  var exp = Array.prototype.slice.call(document.querySelectorAll('button'))
+    .filter(function (b) { return /导出/.test(b.textContent); })[0];
+  out.hasExportBtn = !!exp;
+  if (exp) exp.click();
+  await sleep(400);
+  var txt = (q('#out') || {}).value || '';
+  out.dialogOpen = q('#dlg') ? q('#dlg').open : null;
+  out.cmdHasList = /gen-art\.py --list/.test(txt);
+  out.cmdHead = txt.split('\n').slice(0, 2).join(' | ');
+
+  /* ⑤ 运行器：连上才该让点，静态打开必须置灰（防「点了没反应」） */
+  out.runText = (q('#run') || {}).textContent;
+  out.runDisabled = (q('#run') || {}).disabled;
+  out.runState = (q('#runState') || {}).textContent;
+  return out;
+})()

@@ -204,7 +204,7 @@
     /* 起手先把 `last` 对齐到平台时钟：下一帧的 dt 才不会因为
        「boot 花了多久」而算出一个大跳（loop 里还有一层 <0 / >0.05 的夹紧兜底）。 */
     last = G.Platform.sys.now();
-    requestAnimationFrame(loop);
+    G.Platform.sys.raf(loop);
   }
 
   /* ---------------- 状态 ---------------- */
@@ -341,7 +341,7 @@
 
     /* 帧率上限：144Hz 屏幕上原本会跑满 144 帧，白白耗电发热 */
     frameAcc += dt * 1000;
-    if (frameAcc < FRAME_MIN) { requestAnimationFrame(loop); return; }
+    if (frameAcc < FRAME_MIN) { G.Platform.sys.raf(loop); return; }
     var step = Math.min(frameAcc / 1000, 0.05);
     frameAcc = 0;
     dt = step;
@@ -384,7 +384,7 @@
     hudTimer += dt;
     if (focused && hudTimer > 0.4) { hudTimer = 0; Hud.syncStats(); }
 
-    requestAnimationFrame(loop);
+    G.Platform.sys.raf(loop);
   }
 
   /* ---------------- go ----------------

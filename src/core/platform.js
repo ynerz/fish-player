@@ -8,13 +8,15 @@
    这样将来上微信小程序时，只需要再写一份 platform.weapp.js
    在 index.html（或 app.json 入口）里替换掉本文件，逻辑层一行不用改。
 
-   接口（7 组）：
+   接口（8 组）：
      storage    get / set / remove / kind
-     audio      createContext()          —— 小程序要换成 wx.createInnerAudioContext
+     audio      createContext() / load(url) → Promise<AudioBuffer|null> / playFile（小程序占位）
+                —— 小程序要换成 wx.createInnerAudioContext
      canvas     create(w,h)              —— 小程序要换成 wx.createOffscreenCanvas
-     sys        dpr() / size() / now() / isVisible() / reload()
+     image      create() / load(url) → Promise<Image|null>   —— 小程序换成 wx.createImage
+     sys        dpr() / size() / now() / raf(fn) / cancelRaf(h) / isVisible() / reload()
                 onReady(fn) / onResize(fn) / onVisibility(fn) / onFocus(fn) / onBlur(fn)
-                onError(fn) / onRejection(fn)
+                onError(fn) / onRejection(fn) / isFile()
      input      down(el,fn) / up(fn) / cancel / leave / key
      clipboard  write(text) → Promise<boolean>   —— 小程序换成 wx.setClipboardData
      dialog     confirm(msg) / prompt(msg,def)   —— 小程序换成 wx.showModal
@@ -107,6 +109,33 @@ G.Platform = (function () {
       return (window.performance && window.performance.now)
         ? window.performance.now()
         : Date.now();
+    },
+    /* 帧调度：**它是平台能力，不是「标准计时器」** ——
+       Web 与微信小游戏有全局 `requestAnimationFrame`，而**小程序（非小游戏）页面里没有**，
+       要换成 `canvas.requestAnimationFrame`。所以业务代码一律走这两个入口。
+     ⚠️ **边界**（2026-10-08 明确，见 `docs/每小时优化轮次规范.md` §9）：
+        `requestAnimationFrame` / `cancelAnimationFrame` **算**平台能力（渲染宿主的调度器）；
+        而 `setTimeout` / `setInterval` **不算**（任何宿主都有，Node 里也有）——
+        给它们包一层只是多一层无意义的间接，反而掩盖了「真正要换的只有帧调度」这件事。
+     ⚠️ 拿不到 raf 时**退回 `setTimeout` 而不是抛**，并且**照样把时间戳传给回调**：
+        主循环的 dt 就是 `(now - last)` 算的，而它的基准来自 `sys.now()` ——
+        两条路必须同源，否则退回路径会算出天文数字的 dt（上一处注释已经说过这个坑）。
+        有了这个兜底，调用方**不需要再写 `if (cancelAnimationFrame)` 这类空值守卫**。 */
+    raf: function (fn) {
+      try {
+        if (window.requestAnimationFrame) return window.requestAnimationFrame(fn);
+      } catch (e) { /* 落到下面的 setTimeout */ }
+      return setTimeout(function () { fn(sys.now()); }, 16);
+    },
+    cancelRaf: function (h) {
+      if (h == null) return;
+      try {
+        if (window.requestAnimationFrame && window.cancelAnimationFrame) {
+          window.cancelAnimationFrame(h);
+          return;
+        }
+      } catch (e) { /* 落到下面的 clearTimeout */ }
+      try { clearTimeout(h); } catch (e2) { /* Node / 小程序：忽略 */ }
     },
     /* 页面当前是否可见（主循环用：不可见 / 失焦都算暂停）。
        小程序端换成 onShow / onHide 维护的一个布尔值即可。 */

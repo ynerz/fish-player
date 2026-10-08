@@ -1709,6 +1709,69 @@ G_('Platform · 对话框 / 剪贴板 / 环境能力的兜底');
 })();
 
 /* =========================================================
+   Platform · 帧调度 raf / cancelRaf（含「拿不到 raf」的兜底）
+   =========================================================
+   帧调度原来散在 main.js（主循环）与 panels.js（水族箱动画）里直接调全局，
+   2026-10-08 收进 `sys.raf` / `sys.cancelRaf`：小程序（非小游戏）页面**没有**全局
+   `requestAnimationFrame`，要换成 `canvas.requestAnimationFrame`。
+   ⚠️ 兜底路径不传时间戳是**会出真故障**的：主循环 `dt = (now - last)` 而 last 来自
+      `sys.now()`，退回 `setTimeout` 时若不补时间戳，下一帧 dt 就是天文数字。
+      所以下面这条断言盯的就是「退回路径也把平台时钟传进回调」。 */
+G_('Platform · 帧调度 raf / cancelRaf 的兜底');
+(function () {
+  const P = G.Platform.sys;
+  const keep = {
+    raf: global.requestAnimationFrame, caf: global.cancelAnimationFrame,
+    st: global.setTimeout, ct: global.clearTimeout,
+  };
+  const restore = () => {
+    global.requestAnimationFrame = keep.raf; global.cancelAnimationFrame = keep.caf;
+    global.setTimeout = keep.st; global.clearTimeout = keep.ct;
+  };
+
+  /* ① 宿主有 raf：透传，句柄与回调参数都原样交给调用方 */
+  let seized = null;
+  global.requestAnimationFrame = fn => { seized = fn; return 77; };
+  const seen1 = [];
+  const h1 = P.raf(n => seen1.push(n));
+  seized(1234);
+  ok(h1 === 77 && seen1[0] === 1234,
+     'sys.raf 走宿主 requestAnimationFrame：句柄与回调参数原样透传');
+
+  /* ② 宿主没有 raf：退回 setTimeout，**但时间戳必须补上** */
+  delete global.requestAnimationFrame;
+  let fired = null, delay = -1;
+  global.setTimeout = (fn, ms) => { fired = fn; delay = ms; return 123; };
+  const seen2 = [];
+  const h2 = P.raf(n => seen2.push(n));
+  ok(h2 === 123 && typeof fired === 'function' && delay > 0,
+     `拿不到 raf 时退回 setTimeout（不抛；实得句柄 ${h2}、延迟 ${delay}ms）`);
+  const t0 = P.now();
+  fired();
+  ok(seen2.length === 1 && isFinite(seen2[0]) && Math.abs(seen2[0] - t0) < 1000,
+     `退回路径仍把平台时钟当时间戳传给回调（实得 ${seen2[0]}，sys.now() ≈ ${Math.round(t0)}）`
+     + ' —— 不补的话主循环下一帧的 dt 会是天文数字');
+
+  /* ③ cancelRaf 要跟着换：没 raf 时该清的是 setTimeout，不是 cancelAnimationFrame */
+  let cleared = null;
+  global.clearTimeout = h => { cleared = h; };
+  P.cancelRaf(123);
+  ok(cleared === 123, '拿不到 raf 时 cancelRaf 清的是 setTimeout 句柄（清错对象等于没停）');
+  global.cancelAnimationFrame = h => { cleared = 'caf:' + h; };
+  global.requestAnimationFrame = fn => 1;
+  P.cancelRaf(9);
+  ok(cleared === 'caf:9', '有 raf 时 cancelRaf 走宿主 cancelAnimationFrame');
+
+  /* ④ 面板里「关掉水族箱」会把句柄归零后**再调一次**，所以缺参不许抛 */
+  let cafThrew = '';
+  try { P.cancelRaf(0); P.cancelRaf(null); P.cancelRaf(undefined); }
+  catch (e) { cafThrew = e.message; }
+  ok(!cafThrew, 'cancelRaf 传 0 / null / undefined 都不抛（句柄归零后还会被再调一次）', cafThrew);
+
+  restore();
+})();
+
+/* =========================================================
    Panels —— 面板 render 的入参兜底与「现算文案」
    panels.js 的 render 只在**运行期**碰 DOM（模块加载时不碰），所以能在 Node 里
    用最小 DOM 桩真跑一遍 —— 比「扫源码断言」可信得多：源码断言只能证明

@@ -2483,6 +2483,15 @@ let platBad = 0;
     /* 图片加载也是平台能力：Web 端是 `new Image()`，小程序端是 `wx.createImage()`。
        业务代码不许自己建 —— 统一走 `G.Platform.image`（消费方：`G.Assets`）。 */
     ['new Image（直接建图片）', /(^|[^\w$.])new\s+Image\s*\(/],
+    /* 帧调度也是平台能力：Web 与微信小游戏有全局 `requestAnimationFrame`，
+       **小程序（非小游戏）页面里没有**，要换成 `canvas.requestAnimationFrame`。
+       ⚠️ 边界（2026-10-08 明确，见 `docs/每小时优化轮次规范.md` §9）：
+          `requestAnimationFrame` / `cancelAnimationFrame` **算**平台能力；
+          `setTimeout` / `setInterval` **不算**（任何宿主都有，连 Node 都有），
+          所以在业务代码里直接写定时器是**合法**的 —— 这条边界由用户提问触发、
+          由「质量优先」拍定为「收口帧调度、不收口通用计时器」，别再反复摇摆。 */
+    ['requestAnimationFrame（直接调度帧）', /(^|[^\w$.])requestAnimationFrame\s*\(/],
+    ['cancelAnimationFrame（直接调度帧）', /(^|[^\w$.])cancelAnimationFrame\s*\(/],
   ];
   const rel = [];
   (function walk(dir) {

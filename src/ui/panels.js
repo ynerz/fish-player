@@ -102,7 +102,9 @@ G.Panels = (function () {
   }
 
   function close() {
-    if (tankRAF && cancelAnimationFrame) { cancelAnimationFrame(tankRAF); tankRAF = 0; }
+    /* ⚠️ 守卫只看 `tankRAF`（自己有没有在跑），**不再判 `cancelAnimationFrame` 在不在** ——
+       那是「平台有没有这个能力」的问题，已经由 `G.Platform.sys.cancelRaf` 兜底（含空值）。 */
+    if (tankRAF) { G.Platform.sys.cancelRaf(tankRAF); tankRAF = 0; }
     /* 面板关了就把列表的懒绘制观察器也断了（它一直握着已经脱离文档的节点） */
     if (netIO) { netIO.disconnect(); netIO = null; }
     modal.classList.add('hidden');
@@ -866,7 +868,7 @@ G.Panels = (function () {
     root.appendChild(wrap);
 
     /* 水族箱动画：面板打开时跑，关闭自动停 */
-    if (cancelAnimationFrame) cancelAnimationFrame(tankRAF);
+    if (tankRAF) G.Platform.sys.cancelRaf(tankRAF);
     var items = s.tank.map(function (e) {
       return { e: e, ph: Math.random() * 6.28, sp: 0.35 + Math.random() * 0.5, y: 0.25 + Math.random() * 0.5 };
     });
@@ -884,7 +886,7 @@ G.Panels = (function () {
     var tankPainted = false, tankW = -1, tankH = -1;
     function drawTank(now) {
       if (!isOpen() || current !== 'net') { tankRAF = 0; return; }
-      tankRAF = requestAnimationFrame(drawTank);
+      tankRAF = G.Platform.sys.raf(drawTank);
       var dpr = G.Platform.sys.dpr();
       var Wp = box.clientWidth || 320, Hp = box.clientHeight || 170;
       if (!tankN && tankPainted && Wp === tankW && Hp === tankH) return;
@@ -931,7 +933,7 @@ G.Panels = (function () {
         ctx.restore();
       });
     }
-    tankRAF = requestAnimationFrame(drawTank);
+    tankRAF = G.Platform.sys.raf(drawTank);
 
     /* 水族箱里的鱼：取出 / 直接卖 */
     if (tankN) {

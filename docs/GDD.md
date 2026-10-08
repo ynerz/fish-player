@@ -504,7 +504,8 @@ node tools/build.js --check    # 只跑断言不写盘
 ### 上微信小程序
 - 代码本身零依赖原生 JS，主要工作：`localStorage` → `wx.setStorageSync`、
   `Web Audio` → `wx.createInnerAudioContext`、Canvas API 对齐、接入广告/分享能力。
-- 平台相关能力**已经全部收在 `src/core/platform.js`**（存储 / 音频 / 画布 / 系统信息 / 输入 5 组接口），
+- 平台相关能力**已经全部收在 `src/core/platform.js`**（存储 / 音频 / 画布 / 图像 / 系统信息（含帧调度）/
+  输入 / 剪贴板 / 对话框 **8 组**接口），
   上小程序时补一份 `platform.weapp.js` 替换掉它即可，逻辑层一行不用改。
 - 输入要注意：小程序**没有空格键**，「长按收线」要换成 `touchstart/touchend`。
 - 商业化 5 项在这一步开启。

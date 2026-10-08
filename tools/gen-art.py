@@ -331,24 +331,30 @@ MORPHS = [(k, MORPH_CANDIDATES[MORPH_POOL[k][0][0]][1]) for k in MORPH_ORDER]
 #       「forks tail, a fan-shaped tail」这种自相矛盾的话（实测踩过）。
 SHAPES = {
     "fish":    {"d": "streamlined fish with a rounded body and small pectoral fins",
-                "fin": "fins", "part": "fins"},
+                "fin": "fins", "finSafe": "fins", "part": "fins"},
     "eel":     {"d": "long slender eel with a ribbon-like serpentine body and a continuous fin along the back",
-                "fin": "dorsal fin", "part": "fins"},
+                "fin": "dorsal fin", "finSafe": "fins", "part": "fins"},
     "ray":     {"d": "flat wide manta ray with a broad diamond body and wing-like fins",
-                "fin": "wings", "part": "wings"},
+                "fin": "wings", "finSafe": "wings", "part": "wings"},
     "squid":   {"d": "squid with an elongated mantle, pointed tip, triangular side fins and a cluster of tentacles",
-                "fin": "side fins", "part": "side fins"},
+                "fin": "side fins", "finSafe": "arms", "part": "side fins"},
     "jelly":   {"d": "jellyfish with a rounded bell dome and long tentacles hanging below",
-                "fin": "tentacles", "part": "tentacles"},
+                "fin": "tentacles", "finSafe": "tentacles", "part": "tentacles"},
     "oarfish": {"d": "ribbon fish with an extremely long thin body and a tall crest fin running the whole back",
-                "fin": "crest fin", "part": "fins"},
+                "fin": "crest fin", "finSafe": "fins", "part": "fins"},
     "shark":   {"d": "shark with a torpedo body, pointed snout and a tall triangular dorsal fin",
-                "fin": "fins", "part": "fins"},
+                "fin": "fins", "finSafe": "fins", "part": "fins"},
     "whale":   {"d": "whale with a bulky rounded body, a wide horizontal fluke and a small dorsal fin",
-                "fin": "fluke", "part": "fluke"},
+                "fin": "fluke", "finSafe": "fluke", "part": "fluke"},
     "dragon":  {"d": "serpentine dragon fish with a long sinuous body, spiny dorsal ridge and whisker barbels",
-                "fin": "fins", "part": "fins"},
+                "fin": "fins", "finSafe": "fins", "part": "fins"},
 }
+# `fin` 与 `finSafe` 的区别（2026-10-08 加）：
+#   · `fin`     —— **没有查证过的 `form` 时**用，可以点具体部位（"side fins" / "crest fin"）；
+#   · `finSafe` —— **有查证过的 `form` 时**用，必须是**不点名物种的通用部件词**。
+#     为什么：稀有度递进要「加长某个部件」，而 `form` 在场时体型模板已经整体让位
+#     （见 `build_prompt` ⓪），此时再说 "slightly longer side fins" 就是给章鱼加长鱿鱼的鳍。
+#     ⇒ 一律退回通用词（八腕类给 "arms"、水母给 "tentacles"、其余给 "fins"）。
 
 # —— 尾型：**只对有独立尾鳍、且 tail 字段说得通的体型成立** ——
 #    eel 无独立尾鳍 / ray 是鞭尾且已在体型描述里 / squid 是三角鳍 / jelly 没有 /
@@ -726,10 +732,38 @@ def form_profile(f):
     return ", ".join(out)
 
 
+# —— 体型决定性线索：**即使有查证过的 `form` 也照样输出** ——
+#   为什么单独开一张表：`form` 描述的不一定是体型。实测 A29「牙鲆」的 `form` 整段是
+#   「鳞片 108~120 片 / 椎骨 11+25~28」—— 因为抓到的百科原文里**本来就没有体型描述**
+#   （`tools/ai-traits/in-11.json` 可查）。于是 name_hint 被抑制后，整条鱼只剩
+#   `SHAPES['fish']` 的「streamlined fish with a rounded body」→ **比目鱼被画成了普通鱼**。
+#   而「侧躺 + 双眼同侧」是比目鱼的**辨识核心**，丢了就不是这个物种了。
+#   ⚠️ 只收「丢了就画错物种」的线索；普通科属特征仍走 `name_hint`，不要往这里堆。
+BODY_HINTS_ALWAYS = [
+    ("鲆", "a flat oval body lying on one side with both eyes on the same side of the head"),
+    ("鲽", "a flat oval body lying on one side with both eyes on the same side of the head"),
+    ("鳎", "a flat elongated tongue-shaped body lying on one side with both eyes on the same side"),
+]
+
+
+def body_hint_always(f):
+    """体型决定性线索（口径见 BODY_HINTS_ALWAYS）。命中不了返回空串。"""
+    name = f.get("name", "")
+    for key, desc in BODY_HINTS_ALWAYS:
+        if key in name:
+            return desc
+    return ""
+
+
 def build_prompt(f):
     """拼提示词。顺序**照 v9**，别改：
 
-        BASE + " of a single <形态句>." + <构图句> + <颜色句> + LIGHT + GEOM + BG
+        BASE + " of a <形态句>." + <构图句> + <颜色句> + LIGHT + GEOM + BG
+
+    ⚠️ 头部引导有**两种**形态（2026-10-08 起，见 ⓪ 的说明）：
+       · **没有**查证过的 `form` → `of a single <体型模板>.`（体型模板当主体）
+       · **有**查证过的 `form` → `of a <类目词>` 或 `of <form…>`：体型模板让位，
+         物种描述当主体 —— 否则体型模板会把「几何兜底」说成「物种」（小龙虾画成乌贼）
 
     ⚠️ 三条不能动的：
        1. **BASE 必须是第一句** —— 它是风格锚点，放到后面会被内容描述盖过
@@ -739,37 +773,66 @@ def build_prompt(f):
     """
     shape = f.get("shape", "fish")
     spec = SHAPES.get(shape, SHAPES["fish"])
-    bits = [spec["d"]]
+    verified = trait_of(f["id"], "form") or ""
 
-    # ① 名字族（科属特征）—— 只在 fish 体型生效，其余体型有专属模板
+    # ⓪ 头部引导 —— **查证过的物种描述优先于体型模板**（2026-10-08 修正，原本是反的）
+    #    🔴 `SHAPES[shape]["d"]` 描述的**不是几何形状，而是某个具体物种的身体**：
+    #       `squid` = "squid with an elongated mantle, pointed tip, triangular side fins and a
+    #       cluster of tentacles"。而 `shape` 只是生成器给的**几何兜底模板** ——
+    #       「甲壳类 / 八腕类 / 棘皮类」都没有专属体型，全被兜底成最接近的那一个，
+    #       于是提示词的第一句就在命令模型画错物种。
+    #       实测（原图已肉眼确认）：**D08 小龙虾、A24 章鱼 都被画成了乌贼。**
+    #    ⇒ 有查证过的 `form` 时：
+    #       · `fish` 只留类目词（被标成 fish 的确实是鱼，安全）；
+    #       · 其余 8 个体型的模板都**点名了具体动物**（squid / jellyfish / manta ray / …），
+    #         对被兜底进来的鱼会说谎 → **整句丢弃**，身体完全交给 `form` 描述。
+    #       冠词必须跟着换：`form` 自带 "a …"，再写 "a single" 会拼出
+    #       "of a single a cylindrical body…" 这种双冠词。
+    if verified:
+        bits = ["fish"] if shape == "fish" else []
+        lead = "a " if bits else ""
+    else:
+        bits = [spec["d"]]
+        lead = "a single "
+
+    # ① 体型决定性线索 —— **有 `form` 也照样输出**（为什么单独一张表见 BODY_HINTS_ALWAYS）
+    #    `form` 已经说了「flat」就跳过，免得同一件事讲两遍。
+    decisive = body_hint_always(f)
+    if decisive and "flat" not in verified.lower():
+        bits.append(decisive)
+
+    # ② 名字族（科属特征）—— 只在 fish 体型生效，其余体型有专属模板
     #    ⚠️ 有逐条查证记录时**跳过**：查证过的 form/fins 已经把体型说清楚了，
     #       再叠一句科属体形会重复（实测叠完出现「deep-bodied laterally compressed body」
     #       紧跟「elongated oval body, strongly compressed and rather deep」这种自我重复）。
-    hint = "" if trait_of(f["id"], "form") else name_hint(f)
+    hint = "" if verified else name_hint(f)
     if hint:
         bits.append(hint)
 
-    # ② 形态档案 —— 大小 / 比例 / 尾型 / 头型，全部由真实数据驱动
+    # ③ 形态档案 —— 大小 / 比例 / 尾型 / 头型，全部由真实数据驱动
     #    （用户口径：「按身体特征对每条鱼先写一个描述」，让鱼更好分辨）
     bits.append(form_profile(f))
 
-    # ③ 体表花纹 —— 查证过的逐条特征最优先，其次按科属字给**真实倾向**，
+    # ④ 体表花纹 —— 查证过的逐条特征最优先，其次按科属字给**真实倾向**，
     #    两者都没有就**不写**（⛔ 不许随机抽，见 MARK_BY_FAMILY 的注释）
     if shape == "fish" and not any(f.get(k) for k in MARKING_KEYS):
         mark = trait_of(f["id"], "markings") or mark_by_family(f.get("name", ""))
         if mark:
             bits.append(mark)
 
-    # ④ 特征位（按体型过滤）
+    # ⑤ 特征位（按体型过滤）
     for key, (desc, shapes) in FEATURE.items():
         if f.get(key) and shape in shapes:
             bits.append(desc)
 
     rar_i = min(3, f.get("rar", 0))
     extra = ", extra spines and streamers" if (rar_i == 3 and shape in SPINE_SHAPES) else ""
-    rar = RARITY[rar_i].format(fin=spec["fin"], extra=extra)
+    # 稀有度要「加长某个部件」—— `form` 在场时体型模板已经让位，部件名必须用通用词，
+    # 否则会给章鱼加长 "side fins"（见 SHAPES 的 `finSafe` 注释）。
+    fin_word = spec.get("finSafe", spec["fin"]) if verified else spec["fin"]
+    rar = RARITY[rar_i].format(fin=fin_word, extra=extra)
 
-    head = BASE + " of a single " + ", ".join(bits) + "."
+    head = BASE + " of " + lead + ", ".join(bits) + "."
     frame = ("full side view, whole body visible, facing left, "
              "centered with generous margin, " + rar + ".")
     return " ".join([head, frame, palette_desc(f), LIGHT, GEOM, BG])

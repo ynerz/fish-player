@@ -83,7 +83,7 @@ G.State = (function () {
         netMax: 0, tankMax: 0,         // 鱼护 / 水族箱的**历史最大占用**（成就用）
         streak: 0, maxStreak: 0,       // 当前 / 历史最长「连续成功」竿数
       },
-      settings: { sound: true, volume: 0.55, ambient: true, idle: false },
+      settings: { sound: true, volume: 0.55, ambient: true, music: true, idle: false },
       lastSeen: Date.now(),
       createdAt: Date.now(),
     };
@@ -116,7 +116,14 @@ G.State = (function () {
       }
       try {
         S = migrate(data);
-        if (i > 0) loadNote = '主存档读不出来，已从备份恢复到上次的进度';
+        /* 退了备份档 = 主存档坏了。**这是一条真正该告警的事**：
+           玩家只会看到「进度回到上次」，看不出「存档坏过一次」，
+           而上线后这正是判断「有没有普遍性的写坏 / 版本迁移问题」的唯一线索。
+           用 warn 而不是 error：游戏照常能玩，进度也没丢。 */
+        if (i > 0) {
+          loadNote = '主存档读不出来，已从备份恢复到上次的进度';
+          if (G.Track) G.Track.warn('主存档读不出来，已退到备份档', { stage: 'load' });
+        }
         return S;
       } catch (e) {
         /* 迁移本身抛异常：记进 G.Track（G.Track.init() 在 St.load() 之前跑，这里一定拿得到），

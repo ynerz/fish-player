@@ -123,6 +123,20 @@ gen-fish.py → solve-drop.js → balance.js → verify.js → gen-collect-time.
 ⚠️ 这**不是给玩家的功能** —— 最终会拍板固化 1 套，上线前把没选中的从 `STYLES` 里删掉即可。
 交互页 `tools/style-preview.html`（原 `docs/style-preview/` 的对比图已清空，需要时用它重新生成）。
 
+## 音效与音乐
+
+全部**程序化合成，没有音频素材文件**（`src/core/audio.js`）：
+
+- **音效**：抛竿 / 水花 / 咬钩 / 收线咔哒 / 断线 / 脱钩 / 上鱼 / 传说鱼专属 fanfare /
+  稀有颜色的一闪 / 领奖 / 图鉴新记录 / 金币 / 解锁……共 22 个方法。
+  拉扯阶段按「**收进多少进度**」打点咔哒声 —— 收得动就响得密，不看张力条也听得出这条拉不拉得动。
+- **背景音乐**：每个钓场一段自己的和声进行（大调 / 小调 / 主音各不相同），
+  低音 + 和弦垫 + 稀疏铃音三层，走 lookahead 调度。参数在 `src/data/fields.js` 的 `theme.bgm`。
+- **三条子总线**（`busSfx` / `busAmb` / `busBgm`）：音效、环境水声、音乐分开，
+  设置面板里是三个独立开关。
+- ⏸ 一次性音效支持**采样优先 + 合成回退**（把文件放进 `assets/audio/<方法名>.mp3` 即自动接管），
+  目前目录为空 ⇒ 全部走合成。详见 `docs/开发者文档.md` §17.13。
+
 ## 存档
 
 保存在浏览器 `localStorage`（键 `fishplayer.save.v1`，另有 `.bak` 备份）。

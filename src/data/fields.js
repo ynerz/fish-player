@@ -48,6 +48,14 @@ G.FIELDS = [
       dockDark: '#a68e68',
       ambient: 'leaf',
       ambientColor: '#9ccb6a',
+      /* 背景音乐（2026-10-08 加）：`{ root, mode, chords, bar }`
+         · root   主音频率（Hz）—— 低音声部是它的 1/4、和弦垫 1/2，所以别低于 ~200
+         · mode   'major' | 'minor'
+         · chords 每小节一个**级数**（1~7），循环播放
+         · bar    每小节秒数（越大越悠缓）
+         村口小池塘：全游戏最"安全"的一段。I–vi–IV–V（万能和弦）、大调、最慢 ——
+         玩家要在这里待很久，音乐不能有脾气。 */
+      bgm: { root: 261.63, mode: 'major', chords: [1, 6, 4, 5], bar: 3.6 },
       vignette: 'rgba(20,60,90,.12)',
     },
   },
@@ -82,6 +90,8 @@ G.FIELDS = [
       dockDark: '#93816a',
       ambient: 'mist',
       ambientColor: 'rgba(255,255,255,.5)',
+      /* 溪流浅滩：水是"动"的 —— 大调、小节最短（走得最快），和弦一路往上推 */
+      bgm: { root: 293.66, mode: 'major', chords: [1, 4, 5, 6], bar: 3.0 },
       vignette: 'rgba(20,70,80,.14)',
       rocks: true,
     },
@@ -117,6 +127,8 @@ G.FIELDS = [
       dockDark: '#ab9471',
       ambient: 'none',
       ambientColor: '#fff',
+      /* 湖心半岛：水面开阔、黄昏起风 —— 从 vi 起头（先"偏"一下再回 I），大调但偏柔 */
+      bgm: { root: 246.94, mode: 'major', chords: [6, 4, 1, 5], bar: 3.4 },
       vignette: 'rgba(60,30,20,.16)',
     },
   },
@@ -150,6 +162,8 @@ G.FIELDS = [
       dockDark: '#9aa4ad',
       ambient: 'spray',
       ambientColor: 'rgba(255,255,255,.75)',
+      /* 深海断崖：第一次"转小调"。I–VII–VI–VII 反复徘徊，不上岸 —— 对应"洋流撞崖"的压迫感 */
+      bgm: { root: 220.00, mode: 'minor', chords: [1, 7, 6, 7], bar: 3.8 },
       vignette: 'rgba(0,30,70,.18)',
       waves: 1.35,
     },
@@ -184,6 +198,8 @@ G.FIELDS = [
       dockDark: '#5c6771',
       ambient: 'rain',
       ambientColor: 'rgba(180,215,240,.55)',
+      /* 幽蓝海沟：阳光照不到 —— 小调、最慢的一档，I–VI–IV–V 但压得很低 */
+      bgm: { root: 233.08, mode: 'minor', chords: [1, 6, 4, 5], bar: 4.2 },
       vignette: 'rgba(0,10,25,.30)',
       waves: 1.6,
       gloom: true,
@@ -222,6 +238,10 @@ G.FIELDS = [
       dockDark: '#3d4055',
       ambient: 'star',
       ambientColor: 'rgba(160,200,255,.9)',
+      /* 星陨之渊：主音定在 C# 上（七个钓场里唯一的升号调）——
+         "调性本身就不在常见的位置"，比换和弦更能表达"这里的鱼鳞片上写着别人的名字"。
+         I–III–VI–VII 全用大三和弦，发光的、悬着的。 */
+      bgm: { root: 277.18, mode: 'minor', chords: [1, 3, 6, 7], bar: 3.6 },
       vignette: 'rgba(0,0,20,.36)',
       waves: 1.2,
       gloom: true,
@@ -262,6 +282,9 @@ G.FIELDS = [
       dockDark: '#463d5c',
       ambient: 'aurora',
       ambientColor: 'rgba(180,255,230,.9)',
+      /* 时之尽头：极光 + "水面之下是昨天" —— 大调、最慢（4.8 秒一小节），
+         而且主音最低（低音声部到 52 Hz，笔记本喇叭几乎听不见，只留"有东西在下面"的感觉）。 */
+      bgm: { root: 207.65, mode: 'major', chords: [1, 4, 6, 5], bar: 4.8 },
       vignette: 'rgba(10,0,30,.34)',
       waves: 1.05,
       gloom: true,

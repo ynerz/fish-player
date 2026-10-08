@@ -1291,7 +1291,9 @@ G.Panels = (function () {
           U.on(btn, 'click', function () {
             var r = claimFn(q.i);
             if (!r.ok) { G.Audio.deny(); St.emit('toast', { text: r.msg, kind: 'warn' }); return; }
-            G.Audio.unlock();
+            /* 领奖用 `reward` 而不是 `unlock`：`unlock` 是四声大琶音（钓场 / 鱼竿那种
+               一次性的大解锁），一天要领好几条任务，每次都放那个太"隆重"了。 */
+            G.Audio.reward();
             St.emit('toast', { text: '任务完成　+' + (r.gain || gain) + ' 纪念币（共 ' + r.medals + ' 枚）', kind: 'good' });
             if (G.Hud) G.Hud.syncGoalBadge();
             refresh();
@@ -1307,7 +1309,7 @@ G.Panels = (function () {
         all.textContent = '全部领取（' + n + ' 条）';
         U.on(all, 'click', function () {
           var got = fn();
-          G.Audio.unlock();
+          G.Audio.reward();
           St.emit('toast', { text: '领取了 ' + got + ' 条奖励', kind: 'good' });
           if (G.Hud) G.Hud.syncGoalBadge();
           refresh();
@@ -1444,12 +1446,14 @@ G.Panels = (function () {
         return r;
       }
 
-      row('音效', '开关全部程序化音效与环境水声', '<button class="btn-ghost" id="setSound">' +
+      row('音效', '开关全部程序化音效（环境水声与背景音乐另有开关）', '<button class="btn-ghost" id="setSound">' +
         (s.settings.sound ? '已开启' : '已关闭') + '</button>', function (c) {
         U.on(c.querySelector('#setSound'), 'click', function () {
           s.settings.sound = !s.settings.sound;
+          /* ⚠️ 只管总开关。环境音 / 背景音乐**不在这里补启动** ——
+             `setEnabled(true)` 自己会按「意图位」把它们恢复（见 audio.js 的 bgmWant），
+             在这里再补一句就会变成「关过音效之后，音乐被强行拉回来」。 */
           G.Audio.setEnabled(s.settings.sound);
-          if (s.settings.sound && s.settings.ambient) G.Audio.startAmbience();
           St.scheduleSave(); refresh();
         });
       });
@@ -1460,6 +1464,22 @@ G.Panels = (function () {
           s.settings.ambient = !s.settings.ambient;
           if (s.settings.ambient && s.settings.sound) G.Audio.startAmbience();
           else G.Audio.stopAmbience();
+          St.scheduleSave(); refresh();
+        });
+      });
+
+      row('背景音乐', '按钓场切换的和弦垫乐（程序化合成，不占素材）',
+        '<button class="btn-ghost" id="setBgm">' +
+        (s.settings.music ? '已开启' : '已关闭') + '</button>', function (c) {
+        U.on(c.querySelector('#setBgm'), 'click', function () {
+          s.settings.music = !s.settings.music;
+          if (s.settings.music && s.settings.sound) {
+            /* 从**当前钓场**重新起 —— 恢复播放时不能放成上一个钓场那一首 */
+            G.Audio.startBgm((G.FIELD_MAP[s.field] || G.FIELDS[0]).theme.bgm);
+          } else {
+            /* ⚠️ 必须是 `stopBgm` 而不是 `setEnabled(false)`：后者会把音效一起关掉 */
+            G.Audio.stopBgm();
+          }
           St.scheduleSave(); refresh();
         });
       });

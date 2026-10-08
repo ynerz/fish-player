@@ -351,9 +351,29 @@ let toastSeen = [];
       `resolve()` 里有一句 `setTimeout(function () { G.Audio.newRecord(); }, 320)`，
       测试是同步跑完的，定时器在「测试已结束」之后才触发 ——
       还原成 Node 里的 undefined 就会炸成未捕获异常。 */
-const audioStub = { click() {}, snap() {}, escape() {}, bite() {}, hint() {}, success() {}, newRecord() {}, unlock() {} };
+const audioStub = {
+  setEnabled() {}, setVolume() {},
+  cast() {}, splash() {}, bite() {}, hint() {}, tick() {}, snap() {}, escape() {},
+  success() {}, legendary() {}, glint() {}, reward() {}, newRecord() {},
+  coin() {}, click() {}, deny() {}, unlock() {},
+  startAmbience() {}, stopAmbience() {}, startBgm() {}, stopBgm() {},
+};
 const origAudio = G.Audio;
 G.Audio = audioStub;
+/* ⚠️ 空壳必须覆盖真实模块的**全部**导出方法。漏一个，生产代码在某个用例里调到它
+   就炸成 `TypeError: G.Audio.xxx is not a function`，而堆栈指向 test.js 里的某一行
+   （不是在 audio.js），第一眼很难看出「是桩缺方法」——2026-10-08 加 `glint` 时就是这么炸的。
+   所以这里**从真实模块现取一份方法名**来对账，而不是在两边各抄一张清单（抄必然分家）。 */
+(function () {
+  const keep = G.Audio;
+  new Function(fs.readFileSync(path.join(ROOT, 'src/core/audio.js'), 'utf8')).call(global);
+  const keys = Object.keys(G.Audio);
+  G.Audio = keep;
+  const miss = keys.filter(k => typeof audioStub[k] !== 'function');
+  ok(miss.length === 0,
+     `audioStub 覆盖真实音频模块的全部 ${keys.length} 个导出方法（缺一个就会在某个用例里炸成 TypeError）`,
+     '缺：' + miss.join('、'));
+})();
 function newFishing() {
   toastSeen = [];
   G.Scene = sceneStub;
@@ -1974,6 +1994,147 @@ G_('Audio · 环境音的开启 / 停止');
 })();
 
 /* =========================================================
+   Audio —— 背景音乐：lookahead 调度 + 收声 + 「意图位」
+   ⚠️ 这一节额外把 `setInterval` / `setTimeout` 换成**只记录、不真跑**的版本：
+     调度器要能手动推着走（时序可控），而且测试跑完不许留下真定时器
+     —— 留一个 `setInterval` 会让 Node 永远不退出，CI 直接挂住。
+   ========================================================= */
+G_('Audio · 背景音乐的调度与收声');
+(function () {
+  const made = { osc: [], gain: [] };
+  /* 参数对象要把**排进去的值**记下来：不然「大调三度 / 小调三度」这种断言无从下手 */
+  const param = () => {
+    const o = { value: 0, calls: [] };
+    o.setValueAtTime = v => { o.calls.push(v); o.value = v; return o; };
+    ['exponentialRampToValueAtTime', 'linearRampToValueAtTime', 'cancelScheduledValues']
+      .forEach(k => { o[k] = () => o; });
+    return o;
+  };
+  const mkNode = () => ({ _dis: false, connect() {}, disconnect() { this._dis = true; } });
+  let T = 100;                                   // 假音频时钟
+  const fakeCtx = {
+    sampleRate: 48000, state: 'running',
+    get currentTime() { return T; },
+    destination: mkNode(),
+    resume() {},
+    createGain() { const g = mkNode(); g.gain = param(); made.gain.push(g); return g; },
+    createOscillator() {
+      const o = mkNode();
+      o.type = ''; o.frequency = param();
+      o.start = () => { o._started = true; }; o.stop = () => { o._stopped = true; };
+      made.osc.push(o);
+      return o;
+    },
+    createBuffer(ch, len) { return { getChannelData: () => new Float32Array(len) }; },
+    createBufferSource() { const s = mkNode(); s.start = () => {}; s.stop = () => {}; return s; },
+    createBiquadFilter() { const f = mkNode(); f.frequency = param(); f.Q = param(); return f; },
+  };
+
+  const realCreate = G.Platform.audio.createContext;
+  G.Platform.audio.createContext = () => fakeCtx;
+  const realSI = global.setInterval, realCI = global.clearInterval, realST = global.setTimeout;
+  const ticks = [], waits = [];
+  global.setInterval = (fn, ms) => { const h = { fn, ms }; ticks.push(h); return h; };
+  global.clearInterval = h => { if (h && ticks.indexOf(h) >= 0 && !h.dead) { h.dead = true; } };
+  global.setTimeout = (fn, ms) => { const h = { fn, ms }; waits.push(h); return h; };
+
+  const restore = () => {
+    global.setInterval = realSI; global.clearInterval = realCI; global.setTimeout = realST;
+    G.Platform.audio.createContext = realCreate;
+    A.stopBgm(); A.setEnabled(false);
+    G.Audio = audioStub;
+  };
+
+  new Function(fs.readFileSync(path.join(ROOT, 'src/core/audio.js'), 'utf8')).call(global);
+  const A = G.Audio;
+  const liveTicks = () => ticks.filter(t => !t.dead);
+  const pump = () => liveTicks().forEach(t => t.fn());       // 「定时器醒了」
+  const MAJ = { root: 261.63, mode: 'major', chords: [1, 6, 4, 5], bar: 3.6 };
+  /* ⚠️ 换曲这条用**只有一个和弦**的 spec：`bgmIdx` 是延续的（换曲不重启调度器），
+     所以下一小节轮到哪个级数是不确定的。单和弦才能把「新 root / 新模式」钉死断言。 */
+  const MIN = { root: 220.00, mode: 'minor', chords: [1], bar: 3.8 };
+
+  /* ---------- ① 起播：立刻排一小节，且排的是「三件东西」 ---------- */
+  A.setEnabled(true);
+  A.startBgm(MAJ);
+  ok(made.osc.length >= 6 && made.osc.length <= 7,
+     `startBgm 立刻排出 1 小节（${made.osc.length} 个音：1 低音 + 3 和弦 + 2~3 铃音），不等第一次定时器`);
+  ok(made.osc.every(o => o._started === true), '排进去的音都 start 了');
+  ok(ticks.length === 1 && ticks[0].ms <= 500,
+     `只建了 1 个定时器，间隔 ${ticks[0] && ticks[0].ms}ms —— lookahead 的「醒来」节奏必须远短于一小节（${MAJ.bar}s）`);
+
+  /* ---------- ② 调性真的按 mode 算：大调放的是大三度 ---------- */
+  const bar1 = made.osc.map(o => o.frequency.calls[0]).filter(f => f > 0);
+  const padRoot = MAJ.root / 2;                       // 和弦垫在主音下一个八度
+  const major3 = padRoot * Math.pow(2, 4 / 12);
+  const minor3 = padRoot * Math.pow(2, 3 / 12);
+  const has = f => bar1.some(v => Math.abs(v - f) < 0.01);
+  ok(Math.abs(Math.min.apply(null, bar1) - MAJ.root / 4) < 0.01,
+     `最低音是主音的 1/4（低音声部 = ${(MAJ.root / 4).toFixed(1)}Hz）`);
+  ok(has(padRoot) && has(major3) && !has(minor3),
+     `大调的和弦垫放的是**大三度**（${major3.toFixed(1)}Hz），不是小三度（${minor3.toFixed(1)}Hz）`);
+
+  /* ---------- ③ 时钟跳一大截：只重新对齐，绝不把欠的小节补上 ---------- */
+  const n0 = made.osc.length;
+  T += 100;                                           // 模拟标签页被系统挂起
+  pump();
+  const caught = made.osc.length - n0;
+  ok(caught >= 6 && caught < 20,
+     `时钟跳 100 秒后只重排 1 小节（${caught} 个音）；真去「补课」会一次排 ${Math.round(100 / MAJ.bar)} 小节、几百个节点`);
+
+  /* ---------- ④ 换钓场：只换参数，不重启调度器 ---------- */
+  const g0 = made.gain.length;
+  A.startBgm(MIN);
+  ok(made.gain.length === g0 && liveTicks().length === 1,
+     '换曲不重建节点、不重建定时器（切钓场时音乐接着走，不从头来一遍）');
+  const m0 = made.osc.length;
+  T += MIN.bar; pump();
+  const barN = made.osc.slice(m0).map(o => o.frequency.calls[0]).filter(f => f > 0);
+  const mPadRoot = MIN.root / 2, mPad3 = mPadRoot * Math.pow(2, 3 / 12);
+  const hasN = f => barN.some(v => Math.abs(v - f) < 0.01);
+  ok(hasN(MIN.root / 4) && !hasN(MAJ.root / 4),
+     `换成新 root（低音 ${(MIN.root / 4).toFixed(1)}Hz 在、旧 root 的低音 ${(MAJ.root / 4).toFixed(1)}Hz 没了）`);
+  ok(hasN(mPadRoot) && hasN(mPad3) && !hasN(mPadRoot * Math.pow(2, 4 / 12)),
+     `换成小调（和弦垫 ${mPadRoot.toFixed(1)}Hz 上叠的是小三度 ${mPad3.toFixed(1)}Hz，不是大三度）`);
+
+  /* ---------- ⑤ 收声：定时器清掉、总线淡出后断开、不再排音 ---------- */
+  A.stopBgm();
+  ok(liveTicks().length === 0, 'stopBgm 清掉了定时器（留着它 Node 进程会永远不退出）');
+  ok(waits.length === 1 && waits[0].ms <= 300,
+     `收声是一次「淡出后断开」（${waits[0] && waits[0].ms}ms），不是硬切 —— 硬切会「啪」一声`);
+  waits.forEach(w => w.fn());
+  ok(made.gain.some(g => g._dis), '淡出结束后 bgmBus 被 disconnect（不留在音乐总线上）');
+  const n1 = made.osc.length;
+  T += 40; pump();
+  ok(made.osc.length === n1, 'stopBgm 之后不再排任何音');
+
+  /* ---------- ⑥ 意图位：总开关关掉再开，音乐要自己回来 ---------- */
+  A.startBgm(MAJ);
+  A.setEnabled(false);
+  const n2 = made.osc.length;
+  T += 40; pump();
+  ok(made.osc.length === n2, 'setEnabled(false) 之后不再排音（音乐与环境音一起收）');
+  A.setEnabled(true);
+  T += 1; pump();
+  ok(made.osc.length > n2, 'setEnabled(true) 音乐自己回来了 —— 意图位没被 setEnabled 清掉');
+
+  /* ---------- ⑦ 但 stopBgm 是「用户不想听了」，不许被 setEnabled 偷偷恢复 ---------- */
+  A.stopBgm();
+  A.setEnabled(false); A.setEnabled(true);
+  const n3 = made.osc.length;
+  T += 40; pump();
+  ok(made.osc.length === n3, 'stopBgm 之后 setEnabled(true) 不会偷偷把音乐放回来');
+
+  /* ---------- ⑧ 没参数 / 没上下文时不许抛 ---------- */
+  let threw = '';
+  try { A.startBgm(); A.startBgm({}); A.startBgm({ chords: [] }); A.stopBgm(); }
+  catch (e) { threw = e.message; }
+  ok(!threw, 'startBgm 传空参数 / 空和弦表时不抛（设置面板恢复播放会走这条路）', threw);
+
+  restore();
+})();
+
+/* =========================================================
    模块导出面 · 清掉的零消费死接口不许悄悄回来
    第 ㉕ 节用白名单钉住了 `G.U`；本轮把同一件事扩到**全部模块**：
    verify 第 ㉜ 节从源码层扫「每个导出都要有消费方」，这里再从运行期
@@ -2182,13 +2343,38 @@ G_('Audio —— 采样回退层保持公开 API 不变');
   const A = G.Audio;
 
   const NAMES = ['cast', 'splash', 'bite', 'hint', 'tick', 'snap', 'escape', 'success',
+                 'legendary', 'glint', 'reward',
                  'newRecord', 'coin', 'click', 'deny', 'unlock',
-                 'setEnabled', 'setVolume', 'startAmbience', 'stopAmbience'];
+                 'setEnabled', 'setVolume', 'startAmbience', 'stopAmbience',
+                 'startBgm', 'stopBgm'];
   ok(NAMES.every(k => typeof A[k] === 'function'),
      `公开方法 ${NAMES.length} 个一个不少（采样层是包一层，不是替换）`);
   ok(Object.keys(A).length === NAMES.length,
      `导出面没有多出方法（实得 ${Object.keys(A).length} 个，期望 ${NAMES.length}）—— `
      + '采样层只许包已有方法，不许顺手导出 probe / reset 这类调试口');
+  /* ⚠️ 这一条是「撞名假通过」的补丁：`G.Audio.sparkle` 曾经与视觉层的
+     `G.Scene.sparkle` 同名，verify 第 ㉜ 节那套**裸名扫描**于是把它算成已消费。
+     音效与渲染各有一套动作名字（cast / splash / bite 两边都有），撞名不可怕，
+     **靠撞名通过门禁**才可怕 —— 所以这里按**限定名**去找真实调用点，撞名骗不过去。
+     `legendary` 例外：它由 `success()` 在第 4 档内部委派（见 audio.js 的注释）。 */
+  (function () {
+    const srcFiles = [];
+    (function walk(d) {
+      fs.readdirSync(path.join(ROOT, d)).forEach(n => {
+        const rel = d + '/' + n;
+        if (fs.statSync(path.join(ROOT, rel)).isDirectory()) walk(rel);
+        else if (/\.js$/.test(n)) srcFiles.push(rel);
+      });
+    })('src');
+    const other = srcFiles.filter(r => r !== 'src/core/audio.js')
+      .map(r => fs.readFileSync(path.join(ROOT, r), 'utf8')).join('\n');
+    const orphan = NAMES.filter(k => k !== 'legendary'
+      && other.indexOf('G.Audio.' + k + '(') < 0);
+    ok(orphan.length === 0,
+       `每个音效方法在 src/ 里都有真实调用点（限定名 G.Audio.<名>(，撞名骗不过去）`
+       + (orphan.length ? '' : `；${NAMES.length - 1} 个逐一对上`),
+       '零调用：' + orphan.join('、'));
+  })();
 
   /* 关掉总开关后逐个调一遍：**必须不抛**。
      没素材、没 AudioContext 时「静默跳过」是允许的，「抛异常」不是。 */

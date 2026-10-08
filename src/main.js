@@ -51,6 +51,12 @@
        静默清零比白屏更让人抓狂 —— 玩家至少要知道"为什么我的进度没了"。 */
     var loadNote = St.loadNote && St.loadNote();
     if (loadNote) setTimeout(function () { Hud.toast({ text: '⚠️ ' + loadNote, kind: 'bad' }); }, 600);
+    /* 存档落在**内存**里 = 「关掉页面进度就没了」，而界面上完全看不出来
+       （设置面板有一行小字写着落盘位置，但没人会去看）。
+       这是 warn 级：不是崩溃，但玩家的损失是真实的、而且事后无从追溯。 */
+    if (G.Track && G.Platform.storage.kind() === 'memory') {
+      G.Track.warn('存储不可用，存档只在内存里（关掉页面即丢档）', { stage: 'boot' });
+    }
 
     /* ---------- 新手引导（首次抛竿前就出现，非阻塞气泡） ---------- */
     G.Tutorial.init();
@@ -76,6 +82,14 @@
     St.on('eco', function () { if (P.current() === 'net') P.refresh(); });
     /* 重置存档 → 整页重载（走适配层；面板那边只负责调 St.reset()，别重复 reload） */
     St.on('reset', function () { G.Platform.sys.reload(); });
+    /* 切钓场 → 换背景音乐。走**状态事件**而不是跟着 UI 走：
+       钓场能从钓场列表 / 鱼种面板 / 重置存档好几处切换，
+       逐个接线迟早漏一处（而漏了的表现是「音乐还是上一个湖的」，很难被发现）。 */
+    St.on('field', function (fid) {
+      var f = G.FIELD_MAP[fid];
+      var se = St.get().settings;
+      if (f && se.sound && se.music) G.Audio.startBgm(f.theme.bgm);
+    });
     St.on('goals', function () {
       Hud.setTitle(G.Goals.equipped());
       /* 徽标平时靠 0.4 秒一次的 syncStats() 顺带刷；这里补一次，
@@ -84,14 +98,18 @@
       if (P.current() === 'goals') P.refresh();
     });
 
-    /* ---------- 首次交互激活音频 ---------- */
+    /* ---------- 首次交互激活音频 ----------
+       ⚠️ 必须在**用户第一次手势**里做：浏览器的自动播放策略会把没有手势的
+       AudioContext 挂成 suspended。环境音与 BGM 都是**常驻节点**（不像一次性音效
+       那样每次调用都有机会补救），这一步漏了就是「整局没声音」，而且不报任何错。 */
     var armed = false;
     function arm() {
       if (armed) return; armed = true;
-      if (St.get().settings.sound && St.get().settings.ambient) {
-        G.Audio.setEnabled(true);
-        G.Audio.startAmbience();
-      }
+      var se = St.get().settings;
+      G.Audio.setEnabled(se.sound);
+      if (!se.sound) return;
+      if (se.ambient) G.Audio.startAmbience();
+      if (se.music) G.Audio.startBgm(field.theme.bgm);
     }
     G.Platform.input.down(window, arm);
     G.Platform.input.key(arm, true);

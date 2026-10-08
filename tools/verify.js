@@ -1558,8 +1558,13 @@ if (!wireBad) ok('鱼影的「写 → 读 → 收尾」三处接线都在，且 
    `Track.kinds`（与 count() 完全同义的重复接口）、`Hud.clearCatchLog`、
    `FishArt.paintTo`（开发者文档 §5.2 说它给图鉴 / 结算卡用，实际那两处都直接调
    `G.FishArt.draw`，所以它零调用）…… 全是同一类：**看着像基础设施，实际没人用**。
-   判据（比 ㉕ 更宽松，避免误报）：某个导出名在**它自己文件之外**的
-   `src/` `tools/` `docs/` `index.html` 里一次都没出现过 → 报错。
+   判据：某个导出名在**它自己文件之外**的 `src/` / `tools/` / `docs/` / `index.html`
+   里一次都没出现过 → 报错；但只在**本模块内**被成员调用（`API.<名>(`）过 → 也算有消费方。
+   ⚠️ 后半条是 2026-10-08 补的，起因是一次**假通过**：`Audio.legendary` 只被同文件的
+      `success()` 委派，本该被本节抓住，却因为 `verify.js` 里恰好有个叫 `legendary`
+      的局部变量而蒙混过关；同一天 `Audio.sparkle` 也是靠与 `Scene.sparkle` **撞名**混过去的。
+      没有这条，本节的通过与否取决于「名字有没有在别处撞上」，而不是「有没有人用」——
+      那样的门禁比没有更糟：它给出的是虚假的安心。
    白名单只留「按设计就不该被代码调用」的：控制台 API 与将来接外部服务的接入点。 */
 console.log('\n[32] 所有模块的导出面：除白名单外，每个导出都要有消费方');
 let deadExportBad = 0;
@@ -1613,7 +1618,31 @@ let deadExportBad = 0;
     return keys;
   }
 
-  let checked = 0, modCount = 0;
+  let checked = 0, modCount = 0, selfOnly = [];
+  /* 「本模块内真的调用过」判据。两种形态都要认：
+       · 成员调用 `API.<名>(` —— 导出挂在模块对象上时，本模块内只能这么调
+         （audio.js 的 `legendary` 被 `success()` 委派）
+       · 裸名调用 `<名>(`   —— 局部函数直接调自己
+         （util.js 的 `hex2rgb` / `rgb2hex` 只服务同文件的 mix / lighten / darken）
+     ⚠️ 先把**声明本身**剥掉再找调用，否则 `function hex2rgb(` 与导出块里的
+        `hex2rgb: hex2rgb` 会自己把自己算成一次调用，这条判据就永远为真（形同虚设）。
+     抽成函数是因为下面还有一段「判据自检」要用同一份实现（写两份必然分家）。 */
+  function selfUsed(txt, k) {
+    const n = escRe(k);
+    const body = txt
+      .replace(new RegExp('function\\s+' + n + '\\s*\\(', 'g'), 'function ')
+      .replace(new RegExp('(^|[\\s{,])' + n + '\\s*:', 'g'), '$1');
+    return new RegExp('(^|[^A-Za-z0-9_$])' + n + '\\s*\\(').test(body);
+  }
+  /* 「别的文件里用到过」判据：必须是**成员访问**（`X.名字` / `X['名字']`）。
+     ⚠️ 裸名不算 —— 只按裸名扫的话，`verify.js` 里一个叫 `legendary` 的局部变量、
+        视觉层一个与 `Audio.sparkle` 同名的 `Scene.sparkle`，都会把「零调用」判成
+        「有调用」。**名字撞上就通过**，等于这条门禁在赌运气。
+     （仍有一个已知的漏网形态：`X.名字` 里的 X 是不是**那个**模块，按名字看不出来，
+        例如 fight 的 `F.warn` 会让 `Track.warn` 看起来被用过。这类只能靠「接上真实用例」解决。） */
+  const crossUsed = (txt, k) =>
+    new RegExp('(\\.\\s*|\\[\\s*[\'"])' + escRe(k) + '(?![A-Za-z0-9_$])').test(txt);
+
   rel.filter(r => r.startsWith('src/') && r.endsWith('.js')).forEach(r => {
     const keys = exportKeys(code[r]);
     if (!keys.length) return;
@@ -1622,15 +1651,44 @@ let deadExportBad = 0;
     const allow = WHITELIST[r] || [];
     const dead = keys.filter(k => {
       if (allow.indexOf(k) >= 0) return false;
-      const re = new RegExp('(^|[^A-Za-z0-9_$])' + k.replace(/\$/g, '\\$') + '(?![A-Za-z0-9_$])');
-      return !rel.some(g => g !== r && re.test(code[g]));
+      if (rel.some(g => g !== r && crossUsed(code[g], k))) return false;
+      if (selfUsed(code[r], k)) { selfOnly.push(r.replace(/^src\//, '') + '.' + k); return false; }
+      return true;
     });
     if (dead.length) {
       err(`${r} 的导出里这些名字全项目零调用：${dead.join('、')}（删掉，或补一处真实用例；确实不该有调用方的请加白名单并写明理由）`);
       deadExportBad++;
     }
   });
-  if (!deadExportBad) ok(`${modCount} 个模块共 ${checked} 个导出都有真实消费方，白名单只留控制台 API 与外部上报接入点`);
+
+  /* 两条判据各自的行为自检：必须**认得出**真调用、又**没有宽到**把无关形态算进来。
+     宽了本节形同虚设，窄了会把真消费方误报成死代码 —— 两头都得钉住。
+     ⚠️ 样例名用 `zzz*` 前缀：verify.js 自己也在被扫描的消费方名单里，
+        样例里出现一个**真实存在的导出名**就会把它「喂」成已消费（自指的坑，㉓ / 38 都栽过）。 */
+  (function () {
+    const K = 'zzzCrossProbe', K2 = 'zzzSelfProbe';
+    if (!crossUsed('var a = API.' + K + '();', K) || crossUsed('var ' + K + ' = 1; ' + K + '(2);', K)) {
+      err('第 ㉜ 节「跨文件消费方必须是成员访问」判据不成立：' +
+          '认不出 `X.xxx`，或把裸名局部量也算成了消费方（后者会让本节形同虚设）');
+      deadExportBad++;
+    }
+    const self = ['function ' + K2 + '(a){ return a; }\nvar b = ' + K2 + '(1);',   // ✓ 声明之外还有调用
+                  'function ' + K2 + '(a){ return a; }',                           // ✗ 只有声明
+                  'return { ' + K2 + ': ' + K2 + ' };',                            // ✗ 只有导出
+                  'var o = { m(){ return 1; } }; o.' + K2 + '(2);'];               // ✓ 成员调用
+    if (!selfUsed(self[0], K2) || selfUsed(self[1], K2) || selfUsed(self[2], K2)
+        || !selfUsed(self[3], K2)) {
+      err('第 ㉜ 节「同模块内调用也算消费方」判据不成立：' +
+          '要么认不出裸名 / 成员调用，要么把函数声明 / 导出块本身算成了调用（后者等于永远为真）');
+      deadExportBad++;
+    }
+  })();
+  if (!deadExportBad) {
+    ok(`${modCount} 个模块共 ${checked} 个导出都有真实消费方，白名单只留控制台 API 与外部上报接入点`
+      + (selfOnly.length
+          ? `；另有 ${selfOnly.length} 个只在本模块内被调用（${selfOnly.join('、')}）`
+          : ''));
+  }
 })();
 
 /* 32-b 运行时兜底：短名字的按名扫描有假阴性（`state` / `resize` / `set` / `flush`

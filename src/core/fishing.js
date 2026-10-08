@@ -26,6 +26,8 @@ G.Fishing = (function () {
   var castBait = null;     // 本竿实际生效的鱼饵（提前收杆时要退回）
   var castPrevSel = null;  // 本竿把最后一枚用掉、自动切回蚯蚓之前的选饵（一并还原）
   var castEnv = null;      // 本竿**抛竿那一刻**的天气 / 时段（结算归因要用它，见 resolve）
+  var reelAcc = 0;         // 「收线咔哒」自上次发声以来累计收进的进度（见 fight 分支）
+  var reelLast = null;     // 上一帧的进度（用来算增量；null = 本局还没起算）
   var cb = {};
 
   function init(callbacks) {
@@ -129,6 +131,10 @@ G.Fishing = (function () {
       tensionMax: St.curLine().tensionMax,
       reelMul: St.curRod().reel,
     });
+    /* 收线咔哒重新起算：别把上一局剩下的进度带进来。
+       ⚠️ 这里**不去问 G.Fight 要起始进度**（`begin()` 的返回值 / `get()` 的字段）——
+          战局对象是别人的实现，单测里还会被桩替掉；本局只要「从零开始累计」就够了。 */
+    reelAcc = 0; reelLast = null;
     if (cb.onState) cb.onState('fight');
   }
 
@@ -154,6 +160,15 @@ G.Fishing = (function () {
         env: castEnv,
       });
       St.noteResult(true);
+      /* 埋点：传说鱼是**调平衡最需要的一条数据** —— 多久出一条、在哪个钓场、什么颜色，
+         离线仿真给不出这些（tools/balance.js 算的是期望值，不是真实出货）。
+         ⚠️ `G.Track.event` 是 track.js 里早就留好的采集点，但此前**全项目零调用**；
+            一个没人调用的采集点等于没有。它只进内存环形缓冲 + 落盘，不联网。
+         ⚠️ 只记**真的稀有**的事，别把「破个人纪录」这类也记上 ——
+            环形缓冲就那么大（CFG.track.buffer），刷满了会把真正的错误挤出去。 */
+      if (G.Track && fish.rar >= 3) {
+        G.Track.event('legendary', { fish: fish.id, field: field.id, kg: kg, color: color.key });
+      }
       var price = Loot.price(fish, kg, color, rec.isNew);
       var s = St.get();
       s.stats.catches++;
@@ -170,6 +185,9 @@ G.Fishing = (function () {
       }
 
       G.Scene.sparkle(rec.isNew ? 34 : (fish.rar >= 2 ? 26 : 12), fish.rar);
+      /* 稀有颜色的「一闪」：音画必须在**同一时刻** —— 画面在闪、耳朵里也要有那一声，
+         否则那道星点只是「贴上去的」。只对非原色播（原色占七成，每次都响就成了噪音）。 */
+      if (color.key !== 'normal') G.Audio.glint();
       G.Scene.splash(fish.rar >= 2 ? 1.6 : 1);
       G.Audio.success(fish.rar);
       if (rec.isNew || rec.isRecord) setTimeout(function () { G.Audio.newRecord(); }, 320);
@@ -298,6 +316,20 @@ G.Fishing = (function () {
         }
         f = G.Fight.get();
         if (f) {
+          /* 收线咔哒（`Audio.tick`）：每**收进** reelTickStep 个进度点响一声。
+             ⚠️ 按进度打点而不是按固定时间打点：进度涨得快 → 响得密，
+                玩家不看张力条也听得出「这条拉得动」；按时间打点的话，
+                一条 50 秒的传说鱼和一条 7 秒的小杂鱼会响得一样密（config.misc.fightExpect）。
+             ⚠️ 只累计**正向**的进度：松手放线时进度会回落，那一段不算「收进来」。
+                不这么做的话，松手再收要先把放掉的追回来才重新响 —— 听感像「突然哑了」。 */
+          if (holding && reelLast != null && f.progress > reelLast) {
+            reelAcc += f.progress - reelLast;
+            while (reelAcc >= CFG.misc.reelTickStep) {
+              reelAcc -= CFG.misc.reelTickStep;
+              G.Audio.tick();
+            }
+          }
+          reelLast = f.progress;
           /* 画面用的表现量走 snapshot（战局状态的唯一对外出口），
              这里只保留「控制流」用的原始字段：over / result / elapsed */
           var view = G.Fight.snapshot();

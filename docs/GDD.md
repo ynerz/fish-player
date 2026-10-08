@@ -393,7 +393,7 @@ src/data/items.js             13 鱼饵 / 8 鱼竿 / 8 鱼线 / 14 装饰
 src/data/goals.js             每日任务模板 / 31 个成就 / 称号表
 src/core/util.js              随机数、颜色、格式化
 src/core/platform.js          平台适配层（存储 / 音频 / 画布 / 系统信息 / 输入 / 剪贴板 / 对话框）
-src/core/audio.js             Web Audio 程序化音效（无音频素材文件）
+src/core/audio.js             Web Audio 程序化音效 + 按钓场的背景音乐（无音频素材文件）
 src/core/loot.js              掉率 / 重量 / 颜色 / 售价（游戏与仿真共用同一份）
 src/core/state.js             存档、图鉴、鱼护、水族箱、生态值、解锁、商店
 src/core/fight.js             张力拉扯玩法

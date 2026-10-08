@@ -21,7 +21,8 @@
   var q = function (s) { return document.querySelector(s); };
   var out = {};
 
-  /* ① 卡面渲染：每条鱼一行，每行 5 个可评审单元（母版 + 4 档） */
+  /* ① 卡面渲染：每条鱼一张卡，卡里是**若干**个可评审单元（母版 + 各档**各版**；
+        一档出了几版就占几槽 —— 2026-10-08 起传说闪光有第 2 版，所以这里不能写死 5） */
   var grid = q('#grid');
   out.hasGrid = !!grid;
   out.cells = grid ? grid.children.length : 0;
@@ -97,5 +98,31 @@
   /* 交叉提示：只提示不报错 ⇒ 全页**最多**几行有它（当前数据 1 行：S34 深海龙鱼） */
   out.hintRows = document.querySelectorAll('#grid .nm .hint').length;
   out.hintSample = (q('#grid .nm .hint') || {}).textContent || null;
+
+  /* ⑦ 槽位本身（2026-10-08 加）：一张卡里每个槽位必须**各有各的键**、都印了标签，
+        而且「一档多版」的槽位真的在页面上（第 2 版出过而页面上没有 = 没人能审它）。
+        ⚠️ 这两条是**不变量**（任何数据都该成立）；「有几条鱼有第 2 版」只**报告**不判定
+        —— 那取决于用户此刻出了多少图，写死就是给未来的自己挖坑。 */
+  var cards = grid ? grid.querySelectorAll('.c') : [];
+  var dupKeys = [], noLabel = [], v2Slots = [], slotN = [];
+  for (var j = 0; j < cards.length; j++) {
+    var ks = [];
+    var boxes = cards[j].querySelectorAll('.slot');
+    slotN.push(boxes.length);
+    for (var t = 0; t < boxes.length; t++) {
+      var b2 = boxes[t].querySelector('.b-bad');
+      ks.push(b2 ? b2.getAttribute('data-k') : null);
+      var lb = boxes[t].querySelector('.sl-label');
+      if (!lb || !lb.textContent.trim()) noLabel.push(cards[j].getAttribute('data-id'));
+      if (lb && /·第\d+版/.test(lb.textContent)) v2Slots.push(cards[j].getAttribute('data-id'));
+    }
+    if (ks.filter(function (x, i) { return ks.indexOf(x) !== i; }).length) {
+      dupKeys.push(cards[j].getAttribute('data-id'));
+    }
+  }
+  out.slotCounts = slotN.slice(0, 6);
+  out.dupSlotKeys = dupKeys;                  // 必须为空：同键两槽会共用一份结论
+  out.slotsWithoutLabel = noLabel;            // 必须为空：没标签就不知道在审哪一档
+  out.v2Slots = v2Slots;                      // 只报告：当前数据里哪些鱼有第 2 版
   return out;
 })()

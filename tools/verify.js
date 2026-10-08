@@ -69,6 +69,32 @@ function at(t, phrase) {
   const m = re.exec(String(t));
   return m ? m.index : -1;
 }
+/* 从「某个标记」起切出它的函数 / 方法体：终止于「缩进 ≤ 该标记自身缩进」的第一行。
+   ⚠️ 缩进必须**按标记自己所在行的缩进算**，不能写死 4：
+      · 顶层函数（`def build_console_script(`，缩进 0）→ 终止于下一个顶行；
+      · 套在 serve() 里的（`def worker(`，缩进 4）→ 终止于 `    class Handler`。
+      第一版写死「≤4 就算结束」，于是顶层函数的体（本身正好缩进 4）**第一行就被截断**，
+      判据直接假红 —— 差点把好好的代码判成 bug。
+   为什么提到顶层共享：第 40 / 43 / 44 节都要切函数体（Python 的与页内 JS 的）。
+   页内 JS 也吃这一套：它的函数体全部带缩进、闭合的 `}` 落在第 0 列 —— 于是切片正好停在函数尾。
+   ⚠️ 别用「下一个 `\nfunction `」当终止符：最后一个函数后面跟的是
+      `document.getElementById(...).onclick = function () {`（不在行首）⇒ 会一路切到脚本末尾，
+      判据于是被**后面那些函数**喂饱（「放行条件写宽了」那一类假通过）。 */
+function bodyOf(src, marker) {
+  const i = String(src).indexOf(marker);
+  if (i < 0) return '';
+  const rest = String(src).slice(i);
+  const nl = rest.indexOf('\n');
+  if (nl < 0) return rest;
+  const ls = String(src).lastIndexOf('\n', i) + 1;   // 该行的行首
+  const indent = i - ls;                             // 标记前面的缩进量
+  /* ⚠️ 从 `nl` 起搜（不是 `nl + 1`）：终止符是「换行 + ≤indent 个空格 + 非空白」，
+     从 `nl` 起搜才对**单行函数体**（`function f(d) { return d.x; }`）生效 ——
+     从 `nl+1` 起搜会跳过它自己那一行，于是单行定义**永远找不到终止符**、一路切到文件末尾。
+     实测：第 43 节的合成样本（好/坏两份都是单行）因此双双判成「0 处裸印」= 自检假通过。 */
+  const m = new RegExp('\\n {0,' + indent + '}\\S').exec(rest.slice(nl));
+  return m ? rest.slice(0, nl + m.index + 1) : rest;
+}
 /* 判据：这个 needle 属于「会被折行影响」的散文式吗？
    含反斜杠转义 = 结构锚点；纯标识符 / 路径（无空格、汉字 <4 个）不受折行影响。 */
 function isProseNeedle(n) {
@@ -3194,23 +3220,9 @@ console.log('\n[40] 评审台运行器：命令口径单源 + 窗口脚本注入
     ok('regen_argv() 是命令行唯一构造处，且被消费（g["cmd"]）');
   }
 
-  /* 从一个标记起，切出它的函数 / 方法体：终止于「缩进 ≤ 该 def 自身缩进」的第一行。
-     ⚠️ 缩进必须**按 def 自己的缩进算**，不能写死 4：
-        · 顶层函数（`def build_console_script(`，缩进 0）→ 终止于下一个顶行；
-        · 套在 serve() 里的（`def worker(`，缩进 4）→ 终止于 `    class Handler`。
-        第一版写死「≤4 就算结束」，于是顶层函数的体（本身正好缩进 4）**第一行就被截断**，
-        判据直接假红 —— 差点把好好的代码判成 bug。 */
-  const bodyOf = (src, marker) => {
-    const i = src.indexOf(marker);
-    if (i < 0) return '';
-    const rest = src.slice(i);
-    const nl = rest.indexOf('\n');
-    if (nl < 0) return rest;
-    const ls = src.lastIndexOf('\n', i) + 1;         // 该行的行首
-    const indent = i - ls;                           // 标记前面的缩进量（marker 从行首缩进后开始）
-    const m = new RegExp('\\n {0,' + indent + '}\\S').exec(rest.slice(nl + 1));
-    return m ? rest.slice(0, nl + 1 + m.index + 1) : rest;
-  };
+  /* 函数体切片走顶层共享的 `bodyOf()`（它按「缩进 ≤ 该 def 自身的缩进」终止，
+     对本文件的 JS 也成立：页内 JS 的函数体全部带缩进、闭合的 `}` 落在第 0 列）。
+     2026-10-08 把它从本节提到顶层 —— 第 43 / 44 节也要切函数体，抄三份必然分家。 */
 
   /* ② 后台跑的 worker 不许自己拼命令行（必须吃 g["cmd"]） */
   const worker = bodyOf(py, 'def worker(');
@@ -3620,13 +3632,8 @@ console.log('\n[43] 评审页：内部形态模板键必须带中文标签（表
      （本项目反复栽过的「自指喂饱」；反向验证第 ⑥ 条就是为此改的锚点）。 */
   const tplJS = tpl.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/[^\n]*/gm, '');
   const bare = t => (t.match(/d\.shape\b/g) || []).length;   // `\b` 保证不把 d.shapeCn / d.shapeHint 算进来
-  const fnBody = (t, sig) => {
-    const i = at(t, sig);
-    if (i < 0) return '';
-    const j = t.indexOf('\nfunction ', i + 1);
-    return t.slice(i, j < 0 ? t.length : j);
-  };
-  const tagBody = t => fnBody(t, 'function shapeTag(');
+  /* 函数体切片走顶层共享的 `bodyOf()`（本节原来自带一份 `fnBody`，第 40 / 44 节各一份 ⇒ 提到顶层） */
+  const tagBody = t => bodyOf(t, 'function shapeTag(');
   const outside = t => bare(t) - bare(tagBody(t));
   /* 判据自检：好样本（裸键在 shapeTag 里）与坏样本（裸键印在 render 里）必须被分开 */
   const SYN_OK = "function shapeTag(d) { return d.shapeCn + '<code>' + d.shape + '</code>'; }\nfunction render() { return 1; }";
@@ -3635,7 +3642,7 @@ console.log('\n[43] 评审页：内部形态模板键必须带中文标签（表
     err(`第 43 节判据自检不成立：分不出「裸键印在 shapeTag 之外」（好样本 ${outside(SYN_OK)}、坏样本 ${outside(SYN_BAD)}）`);
     return;
   }
-  const tb = tagBody(tplJS), rb = fnBody(tplJS, 'function render(');
+  const tb = tagBody(tplJS), rb = bodyOf(tplJS, 'function render(');
   if (!tb) {
     err('评审页的页内 JS 里找不到 shapeTag() —— 形态模板那一格必须走它，不许裸拼内部键');
   } else if (bare(tb) < 1) {
@@ -3689,6 +3696,147 @@ console.log('\n[43] 评审页：内部形态模板键必须带中文标签（表
     const lo = counts.slice().sort((a, b) => a[1] - b[1])[0];
     ok(`${fams.length} 个家族 / ${counts.length} 个词全部真命中`
       + `（现算 ${G.FISH.length} 条名字，最少的是「${lo[0]}」${lo[1]} 条）`);
+  }
+})();
+
+
+/* ---------------- 44. 档位槽的口径必须同源（含「一档多版」） ----------------
+   背景（2026-10-08 用户报障）：传说档的闪光从这一天起**出 2 版**
+   （`gen-art.py` 的 `MORPH_VERSIONS_BY_RAR` ⇒ `<id>-shiny.png` 与 `<id>-shiny-2.png`）。
+   生图清单的勾选（`write_plan`）与 `check-cards.py` 的 `MORPH_RE` 各修过一次，
+   但**评审页**的槽位是写死的 5 个（`MORPH_CN`）⇒ 第 2 版在页面上**根本不存在**：
+   图出了、没人看过、也没法标记重出。这是「交付物扩了、检测/评审条件没扩」的同一个老坑。
+
+   本节钉四件事（都是「同源一致」，不是「这次能过」）：
+     ① **档位键集同源**：`review-cards.py` 的 `MORPH_CN` 键集 == {normal} ∪ `gen-art.py` 的
+        `MORPH_ORDER`（双向）。少一个 ⇒ 那一档的卡**永远没人评审**；多一个 ⇒ 死配置。
+        且 `MORPH_KEYS`（重出白名单）必须**派生自** `MORPH_CN`，不许再抄一份。
+     ② **槽位按磁盘文件枚举**：`morph_slots()` 必须走 `morph_versions_of()`，
+        且那里面认得 `-<数字>` 后缀；两处都**不许**读 `MORPH_VERSIONS_BY_RAR`
+        —— 那是「**打算**出几版」，而评审页要覆盖的是「**盘上真有几版**」
+        （盘上多出的版本、只剩第 2 版的鱼，按「打算」判会一起漏掉）。
+     ③ **重出分组按档**：页内 `collectGroups()` / `refreshImages()` 必须按 `s.morph` 处理
+        —— 送槽位键（`shiny-2`）过去会被 `clean_groups()` 白名单拒掉（表现：点了没能开跑）；
+        按槽位键清结论则会留下「图换了、结论还是旧的」。
+     ④ **档位中文只有一处真相**：页内 JS 不许再抄「键 → 中文」的字面表（分组标题走
+        Python 给的 `morphLabel`）。抄了就会漂（`--only-morph` 那行的档名也是它印的），
+        而且源码扫描看不出来。
+   ⚠️ ③④ 必须按**函数体切片**判：全文件 `has()` 会被定义行 / 别处的同名字段喂饱。
+   ⚠️ 行为侧（槽位键 / 标签 / 版本顺序）由 `test-review-cards.py` 第 [11] 节用
+      **构造文件名**验 —— 那边不依赖真实卡面（用户随时在重出图）。 */
+console.log('\n[44] 档位槽的口径必须同源（档位键集 / 按文件枚举 / 重出按档 / 中文一处）');
+(() => {
+  const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  const stripPy = t => t.replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
+    .replace(/#[^\n]*/g, '');
+  const pyRaw = read('tools/review-cards.py');
+  const py = stripPy(pyRaw);
+  const uniq = a => a.filter((x, i) => a.indexOf(x) === i);
+  const secBad = [];
+  const bad = m => { err(m); secBad.push(1); };
+
+  /* ---------- ① 档位键集同源 ---------- */
+  const mcBlock = /MORPH_CN\s*=\s*\[([\s\S]*?)\]/.exec(py);
+  const rcKeys = mcBlock ? uniq((mcBlock[1].match(/\("([a-z_]+)",/g) || [])
+    .map(s => /"([a-z_]+)"/.exec(s)[1])) : [];
+  const gaSrc = stripPy(read('tools/gen-art.py'));
+  const ordBlock = /MORPH_ORDER\s*=\s*\(([^)]*)\)/.exec(gaSrc);
+  const gaKeys = ordBlock ? uniq((ordBlock[1].match(/"([a-z_]+)"/g) || [])
+    .map(s => s.slice(1, -1))) : [];
+  /* 判据自检：差集函数必须真分得出「少一个键」—— 否则下面两条永远是绿的 */
+  const missingIn = (have, want) => want.filter(k => have.indexOf(k) < 0);
+  if (missingIn(['x'], ['x', 'y']).join() !== 'y' || missingIn(['x', 'y'], ['x']).length) {
+    err('第 44 节判据自检不成立：差集函数分不出「少一个键」'); return;
+  }
+  if (!rcKeys.length || !gaKeys.length) {
+    err(`第 44 节档位键集抓不到（review-cards 的 MORPH_CN ${rcKeys.length} 个 / `
+      + `gen-art 的 MORPH_ORDER ${gaKeys.length} 个）—— 空集会让下面两条恒真（假通过），`
+      + '所以直接报错；改了写法就来更新本断言');
+    return;
+  }
+  const wantKeys = uniq(['normal'].concat(gaKeys));
+  const miss = missingIn(rcKeys, wantKeys);
+  const extra = missingIn(wantKeys, rcKeys);
+  if (miss.length) {
+    bad(`gen-art 会出的档位，评审页的 MORPH_CN 里没有：${miss.join('、')} ——`
+      + '那一档的卡**永远没人评审**（图出了、没人看过；2026-10-08 的第 2 版就是这么漏的）');
+  }
+  if (extra.length) {
+    bad(`评审页 MORPH_CN 里有 gen-art 不出的档位：${extra.join('、')} —— 死配置（档位改名 / 删了？）`);
+  }
+  if (!has(py, 'MORPH_KEYS = ("master",) + tuple(k for k, _ in MORPH_CN')) {
+    bad('MORPH_KEYS（重出白名单）不再派生自 MORPH_CN —— 两份档位清单迟早分家'
+      + '（分家的表现：明明有的档，点重出被白名单拒掉）');
+  }
+
+  /* ---------- ② 槽位按磁盘文件枚举 ---------- */
+  const ms = bodyOf(py, 'def morph_slots(');
+  const mv = bodyOf(py, 'def morph_versions_of(');
+  if (!ms || !mv) {
+    bad('第 44 节切不出 morph_slots() / morph_versions_of() —— 改了名就来更新本断言');
+  } else {
+    if (!has(ms, 'morph_versions_of(')) {
+      bad('morph_slots() 没走 morph_versions_of() —— 「档位 → 版本」的唯一入口被绕开了');
+    }
+    if (!has(ms, '%s-%d')) {
+      bad('morph_slots() 的槽位键里没有版本后缀 —— 第 N 版会与第 1 版同一个键'
+        + '（两个槽共用一份结论，点一个另一个跟着变）');
+    }
+    [['morph_slots()', ms], ['morph_versions_of()', mv]].forEach(([who, body]) => {
+      if (has(body, 'MORPH_VERSIONS_BY_RAR')) {
+        bad(`${who} 读了 gen-art 的 MORPH_VERSIONS_BY_RAR —— 那是「打算出几版」，`
+          + '而评审页要覆盖的是「盘上真有几版」（盘上多出的版本 / 只剩第 2 版的鱼都会漏）');
+      }
+    });
+  }
+
+  /* ---------- ③ 页内 JS：重出分组按档 + 档位中文只有一处真相 ---------- */
+  const tpl = (/TEMPLATE\s*=\s*u?"""([\s\S]*?)"""/.exec(pyRaw) || [])[1] || '';
+  if (!tpl) { bad('第 44 节：认不出 review-cards.py 的 TEMPLATE 三引号块'); }
+  else {
+    /* 先剥页内 JS 的注释 —— 说明注释里提到档位名是正当的（负对照验证过） */
+    const tplJS = tpl.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/[^\n]*/gm, '');
+    const cg = bodyOf(tplJS, 'function collectGroups(');
+    const rf = bodyOf(tplJS, 'function refreshImages(');
+    if (!cg) bad('页内 JS 里找不到 collectGroups() —— 本判据按它切片');
+    else if (!has(cg, '.morph')) {
+      bad('collectGroups() 不按档分组 —— 槽位键（`shiny-2`）送过去会被 clean_groups() '
+        + '白名单拒掉，表现是「点了重出，没能开跑」');
+    } else if (has(cg, 'indexOf(s.k)')) {
+      bad('collectGroups() 还在按槽位键去重 / 分组 —— 重出命令的粒度是**档**');
+    }
+    if (!rf) bad('页内 JS 里找不到 refreshImages() —— 本判据按它切片');
+    else if (!has(rf, '.morph')) {
+      bad('refreshImages() 按槽位键清结论 —— 重出是按**档**跑的（同档每一版一起换图），'
+        + '只清被标记的那一版会留下「图换了、结论还是旧的」');
+    }
+    /* 档位中文的**唯一真相**是 Python 侧的 `MORPH_CN`（经 slot.label / slot.morphLabel 注入）。
+       页内再抄一份「键 → 中文」的字面表 ⇒ 两份必然分家，而源码扫描看不出来。 */
+    const lit = /['"]?(bright|albino|golden|shiny)['"]?\s*:\s*['"][^'"]+['"]/.exec(tplJS);
+    if (lit) {
+      bad(`页内 JS 里又抄了一份「档位键 → 中文」的表（${lit[0].slice(0, 40)}）——`
+        + '分组标题必须走 DATA 里的 morphLabel（抄了就会漂：重出清单上印的档名就是它）');
+    }
+    if (!has(tplJS, 'MORPH_LABEL') || !has(tplJS, 's.morphLabel')) {
+      bad('页内 JS 没有从 DATA 建 MORPH_LABEL（`s.morphLabel`）—— 分组标题的中文没来源');
+    }
+  }
+
+  /* ---------- ④ 接触表 --morph 按**档**筛（不然只看闪光时第 2 版看不见） ---------- */
+  const sheet = stripPy(read('tools/contact-sheet.py'));
+  const pickB = bodyOf(sheet, 'def pick(');
+  if (!pickB) {
+    bad('第 44 节切不出 contact-sheet.py 的 pick() —— 改了名就来更新本断言');
+  } else if (!has(pickB, '["morph"]')) {
+    bad('contact-sheet 的 --morph 没按档筛（`s["morph"]`）—— 某一档出了多版时'
+      + '只看得见第 1 版，第 2 版又成了「出了但没人看」');
+  } else if (has(pickB, '["k"]')) {
+    bad('contact-sheet 的 --morph 还在按槽位键筛 —— 多版档位会漏掉第 2 版');
+  }
+
+  if (!secBad.length) {
+    ok(`档位槽口径同源：MORPH_CN（${rcKeys.join('/')}）== {normal} ∪ gen-art 的 MORPH_ORDER`
+      + `（${gaKeys.join('/')}）；槽位按文件枚举、重出分组按档、档位中文只在 Python 一处`);
   }
 })();
 

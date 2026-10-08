@@ -343,6 +343,65 @@ def main():
                         for i, k in enumerate(KEYS))
     check(same_as_judge, "没有跨档提示时，judge_group 与 judge 的结果逐项相同（没偷偷改口径）")
 
+    print("\n[11] morph_slots：槽位按磁盘文件枚举（一档出了几版就占几槽）")
+    # 为什么这条要有测试：槽位原来是**写死 5 个**（`MORPH_CN`）。2026-10-08 传说档的闪光
+    # 开始出第 2 版（`<id>-shiny-2.png`）⇒ 那一版**在评审页上不存在**：图出了、没人看过、
+    # 也没法标记重出。同型漏口在 gen-art 的清单勾选与 check-cards 的 MORPH_RE 上
+    # 各修过一次，这是第三处（用户自己发现了它）。
+    # ⚠️ 全部用**构造的文件名**，不依赖真实卡面 —— 用户随时在重出图，真图当样本会跟着烂。
+    LEG = ["D16", "D16-normal", "D16-bright", "D16-albino", "D16-golden",
+           "D16-shiny", "D16-shiny-2"]
+    s = R.morph_slots("D16", LEG)
+    keys = [x["k"] for x in s]
+    check(keys == ["master", "bright", "albino", "golden", "shiny", "shiny-2"],
+          "传说那条鱼：母版 + 4 档 + 闪光第 2 版 = 6 槽，顺序「先按档、再按版」（实得 %s）" % keys)
+    check([x["label"] for x in s][-2:] == [u"闪光", u"闪光·第2版"],
+          "第 1 版沿用档名标签、第 N 版加「·第N版」（实得 %r）" % [x["label"] for x in s][-2:])
+    check([x["morph"] for x in s][-2:] == ["shiny", "shiny"],
+          "多版共用一个 morph —— 重出命令的粒度是**档**（--only-morph shiny）")
+    check([x["file"] for x in s][-2:] == ["D16-shiny.png", "D16-shiny-2.png"],
+          "每一版指向自己的文件（两槽同图 = 后一版被前一版盖住）")
+    check(all(x["morph"] in R.MORPH_KEYS for x in s),
+          "morph 全在重出白名单里（否则点了重出会被 clean_groups 拒掉）")
+    check(s[0]["file"] == "D16-normal.png",
+          "母版那一槽用**抠图**（那才是游戏里真正显示的图）")
+    check("normal" not in keys,
+          "原色档不单独占槽（它就是母版抠图，列了会逼人判同一个东西两次）")
+    # 判据自检：这份样本必须能分出「写死 5 档」的旧口径 —— 否则这条测试是摆设
+    check(len(s) == 6 and "shiny-2" in keys,
+          "判据自检：样本分得出旧口径（写死 5 档 ⇒ 没有 shiny-2）与新口径（%d 槽）" % len(s))
+
+    # 版本维度：**盘上真有几版**就列几版，不问生成器「打算出几版」
+    s3 = R.morph_slots("A01", ["A01", "A01-shiny", "A01-shiny-3"])
+    check([x["k"] for x in s3] == ["master", "shiny", "shiny-3"],
+          "第 3 版也列出来（生成器以后加第 3 版，页面自动跟上）")
+    sg = R.morph_slots("A01", ["A01", "A01-shiny", "A01-shiny-4"])
+    check([x["k"] for x in sg] == ["master", "shiny", "shiny-4"],
+          "版号有缺口也照列（不当成「下一版没了」就停下）：%s" % [x["k"] for x in sg])
+    so = R.morph_slots("A01", ["A01", "A01-shiny-2"])
+    check([x["k"] for x in so] == ["master", "shiny-2"],
+          "只有第 2 版（第 1 版被手删）也列 —— 不许因为第 1 版缺席就把第 2 版藏起来：%s"
+          % [x["k"] for x in so])
+    s10 = R.morph_slots("A01", ["A01", "A01-shiny-10", "A01-shiny-2"])
+    check([x["k"] for x in s10] == ["master", "shiny-2", "shiny-10"],
+          "版号按**数字**排（shiny-2 在 shiny-10 前面）：%s" % [x["k"] for x in s10])
+    sn = R.morph_slots("A01", ["A01", "A01-copy", "A01-shiny-x", "A01-shiny"])
+    check([x["k"] for x in sn] == ["master", "shiny"],
+          "认不出「档名 + 数字后缀」的文件不许混进来：%s" % [x["k"] for x in sn])
+    check([x["k"] for x in R.morph_slots("ZZ99", ["ZZ99-bright"])] == ["bright"],
+          "（口径说明）纯函数只看文件名；「没母版就不进评审页」由 build_rows 过滤")
+    # 真实数据上的结构不变量（与「是哪几张图」无关，任何一批数据都该成立）
+    dup = [r["id"] for r in rows if len({x["k"] for x in r["slots"]}) != len(r["slots"])]
+    check(not dup, "每条鱼的槽位键互不重复（重复会让两个槽共用一份结论）：%r" % (dup or "无"))
+    check(all(r["slots"] and r["slots"][0]["k"] == "master" for r in rows),
+          "评审页里每条鱼的第一槽都是母版（没母版的鱼不进这一页）")
+    badlab = [x["k"] for r in rows for x in r["slots"]
+              if "-" in x["k"] and not re.search(u"·第\\d+版$", x["label"])]
+    check(not badlab, "真实数据里每个多版槽位的标签都带「·第N版」（实得 %r）" % (badlab or "无"))
+    print("      · 现算：%d 条鱼里 %d 条有多个版本（%s）"
+          % (len(rows), len([r for r in rows if any("-" in x["k"] for x in r["slots"])]),
+             "、".join(r["id"] for r in rows if any("-" in x["k"] for x in r["slots"])) or "无"))
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

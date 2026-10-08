@@ -146,8 +146,11 @@ def pick(args, rc, ga):
         meta["missing"] = [i for i in want if i not in have]
 
     if args.morph and args.morph != "all":
+        # 按**档**筛（`s["morph"]`）而不是按槽位键（`s["k"]`）：某一档出了多版时
+        # （传说闪光有 `<id>-shiny-2.png`），按槽位键筛只看得见第 1 版 ⇒
+        # 第 2 版就成了「出了但没人看」——正是 Q32 要堵的那种漏口。
         keep = "master" if args.morph in ("normal", "master") else args.morph
-        rows = [dict(r, slots=[s for s in r["slots"] if s["k"] == keep]) for r in rows]
+        rows = [dict(r, slots=[s for s in r["slots"] if s["morph"] == keep]) for r in rows]
         rows = [r for r in rows if r["slots"]]
         meta["title"] += " · 只看 %s" % args.morph
     return rows, meta
@@ -291,7 +294,8 @@ def parse_args(argv):
     ap.add_argument("--ids", nargs="+", help="点名：A01,B02 或 A01 B02")
     ap.add_argument("--batch", type=int, default=0, help="生图批次号（1 起，与清单一致）")
     ap.add_argument("--morph", default="all",
-                    help="只看某一档：all（默认）/ normal（母版那张）/ bright|albino|golden|shiny")
+                    help="只看某一档（含它的**每一版**）：all（默认）/ normal（母版那张）"
+                         "/ bright|albino|golden|shiny")
     ap.add_argument("--per-page", type=int, default=6, help="每页几条鱼（默认 6 ≈ 30 张卡）")
     ap.add_argument("--page", type=int, default=1, help="出第几页（默认 1）")
     ap.add_argument("--all", action="store_true", help="出全部页")

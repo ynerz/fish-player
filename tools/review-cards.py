@@ -9,10 +9,14 @@
 
 用法：
   python tools/review-cards.py                 # 写 docs/卡片评审.html
-  python tools/review-cards.py --only-pending  # 只列「没审过」的（依赖上次导出的清单）
+  python tools/review-cards.py --only A01,B02  # 只列这几条鱼
+  python tools/review-cards.py --serve --open  # 起本地运行器（页面上能直接开跑重出）
 
 产物：`docs/卡片评审.html`（单文件、零依赖，**双击即可打开**；也可起 http 服务看）
-  · 每张卡：母版大图 + **5 个可评审单元**（母版含原色档 / 彩虹 / 白化 / 黄金 / 闪光），
+  · 每张卡：母版大图 + **可评审单元** —— 口径是「母版含原色档 / 彩虹 / 白化 / 黄金 / 闪光」，
+    而**某一档出了几版就占几个单元**（例：传说档的闪光出 2 版 ⇒「闪光」+「闪光·第2版」）。
+    槽位**按磁盘上的文件枚举**（见 `morph_slots()`），不是写死 5 个 —— 生成器以后再加版，
+    这一页自动跟上；页面上少一个槽 = 那张图「出了但没人看过」。
     外加 id + 中文名 +（有的话）拉丁名 + 形态描述
   · **每个单元各自判**「合格 / 重出」—— 出问题的是单张图，不是整条鱼（用户口径 2026-10-08）
   · **点任意一张图放大到原图**（`#lb` 层；点任意处或 Esc 关闭）。缩略图再大也不够用：
@@ -42,6 +46,12 @@ CARDS = os.path.join(ROOT, "assets", "cards")
 RAR_CN = ["普通", "稀有", "史诗", "传说"]
 MORPH_CN = [("normal", "原色"), ("bright", "彩虹色"), ("albino", "白化"),
             ("golden", "黄金"), ("shiny", "闪光")]
+MASTER_LABEL = u"母版（含原色档）"
+# 档位键（不含 normal —— 原色档不是独立出图，它是母版抠图，并进 master 那个单元）。
+# ⚠️ 这是**派生值**：唯一真相是 `gen-art.py` 的 `MORPH_ORDER`，verify 第 ㊹ 节会
+#    双向校验「MORPH_CN 的键集 == {normal} ∪ MORPH_ORDER」——
+#    少一个 ⇒ 那一档的卡**永远没人评审**；多一个 ⇒ 死配置。别在这儿手加。
+MORPH_KEYS = ("master",) + tuple(k for k, _ in MORPH_CN if k != "normal")
 
 # ---- 形态模板键 → 中文标签（**唯一一处**）--------------------------------------
 # 它就是 `src/data/fish.js` 里 `F(id, name, rar, 'fish')` 的**第 4 参**，
@@ -118,20 +128,77 @@ def load_traits():
         return {}
 
 
-def generated_ids():
-    """有母版的鱼（`<id>.png`，排除 `<id>-<档>.png`）。"""
-    ids = []
-    for p in glob.glob(os.path.join(CARDS, "*.png")):
-        b = os.path.basename(p)[:-4]
-        if "-" in b:
+def card_names():
+    """`assets/cards/` 下所有 png 的**无扩展名文件名**（一次列目录，逐条鱼复用）。
+
+    为什么不按鱼 id 逐个 `os.path.exists`：一张卡有 6+ 个文件 × 362 条鱼
+    = 两千多次系统调用，而这个集合还有一个更要紧的用途 —— 见 `morph_slots()`。
+    """
+    return set(os.path.basename(p)[:-4] for p in glob.glob(os.path.join(CARDS, "*.png")))
+
+
+def generated_ids(names=None):
+    """有母版的鱼（`<id>.png`，排除 `<id>-<档>.png` / `<id>-<档>-N.png`）。"""
+    names = card_names() if names is None else names
+    return set(n for n in names if n and "-" not in n)
+
+
+def morph_versions_of(fid, key, have):
+    """这一档在盘上**真实存在**的版本 → `[(版号, 无扩展名文件名), …]`（版号升序）。
+
+    ⚠️ **按文件枚举**，不按「生成器说该出几版」：评审页要覆盖的是「已经出了的每一张」。
+       `gen-art.py` 的 `MORPH_VERSIONS_BY_RAR` 只说明**打算**出几版；盘上有第三版、
+       或某条鱼只有第 2 版（第 1 版被手删了），这里都要如实列出来 —— 漏一张就是
+       「出了但没人看过」，而这一页存在的全部理由就是不让这种事发生。
+    """
+    base = "%s-%s" % (fid, key)
+    ver = {}
+    if base in have:
+        ver[1] = base
+    for name in have:
+        m = re.match(r"^%s-(\d+)$" % re.escape(base), name)
+        if m:
+            ver[int(m.group(1))] = name
+    return [(n, ver[n]) for n in sorted(ver)]
+
+
+def morph_slots(fid, names):
+    """一条鱼**要评审的槽位** ← 从它的文件名里枚举（纯函数：不碰磁盘，可直接喂构造数据）。
+
+    返回 `[{"k","label","morph","file"}, …]`，顺序 = 母版 → 各档（`MORPH_CN` 的顺序）→ 各版升序。
+
+    · `k`     —— 槽位键。**第 1 版沿用档名本身**（`bright` / `shiny` …），
+                 第 N 版加 `-N`（`shiny-2`）。第 1 版保持老键是**故意的**：
+                 评审状态按槽位键落盘（`fishcard-review-v2`），沿用就**不用做状态迁移**
+                 —— 老结论原样有效，新加的版本从「未审」开始（这正是想要的）。
+    · `morph` —— 这一槽属于哪一档。**重出命令的粒度就是它**（`--only-morph <morph>`）：
+                 标记「闪光·第2版」要重出时，跑的是 `--only-morph shiny`（整档重出）。
+    · `morphLabel` —— 该档的中文名（不带版号）。页内 JS 用它给重出清单分组打标题，
+                 省得页内再抄一份「键 → 中文」（抄了就会漂，且门禁看不出来）。
+    · `file`  —— 缩略图用哪个文件。母版那一槽用**抠图**（`<id>-normal.png`），
+                 那才是游戏里真正会显示的图；没有抠图就退回原图。
+    """
+    have = set(names)
+    slots = []
+    if fid in have:
+        cut = fid + "-normal"
+        slots.append({"k": "master", "label": MASTER_LABEL, "morph": "master",
+                      "morphLabel": MASTER_LABEL,
+                      "file": (cut if cut in have else fid) + ".png"})
+    for key, cn in MORPH_CN:
+        if key == "normal":
             continue
-        ids.append(b)
-    return set(ids)
+        for ver, name in morph_versions_of(fid, key, have):
+            slots.append({"k": key if ver == 1 else "%s-%d" % (key, ver),
+                          "label": cn if ver == 1 else u"%s·第%d版" % (cn, ver),
+                          "morph": key, "morphLabel": cn, "file": name + ".png"})
+    return slots
 
 
 def build_rows(only_ids=None):
     traits = load_traits()
-    gen = generated_ids()
+    names = card_names()
+    gen = generated_ids(names)
     rows = []
     for f in load_fish():
         if f["id"] not in gen:
@@ -139,29 +206,12 @@ def build_rows(only_ids=None):
         if only_ids and f["id"] not in only_ids:
             continue
         t = traits.get(f["id"]) or {}
-        morphs = [k for k, _ in MORPH_CN
-                  if os.path.exists(os.path.join(CARDS, "%s-%s.png" % (f["id"], k)))]
-        # 可评审单元 = **每一档单独一个**（不再「一条鱼一个结论」）。
-        # ⚠️ `normal` 不是独立出图，它是母版的抠图 —— 所以并进 `master` 这个单元，
-        #    不单独列（列了会逼人给同一个东西判两次，而且两次判反了也不知道听谁的）。
-        #    但缩略图用的是**抠图**（`<id>-normal.png`）：那才是游戏里真正会显示的图。
-        slots = []
-        if os.path.exists(os.path.join(CARDS, f["id"] + ".png")):
-            normal = f["id"] + "-normal.png"
-            slots.append({"k": "master", "label": "母版（含原色档）",
-                          "file": normal if os.path.exists(os.path.join(CARDS, normal))
-                                  else f["id"] + ".png"})
-        for m in morphs:
-            if m == "normal":
-                continue
-            slots.append({"k": m, "label": dict(MORPH_CN)[m],
-                          "file": "%s-%s.png" % (f["id"], m)})
         label, hint = shape_note(f["shape"], f["name"])
         rows.append({
             "id": f["id"], "name": f["name"], "lat": (t.get("species") or "").strip(),
             "rar": f["rar"], "shape": f["shape"], "shapeCn": label, "shapeHint": hint,
             "form": (t.get("form") or "").strip(), "fins": (t.get("fins") or "").strip(),
-            "slots": slots,
+            "slots": morph_slots(f["id"], names),
         })
     rows.sort(key=lambda r: r["id"])
     return rows
@@ -306,9 +356,14 @@ var DATA = __DATA__;
 var TOKEN = '__TOKEN__';
 /* 重出之后设成 `?t=…` —— 否则浏览器会把旧图从缓存里拿出来，看着像「没重出」 */
 var CACHE_BUST = '';
-/* 档位中文名的**唯一来源是 Python 侧的 slot.label**，这里只做索引，不另抄一份 */
-var SLOT_LABEL = {};
-DATA.forEach(function (d) { d.slots.forEach(function (s) { SLOT_LABEL[s.k] = s.label; }); });
+/* 档位中文名的**唯一来源是 Python 侧的 slot.label / slot.morphLabel**（`MORPH_CN`）。
+   这里只建索引，**不另抄一份** —— 抄一份的下场是重出清单里印出英文档名 / 印错版号，
+   而且源码扫描看不出来（verify 第 ㊹ 节 ② 专门盯这一条）。 */
+var SLOT_LABEL = {}, MORPH_LABEL = {};
+DATA.forEach(function (d) { d.slots.forEach(function (s) {
+  SLOT_LABEL[s.k] = s.label;
+  MORPH_LABEL[s.morph] = s.morphLabel;
+}); });
 /* v2：状态从「一条鱼一个结论」改成「一条鱼 × **每一档**一个结论」。
    换 key 是为了不把新旧两种结构混在同一个键里。 */
 var KEY = 'fishcard-review-v2';
@@ -505,29 +560,35 @@ document.getElementById('rst').onclick = function () {
 };
 
 document.getElementById('exp').onclick = function () {
-  var bySlot = {}, okN = 0, pendN = 0, allN = 0, order = [];
+  /* 分组粒度 = **档**（`s.morph`），不是槽位键 —— 重出命令就是按档给的：
+     标记「闪光·第2版」跑的是 `--only-morph shiny`，会把该档的每一版一起重出。
+     所以同一档被标记了多版时，id 只列一次（否则命令行里会出现 `D16,D16`）。 */
+  var by = {}, okN = 0, pendN = 0, allN = 0, order = [];
   DATA.forEach(function (d) {
     d.slots.forEach(function (s) {
-      if (order.indexOf(s.k) < 0) order.push(s.k);
+      if (order.indexOf(s.morph) < 0) order.push(s.morph);
       allN++;
       var v = verdict(d, s.k);
       if (v === 'ok') okN++;
       if (!v) pendN++;
-      if (v === 'bad') { (bySlot[s.k] = bySlot[s.k] || []).push(d.id); }
+      if (v === 'bad') {
+        var g = by[s.morph] = by[s.morph] || [];
+        if (g.indexOf(d.id) < 0) g.push(d.id);
+      }
     });
   });
-  var keys = order.filter(function (k) { return bySlot[k] && bySlot[k].length; });
-  var total = keys.reduce(function (a, k) { return a + bySlot[k].length; }, 0);
+  var keys = order.filter(function (k) { return by[k] && by[k].length; });
+  var total = keys.reduce(function (a, k) { return a + by[k].length; }, 0);
   var L = ['# 重出清单：' + total + ' 张（**按单档给**，可以直接执行）',
            '# 五档是独立文生图（2026-10-07 起；曾走图生图，已弃用）⇒ 可以只重出其中一张。',
+           '# 分组粒度是**档**：某一档出了多版（如传说闪光有第 2 版）时，',
+           '#   这条命令会把该档的每一版一起重出 —— 重出完页面上那几版都要重审。',
            '# 母版那一行会顺带刷新 <id>-normal.png（原色档就是母版抠图）；',
            '# 五档单张重出**不动**别的档。'];
   L.push('');
   keys.forEach(function (k) {
-    var ids = bySlot[k].slice().sort();
-    var label = k === 'master' ? '母版（含原色档）'
-              : ({ bright: '彩虹色', albino: '白化', golden: '黄金', shiny: '闪光' }[k] || k);
-    L.push('# ' + label + '（' + ids.length + ' 张）');
+    var ids = by[k].slice().sort();
+    L.push('# ' + (MORPH_LABEL[k] || k) + '（' + ids.length + ' 张）');
     L.push('python tools/gen-art.py --list ' + ids.join(',') +
            (k === 'master' ? '' : ' --only-morph ' + k));
     L.push('');
@@ -581,13 +642,19 @@ api('/api/ping').then(function (r) { return r.ok ? r.json() : null; })
   .then(function (j) { setRunner(!!(j && j.ok)); })
   .catch(function () { setRunner(false); });
 
-/* 把当前标成「重出」的收成 [{morph, ids}] 交给运行器 */
+/* 把当前标成「重出」的收成 [{morph, ids}] 交给运行器。
+   粒度 = **档**（`s.morph`）：`clean_groups()` 的白名单只认档名，
+   `--only-morph` 也只认档名 —— 送槽位键（`shiny-2`）过去会被当成「不认识的档名」拒掉，
+   表现是「点了没反应 / 弹一句没能开跑」。 */
 function collectGroups() {
   var by = {}, order = [];
   DATA.forEach(function (d) {
     d.slots.forEach(function (s) {
-      if (order.indexOf(s.k) < 0) order.push(s.k);
-      if (verdict(d, s.k) === 'bad') { (by[s.k] = by[s.k] || []).push(d.id); }
+      if (order.indexOf(s.morph) < 0) order.push(s.morph);
+      if (verdict(d, s.k) === 'bad') {
+        var g = by[s.morph] = by[s.morph] || [];
+        if (g.indexOf(d.id) < 0) g.push(d.id);
+      }
     });
   });
   return order.filter(function (k) { return by[k] && by[k].length; })
@@ -600,7 +667,7 @@ function markedTotal(groups) {
 
 function markedTip(groups) {
   return groups.map(function (g) {
-    return '· ' + (SLOT_LABEL[g.morph] || g.morph) + '：' + g.ids.join(' ');
+    return '· ' + (MORPH_LABEL[g.morph] || g.morph) + '：' + g.ids.join(' ');
   }).join('\\n');
 }
 
@@ -610,12 +677,17 @@ function showWinNote(txt) {
 }
 
 /* 刷图 = ① 加时间戳绕开缓存（否则浏览器把旧图拿出来，看着像「没重出」）
-         ② 清掉这些档的「重出」结论 —— 新图必须重新审 */
+         ② 清掉这些档的「重出」结论 —— 新图必须重新审
+   为什么按**档**清而不是按「被标记的那一版」清：重出命令的粒度就是档
+   （`--only-morph shiny` 会把该档每一版一起重出）⇒ 只清被标记的那一版，
+   会留下一张**已经换了图、结论却还是旧图**的槽位。 */
 function refreshImages() {
   CACHE_BUST = '?t=' + Date.now();
   DATA.forEach(function (d) {
     if (!state[d.id]) return;
-    d.slots.forEach(function (s) { if (state[d.id][s.k] === 'bad') delete state[d.id][s.k]; });
+    var hit = {};
+    d.slots.forEach(function (s) { if (state[d.id][s.k] === 'bad') hit[s.morph] = 1; });
+    d.slots.forEach(function (s) { if (hit[s.morph]) delete state[d.id][s.k]; });
     if (!Object.keys(state[d.id]).length) delete state[d.id];
   });
   render(); save();
@@ -805,7 +877,10 @@ def build_page(only):
 #   · 窗口跑（`mode:"window"`）：写一个 .cmd（可双击重跑），`startfile` 开新控制台窗口
 # 口径要是分家，「页面显示的命令」和「真的跑的命令」就是两回事 —— 本项目最忌这个。
 
-MORPH_KEYS = ("master", "bright", "albino", "golden", "shiny")
+# `MORPH_KEYS`（档位白名单，`clean_groups()` 用它挡「凭猜写进命令行」）定义在文件头部
+# —— 与 `MORPH_CN` 挨着，两处只有一个来源。⚠️ 它**不含** `shiny-2` 这类多版槽位键：
+#   重出命令的粒度是**档**（`--only-morph shiny` 会把该档的每一版都重出），
+#   所以页面送过来的是槽位的 `morph` 字段，不是槽位键本身（见 `morph_slots()` 的注释）。
 # 窗口脚本里用的 ASCII 档名 —— **不许**用 MORPH_CN 那套中文：
 #   cmd.exe 按系统 ANSI 代码页读 .cmd，中文会被拆成乱命令（`gen-art-loop.cmd` 的注释就是这条教训）。
 #   2026-10-08 我第一版真把「闪光」写进去了，被 tools/test-review-cards.py 当场逮住。

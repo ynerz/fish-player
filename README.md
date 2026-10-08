@@ -121,7 +121,7 @@ gen-fish.py → solve-drop.js → balance.js → verify.js → gen-collect-time.
 同一套几何可横向对比，开发期用 `G.FishArt.setStyle('bold')` 切换。
 
 ⚠️ 这**不是给玩家的功能** —— 最终会拍板固化 1 套，上线前把没选中的从 `STYLES` 里删掉即可。
-对比图见 [`docs/style-preview/`](docs/style-preview/)，交互页 `tools/style-preview.html`。
+交互页 `tools/style-preview.html`（原 `docs/style-preview/` 的对比图已清空，需要时用它重新生成）。
 
 ## 存档
 

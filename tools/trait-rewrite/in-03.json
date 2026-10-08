@@ -1,0 +1,262 @@
+{
+ "items": [
+  {
+   "id": "D06",
+   "name": "食蚊鱼",
+   "form": "an elongated slightly compressed body, a short broad head, a flattened anterior head, a short snout, large eyes, a wide flat interorbital space, a small superior mouth with a horizontal gape, no barbels, cycloid scales on head and body, no lateral line, a broad long flattened caudal peduncle",
+   "fins": "small pectoral and pelvic fins, the pelvic fins set very close to the anal fin, a large dorsal fin, a large rounded tail fin, the third to fifth anal fin rays elongated into a rod-shaped gonopodium in males"
+  },
+  {
+   "id": "D07",
+   "name": "塘鳢",
+   "form": "an elongated stout body, a large broad flat head, a wide short snout, medium-sized scales, no lateral line",
+   "fins": ""
+  },
+  {
+   "id": "D09",
+   "name": "黄颡鱼",
+   "form": "a large flat head, a short snout, a large inferior mouth, four pairs of barbels, naked skin with no scales, a complete lateral line",
+   "fins": ""
+  },
+  {
+   "id": "D10",
+   "name": "小鲤鱼",
+   "form": "a deep laterally compressed body, a slightly arched back, a moderate-sized head, a short blunt snout, a terminal mouth, two pairs of barbels, cycloid scales, a complete lateral line",
+   "fins": "a long dorsal fin with a stout serrated spine, a deeply forked tail fin"
+  },
+  {
+   "id": "D13",
+   "name": "金鲫",
+   "form": "a spindle-shaped body, a deep laterally compressed body, medium-sized scales, cycloid scales except on the head, a complete straight lateral line",
+   "fins": "pelvic fins set slightly ahead of the dorsal fin origin, pelvic fins similar in shape to the pectoral fins, a deeply forked tail fin with rounded lobe tips"
+  },
+  {
+   "id": "D14",
+   "name": "老塘草鱼",
+   "form": "an elongated body, an almost cylindrical anterior part, a laterally compressed tail region, a rounded belly, no ventral keel, a broad medium-sized head, a slightly flattened anterior head, a short blunt snout, medium-sized cycloid scales, a lateral line curved anteriorly and straight posteriorly",
+   "fins": ""
+  },
+  {
+   "id": "D15",
+   "name": "圆尾斗鱼",
+   "form": "a body covered with scales, cycloid scales on the head, ctenoid scales on the flanks",
+   "fins": "long large dorsal and anal fins, pelvic fins set below the pectoral region, a rounded tail fin; in mature males the posterior rays of the dorsal and anal fins are longer"
+  },
+  {
+   "id": "D16",
+   "name": "塘主的大青鱼",
+   "form": "an elongated body, a slightly compressed body, a rounded belly, no ventral keel, a broad blunt head, a terminal mouth, no barbels, large cycloid scales, a complete lateral line",
+   "fins": "a long dorsal fin with no spines, a forked tail fin"
+  },
+  {
+   "id": "S01",
+   "name": "深海鳕",
+   "form": "an elongated body tapering to a slim tail stock, a large head, a blunt snout, a small barbel under the chin, small cycloid scales",
+   "fins": "three separate dorsal fins, two anal fins, a slightly forked tail fin"
+  },
+  {
+   "id": "S02",
+   "name": "灯笼鱼",
+   "form": "a slender elongated body, a large head, a large eye, a terminal mouth, cycloid scales, a complete lateral line",
+   "fins": "a dorsal fin, a small adipose fin, a forked tail fin"
+  },
+  {
+   "id": "S03",
+   "name": "鼬鳚",
+   "form": "an elongated eel-like body, a tapering tail, a small head, a blunt snout, small eyes, a terminal mouth, small cycloid scales, a complete lateral line",
+   "fins": "a long dorsal fin, a long anal fin, the dorsal and anal fins joined continuously to the tail fin, pelvic fins set far forward under the throat"
+  },
+  {
+   "id": "S05",
+   "name": "帆蜥鱼",
+   "form": "a slender elongated body, a ribbon-shaped body, a large head, a large mouth, a deep mouth cleft, large canine teeth, a short snout",
+   "fins": "a long high sail-like dorsal fin, a medium-sized adipose fin, an anal fin at the rear of the body, low pectoral fins with elongated spear-shaped front rays, small pelvic fins, a deeply forked tail fin with the upper lobe drawn out into filaments"
+  },
+  {
+   "id": "S06",
+   "name": "深海鲷",
+   "form": "a laterally compressed deep body, a steep forehead, a small terminal mouth, a large eye, ctenoid scales",
+   "fins": "a long dorsal fin with a distinct spiny front section, a short anal fin, a forked tail fin"
+  },
+  {
+   "id": "S09",
+   "name": "黑叉齿鱼",
+   "form": "an elongated slender body, a large head, a very large mouth, sharp recurved teeth, naked skin with no scales, small eyes, a long tapering tail",
+   "fins": "a long dorsal fin, a long anal fin, small pectoral fins, a forked tail fin"
+  },
+  {
+   "id": "S10",
+   "name": "尖牙鱼",
+   "form": "a large ridged head, a body tapering sharply from behind the head to the caudal peduncle, small eyes, a large mouth, sharp teeth, rough skin, overlapping scale rows along the lateral line",
+   "fins": "a dorsal fin with no spines and 17 to 20 soft rays, an anal fin with no spines and 7 to 9 soft rays"
+  },
+  {
+   "id": "S11",
+   "name": "后肛鱼",
+   "form": "a short deep body, a flattened head and belly, a body shaped like an iron, tubular eyes set vertically, a small mouth, a bare scaleless head, large thin cycloid scales on the flanks and belly",
+   "fins": "a dorsal fin at the rear of the back, a small adipose fin between the dorsal fin and the tail fin, a reduced short anal fin just before the lower tail fin, pectoral fins on a stalk-like base, large pelvic fins just below and in front of the dorsal-fin origin, a tail fin divided into upper and lower parts"
+  },
+  {
+   "id": "S13",
+   "name": "囊鳃鳗",
+   "form": "a very elongated slender body, a filamentous eel-like body, a laterally compressed body, a short snout, the upper jaw longer than the lower, a huge sac-like mouth, the mouth cleft extending well behind the eye, long slender teeth in the jaws, a lateral line without pores, naked skin with no scales",
+   "fins": "a dorsal fin starting near the front fifth of the body, an anal fin, pectoral fins with 28 to 41 rays, no pelvic fins, the tail ends of the dorsal and anal fins sometimes drawn out into filaments"
+  },
+  {
+   "id": "S14",
+   "name": "深海鳐",
+   "form": "a flattened diamond-shaped disc formed by the pectoral fins, a slender tail, a broad flattened head, the mouth and gill slits on the underside, large spiracles behind the eyes, thorny skin",
+   "fins": "the pectoral fins fused with the head to form the disc, small pelvic fins, a slender tail with a small fin fold"
+  },
+  {
+   "id": "S16",
+   "name": "灯塔水母",
+   "form": "a small bell-shaped transparent body, the bell diameter and height about equal, 90 to 150 tentacles around the bell margin, round tentacle bulbs arranged in 2 to 3 rows, a manubrium hanging from the center of the underside, a velum at the bell margin",
+   "fins": ""
+  },
+  {
+   "id": "S23",
+   "name": "深海虾虎",
+   "form": "an elongated slender body, a large head, a blunt snout, large eyes, a terminal mouth, ctenoid scales",
+   "fins": "two dorsal fins, the pelvic fins joined into a disc under the throat, a rounded tail fin"
+  },
+  {
+   "id": "S24",
+   "name": "无光鳕",
+   "form": "a moderately proportioned body, a large head, a blunt snout, a small chin barbel, small scales, low sensory pores along the head",
+   "fins": "three separate dorsal fins, two anal fins, a slightly forked tail fin"
+  },
+  {
+   "id": "S25",
+   "name": "鮟鱇鱼",
+   "form": "a large broad depressed head, a huge mouth, backward-curved teeth, loose scaleless skin, a fishing lure on the head, gill openings behind the pectoral-fin base, a stout body tapering to the tail",
+   "fins": "a dorsal fin with the front rays forming a lure, small pectoral fins, pelvic fins set forward under the throat"
+  },
+  {
+   "id": "S27",
+   "name": "树须鱼",
+   "form": "a short body, smooth skin, many barbels on the lower jaw branching like tree roots, a short illicium set behind the tip of the snout, a nearly horizontal mouth cleft, no second dorsal spine, no fleshy flap on the back, 4 to 5 branchiostegal rays",
+   "fins": "a dorsal fin with 3 rays, an anal fin with 2 to 4 rays"
+  },
+  {
+   "id": "S31",
+   "name": "皱鳃鲨",
+   "form": "an eel-like body, six gill slits on each side with frilled and overlapping gill septa, a very short snout, a wide mouth set at the front, teeth of the same shape in both jaws with three long cusps each, nostrils on the lower side of the head, a spiracle",
+   "fins": "a small leaf-shaped dorsal fin positioned between the pelvic-fin base and behind the anal fin, an anal fin larger than the dorsal fin, small paddle-shaped pectoral fins"
+  },
+  {
+   "id": "S33",
+   "name": "六鳃鲨",
+   "form": "a long stout body, a short blunt snout, a large curved mouth, six pairs of gill slits set obliquely and wide, large eyes",
+   "fins": "an anal fin smaller than the dorsal fin, the anal-fin origin below the rear part of the dorsal-fin base"
+  },
+  {
+   "id": "S35",
+   "name": "深海银鲛",
+   "form": "an elongated tapering body, a large head with a blunt snout, large eyes, smooth scaleless skin, the gill slits covered by a single operculum",
+   "fins": "two dorsal fins with a stout spine in front of the first, large wing-like pectoral fins, a long whip-like tail"
+  },
+  {
+   "id": "S36",
+   "name": "单棘魨",
+   "form": "a laterally compressed elongated body, a small pointed head, a small terminal mouth, leathery skin with small scales, a prominent first dorsal spine above the eye",
+   "fins": "a first dorsal fin reduced to a single stout spine, a second dorsal fin, a small anal fin, a rounded tail fin"
+  },
+  {
+   "id": "S41",
+   "name": "皇带鱼",
+   "form": "an elongated ribbon-like laterally compressed body, a horse-like head, a short blunt snout slightly longer than the eye diameter, medium-sized eyes set high and lateral near the snout, a small terminal mouth slanting upward and lacking teeth on the jaws and palate, naked skin with no scales, many irregular small granular bumps along the flanks",
+   "fins": "a single long dorsal fin with 400 to 450 rays, the front 10 to 12 rays elongated into filaments"
+  },
+  {
+   "id": "S42",
+   "name": "巨口鲨",
+   "form": "a subcylindrical anterior body, a large wide long blunt head, a very short snout broadly rounded in dorsal view, a huge terminal mouth, a laterally compressed caudal peduncle with no lateral keels",
+   "fins": "soft fins, large narrow elongated pectoral fins, a broom-shaped tail fin with a long upper lobe only slightly upturned"
+  },
+  {
+   "id": "S43",
+   "name": "格陵兰鲨",
+   "form": "a stout heavy cylindrical body, a short blunt rounded snout, small eyes, a small mouth near the tip of the snout, a short caudal peduncle without a keel",
+   "fins": "small rounded pectoral fins, two small dorsal fins set far back near the tail, no anal fin, a nearly symmetrical tail fin"
+  },
+  {
+   "id": "S45",
+   "name": "小头睡鲨",
+   "form": "a stout heavy cylindrical body, a short blunt rounded snout, small eyes, a small mouth near the tip of the snout, a short caudal peduncle without a keel",
+   "fins": "small rounded pectoral fins, two small dorsal fins set far back near the tail, no anal fin, a nearly symmetrical tail fin"
+  },
+  {
+   "id": "S46",
+   "name": "太平洋睡鲨",
+   "form": "a stout nearly cylindrical body, a short conical blunt snout, the preoral snout length about equal to the mouth width, slender long upper teeth and shorter slanted lower teeth with overlapping bases",
+   "fins": "two small dorsal fins with no spines, the distance between the dorsal fin bases 45 to 53 percent of the total length, pectoral fins with broad rounded tips, a short asymmetrical tail fin"
+  },
+  {
+   "id": "S49",
+   "name": "北极霞水母",
+   "form": "a large bell-shaped body with a bell margin diameter of 30 to 80 cm, many long trailing tentacles",
+   "fins": ""
+  },
+  {
+   "id": "S50",
+   "name": "深海鳚",
+   "form": "a slender elongated body, a blunt rounded head, a small terminal mouth, large eyes set high, no barbels, naked skin with no scales",
+   "fins": "a long continuous dorsal fin with a shallow notch, a long anal fin, small pectoral fins"
+  },
+  {
+   "id": "S51",
+   "name": "黑口鱼",
+   "form": "a body covered with scales, teeth in several rows on both jaws",
+   "fins": "the dorsal fin origin in front of the anal fin origin, the first pectoral fin ray not elongated into a filament"
+  },
+  {
+   "id": "S52",
+   "name": "巨尾鱼",
+   "form": "an elongated laterally compressed body of medium size, a large head, a medium-sized snout protruding at the front with the snout length about equal to the eye diameter, a large oblique mouth with the upper jaw extending below the eye and the lower jaw slightly protruding beyond the upper, villiform tooth bands on both jaws, thin cycloid scales that shed easily, a complete lateral line",
+   "fins": "a single dorsal fin in front of the middle with 12 to 13 soft rays and an adipose fin behind it, an anal fin base about equal to the dorsal fin base with 12 to 13 soft rays, elongated pectoral fins reaching the anus, a forked tail fin"
+  },
+  {
+   "id": "S53",
+   "name": "褶胸鱼",
+   "form": "a small extremely laterally compressed body that is narrow and linear when viewed from above, a straight back, a very prominent belly giving a stone-axe profile in side view, large eyes, a superior mouth, a trunk slightly taller than long",
+   "fins": "a posteriorly placed dorsal fin, a long forked tail fin with rays of equal length, very large pectoral fins"
+  },
+  {
+   "id": "S56",
+   "name": "狼牙鲷",
+   "form": "a deep laterally compressed body, a large head, a moderate eye, a row of exposed fangs along both jaws, ctenoid scales",
+   "fins": "a spiny dorsal fin with stout front spines, a short anal fin with two spines, a forked tail fin"
+  },
+  {
+   "id": "S57",
+   "name": "角高体金眼鲷",
+   "form": "a deep diamond-shaped body, a steep forehead with a short frontal crest, a very large eye, a small terminal mouth, ctenoid scales",
+   "fins": "a long spiny dorsal fin, a short anal fin, a forked tail fin"
+  },
+  {
+   "id": "S58",
+   "name": "海沟幽灵·大王乌贼",
+   "form": "a huge body with a mantle about 4 m long, long arms and two long feeding tentacles reaching 10 m or more",
+   "fins": ""
+  },
+  {
+   "id": "S60",
+   "name": "海沟之主·深渊巨鲨",
+   "form": "a massive heavy body, a broad streamlined head with a short tapered snout, wide jaws lined with rows of triangular teeth, five long gill slits",
+   "fins": "a tall triangular dorsal fin, long swept pectoral fins, a crescent tail fin with a long upper lobe"
+  },
+  {
+   "id": "S62",
+   "name": "海沟终焉·原始巨口鲨",
+   "form": "a massive deep body, a broad head with a short tapered snout, an enormous gape mouth reaching far back, small teeth in many rows, five long gill slits",
+   "fins": "a rounded dorsal fin set far back, large swept pectoral fins, a long crescent tail fin"
+  },
+  {
+   "id": "SS01",
+   "name": "星磷鱼",
+   "form": "a slender diamond-sectioned body, a small pointed head, a large oblique mouth, crisply bevelled scale edges, a narrow caudal peduncle",
+   "fins": "a long trailing dorsal crest, a translucent fan-shaped tail fin, slender filamentous pelvic fins"
+  }
+ ]
+}

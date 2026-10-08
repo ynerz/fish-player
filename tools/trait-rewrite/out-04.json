@@ -1,0 +1,262 @@
+{
+ "items": [
+  {
+   "id": "SS07",
+   "name": "陨尘鲳",
+   "form": "a deep oval body, a small head, a short blunt snout, a small mouth, fine faceted points",
+   "fins": "a long low dorsal fin, a slightly forked tail fin, small pectoral fins"
+  },
+  {
+   "id": "SS09",
+   "name": "星尘鳀",
+   "form": "a slender spindle-shaped body, a pointed snout, a large mouth, a single fine line of glowing specks along the midline",
+   "fins": "a short dorsal fin set far back, a deeply forked tail fin, small pectoral fins"
+  },
+  {
+   "id": "SS14",
+   "name": "星屑鰕虎",
+   "form": "a small stout body, a large blunt head, a wide mouth, fused pelvic fins forming a disc, a row of tiny luminous specks along the flank",
+   "fins": "a dorsal fin split into two parts, a rounded tail fin, pectoral fins"
+  },
+  {
+   "id": "SS18",
+   "name": "陨石鳃",
+   "form": "a deep angular body with faceted plates, a large head, a wide mouth, a heavy blunt snout",
+   "fins": "a spined dorsal fin with even peaks, a slightly forked tail fin"
+  },
+  {
+   "id": "SS22",
+   "name": "霜鳞鲑",
+   "form": "a streamlined spindle-shaped body, a small head, a short snout, a mouth at the front of the head, crystalline edges with clean cuts",
+   "fins": "a short dorsal fin, a slightly forked tail fin, small pectoral fins"
+  },
+  {
+   "id": "SS26",
+   "name": "幽蓝鳞鲀",
+   "form": "a deep angular oval body with faceted plates, a large head, a mouth at the front of the head, a stout dorsal spine, a pointed snout",
+   "fins": "a dorsal fin with a stout front spine, a rounded tail fin, small pectoral fins"
+  },
+  {
+   "id": "SS28",
+   "name": "陨纹金枪",
+   "form": "a robust faceted spindle-shaped body, a pointed head, a large mouth, a row of finlets behind the dorsal and anal fins",
+   "fins": "a long dorsal fin, a deeply forked tail fin, a row of finlets"
+  },
+  {
+   "id": "SS34",
+   "name": "渊影鲛",
+   "form": "a deep torpedo-shaped body, a long pointed snout, a row of even triangular teeth, a sharp keel along the flank",
+   "fins": "a low second dorsal fin, a crescent-shaped tail fin, long pectoral fins"
+  },
+  {
+   "id": "SS39",
+   "name": "碎陨皇带",
+   "form": "an extremely long ribbon-like body, a small blunt head, a short mouth, a trailing crest along the back, a row of luminous pores at the crest base",
+   "fins": "a low crest along the entire back, tiny pectoral fins, a small fan tail fin"
+  },
+  {
+   "id": "SS41",
+   "name": "幽暗龙鱼",
+   "form": "a sinuous faintly faceted ribbon-like body, a narrow wedge-shaped head, a pair of swept-back horn-like crests, sparse luminous pores spaced evenly along the spine",
+   "fins": "a low continuous dorsal crest of evenly spaced spines, a pair of long trailing pelvic tendrils"
+  },
+  {
+   "id": "SS46",
+   "name": "虚空鲛",
+   "form": "a torpedo-shaped body with faintly faceted flank plates, a long pointed snout, a row of slender recurved teeth",
+   "fins": "a tall triangular dorsal fin, long swept-back pectoral fins"
+  },
+  {
+   "id": "SS50",
+   "name": "星核龙鱼",
+   "form": "a sinuous faintly faceted serpentine body, a tapered head, a pair of rearward-swept horns, a single luminous core node at the throat",
+   "fins": "a low continuous dorsal crest of evenly spaced spines, a pair of long trailing whisker tendrils"
+  },
+  {
+   "id": "SS51",
+   "name": "裂空皇带鱼",
+   "form": "a very long slender ribbon-like body, a small head with a blunt snout, a single tapering dorsal crest running the full length of the back, a pair of short trailing pelvic filaments",
+   "fins": "a continuous dorsal crest, a tiny fan-shaped tail fin"
+  },
+  {
+   "id": "SS52",
+   "name": "渊眼巨鲨",
+   "form": "a torpedo-shaped body with angular faceted flank plates, a long pointed snout, a single large eye set high on the head",
+   "fins": "a tall triangular dorsal fin, a crescent tail fin with a long upper lobe"
+  },
+  {
+   "id": "SS57",
+   "name": "陨铁巨口鲨",
+   "form": "a stout torpedo-shaped body with angular faceted plates, a long pointed snout, an enormous gaping mouth",
+   "fins": "a tall triangular dorsal fin, long angular pectoral fins"
+  },
+  {
+   "id": "SS65",
+   "name": "陨砂鲈",
+   "form": "an elongated faintly grainy faceted body, a pointed head, a large oblique mouth, the lower jaw slightly protruding",
+   "fins": "a dorsal fin with a deep notch, a slightly forked tail fin"
+  },
+  {
+   "id": "SS67",
+   "name": "暗礁鲷",
+   "form": "a deep oval faintly faceted body, a large head, a pointed snout, a small mouth",
+   "fins": "a long dorsal fin with a spiny front section, a forked tail fin"
+  },
+  {
+   "id": "SS72",
+   "name": "陨铁巨鲛",
+   "form": "a stout torpedo-shaped body with angular faceted armor plates, a long pointed snout, a row of serrated teeth",
+   "fins": "a tall triangular dorsal fin, long angular pectoral fins, a crescent tail fin"
+  },
+  {
+   "id": "SS73",
+   "name": "星核皇带",
+   "form": "a very long slender ribbon-like body, a small blunt head, a single tapering dorsal crest running the whole back, a pair of long trailing pelvic filaments",
+   "fins": "a continuous dorsal crest, a tiny fan-shaped tail fin"
+  },
+  {
+   "id": "SS76",
+   "name": "星陨之主·天鳞",
+   "form": "a sinuous serpentine body covered in faintly faceted overlapping plates, a tapered head, a pair of large rearward-swept horns, a row of luminous nodes along the spine",
+   "fins": "a low continuous dorsal crest of evenly spaced spines, a pair of long trailing whisker tendrils"
+  },
+  {
+   "id": "SS78",
+   "name": "星陨王座·裂空皇带",
+   "form": "a very long slender ribbon-like body, a small blunt head crowned by a low faceted crest, a tall dorsal crest running the full length of the back, a pair of long trailing pelvic filaments",
+   "fins": "a continuous dorsal crest, a tiny fan-shaped tail fin"
+  },
+  {
+   "id": "SSS01",
+   "name": "时砂小鱼",
+   "form": "a small spindle-shaped body with soft bevelled edges, a blunt conical head, a mouth at the front of the head",
+   "fins": "a short dorsal fin set far back, a rounded tail fin, small rounded pectoral fins"
+  },
+  {
+   "id": "SSS02",
+   "name": "溯流鲑",
+   "form": "an elongated spindle-shaped body with a slightly arched back, a pointed snout, a mouth at the front of the head, the lower jaw slightly hooked",
+   "fins": "a short-based dorsal fin, a small fleshy fin, a slightly forked tail fin, pointed pectoral fins"
+  },
+  {
+   "id": "SSS03",
+   "name": "零度蝶鱼",
+   "form": "a deep diamond-shaped body with crisp bevelled edges, a small pointed head, a short tubular snout, a small mouth, a continuous dorsal profile",
+   "fins": "a long dorsal fin joined to the anal fin by a thin membrane, a rounded tail fin, fan-shaped pectoral fins"
+  },
+  {
+   "id": "SSS04",
+   "name": "昨日鲈",
+   "form": "a stout oval body with a straight upper profile, a large head, a slightly concave forehead, a mouth at the front of the head, the lower jaw projecting slightly",
+   "fins": "a dorsal fin with a deep notch between the spiny and soft parts, a slightly concave tail fin, fan-shaped pectoral fins"
+  },
+  {
+   "id": "SSS05",
+   "name": "遗迹鳉",
+   "form": "a small cylindrical body with a flat-topped head, a short blunt snout, an upturned small mouth, an eroded scalloped edge to the gill cover",
+   "fins": "a long continuous dorsal fin with a rounded outline, a rounded tail fin, small rounded pectoral fins"
+  },
+  {
+   "id": "SSS06",
+   "name": "虚时鲳",
+   "form": "a deep oval body with smooth bevelled edges, a small blunt head, a short snout, a mouth at the front of the head, the upper jaw slightly longer than the lower",
+   "fins": "a long dorsal fin, a matching long anal fin, a deeply forked tail fin, long slender pectoral fins"
+  },
+  {
+   "id": "SSS07",
+   "name": "刹那鲴",
+   "form": "an elongated body with a gently convex back, a conical head, a short blunt snout, a downward-pointing mouth with a thin lower lip",
+   "fins": "a short dorsal fin with a smooth outline, a deeply forked tail fin, long pointed pectoral fins"
+  },
+  {
+   "id": "SSS08",
+   "name": "须臾鲹",
+   "form": "a spindle-shaped slender body with a rounded belly, a pointed conical head, a mouth at the front of the head, the upper jaw slightly longer than the lower",
+   "fins": "a long dorsal fin with a low anterior lobe, a deeply forked tail fin, long sickle-shaped pectoral fins"
+  },
+  {
+   "id": "SSS09",
+   "name": "瞬息鳉",
+   "form": "a small slender cylindrical body with a flattened dorsal profile, a rounded head, a short blunt snout, an upturned small mouth",
+   "fins": "a long dorsal fin set far back, a rounded tail fin, small rounded pectoral fins"
+  },
+  {
+   "id": "SSS10",
+   "name": "一刻鲹",
+   "form": "a moderately elongated spindle-shaped body with a slightly arched back, a pointed snout, a mouth at the front of the head",
+   "fins": "a long dorsal fin with a pointed anterior lobe, a deeply forked tail fin, long pointed pectoral fins"
+  },
+  {
+   "id": "SSS100",
+   "name": "终焉之影·忘川",
+   "form": "a massive deep-bodied form, a broad head with a short tapered snout, wide jaws, a low keel along the flank",
+   "fins": "a tall dorsal fin, long swept pectoral fins, a strongly curved tail fin with a long upper lobe"
+  },
+  {
+   "id": "SSS11",
+   "name": "时光鲽",
+   "form": "a deep oval body with a low head, both eyes set close together near the upper edge, a small mouth",
+   "fins": "a long dorsal fin running the full length of the body, a matching long anal fin, a rounded tail fin"
+  },
+  {
+   "id": "SSS12",
+   "name": "琥珀鲷",
+   "form": "a deep oval body with a steep forehead, a large blunt head, a small mouth, the upper jaw slightly longer than the lower",
+   "fins": "a single long dorsal fin with low spines, a slightly forked tail fin, long pointed pectoral fins"
+  },
+  {
+   "id": "SSS13",
+   "name": "遗迹石斑",
+   "form": "a stout oval body with a large head, a slightly concave forehead, a wide oblique mouth, the lower jaw projecting",
+   "fins": "a long dorsal fin with strong spines and a rounded soft portion, a rounded tail fin, large rounded pectoral fins"
+  },
+  {
+   "id": "SSS14",
+   "name": "残响鲻",
+   "form": "an elongated cylindrical body with a slightly flattened back, a small conical head, a short blunt snout, a downward-pointing mouth",
+   "fins": "a pair of separate short dorsal fins, a forked tail fin, pointed pectoral fins set high on the flank"
+  },
+  {
+   "id": "SSS15",
+   "name": "静默鳕",
+   "form": "an elongated body, a large head, a short blunt snout, a mouth at the front of the head, a single chin barbel",
+   "fins": "a row of three separate dorsal fins, a pair of separate anal fins, a slightly rounded tail fin, pointed pectoral fins"
+  },
+  {
+   "id": "SSS16",
+   "name": "尘时鲹",
+   "form": "a spindle-shaped body with a rounded belly, a pointed conical head, a mouth at the front of the head",
+   "fins": "a long low dorsal fin, a deeply forked tail fin, long sickle-shaped pectoral fins"
+  },
+  {
+   "id": "SSS17",
+   "name": "初雪鳟",
+   "form": "an elongated spindle-shaped body with a slightly arched back, a conical head, a short pointed snout, a mouth at the front of the head",
+   "fins": "a short dorsal fin, a small fleshy fin, a slightly forked tail fin, pointed pectoral fins"
+  },
+  {
+   "id": "SSS18",
+   "name": "沙漏鲽",
+   "form": "a deep oval body with a low head, both eyes set close together near the upper edge, a small mouth",
+   "fins": "a long dorsal fin running the full length of the body, a matching long anal fin, a rounded tail fin"
+  },
+  {
+   "id": "SSS19",
+   "name": "回音鲈",
+   "form": "a stout oval body with a straight upper profile, a large head, a slightly concave forehead, a mouth at the front of the head, the lower jaw projecting slightly",
+   "fins": "a dorsal fin with a deep notch between the spiny and soft parts, a slightly concave tail fin, fan-shaped pectoral fins"
+  },
+  {
+   "id": "SSS20",
+   "name": "旧日鲳",
+   "form": "a deep oval body with smooth edges, a small blunt head, a short snout, a mouth at the front of the head, the upper jaw slightly longer than the lower",
+   "fins": "a long dorsal fin, a matching long anal fin, a deeply forked tail fin, long slender pectoral fins"
+  },
+  {
+   "id": "SSS21",
+   "name": "年轮鲷",
+   "form": "a deep oval body with a steep forehead, a large blunt head, a small mouth",
+   "fins": "a single long dorsal fin with low spines, a slightly forked tail fin, long pointed pectoral fins"
+  }
+ ]
+}

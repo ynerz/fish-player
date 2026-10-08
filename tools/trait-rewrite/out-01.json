@@ -1,0 +1,262 @@
+{
+ "items": [
+  {
+   "id": "A02",
+   "name": "竹荚鱼",
+   "form": "a conical head, large eyes, an eye larger than the snout, a large oblique mouth, fine teeth in each jaw",
+   "fins": ""
+  },
+  {
+   "id": "A03",
+   "name": "黑鲷",
+   "form": "an elongated oval body, a pointed blunt front, a large head with a small mouth, the upper and lower jaws equal in length",
+   "fins": ""
+  },
+  {
+   "id": "A05",
+   "name": "鲻鱼",
+   "form": "a small downward-pointing mouth, rather large eyes, tiny teeth",
+   "fins": "a deeply forked tail fin, pectoral fins, two dorsal fins, an anal fin"
+  },
+  {
+   "id": "A06",
+   "name": "石斑鱼",
+   "form": "a stout oval body, a large head, a large mouth with the lower jaw protruding",
+   "fins": "a dorsal fin with spines, a rounded tail fin"
+  },
+  {
+   "id": "A07",
+   "name": "银鲳",
+   "form": "a short blunt rounded snout, arched dorsal and ventral margins, the body highest at the front of the dorsal fin and sloping toward the snout, the snout and upper jaw slightly protruding, fine teeth on both jaws",
+   "fins": ""
+  },
+  {
+   "id": "A08",
+   "name": "刺鲳",
+   "form": "an elongated oval body, bluntly rounded dorsal and ventral margins, a small head, the dorsal profile of the head convex",
+   "fins": ""
+  },
+  {
+   "id": "A09",
+   "name": "鳀鱼",
+   "form": "an elongated slender body, a short blunt snout shorter than the eye, a large downward-pointing mouth, the upper jaw longer than the lower",
+   "fins": "a short dorsal fin, small pectoral fins set low on the sides, a forked tail fin"
+  },
+  {
+   "id": "A10",
+   "name": "小黄鱼",
+   "form": "an elongated body, arched dorsal and ventral margins, a large head, a large oblique mouth at the front of the head, both jaws equal in length, small sharp teeth",
+   "fins": ""
+  },
+  {
+   "id": "A11",
+   "name": "梅童鱼",
+   "form": "a nearly rectangular body, a large blunt rounded head",
+   "fins": "a wedge-shaped tail fin"
+  },
+  {
+   "id": "A12",
+   "name": "黄姑鱼",
+   "form": "an elongated body, a slightly arched back, a medium-sized head, a short blunt snout slightly protruding, a large oblique mouth, the upper jaw slightly longer than the lower",
+   "fins": ""
+  },
+  {
+   "id": "A13",
+   "name": "白姑鱼",
+   "form": "a croaker",
+   "fins": ""
+  },
+  {
+   "id": "A14",
+   "name": "海鳗",
+   "form": "a nearly cylindrical body",
+   "fins": ""
+  },
+  {
+   "id": "A15",
+   "name": "星鳗",
+   "form": "an elongated cylindrical body, smooth skin, a conical head, widely spaced concave eyes, a long pointed snout with a tapering tip, small teeth on each jaw",
+   "fins": "a dorsal fin starting above and behind the pectoral fins, an anal fin located behind the anus"
+  },
+  {
+   "id": "A16",
+   "name": "鲽鱼",
+   "form": "a flat body, both eyes on the upper side of the head, a small head, a small mouth",
+   "fins": "a long dorsal fin, a long anal fin, a small tail fin"
+  },
+  {
+   "id": "A17",
+   "name": "舌鳎",
+   "form": "a tongue-shaped elongated body, a short deep head, a blunt rounded arched snout, small eyes on the left side of the head, the upper eye not reaching the dorsal edge",
+   "fins": "a pointed tip on the tail fin, the dorsal and anal fins continuously joined to the tail fin, no pectoral fins, pelvic fins on the eyed side only"
+  },
+  {
+   "id": "A19",
+   "name": "黑鲪",
+   "form": "a stout oblong body, a large head bearing spines, a large mouth",
+   "fins": "a long dorsal fin with stout spines, a rounded tail fin, large pectoral fins"
+  },
+  {
+   "id": "A20",
+   "name": "赤点石斑",
+   "form": "a stout oblong body, a large head, a large mouth, the lower jaw slightly protruding",
+   "fins": "a long dorsal fin, a rounded tail fin, large rounded pectoral fins"
+  },
+  {
+   "id": "A21",
+   "name": "真鲷",
+   "form": "an elongated oval body, a large head, medium-sized eyes set high on the sides, a medium-sized mouth",
+   "fins": ""
+  },
+  {
+   "id": "A22",
+   "name": "海鲈",
+   "form": "an elongated body, the lower jaw slightly longer than the upper, a serrated rear edge on the gill cover with several forward-pointing spines, a spine at the rear corner of the gill cover",
+   "fins": "a rather small first anal spine, a stronger second anal spine, two dorsal fins joined at the base"
+  },
+  {
+   "id": "A25",
+   "name": "马鲛",
+   "form": "an elongated body, a slender tail, three longitudinal ridges along the tail base with the central ridge longest and highest",
+   "fins": ""
+  },
+  {
+   "id": "A26",
+   "name": "蓝点马鲛",
+   "form": "an elongated body, a slender tail, three longitudinal ridges along the tail base with the central ridge longest and highest",
+   "fins": ""
+  },
+  {
+   "id": "A27",
+   "name": "大黄鱼",
+   "form": "a blunt pointed snout, an oblique mouth, the lower jaw slightly protruding",
+   "fins": "an elongated pointed tail fin, somewhat wedge-shaped"
+  },
+  {
+   "id": "A28",
+   "name": "鮸鱼",
+   "form": "a large oblique mouth at the front of the head, no barbel on the chin, small eyes set high on the sides, both jaws about equal in length, canine-like teeth on both jaws, a large gill opening",
+   "fins": ""
+  },
+  {
+   "id": "A29",
+   "name": "牙鲆",
+   "form": "",
+   "fins": "a dorsal fin starting on the right side of the snout in front of the upper eye, an anal fin shaped like the dorsal fin, short pelvic fins at the throat, pectoral fins on the outer side"
+  },
+  {
+   "id": "A30",
+   "name": "许氏平鲉",
+   "form": "a sharp spine at the rear of the head, low dorsal ridges on the head, three blunt spines in front of the eye, bands of fine teeth on the jaws",
+   "fins": "a dorsal fin with spines"
+  },
+  {
+   "id": "A31",
+   "name": "鬼鲉",
+   "form": "a smooth body, a stout front, a medium-length broad head, small round eyes, a long broad rounded snout, teeth on the upper and lower jaws, a wide gill opening",
+   "fins": "a broad pectoral fin, venomous spines on the fins and head, an elongated rounded tail fin about as long as the body depth"
+  },
+  {
+   "id": "A32",
+   "name": "鲬鱼",
+   "form": "an elongated body, a large head, eyes set on the upper side of the head, a large mouth",
+   "fins": "a rounded tail fin, large pectoral fins, two dorsal fins"
+  },
+  {
+   "id": "A34",
+   "name": "金枪鱼",
+   "form": "a spindle-shaped body, a medium-sized mouth, sharp conical teeth on the jaws, a slender tail base with three longitudinal ridges",
+   "fins": "a crescent-shaped tail fin, two dorsal fins set close together, small finlets behind the dorsal and anal fins, small pelvic fins"
+  },
+  {
+   "id": "A35",
+   "name": "旗鱼",
+   "form": "an elongated spindle-shaped body, a very long slender rounded bill, a huge sail-like first dorsal fin, a narrow tail base with two keels, a slender crescent-shaped tail",
+   "fins": "a huge sail-like first dorsal fin, a slender crescent-shaped tail fin"
+  },
+  {
+   "id": "A36",
+   "name": "剑鱼",
+   "form": "an elongated cylindrical body, a long sword-like snout",
+   "fins": "a large crescent-shaped tail fin, long pectoral fins, two dorsal fins"
+  },
+  {
+   "id": "A37",
+   "name": "龙趸石斑",
+   "form": "a stout elongated body, a very large head, a large mouth, the lower jaw slightly protruding",
+   "fins": "a long dorsal fin, a rounded tail fin, large rounded pectoral fins"
+  },
+  {
+   "id": "A38",
+   "name": "宝石石斑",
+   "form": "a stout oblong body, a large head, a large mouth, the lower jaw slightly protruding",
+   "fins": "a long dorsal fin, a rounded tail fin, large rounded pectoral fins"
+  },
+  {
+   "id": "A42",
+   "name": "斑鰶",
+   "form": "an elongated oval body, a small mouth with no teeth, a belly keel",
+   "fins": "a long filament drawn out from the rear of the dorsal fin"
+  },
+  {
+   "id": "A43",
+   "name": "日本鳀",
+   "form": "an elongated slender body, a short blunt snout shorter than the eye, a large downward-pointing mouth, the upper jaw longer than the lower, small teeth on both jaws",
+   "fins": "a dorsal fin set behind and above the pelvic fins, a narrow long anal fin starting behind and below the dorsal fin, pectoral fins set low on the sides, small pelvic fins, a forked tail fin"
+  },
+  {
+   "id": "A44",
+   "name": "断崖之王·巨型石斑",
+   "form": "a stout elongated body, a very large head, a large mouth, the lower jaw slightly protruding",
+   "fins": "a long dorsal fin, a rounded tail fin, large rounded pectoral fins"
+  },
+  {
+   "id": "A45",
+   "name": "黑潮之王·蓝鳍金枪",
+   "form": "a spindle-shaped body, a large head, a medium-sized mouth, a slender tail base with three longitudinal ridges",
+   "fins": "a crescent-shaped tail fin, two dorsal fins, small finlets behind the dorsal and anal fins, long pectoral fins"
+  },
+  {
+   "id": "A46",
+   "name": "白浪之神·大青针",
+   "form": "a very long slender needle-like body, jaws drawn out into a long thin beak lined with fine teeth, small set eyes",
+   "fins": "a dorsal fin set far back near the tail, a slightly forked tail fin, small set-back pectoral fins"
+  },
+  {
+   "id": "B01",
+   "name": "鲢鱼",
+   "form": "a wide mouth at the front of the head, small eyes set low on the head, the lower jaw slightly upturned, no barbels, a sharp keel along the belly",
+   "fins": "the pectoral fins reaching only to the origin of the pelvic fins"
+  },
+  {
+   "id": "B03",
+   "name": "草鱼",
+   "form": "an elongated cylindrical body, no ventral keel, an arched mouth at the front of the head, no barbels, a blunt head, a short blunt snout, widely spaced eyes",
+   "fins": "a dorsal fin without a spine, a slightly forked tail fin, short pectoral fins"
+  },
+  {
+   "id": "B04",
+   "name": "鲮鱼",
+   "form": "a spindle-shaped body, a rounded belly, the back slightly elevated in front of the dorsal fin, a short head, wide-set eyes, a small downward-pointing mouth shaped like a horizontal slit, two pairs of barbels",
+   "fins": "a deeply forked tail fin"
+  },
+  {
+   "id": "B05",
+   "name": "罗非鱼",
+   "form": "an oval body, a rather large head",
+   "fins": ""
+  },
+  {
+   "id": "B06",
+   "name": "鳊鱼",
+   "form": "a deep body, a small head, a mouth at the front of the head, the upper jaw slightly longer than the lower, no barbels",
+   "fins": "a dorsal fin with a stout spine, a long anal fin, a deeply forked tail fin"
+  },
+  {
+   "id": "B07",
+   "name": "鲂鱼",
+   "form": "an oval body, a high back, a large upward-slanting mouth, the lower jaw protruding",
+   "fins": "a dorsal fin with a smooth stout spine longer than the head, a row of spiny bony plates along the base of the dorsal and anal fins"
+  }
+ ]
+}

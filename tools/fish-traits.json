@@ -20,7 +20,7 @@
  "A02": {
   "name": "竹荚鱼",
   "species": "Trachurus japonicus",
-  "form": "a conical head, large eyes with a well-developed adipose eyelid covering the front and rear of the eye, the eye diameter greater than the snout length, a large oblique mouth, a single row of fine teeth in each jaw",
+  "form": "a conical head, large eyes, an eye larger than the snout, a large oblique mouth, fine teeth in each jaw",
   "fins": "",
   "markings": "a spot at the rear edge of the gill cover",
   "colour": "",
@@ -29,7 +29,7 @@
  "A03": {
   "name": "黑鲷",
   "species": "Acanthopagrus schlegelii",
-  "form": "an elongated oval laterally compressed body, weakly ctenoid scales, a pointed blunt front, a large head with a small mouth, a rounded convex interorbital space, the upper and lower jaws equal in length",
+  "form": "an elongated oval body, a pointed blunt front, a large head with a small mouth, the upper and lower jaws equal in length",
   "fins": "",
   "markings": "an irregular blotch at the origin of the lateral line, transverse bands along the flanks that vary with age",
   "colour": "体背部灰黑色，腹部色淡具银光",
@@ -38,7 +38,7 @@
  "A07": {
   "name": "银鲳",
   "species": "Pampus argenteus",
-  "form": "a laterally compressed body, arched dorsal and ventral margins, the body highest at the front of the dorsal fin and sloping toward the snout, a short caudal peduncle, the snout and upper jaw slightly protruding, a short blunt rounded snout, a single closely set row of fine teeth on both jaws, no teeth on the vomer, palatine or tongue",
+  "form": "a short blunt rounded snout, arched dorsal and ventral margins, the body highest at the front of the dorsal fin and sloping toward the snout, the snout and upper jaw slightly protruding, fine teeth on both jaws",
   "fins": "",
   "markings": "",
   "colour": "背部淡墨青色，腹部白色，具银白色光泽",
@@ -47,7 +47,7 @@
  "A08": {
   "name": "刺鲳",
   "species": "",
-  "form": "an elongated oval body, laterally compressed, bluntly rounded dorsal and ventral margins, a small head, the dorsal profile of the head convex and the sides flat, the head length about 4.2-4.6 times the snout length",
+  "form": "an elongated oval body, bluntly rounded dorsal and ventral margins, a small head, the dorsal profile of the head convex",
   "fins": "",
   "markings": "",
   "colour": "",
@@ -56,8 +56,8 @@
  "A10": {
   "name": "小黄鱼",
   "species": "",
-  "form": "an elongated laterally compressed body, arched dorsal and ventral margins, a slender caudal peduncle, a large head with well-developed mucous cavities, a large terminal oblique mouth, both jaws equal in length, small sharp teeth, no teeth on the vomer, palatine or tongue, cycloid scales on the head and front of the body, ctenoid scales on the rear of the body, a large otolith",
-  "fins": "the soft dorsal, anal and caudal fins covered with small cycloid scales",
+  "form": "an elongated body, arched dorsal and ventral margins, a large head, a large oblique mouth at the front of the head, both jaws equal in length, small sharp teeth",
+  "fins": "",
   "markings": "",
   "colour": "体背侧黄褐色，腹侧金黄色，各鳍灰黄色，唇橘红色",
   "source": "百科原文归一化（AI）"
@@ -65,7 +65,7 @@
  "A11": {
   "name": "梅童鱼",
   "species": "",
-  "form": "a nearly rectangular laterally compressed body, the body length about 3.1 times the body depth, a slender caudal peduncle, a large blunt rounded head",
+  "form": "a nearly rectangular body, a large blunt rounded head",
   "fins": "a wedge-shaped tail fin",
   "markings": "",
   "colour": "体上部灰黑色，腹部及两侧下部金黄色，鳃盖上部黑色",
@@ -83,8 +83,8 @@
  "A05": {
   "name": "鲻鱼",
   "species": "Mugil cephalus",
-  "form": "rather large eyes with a well-developed adipose eyelid, an inferior small mouth with a herringbone-shaped cleft, tiny villiform teeth, cycloid scales covering the whole body, no lateral line",
-  "fins": "pectoral fins without an axillary scale, two dorsal fins, an anal fin with 8 rays, a deeply forked tail fin",
+  "form": "a small downward-pointing mouth, rather large eyes, tiny teeth",
+  "fins": "a deeply forked tail fin, pectoral fins, two dorsal fins, an anal fin",
   "markings": "a blotch at the base of the pectoral fin",
   "colour": "体、背、头部呈青灰色，腹部呈白色",
   "source": "百科原文归一化（AI）"
@@ -92,7 +92,7 @@
  "A12": {
   "name": "黄姑鱼",
   "species": "Nibea albiflora",
-  "form": "an elongated laterally compressed body, a slightly arched back, a medium-sized laterally compressed head, a short blunt snout slightly protruding, a large oblique mouth, the upper jaw slightly longer than the lower, ctenoid scales on the body, small cycloid scales on the front of the head, naked cheeks, a curved lateral line reaching almost to the end of the tail fin",
+  "form": "an elongated body, a slightly arched back, a medium-sized head, a short blunt snout slightly protruding, a large oblique mouth, the upper jaw slightly longer than the lower",
   "fins": "",
   "markings": "wavy stripes running diagonally forward and downward",
   "colour": "背灰橙色，腹部银白色，背鳍棘上部暗褐色，鳍条边缘黑色，胸鳍、腹鳍和臀鳍橙黄色",
@@ -101,7 +101,7 @@
  "A14": {
   "name": "海鳗",
   "species": "Muraenesox cinereus",
-  "form": "a nearly cylindrical trunk, a laterally compressed tail, the body length about 20 times the body depth and about 6.6 times the head length, naked skin with no scales, conspicuous lateral line pores",
+  "form": "a nearly cylindrical body",
   "fins": "",
   "markings": "",
   "colour": "",
@@ -110,7 +110,7 @@
  "A15": {
   "name": "星鳗",
   "species": "Astroconger myriaster",
-  "form": "an elongated cylindrical body, naked skin with no scales, smooth skin, a complete lateral line running along and above the midline, a conical head, widely spaced concave eyes, a long pointed snout with a tapering tip, small teeth in two rows on each jaw, a broad tongue with a free front end",
+  "form": "an elongated cylindrical body, smooth skin, a conical head, widely spaced concave eyes, a long pointed snout with a tapering tip, small teeth on each jaw",
   "fins": "a dorsal fin starting above and behind the pectoral fins, an anal fin located behind the anus",
   "markings": "",
   "colour": "",
@@ -119,8 +119,8 @@
  "A17": {
   "name": "舌鳎",
   "species": "",
-  "form": "a tongue-shaped laterally compressed elongated body, ctenoid scales on the eyed side, cycloid or weakly ctenoid scales on the blind side, three lateral lines on the eyed side, no lateral line on the blind side, a short head with the head depth greater than its length, a blunt rounded arched snout, small eyes on the left side of the head, the upper eye not reaching the dorsal edge",
-  "fins": "the dorsal and anal fins continuously joined to the tail fin, no pectoral fins, fin rays all unbranched, pelvic fins only on the eyed side joined by a membrane to the anal fin, a pointed tip on the tail fin",
+  "form": "a tongue-shaped elongated body, a short deep head, a blunt rounded arched snout, small eyes on the left side of the head, the upper eye not reaching the dorsal edge",
+  "fins": "a pointed tip on the tail fin, the dorsal and anal fins continuously joined to the tail fin, no pectoral fins, pelvic fins on the eyed side only",
   "markings": "",
   "colour": "有眼侧褐色或深褐色，无眼侧白色或灰色",
   "source": "百科原文归一化（AI）"
@@ -128,7 +128,7 @@
  "A21": {
   "name": "真鲷",
   "species": "Pagrus major",
-  "form": "an elongated oval body, a large head, medium-sized eyes set high on the sides, a narrow rounded convex interorbital space, a medium-sized mouth, weakly ctenoid scales",
+  "form": "an elongated oval body, a large head, medium-sized eyes set high on the sides, a medium-sized mouth",
   "fins": "",
   "markings": "irregular spots scattered along the back near the lateral line",
   "colour": "体淡红色或棕色，稍带绿色光泽，腹部银色，侧线附近背部散布宝石蓝色小斑点，腹鳍边缘黑色，尾鳍末端有一窄黑边",
@@ -137,7 +137,7 @@
  "A25": {
   "name": "马鲛",
   "species": "",
-  "form": "an elongated laterally compressed body, a slender tail, three longitudinal ridges on each side of the caudal peduncle with the central ridge longest and highest, fine scales with larger scales above the pectoral fins, an irregular wavy lateral line",
+  "form": "an elongated body, a slender tail, three longitudinal ridges along the tail base with the central ridge longest and highest",
   "fins": "",
   "markings": "spots scattered along the flanks",
   "colour": "",
@@ -146,7 +146,7 @@
  "A26": {
   "name": "蓝点马鲛",
   "species": "",
-  "form": "an elongated laterally compressed body, a slender tail, three longitudinal ridges on each side of the caudal peduncle with the central ridge longest and highest, fine scales with larger scales above the pectoral fins, an irregular wavy lateral line",
+  "form": "an elongated body, a slender tail, three longitudinal ridges along the tail base with the central ridge longest and highest",
   "fins": "",
   "markings": "spots scattered along the flanks",
   "colour": "",
@@ -155,7 +155,7 @@
  "A27": {
   "name": "大黄鱼",
   "species": "Larimichthys crocea",
-  "form": "a blunt pointed snout, an oblique mouth, the lower jaw slightly protruding, small scales with 8-9 rows between the dorsal fin origin and the lateral line",
+  "form": "a blunt pointed snout, an oblique mouth, the lower jaw slightly protruding",
   "fins": "an elongated pointed tail fin, somewhat wedge-shaped",
   "markings": "",
   "colour": "体黄褐色",
@@ -165,7 +165,7 @@
   "name": "牙鲆",
   "species": "",
   "form": "mainly cycloid scales, scales on the tail fin, 1-2 rows of scales on the left side of the dorsal and anal fins, no scales on the snout, jaws or interorbital space, a lateral line with about 108-120 scales, 11+25-28 vertebrae",
-  "fins": "a dorsal fin starting on the right side of the snout in front of the upper eye, an anal fin starting below the base of the pectoral fins and similar in shape to the dorsal fin, short pelvic fins at the throat, pectoral fins on the outer side",
+  "fins": "a dorsal fin starting on the right side of the snout in front of the upper eye, an anal fin shaped like the dorsal fin, short pelvic fins at the throat, pectoral fins on the outer side",
   "markings": "a pupil-sized spot at the middle of the lateral line and around its front end, ring-shaped markings or spots on other parts",
   "colour": "无眼侧白色，鱼鳍淡黄色，胸鳍有黄褐色横细点纹",
   "source": "百科原文归一化（AI）"
@@ -173,8 +173,8 @@
  "A31": {
   "name": "鬼鲉",
   "species": "",
-  "form": "a smooth scaleless body, a stout front part, a medium-length broad head slightly flattened, small round eyes, a wide deeply sunken interorbital space, a long broad rounded snout, teeth on the upper and lower jaws and vomer but none on the palatine, a broad thick tongue, a wide gill opening, well-developed pseudobranch, no nasal spines, 27-29 vertebrae, no swim bladder",
-  "fins": "a broad pectoral fin, spines on the fins and head bearing venom glands, an elongated rounded tail fin about as long as the body depth",
+  "form": "a smooth body, a stout front, a medium-length broad head, small round eyes, a long broad rounded snout, teeth on the upper and lower jaws, a wide gill opening",
+  "fins": "a broad pectoral fin, venomous spines on the fins and head, an elongated rounded tail fin about as long as the body depth",
   "markings": "mottling and spots scattered over the body, spots scattered on the tail fin",
   "colour": "体黑褐色，腹膜白色，鳍黑褐色",
   "source": "百科原文归一化（AI）"
@@ -182,8 +182,8 @@
  "A34": {
   "name": "金枪鱼",
   "species": "",
-  "form": "a spindle-shaped body, a medium-sized mouth, the upper jaw not covered by the preorbital, sharp conical teeth on the jaws, teeth on the vomer and palatine, small cycloid scales on the body with larger scales on the chest, a slender caudal peduncle with three longitudinal ridges on each side",
-  "fins": "two dorsal fins set close together, small finlets behind the dorsal and anal fins, 30-36 pectoral fin rays, small pelvic fin processes split into two lobes, a crescent-shaped tail fin",
+  "form": "a spindle-shaped body, a medium-sized mouth, sharp conical teeth on the jaws, a slender tail base with three longitudinal ridges",
+  "fins": "a crescent-shaped tail fin, two dorsal fins set close together, small finlets behind the dorsal and anal fins, small pelvic fins",
   "markings": "",
   "colour": "",
   "source": "百科原文归一化（AI）"
@@ -209,8 +209,8 @@
  "A42": {
   "name": "斑鰶",
   "species": "",
-  "form": "a laterally compressed elongated oval body, a small mouth with no teeth, a belly keel, no scutes in front of the dorsal fin",
-  "fins": "the last dorsal fin ray extended into a filament",
+  "form": "an elongated oval body, a small mouth with no teeth, a belly keel",
+  "fins": "a long filament drawn out from the rear of the dorsal fin",
   "markings": "a large blotch behind the gill cover, spots on the body, a spot above the pectoral fin",
   "colour": "体银灰色，具黑斑，鳃盖后方有一块大黑绿斑，胸鳍上方有一黑斑",
   "source": "百科原文归一化（AI）"
@@ -218,8 +218,8 @@
  "A43": {
   "name": "日本鳀",
   "species": "",
-  "form": "an elongated slender body slightly laterally compressed, a short blunt snout shorter than the eye, a thin adipose eyelid covering the eye and raised in the middle, a large inferior mouth, the upper jaw longer than the lower, two accessory upper jaws, small teeth on both jaws and the tongue, medium-sized easily shed cycloid scales covering the body except the head, no lateral line",
-  "fins": "a dorsal fin origin behind and above the pelvic fins near the middle of the body, a narrow long anal fin starting behind and below the dorsal fin, pectoral fins set low on the sides, small pelvic fins, a forked tail fin with two nearly equal lobes",
+  "form": "an elongated slender body, a short blunt snout shorter than the eye, a large downward-pointing mouth, the upper jaw longer than the lower, small teeth on both jaws",
+  "fins": "a dorsal fin set behind and above the pelvic fins, a narrow long anal fin starting behind and below the dorsal fin, pectoral fins set low on the sides, small pelvic fins, a forked tail fin",
   "markings": "a longitudinal band along the flank",
   "colour": "背部绿色，两侧及腹部银白色，体侧有一条黑色纵带",
   "source": "百科原文归一化（AI）"
@@ -227,7 +227,7 @@
  "B01": {
   "name": "鲢鱼",
   "species": "Hypophthalmichthys molitrix",
-  "form": "a laterally compressed body, small eyes set low on the head, a wide terminal mouth, the lower jaw slightly upturned, no barbels, a keeled belly from between the pectoral fin bases to the anus",
+  "form": "a wide mouth at the front of the head, small eyes set low on the head, the lower jaw slightly upturned, no barbels, a sharp keel along the belly",
   "fins": "the pectoral fins reaching only to the origin of the pelvic fins",
   "markings": "",
   "colour": "体呈银白色，各鳍灰白色",
@@ -236,8 +236,8 @@
  "B03": {
   "name": "草鱼",
   "species": "Ctenopharyngodon idella",
-  "form": "an elongated cylindrical body, no ventral keel, a terminal arcuate mouth, no barbels, a blunt head, a short blunt snout, widely spaced eyes, medium-sized round scales",
-  "fins": "short pectoral fins, a dorsal fin without a spine, a slightly forked tail fin",
+  "form": "an elongated cylindrical body, no ventral keel, an arched mouth at the front of the head, no barbels, a blunt head, a short blunt snout, widely spaced eyes",
+  "fins": "a dorsal fin without a spine, a slightly forked tail fin, short pectoral fins",
   "markings": "",
   "colour": "体茶黄色，背部青灰，腹部灰白，胸鳍、腹鳍灰黄色，其他各鳍淡灰色",
   "source": "百科原文归一化（AI）"
@@ -245,7 +245,7 @@
  "B04": {
   "name": "鲮鱼",
   "species": "Cirrhinus molitorella",
-  "form": "a spindle-shaped laterally compressed body, a rounded belly, the back slightly elevated in front of the dorsal fin, a short head, eyes set on the sides and widely spaced, a small inferior mouth shaped as a horizontal slit, two pairs of barbels with the rostral pair stouter, medium-sized scales, a long caudal peduncle",
+  "form": "a spindle-shaped body, a rounded belly, the back slightly elevated in front of the dorsal fin, a short head, wide-set eyes, a small downward-pointing mouth shaped like a horizontal slit, two pairs of barbels",
   "fins": "a deeply forked tail fin",
   "markings": "a diamond-shaped blotch above and behind the pectoral fin base, a spot at the base of the tail fin in juveniles",
   "colour": "体上部青灰色，腹部银白色",
@@ -254,7 +254,7 @@
  "B05": {
   "name": "罗非鱼",
   "species": "Oreochromis mossambicus",
-  "form": "an oval body, a rather large head, a short caudal peduncle, large cycloid scales",
+  "form": "an oval body, a rather large head",
   "fins": "",
   "markings": "blotches along the flanks",
   "colour": "雄鱼繁殖期体色蓝黑色，仅头下侧和鳃盖后缘白色，背鳍和尾鳍边缘红色明显，胸鳍淡红色；雌鱼体色灰黄色，背鳍和尾鳍略呈红色",
@@ -263,8 +263,8 @@
  "B06": {
   "name": "鳊鱼",
   "species": "Parabramis pekinensis",
-  "form": "a deep laterally compressed body, a small laterally compressed head, a terminal mouth, the upper jaw slightly longer than the lower, no barbels",
-  "fins": "a dorsal fin with a stout spine, a long anal fin with 29 to 33 branched rays, a deeply forked tail fin",
+  "form": "a deep body, a small head, a mouth at the front of the head, the upper jaw slightly longer than the lower, no barbels",
+  "fins": "a dorsal fin with a stout spine, a long anal fin, a deeply forked tail fin",
   "markings": "",
   "colour": "体背及头部背面青灰色，体侧银灰色，腹部银白色，各鳍边缘灰色",
   "source": "百科原文归一化（AI）"
@@ -272,7 +272,7 @@
  "B07": {
   "name": "鲂鱼",
   "species": "",
-  "form": "a flattened oval laterally compressed body, a high back, a large upward-slanting mouth, the lower jaw protruding, a caudal peduncle longer than or equal to its height",
+  "form": "an oval body, a high back, a large upward-slanting mouth, the lower jaw protruding",
   "fins": "a dorsal fin with a smooth stout spine longer than the head, a row of spiny bony plates along the base of the dorsal and anal fins",
   "markings": "a blotch on the upper middle of the flank, rows of stripes running along the flanks",
   "colour": "体背及两侧青灰色、银灰色，腹部银白，体侧呈现一行行紫黑色条纹",
@@ -290,7 +290,7 @@
  "B10": {
   "name": "赤眼鳟",
   "species": "Squaliobarbus curriculus",
-  "form": "an elongated cylindrical body, the posterior part somewhat flattened, a conical head, a blunt snout, no ventral keel, a terminal arcuate mouth, two pairs of tiny vestigial barbels on the upper jaw, medium-sized eyes set near the tip of the snout, large round scales, a straight lateral line running to the middle of the caudal peduncle",
+  "form": "an elongated body, a conical head, a blunt snout, no ventral keel, a curved mouth at the front of the head, two pairs of tiny barbels on the upper jaw, medium-sized eyes set near the tip of the snout",
   "fins": "a short dorsal fin without a spine, a short anal fin below and behind the dorsal fin, a deeply forked tail fin",
   "markings": "a row of spots along the flanks formed by a spot at the base of each scale",
   "colour": "眼上半部具红斑，体背青灰色，腹部银白色",
@@ -299,7 +299,7 @@
  "B11": {
   "name": "大眼华鳊",
   "species": "Sinibrama macrops",
-  "form": "a laterally compressed slightly elongated body, the back slightly elevated, a small head, no barbels, large eyes, a short blunt snout, a keeled belly from the pelvic fin base to the anus, medium-sized scales, a complete lateral line",
+  "form": "a slightly elongated body, the back slightly elevated, a small head, no barbels, large eyes, a short blunt snout, a sharp keel along the belly",
   "fins": "a forked tail fin",
   "markings": "",
   "colour": "体背部青灰色，体侧及腹面灰白色",
@@ -308,7 +308,7 @@
  "B12": {
   "name": "似鳊",
   "species": "",
-  "form": "a laterally compressed body, a relatively high back, a rounded belly, a very narrow ventral keel from the pelvic fin base to the anus, a short head, a rounded blunt snout, a small inferior mouth with a transverse slit, thin lips, larger scales, a slender axillary scale at the pelvic fin base",
+  "form": "a relatively high back, a rounded belly, a narrow keel along the belly, a short head, a rounded blunt snout, a small downward-pointing mouth with a transverse slit, thin lips",
   "fins": "a dorsal fin with a smooth stout spine shorter than the head",
   "markings": "",
   "colour": "体背部和体上侧灰褐色，体下侧和腹部银白色",
@@ -326,7 +326,7 @@
  "B14": {
   "name": "麦鲮",
   "species": "",
-  "form": "an elongated spindle-shaped body, slightly laterally compressed, body depth about equal to head length, round medium-sized scales, a complete lateral line",
+  "form": "an elongated spindle-shaped body, body depth about equal to head length",
   "fins": "",
   "markings": "",
   "colour": "身体上部青灰色，腹侧银白色",
@@ -335,7 +335,7 @@
  "B17": {
   "name": "鲈鱼",
   "species": "Lateolabrax maculatus",
-  "form": "an elongated slightly laterally compressed body, the lower jaw slightly longer than the upper, small ctenoid scales",
+  "form": "an elongated body, a lower jaw slightly protruding",
   "fins": "two dorsal fins joined at the base, an anal fin with a smaller first spine and a stronger second spine",
   "markings": "spots on the flanks and on the spinous part of the dorsal fin",
   "colour": "体上部灰绿色，下部灰白色",
@@ -344,7 +344,7 @@
  "B18": {
   "name": "翘嘴鲌",
   "species": "Culter alburnus",
-  "form": "a slender laterally compressed willow-leaf-shaped body, a medium-sized head, an incomplete ventral keel from the pelvic fin base to the anus, a relatively long caudal peduncle, small cycloid scales, a complete lateral line",
+  "form": "a slender willow-leaf-shaped body, a medium-sized head, a partial keel along the belly",
   "fins": "",
   "markings": "",
   "colour": "体背浅棕色，体侧银灰色，腹面银白色，背鳍、尾鳍淡红色",
@@ -362,7 +362,7 @@
  "B21": {
   "name": "鳡鱼",
   "species": "Elopichthys bambusa",
-  "form": "a large terminal mouth with the cleft reaching below the eye, a bony knob at the front of the lower jaw, small eyes, fine scales",
+  "form": "a large mouth at the front of the head with the cleft reaching below the eye, a bony knob at the front of the lower jaw, small eyes",
   "fins": "pectoral fins not reaching the pelvic fins, pelvic fins not reaching the anal fin, a deeply forked tail fin",
   "markings": "",
   "colour": "体微黄，腹部银白色，背鳍、尾鳍青灰色，其余各鳍黄色",
@@ -389,7 +389,7 @@
  "B27": {
   "name": "大眼鳜",
   "species": "Siniperca kneri",
-  "form": "an elongated laterally compressed body, the chest and belly outlines curved, round scales, the head and back outlines raised, a large terminal slightly oblique mouth, small scales on the gill cover",
+  "form": "an elongated body, a curved chest and belly outline, a raised head and back outline, a large slightly oblique mouth at the front of the head",
   "fins": "",
   "markings": "an oblique band crossing the eye on each side of the head, a band from the top of the head to the front of the dorsal fin, irregular spots and stripes all over the flanks, four saddle-shaped blotches along the base of the dorsal fin, rows of spots on the dorsal and tail fins",
   "colour": "体侧棕黄色、灰黄或灰白，腹部灰白色，斑点和条纹呈棕褐色",
@@ -398,8 +398,8 @@
  "B28": {
   "name": "长吻鮠",
   "species": "Leiocassis longirostris",
-  "form": "a spindle-shaped body, a rounded belly, a laterally compressed tail, smooth scaleless skin, a straight lateral line, well-developed mucus glands",
-  "fins": "a dorsal fin with two spines and 6 to 7 rays, an anal fin with 14 to 18 rays, pectoral fins with one spine and 9 rays, pelvic fins with 6 rays",
+  "form": "a spindle-shaped body, a rounded belly, smooth skin",
+  "fins": "a dorsal fin with two spines, an anal fin, pectoral fins with a spine, pelvic fins",
   "markings": "",
   "colour": "",
   "source": "百科原文归一化（AI）"
@@ -407,7 +407,7 @@
  "B29": {
   "name": "中华倒刺鲃",
   "species": "",
-  "form": "an elongated laterally compressed body, the back elevated in a curve, a conical head, eyes set on the sides and widely spaced, a subinferior mouth, a blunt snout protruding slightly forward, two pairs of barbels, larger scales, a complete lateral line",
+  "form": "an elongated body, a back elevated in a curve, a conical head, eyes set on the sides of the head, a downward-pointing mouth, a blunt snout protruding slightly forward, two pairs of barbels",
   "fins": "",
   "markings": "flank scales with distinct margins",
   "colour": "身体背部青黑色，腹部灰白色",
@@ -425,8 +425,8 @@
  "B31": {
   "name": "银鮈",
   "species": "Squalidus argentatus",
-  "form": "an elongated slender body, a complete lateral line with 38 to 41 scales",
-  "fins": "a dorsal fin with 7 branched rays, an anal fin with 6 branched rays, pectoral fins with one spine and 14 to 16 rays, pelvic fins with one spine and 7 to 8 rays",
+  "form": "an elongated slender body",
+  "fins": "a dorsal fin, an anal fin, pectoral fins with a spine, pelvic fins with a spine",
   "markings": "a longitudinal band running above the lateral line along the flank",
   "colour": "体银灰色，腹部银白色",
   "source": "百科原文归一化（AI）"
@@ -434,8 +434,8 @@
  "C02": {
   "name": "马口鱼",
   "species": "Opsariichthys bidens",
-  "form": "an elongated slightly compressed body, a hump behind the head, a narrow caudal peduncle, a rounded belly, a large rounded head, a short broad snout with a pointed tip, a large wide terminal mouth sloping downward, a pair of short barbels at the corners of the mouth, fine small scales",
-  "fins": "the first to fourth branched anal fin rays elongated in males, nuptial tubercles on the head, pectoral and anal fins in the breeding season",
+  "form": "an elongated body, a hump behind the head, a rounded belly, a large rounded head, a short broad snout with a pointed tip, a large wide mouth at the front of the head sloping downward, a pair of short barbels at the corners of the mouth",
+  "fins": "a longer anal fin in males, small bumps on the head, pectoral and anal fins in the breeding season",
   "markings": "over ten bands crossing the flanks",
   "colour": "雄性体背部灰黑色，腹部银白色，胸鳍橙黄色；雌性身体无蓝色条纹",
   "source": "百科原文归一化（AI）"
@@ -443,7 +443,7 @@
  "C04": {
   "name": "拉氏鱥",
   "species": "Rhynchocypris lagowskii",
-  "form": "a subterminal mouth, medium-sized eyes, very small scales, a complete lateral line",
+  "form": "a mouth facing slightly downward, medium-sized eyes",
   "fins": "a short small dorsal fin, oval pectoral fins, a slightly concave tail fin",
   "markings": "irregular small spots scattered on the flanks, a spot at the base of the tail",
   "colour": "体背部呈灰黄色，腹部呈白色",
@@ -461,8 +461,8 @@
  "C06": {
   "name": "小鳈",
   "species": "Sarcocheilichthys parvus",
-  "form": "a small slightly elongated body, a slightly arched back, a small head, a short blunt snout, a very small inferior mouth, small eyes, a pair of very fine barbels at the corners of the mouth, a straight lateral line",
-  "fins": "a dorsal fin with no spines and long rays, its outer margin flat or slightly convex; short pectoral fins with rounded rear edges; pelvic fins set slightly behind the dorsal fin origin with rounded rear edges; an anal fin with a flat outer margin; a shallowly forked tail fin with slightly rounded lobe tips",
+  "form": "a small slightly elongated body, a slightly arched back, a small head, a short blunt snout, a very small downward-pointing mouth, small eyes, a pair of very fine barbels at the corners of the mouth",
+  "fins": "a dorsal fin without spines, short pectoral fins with rounded rear edges, pelvic fins with rounded rear edges, an anal fin with a flat outer margin, a shallowly forked tail fin",
   "markings": "",
   "colour": "",
   "source": "百科原文归一化（AI）"
@@ -470,7 +470,7 @@
  "C07": {
   "name": "黑鳍鳈",
   "species": "Sarcocheilichthys nigripinnis",
-  "form": "a small elongated slightly compressed body, a rather short caudal peduncle, a rounded belly, a rather small head",
+  "form": "a small elongated body, a rounded belly, a rather small head",
   "fins": "",
   "markings": "blotches on the upper flank, a longitudinal stripe along the flank axis",
   "colour": "体背侧部灰黑色，腹部灰白色，腮盖、峡部、胸部等处橘黄色",
@@ -479,7 +479,7 @@
  "C08": {
   "name": "棒花鱼",
   "species": "Abbottina rivularis",
-  "form": "a cylindrical anterior body, a flattened rounded posterior body, a flat belly, a raised back, a slightly rounded forward-projecting snout, thick developed lips, superior eyes, a wide interorbital space, small eyes, cycloid scales, a straight lateral line, no scales on the breast below the pectoral fins",
+  "form": "a rounded posterior body, a raised back, a slightly rounded forward-projecting snout, thick developed lips, small eyes set high on the head",
   "fins": "",
   "markings": "stripes on the pectoral, dorsal, anal and tail fins",
   "colour": "胸鳍、背鳍、臀鳍、尾鳍呈现浅黄色",
@@ -497,8 +497,8 @@
  "C10": {
   "name": "间下鱵",
   "species": "Hyporhamphus intermedius",
-  "form": "an elongated slender body, a lower jaw extended into a beak about as long as the head, a short small upper jaw with a triangular scaled tip, fine teeth on the jaws, cycloid scales, a low lateral line with an upward branch beneath the base of the pectoral fin",
-  "fins": "a dorsal fin with 13 to 16 soft rays, an anal fin with 15 to 19 soft rays set opposite and behind the dorsal fin, the anal fin origin below the first to third dorsal rays; short pectoral fins; short small pelvic fins; a shallowly forked tail fin with the lower lobe slightly longer than the upper",
+  "form": "an elongated slender body, a lower jaw extended into a beak about as long as the head, a short small upper jaw with a triangular tip, fine teeth on the jaws",
+  "fins": "a dorsal fin, an anal fin set opposite and behind the dorsal fin, short pectoral fins, short small pelvic fins, a shallowly forked tail fin with the lower lobe slightly longer than the upper",
   "markings": "",
   "colour": "",
   "source": "百科原文归一化（AI）"
@@ -506,7 +506,7 @@
  "C11": {
   "name": "光唇鱼",
   "species": "",
-  "form": "an elongated laterally compressed body, an inferior arcuate mouth, a straight front edge of the lower jaw, two pairs of barbels, medium-sized scales, a nearly straight lateral line",
+  "form": "an elongated body, a downward-pointing curved mouth, a straight front edge of the lower jaw, two pairs of barbels",
   "fins": "a dorsal fin with a spine bearing fine serrations on its rear edge",
   "markings": "6 vertical bands crossing the flanks in females, a single longitudinal stripe along the mid-flank axis in males",
   "colour": "雌性个体体侧具蓝黑色横带，雄性个体沿体侧中轴具蓝黑色纵带",
@@ -524,8 +524,8 @@
  "C17": {
   "name": "唇䱻",
   "species": "Hemibarbus labeo",
-  "form": "a rather large head, large eyes, an inferior horseshoe-shaped mouth, developed gill rakers, small scales, a complete lateral line",
-  "fins": "the last unbranched dorsal fin ray soft; no spine in the pectoral fins; pelvic fins set slightly behind the dorsal fin origin; a rather long anal fin reaching almost to the base of the tail fin; a deeply forked tail fin",
+  "form": "a rather large head, large eyes, a downward-pointing horseshoe-shaped mouth",
+  "fins": "a soft dorsal fin, pectoral fins without a spine, pelvic fins set slightly behind the dorsal fin origin, a rather long anal fin reaching almost to the base of the tail fin, a deeply forked tail fin",
   "markings": "",
   "colour": "",
   "source": "百科原文归一化（AI）"
@@ -542,7 +542,7 @@
  "C19": {
   "name": "白甲鱼",
   "species": "Onychostoma simum",
-  "form": "a spindle-shaped laterally compressed body, a short broad head, a blunt forward-projecting snout, a rather wide arcuate mouth, a naked lower jaw with a sharp horny front edge, a complete lateral line, a rather high caudal peduncle",
+  "form": "a spindle-shaped body, a short head, a blunt forward-projecting snout, a rather wide curved mouth, a naked lower jaw with a sharp horny front edge",
   "fins": "",
   "markings": "",
   "colour": "背部为黄褐色，腹部灰白色",
@@ -551,7 +551,7 @@
  "C20": {
   "name": "山女鳟",
   "species": "Oncorhynchus masou",
-  "form": "an elongated laterally compressed body, small scales covering the body except the head, relatively large eyes, a protruding beak-like snout, a terminal mouth, upper and lower jaws not meeting",
+  "form": "an elongated body, relatively large eyes, a protruding beak-like snout, a mouth at the front of the head, a gap between the upper and lower jaws",
   "fins": "a dorsal fin set far back, short small pectoral fins, pelvic fins set far from the pectoral fins, a crescent-shaped tail fin",
   "markings": "8 to 10 elongated oval blotches along the lateral line",
   "colour": "体背呈暗青色，腹部呈银白色，体侧沿侧线分布着紫黑色斑纹",
@@ -560,8 +560,8 @@
  "C21": {
   "name": "台湾铲颌鱼",
   "species": "",
-  "form": "a moderately elongated body about three to four times as long as deep, a head about one fifth of the body length, a snout about one third of the head length, a caudal peduncle about twice as long as deep, 45 to 47 scales along the lateral line",
-  "fins": "a dorsal fin with 4 spines and 8 soft rays, an anal fin with 3 spines and 5 soft rays, pectoral fins with 14 to 16 rays, pelvic fins with 2 spines and 8 to 9 rays",
+  "form": "a moderately elongated body",
+  "fins": "a dorsal fin, an anal fin, pectoral fins, pelvic fins",
   "markings": "",
   "colour": "",
   "source": "百科原文归一化（AI）"
@@ -569,8 +569,8 @@
  "C22": {
   "name": "中华刺鳅",
   "species": "",
-  "form": "a pointed elongated head, a long pointed snout tip, round large protruding eyes, a spine in front of the eye, small scales covering the body, 29 to 36 spines along the back, 3 sharp spines behind the genital opening",
-  "fins": "the dorsal, anal and tail fins joined continuously",
+  "form": "a pointed elongated head, a long pointed snout tip, round large protruding eyes, a spine in front of the eye, spines along the back",
+  "fins": "dorsal, anal and tail fins joined continuously",
   "markings": "several longitudinal rows of markings on the body, a broad margin along the lower lobe of the anal fin, a stripe at the outermost edge",
   "colour": "臀鳍下叶边缘有明显的深黑色边裙，最边缘有1条金黄色彩带",
   "source": "百科原文归一化（AI）"
@@ -578,8 +578,8 @@
  "C24": {
   "name": "溪灵·金线鲃",
   "species": "",
-  "form": "an elongated laterally compressed body, a pointed slender snout, eyes set at the middle of the sides of the head, many sensory pores on the head forming lines, enlarged scales along the lateral line",
-  "fins": "a forked tail fin, a dorsal fin with a serrated bony spine, the outer margin of the dorsal fin slightly concave or truncate, the last unbranched dorsal ray thick and hard at the base with a serrated rear edge and a soft segmented tip, the dorsal fin origin slightly behind the pelvic fin origin",
+  "form": "an elongated body, a pointed slender snout, eyes set at the middle of the head, sensory pores on the head",
+  "fins": "a forked tail fin, a dorsal fin with a thick bony spine bearing fine serrations on its rear edge and a soft tip, a slightly concave outer margin on the dorsal fin",
   "markings": "a row of round spots along the lateral line, lines on the head formed by sensory pores",
   "colour": "身体呈黄褐色，背部略呈青灰色，各鳍均为金黄色，沿着侧线有一列褐色的圆斑",
   "source": "百科原文归一化（AI）"
@@ -596,7 +596,7 @@
  "D05": {
   "name": "鳑鲏",
   "species": "",
-  "form": "a small body, a small mouth, no barbels at the corners of the mouth, an incomplete lateral line, no ventral keel, a short caudal peduncle",
+  "form": "a small body, a small mouth, no barbels at the corners of the mouth, no ventral keel",
   "fins": "a forked tail fin",
   "markings": "a longitudinal band along the caudal peduncle",
   "colour": "体侧尾柄处有深色纵带",
@@ -605,8 +605,8 @@
  "D06": {
   "name": "食蚊鱼",
   "species": "Gambusia affinis",
-  "form": "an elongated slightly compressed body, a short broad head, a flattened anterior head, a short snout, large eyes, a wide flat interorbital space, a small superior mouth with a horizontal gape, no barbels, cycloid scales on head and body, no lateral line, a broad long flattened caudal peduncle",
-  "fins": "small pectoral and pelvic fins, the pelvic fins set very close to the anal fin, a large dorsal fin, a large rounded tail fin, the third to fifth anal fin rays elongated into a rod-shaped gonopodium in males",
+  "form": "an elongated body, a short broad head, a short snout, large eyes, an upward-pointing mouth, no barbels",
+  "fins": "small pectoral and pelvic fins, the pelvic fins set very close to the anal fin, a large dorsal fin, a large rounded tail fin",
   "markings": "",
   "colour": "体色青灰",
   "source": "百科原文归一化（AI）"
@@ -614,7 +614,7 @@
  "D07": {
   "name": "塘鳢",
   "species": "",
-  "form": "an elongated stout body, a large broad flat head, a wide short snout, medium-sized scales, no lateral line",
+  "form": "an elongated stout body, a large broad flat head, a wide short snout",
   "fins": "",
   "markings": "3 to 4 irregular vertical bands crossing the flanks, markings on the head and underside, banded fins",
   "colour": "体色黑褐，各鳍有淡黄色和黑色相间的条纹",
@@ -623,7 +623,7 @@
  "D09": {
   "name": "黄颡鱼",
   "species": "Pelteobagrus fulvidraco",
-  "form": "a large flat head, a short snout, a large inferior mouth, four pairs of barbels, naked skin with no scales, a complete lateral line",
+  "form": "a large flat head, a short snout, a downward-pointing mouth, four pairs of barbels, naked skin",
   "fins": "",
   "markings": "three interrupted bands along the flanks",
   "colour": "体背部黑褐色，体侧黄色，腹部淡黄色，各鳍灰黑色",
@@ -641,7 +641,7 @@
  "D13": {
   "name": "金鲫",
   "species": "",
-  "form": "a spindle-shaped body, a deep laterally compressed body, medium-sized scales, cycloid scales except on the head, a complete straight lateral line",
+  "form": "a deep spindle-shaped body",
   "fins": "pelvic fins set slightly ahead of the dorsal fin origin, pelvic fins similar in shape to the pectoral fins, a deeply forked tail fin with rounded lobe tips",
   "markings": "",
   "colour": "体背部灰黑色、微绿，体侧银灰色或带黄绿色，腹部白色，背鳍和尾鳍与背部同色，胸、腹和臀鳍灰色",
@@ -650,7 +650,7 @@
  "D14": {
   "name": "老塘草鱼",
   "species": "Ctenopharyngodon idella",
-  "form": "an elongated body, an almost cylindrical anterior part, a laterally compressed tail region, a rounded belly, no ventral keel, a broad medium-sized head, a slightly flattened anterior head, a short blunt snout, medium-sized cycloid scales, a lateral line curved anteriorly and straight posteriorly",
+  "form": "an elongated body, a rounded belly, no keel along the belly, a broad medium-sized head, a short blunt snout",
   "fins": "",
   "markings": "",
   "colour": "",
@@ -659,8 +659,8 @@
  "S05": {
   "name": "帆蜥鱼",
   "species": "Alepisaurus",
-  "form": "a slender elongated body, a ribbon-shaped body, a large head, a large mouth, a deep mouth cleft, large canine teeth, a short snout",
-  "fins": "a long high sail-like dorsal fin, a medium-sized adipose fin, an anal fin at the rear of the body, low pectoral fins with elongated spear-shaped front rays, small pelvic fins, a deeply forked tail fin with the upper lobe drawn out into filaments",
+  "form": "a slender elongated ribbon-shaped body, a large head, a large mouth, a deep mouth cleft, large canine teeth, a short snout",
+  "fins": "a long high sail-like dorsal fin, an anal fin, low pectoral fins with elongated spear-shaped front tips, small pelvic fins, a deeply forked tail fin with the upper lobe drawn out into filaments",
   "markings": "",
   "colour": "头部及体背部蓝青色，体侧和腹部银灰色，具有珍珠光泽",
   "source": "百科原文归一化（AI）"
@@ -668,8 +668,8 @@
  "S10": {
   "name": "尖牙鱼",
   "species": "",
-  "form": "a large ridged head, a body tapering sharply from behind the head to the caudal peduncle, small eyes, a large mouth, sharp teeth, rough skin, overlapping scale rows along the lateral line",
-  "fins": "a dorsal fin with no spines and 17 to 20 soft rays, an anal fin with no spines and 7 to 9 soft rays",
+  "form": "a large ridged head, a body tapering sharply from behind the head to the tail, small eyes, a large mouth, sharp teeth, rough skin",
+  "fins": "a dorsal fin with no spines, an anal fin with no spines",
   "markings": "a blotch on the belly",
   "colour": "成体深棕至黑色；幼体浅灰色，腹部有暗色鳞片构成的黑斑",
   "source": "百科原文归一化（AI）"
@@ -677,8 +677,8 @@
  "S11": {
   "name": "后肛鱼",
   "species": "",
-  "form": "a short deep body, a flattened head and belly, a body shaped like an iron, tubular eyes set vertically, a small mouth, a bare scaleless head, large thin cycloid scales on the flanks and belly",
-  "fins": "a dorsal fin at the rear of the back, a small adipose fin between the dorsal fin and the tail fin, a reduced short anal fin just before the lower tail fin, pectoral fins on a stalk-like base, large pelvic fins just below and in front of the dorsal-fin origin, a tail fin divided into upper and lower parts",
+  "form": "a short deep body shaped like an iron, tubular eyes set vertically, a small mouth, a bare head",
+  "fins": "a dorsal fin at the rear of the back, a reduced short anal fin, pectoral fins on a stalk-like base, large pelvic fins just below the dorsal fin, a tail fin divided into upper and lower parts",
   "markings": "",
   "colour": "身体呈褐色，头部侧面带有金属光泽",
   "source": "百科原文归一化（AI）"
@@ -695,8 +695,8 @@
  "S13": {
   "name": "囊鳃鳗",
   "species": "",
-  "form": "a very elongated slender body, a filamentous eel-like body, a laterally compressed body, a short snout, the upper jaw longer than the lower, a huge sac-like mouth, the mouth cleft extending well behind the eye, long slender teeth in the jaws, a lateral line without pores, naked skin with no scales",
-  "fins": "a dorsal fin starting near the front fifth of the body, an anal fin, pectoral fins with 28 to 41 rays, no pelvic fins, the tail ends of the dorsal and anal fins sometimes drawn out into filaments",
+  "form": "a very elongated slender eel-like body, a short snout, the upper jaw longer than the lower, a huge sac-like mouth, the mouth cleft extending well behind the eye, long slender teeth in the jaws, naked skin",
+  "fins": "a dorsal fin starting near the front of the body, an anal fin, pectoral fins, no pelvic fins, the tail ends of the dorsal and anal fins sometimes drawn out into filaments",
   "markings": "",
   "colour": "体柔软，呈黑色",
   "source": "百科原文归一化（AI）"
@@ -722,8 +722,8 @@
  "S41": {
   "name": "皇带鱼",
   "species": "Regalecus glesne",
-  "form": "an elongated ribbon-like laterally compressed body, a horse-like head, a short blunt snout slightly longer than the eye diameter, medium-sized eyes set high and lateral near the snout, a small terminal mouth slanting upward and lacking teeth on the jaws and palate, naked skin with no scales, many irregular small granular bumps along the flanks",
-  "fins": "a single long dorsal fin with 400 to 450 rays, the front 10 to 12 rays elongated into filaments",
+  "form": "an elongated ribbon-like body, a horse-like head, a short blunt snout, medium-sized eyes set high and lateral near the snout, a small mouth at the front of the head slanting upward and lacking teeth on the jaws and palate, naked skin, many irregular small granular bumps along the flanks",
+  "fins": "a single long dorsal fin, the front elongated into filaments",
   "markings": "stripes and spots along the body",
   "colour": "体色银亮，具黑色条纹和斑点，且有蓝色条纹",
   "source": "百科原文归一化（AI）"
@@ -731,7 +731,7 @@
  "S42": {
   "name": "巨口鲨",
   "species": "",
-  "form": "a subcylindrical anterior body, a large wide long blunt head, a very short snout broadly rounded in dorsal view, a huge terminal mouth, a laterally compressed caudal peduncle with no lateral keels",
+  "form": "a large wide long blunt head, a very short snout, a huge mouth at the front of the head",
   "fins": "soft fins, large narrow elongated pectoral fins, a broom-shaped tail fin with a long upper lobe only slightly upturned",
   "markings": "",
   "colour": "前部体色呈棕黑色，腹部偏白色",
@@ -740,8 +740,8 @@
  "S46": {
   "name": "太平洋睡鲨",
   "species": "",
-  "form": "a stout nearly cylindrical body, a short conical blunt snout, the preoral snout length about equal to the mouth width, slender long upper teeth and shorter slanted lower teeth with overlapping bases",
-  "fins": "two small dorsal fins with no spines, the distance between the dorsal fin bases 45 to 53 percent of the total length, pectoral fins with broad rounded tips, a short asymmetrical tail fin",
+  "form": "a stout body, a short conical blunt snout, the snout length about equal to the mouth width, slender long upper teeth and shorter slanted lower teeth with overlapping bases",
+  "fins": "two small dorsal fins with no spines, pectoral fins with broad rounded tips, a short asymmetrical tail fin",
   "markings": "small spots on the back",
   "colour": "鱼鳍成蓝黑色中带不均匀的灰粉红色；通常覆盖着深棕色的黏膜；吻部下侧、上唇和嘴深色具有光泽",
   "source": "百科原文归一化（AI）"
@@ -749,8 +749,8 @@
  "S52": {
   "name": "巨尾鱼",
   "species": "",
-  "form": "an elongated laterally compressed body of medium size, a large head, a medium-sized snout protruding at the front with the snout length about equal to the eye diameter, a large oblique mouth with the upper jaw extending below the eye and the lower jaw slightly protruding beyond the upper, villiform tooth bands on both jaws, thin cycloid scales that shed easily, a complete lateral line",
-  "fins": "a single dorsal fin in front of the middle with 12 to 13 soft rays and an adipose fin behind it, an anal fin base about equal to the dorsal fin base with 12 to 13 soft rays, elongated pectoral fins reaching the anus, a forked tail fin",
+  "form": "an elongated body of medium size, a large head, a medium-sized snout protruding at the front with the snout length about equal to the eye diameter, a large oblique mouth with the upper jaw extending below the eye and the lower jaw slightly protruding beyond the upper, tooth bands on both jaws",
+  "fins": "a single dorsal fin in front of the middle, an anal fin base about equal to the dorsal fin base, elongated pectoral fins reaching the anus, a forked tail fin",
   "markings": "rows of photophores along the flanks, the belly and the isthmus",
   "colour": "",
   "source": "百科原文归一化（AI）"
@@ -758,8 +758,8 @@
  "S53": {
   "name": "褶胸鱼",
   "species": "",
-  "form": "a small extremely laterally compressed body that is narrow and linear when viewed from above, a straight back, a very prominent belly giving a stone-axe profile in side view, large eyes, a superior mouth, a trunk slightly taller than long",
-  "fins": "a posteriorly placed dorsal fin, a long forked tail fin with rays of equal length, very large pectoral fins",
+  "form": "a small body, a straight back, a very prominent belly giving a stone-axe profile, large eyes, an upward-pointing mouth, a trunk slightly taller than long",
+  "fins": "a posteriorly placed dorsal fin, a long forked tail fin, very large pectoral fins",
   "markings": "a lateral pigment stripe on the head and upper side, a wide band along the edge of the base of the tail fin",
   "colour": "体色朴素单纯，鱼鳍透明",
   "source": "百科原文归一化（AI）"
@@ -767,7 +767,7 @@
  "A28": {
   "name": "鮸鱼",
   "species": "",
-  "form": "no barbel on the chin, small eyes set high on the sides, a large terminal oblique mouth with both jaws about equal in length, canine-like teeth on both jaws, cycloid scales from the snout to the gill cover and ctenoid scales behind, a large gill opening",
+  "form": "a large oblique mouth at the front of the head, no barbel on the chin, small eyes set high on the sides, both jaws about equal in length, canine-like teeth on both jaws, a large gill opening",
   "fins": "",
   "markings": "",
   "colour": "",
@@ -776,8 +776,8 @@
  "D01": {
   "name": "麦穗鱼",
   "species": "Pseudorasbora parva",
-  "form": "a slightly depressed anterior body, a small superior mouth with a nearly vertical gape, thin lips, no barbels",
-  "fins": "a dorsal fin with soft unbranched rays and no spines, the dorsal fin origin slightly behind the pelvic fin origin, short small pectoral and pelvic fins, a forked tail fin",
+  "form": "a small upward-pointing mouth, thin lips, no barbels",
+  "fins": "a soft dorsal fin without spines, set slightly behind the pelvic fin origin, short small pectoral and pelvic fins, a forked tail fin",
   "markings": "crescent-shaped marks along the rear edge of the scales, a longitudinal band along the flank in juveniles",
   "colour": "体背部灰黑色，腹部银白色；腹膜银灰色而有小黑点；幼鱼体侧常有暗色纵带",
   "source": "百科原文归一化（AI）"
@@ -785,8 +785,8 @@
  "S33": {
   "name": "六鳃鲨",
   "species": "Hexanchus griseus",
-  "form": "a long stout body, a short blunt snout, a large curved mouth, six pairs of gill slits set obliquely and wide, large eyes",
-  "fins": "an anal fin smaller than the dorsal fin, the anal-fin origin below the rear part of the dorsal-fin base",
+  "form": "a long stout body, a short blunt snout, a large curved mouth, six pairs of wide gill openings set obliquely, large eyes",
+  "fins": "an anal fin smaller than the dorsal fin, the anal fin set below the rear of the dorsal fin",
   "markings": "",
   "colour": "体色从背面灰黑色到巧克力棕色不等，腹部为灰白色；眼为萤光绿色",
   "source": "百科原文归一化（AI）"
@@ -794,8 +794,8 @@
  "A22": {
   "name": "海鲈",
   "species": "",
-  "form": "an elongated slightly laterally compressed body, the lower jaw slightly longer than the upper, a serrated rear edge on the preoperculum with several forward-pointing spines on its lower border, a spine at the rear corner of the operculum, small ctenoid scales",
-  "fins": "two dorsal fins joined at the base, a rather small first anal spine, a stronger second anal spine",
+  "form": "an elongated body, the lower jaw slightly longer than the upper, a serrated rear edge on the gill cover with several forward-pointing spines, a spine at the rear corner of the gill cover",
+  "fins": "a rather small first anal spine, a stronger second anal spine, two dorsal fins joined at the base",
   "markings": "spots on the flanks and on the spiny part of the dorsal fin",
   "colour": "体上部灰绿色，下部灰白色，体侧及背鳍棘部有黑色或灰色斑点",
   "source": "百科原文归一化（AI）"
@@ -821,7 +821,7 @@
  "D02": {
   "name": "白条",
   "species": "Hemiculter leucisculus",
-  "form": "an elongated laterally compressed body, a slightly arched back, a small pointed head, an upward-directed mouth, no barbels, cycloid scales, a complete lateral line, a narrow caudal peduncle",
+  "form": "an elongated body, a slightly arched back, a small pointed head, an upward-pointing mouth, no barbels",
   "fins": "a short dorsal fin with a spine, a deeply forked tail fin",
   "markings": "",
   "colour": "体背青灰色，体侧及腹部银白色",
@@ -830,7 +830,7 @@
  "D03": {
   "name": "鲫鱼",
   "species": "Carassius auratus",
-  "form": "a deep laterally compressed body, a slightly arched back, a small head, a short blunt snout, a terminal mouth, no barbels, cycloid scales, a complete lateral line",
+  "form": "a deep body, a slightly arched back, a small head, a short blunt snout, a mouth at the front of the head, no barbels",
   "fins": "a long dorsal fin with a stout serrated spine, a deeply forked tail fin",
   "markings": "",
   "colour": "体背灰黑色，体侧银灰色，腹部白色",
@@ -839,7 +839,7 @@
  "D10": {
   "name": "小鲤鱼",
   "species": "Cyprinus carpio",
-  "form": "a deep laterally compressed body, a slightly arched back, a moderate-sized head, a short blunt snout, a terminal mouth, two pairs of barbels, cycloid scales, a complete lateral line",
+  "form": "a deep body, a slightly arched back, a moderate-sized head, a short blunt snout, a mouth at the front of the head, two pairs of barbels",
   "fins": "a long dorsal fin with a stout serrated spine, a deeply forked tail fin",
   "markings": "",
   "colour": "体背灰黑或黄褐色，体侧金黄色，腹部白色",
@@ -858,7 +858,7 @@
   "name": "圆尾斗鱼",
   "species": "Macropodus ocellatus",
   "form": "a body covered with scales, cycloid scales on the head, ctenoid scales on the flanks",
-  "fins": "long large dorsal and anal fins, pelvic fins set below the pectoral region, a rounded tail fin; in mature males the posterior rays of the dorsal and anal fins are longer",
+  "fins": "long large dorsal and anal fins, pelvic fins set below the pectoral region, a rounded tail fin",
   "markings": "vertical bands crossing the flanks",
   "colour": "身体呈黑褐色，腹鳍呈灰褐色，胸鳍为淡黄色，奇鳍为微红色",
   "source": "百科原文归一化（AI）"
@@ -866,7 +866,7 @@
  "D16": {
   "name": "塘主的大青鱼",
   "species": "Mylopharyngodon piceus",
-  "form": "an elongated body, a slightly compressed body, a rounded belly, no ventral keel, a broad blunt head, a terminal mouth, no barbels, large cycloid scales, a complete lateral line",
+  "form": "an elongated body, a rounded belly, no keel along the belly, a broad blunt head, a mouth at the front of the head, no barbels",
   "fins": "a long dorsal fin with no spines, a forked tail fin",
   "markings": "",
   "colour": "体背青黑色，体侧青灰色，腹部灰白色",
@@ -875,7 +875,7 @@
  "C03": {
   "name": "宽鳍鱲",
   "species": "Zacco platypus",
-  "form": "an elongated laterally compressed body, a pointed head, a terminal mouth, no barbels, medium-sized scales, a complete lateral line",
+  "form": "an elongated body, a pointed head, a mouth at the front of the head, no barbels",
   "fins": "a forked tail fin",
   "markings": "bands crossing the flanks",
   "colour": "体侧具垂直条纹，繁殖期雄鱼体色鲜艳，颊部及体侧有粉红及蓝色条纹",
@@ -903,7 +903,7 @@
   "name": "黄尾鲴",
   "species": "",
   "form": "a thin axillary scale that does not reach the anus",
-  "fins": "pectoral fins with one stout spine and 15 to 16 rays reaching the front of the pelvic fin origin, an anal fin with three stout spines and 9 to 11 rays, a forked tail fin",
+  "fins": "pectoral fins with a stout spine reaching the front of the pelvic fin origin, an anal fin with three stout spines, a forked tail fin",
   "markings": "",
   "colour": "",
   "source": "百科原文归一化（AI）"
@@ -911,7 +911,7 @@
  "B15": {
   "name": "鲈鲤",
   "species": "Percocypris pingi",
-  "form": "an elongated laterally compressed body, a large pointed head, a large terminal mouth, small eyes, small scales",
+  "form": "an elongated body, a large pointed head, a large mouth at the front of the head, small eyes",
   "fins": "a forked tail fin",
   "markings": "spots scattered along the flanks",
   "colour": "体背青灰色，体侧具斑块，腹部灰白色",
@@ -920,7 +920,7 @@
  "B16": {
   "name": "鲤鱼",
   "species": "Cyprinus carpio",
-  "form": "no teeth in the jaws, pharyngeal teeth in the throat used for chewing",
+  "form": "no teeth in the jaws",
   "fins": "",
   "markings": "",
   "colour": "体背灰黑或黄褐色，体侧带金黄色，腹部灰白色",
@@ -929,7 +929,7 @@
  "B19": {
   "name": "蒙古鲌",
   "species": "Culter mongolicus",
-  "form": "an elongated laterally compressed body, a pointed head, an upturned mouth, an incomplete ventral keel, small scales, a complete lateral line",
+  "form": "an elongated body, a pointed head, an upturned mouth, a partial keel along the belly",
   "fins": "a forked tail fin",
   "markings": "",
   "colour": "体背灰褐色，腹部银白色",
@@ -947,7 +947,7 @@
  "B24": {
   "name": "刺鲃",
   "species": "",
-  "form": "an elongated laterally compressed body, a conical head, an inferior mouth, two pairs of barbels, medium-sized scales, a complete lateral line",
+  "form": "an elongated body, a conical head, a downward-pointing mouth, two pairs of barbels",
   "fins": "a dorsal fin with a stout spine",
   "markings": "",
   "colour": "体背青黑色，腹部灰白色",
@@ -983,8 +983,8 @@
  "A06": {
   "name": "石斑鱼",
   "species": "",
-  "form": "a stout oval body, a large head, a large mouth with the lower jaw protruding, ctenoid scales",
-  "fins": "a dorsal fin with spines and soft rays, a rounded tail fin",
+  "form": "a stout oval body, a large head, a large mouth with the lower jaw protruding",
+  "fins": "a dorsal fin with spines, a rounded tail fin",
   "markings": "spots and blotches along the flanks",
   "colour": "体色随种类与栖息环境变化，常有不规则斑点和斑块",
   "source": "模型知识（**未联网查证**）"
@@ -992,7 +992,7 @@
  "A09": {
   "name": "鳀鱼",
   "species": "Engraulis japonicus",
-  "form": "an elongated slender body, slightly laterally compressed, a short blunt snout shorter than the eye, a large inferior mouth, the upper jaw longer than the lower, cycloid scales, no lateral line",
+  "form": "an elongated slender body, a short blunt snout shorter than the eye, a large downward-pointing mouth, the upper jaw longer than the lower",
   "fins": "a short dorsal fin, small pectoral fins set low on the sides, a forked tail fin",
   "markings": "a longitudinal band along the flank",
   "colour": "体背青绿色，体侧及腹部银白色，体侧有一条银白色纵带",
@@ -1001,7 +1001,7 @@
  "A13": {
   "name": "白姑鱼",
   "species": "Pennahia argentata",
-  "form": "a croaker of the family Sciaenidae, a body reaching about 40 cm in length",
+  "form": "a croaker",
   "fins": "",
   "markings": "",
   "colour": "",
@@ -1010,7 +1010,7 @@
  "A16": {
   "name": "鲽鱼",
   "species": "",
-  "form": "a strongly laterally compressed flat body, both eyes on the upper side of the head, a small head, a small mouth, ctenoid scales, a straight lateral line",
+  "form": "a flat body, both eyes on the upper side of the head, a small head, a small mouth",
   "fins": "a long dorsal fin, a long anal fin, a small tail fin",
   "markings": "",
   "colour": "",
@@ -1028,7 +1028,7 @@
  "A19": {
   "name": "黑鲪",
   "species": "Sebastes schlegelii",
-  "form": "a stout oblong body, a large head bearing spines, a large mouth, ctenoid scales",
+  "form": "a stout oblong body, a large head bearing spines, a large mouth",
   "fins": "a long dorsal fin with stout spines, a rounded tail fin, large pectoral fins",
   "markings": "",
   "colour": "体呈灰褐色至黑褐色",
@@ -1037,7 +1037,7 @@
  "A20": {
   "name": "赤点石斑",
   "species": "Epinephelus akaara",
-  "form": "a stout oblong body, a large head, a large mouth, the lower jaw slightly protruding, small ctenoid scales",
+  "form": "a stout oblong body, a large head, a large mouth, the lower jaw slightly protruding",
   "fins": "a long dorsal fin, a rounded tail fin, large rounded pectoral fins",
   "markings": "spots scattered over the head and body",
   "colour": "体棕褐色，密布橙红色小斑点",
@@ -1064,8 +1064,8 @@
  "A30": {
   "name": "许氏平鲉",
   "species": "",
-  "form": "low dorsal ridges on the head ending in a sharp spine at the rear, a wide flat interorbital space about equal to the eye diameter, no scales on the jaws, preorbital or gill cover, three blunt spines on the lower edge of the preorbital, slender gill rakers, bands of fine teeth on the jaws, vomer and palatine",
-  "fins": "a dorsal fin with 13-14 spines",
+  "form": "a sharp spine at the rear of the head, low dorsal ridges on the head, three blunt spines in front of the eye, bands of fine teeth on the jaws",
+  "fins": "a dorsal fin with spines",
   "markings": "",
   "colour": "",
   "source": "百科原文归一化（AI）"
@@ -1073,8 +1073,8 @@
  "A32": {
   "name": "鲬鱼",
   "species": "Platycephalus indicus",
-  "form": "an elongated depressed body, a large flattened head, eyes set on the upper side of the head, a large mouth, ctenoid scales",
-  "fins": "two dorsal fins, a rounded tail fin, large pectoral fins",
+  "form": "an elongated body, a large head, eyes set on the upper side of the head, a large mouth",
+  "fins": "a rounded tail fin, large pectoral fins, two dorsal fins",
   "markings": "",
   "colour": "体背黄褐色具暗色斑纹，腹部浅色",
   "source": "模型知识（**未联网查证**）"
@@ -1082,7 +1082,7 @@
  "A35": {
   "name": "旗鱼",
   "species": "Istiophorus platypterus",
-  "form": "an elongated fusiform body, a very long slender rounded bill, a huge sail-like first dorsal fin, a narrow caudal peduncle with two keels, a slender crescent-shaped tail",
+  "form": "an elongated spindle-shaped body, a very long slender rounded bill, a huge sail-like first dorsal fin, a narrow tail base with two keels, a slender crescent-shaped tail",
   "fins": "a huge sail-like first dorsal fin, a slender crescent-shaped tail fin",
   "markings": "",
   "colour": "",
@@ -1091,8 +1091,8 @@
  "A36": {
   "name": "剑鱼",
   "species": "Xiphias gladius",
-  "form": "an elongated cylindrical body, a long flattened sword-like snout, no teeth in adults, naked skin without scales in adults",
-  "fins": "two dorsal fins, long pectoral fins, a large crescent-shaped tail fin",
+  "form": "an elongated cylindrical body, a long sword-like snout",
+  "fins": "a large crescent-shaped tail fin, long pectoral fins, two dorsal fins",
   "markings": "",
   "colour": "体背暗褐色至蓝灰色，腹部银白色",
   "source": "模型知识（**未联网查证**）"
@@ -1100,7 +1100,7 @@
  "A37": {
   "name": "龙趸石斑",
   "species": "Epinephelus lanceolatus",
-  "form": "a stout elongated body, a very large head, a large mouth, the lower jaw slightly protruding, small ctenoid scales",
+  "form": "a stout elongated body, a very large head, a large mouth, the lower jaw slightly protruding",
   "fins": "a long dorsal fin, a rounded tail fin, large rounded pectoral fins",
   "markings": "spots scattered over the head and body",
   "colour": "体褐色或灰褐色，布满暗色斑点",
@@ -1109,7 +1109,7 @@
  "A38": {
   "name": "宝石石斑",
   "species": "Epinephelus areolatus",
-  "form": "a stout oblong body, a large head, a large mouth, the lower jaw slightly protruding, small ctenoid scales",
+  "form": "a stout oblong body, a large head, a large mouth, the lower jaw slightly protruding",
   "fins": "a long dorsal fin, a rounded tail fin, large rounded pectoral fins",
   "markings": "spots scattered over the head and body",
   "colour": "体浅褐色，密布褐色斑点",
@@ -1127,7 +1127,7 @@
  "A44": {
   "name": "断崖之王·巨型石斑",
   "species": "",
-  "form": "a stout elongated body, a very large head, a large mouth, the lower jaw slightly protruding, small ctenoid scales",
+  "form": "a stout elongated body, a very large head, a large mouth, the lower jaw slightly protruding",
   "fins": "a long dorsal fin, a rounded tail fin, large rounded pectoral fins",
   "markings": "spots scattered over the head and body",
   "colour": "体褐色或灰褐色，布满暗色斑点",
@@ -1136,8 +1136,8 @@
  "A45": {
   "name": "黑潮之王·蓝鳍金枪",
   "species": "",
-  "form": "a fusiform body, a large head, a medium-sized mouth, small scales on the body, a slender caudal peduncle with three longitudinal ridges on each side",
-  "fins": "two dorsal fins, small finlets behind the dorsal and anal fins, long pectoral fins, a crescent-shaped tail fin",
+  "form": "a spindle-shaped body, a large head, a medium-sized mouth, a slender tail base with three longitudinal ridges",
+  "fins": "a crescent-shaped tail fin, two dorsal fins, small finlets behind the dorsal and anal fins, long pectoral fins",
   "markings": "",
   "colour": "体背深蓝色，腹部银白色",
   "source": "模型知识（**未联网查证**）"
@@ -1145,8 +1145,8 @@
  "S02": {
   "name": "灯笼鱼",
   "species": "",
-  "form": "a slender elongated body, a large head, a large eye, a terminal mouth, cycloid scales, a complete lateral line",
-  "fins": "a dorsal fin, a small adipose fin, a forked tail fin",
+  "form": "a slender elongated body, a large head, a large eye, a mouth at the front of the head",
+  "fins": "a dorsal fin, a forked tail fin",
   "markings": "rows of round photophores along the belly and flanks",
   "colour": "",
   "source": "模型知识（**未联网查证**）"
@@ -1154,7 +1154,7 @@
  "S03": {
   "name": "鼬鳚",
   "species": "",
-  "form": "an elongated eel-like body, a tapering tail, a small head, a blunt snout, small eyes, a terminal mouth, small cycloid scales, a complete lateral line",
+  "form": "an elongated eel-like body, a tapering tail, a small head, a blunt snout, small eyes, a mouth at the front of the head",
   "fins": "a long dorsal fin, a long anal fin, the dorsal and anal fins joined continuously to the tail fin, pelvic fins set far forward under the throat",
   "markings": "",
   "colour": "",
@@ -1181,7 +1181,7 @@
  "S09": {
   "name": "黑叉齿鱼",
   "species": "",
-  "form": "an elongated slender body, a large head, a very large mouth, sharp recurved teeth, naked skin with no scales, small eyes, a long tapering tail",
+  "form": "an elongated slender body, a large head, a very large mouth, sharp recurved teeth, naked skin, small eyes, a long tapering tail",
   "fins": "a long dorsal fin, a long anal fin, small pectoral fins, a forked tail fin",
   "markings": "",
   "colour": "",
@@ -1190,7 +1190,7 @@
  "S14": {
   "name": "深海鳐",
   "species": "",
-  "form": "a flattened diamond-shaped disc formed by the pectoral fins, a slender tail, a broad flattened head, the mouth and gill slits on the underside, large spiracles behind the eyes, thorny skin",
+  "form": "a diamond-shaped disc formed by the pectoral fins, a slender tail, a broad head, large spiracles behind the eyes, thorny skin",
   "fins": "the pectoral fins fused with the head to form the disc, small pelvic fins, a slender tail with a small fin fold",
   "markings": "",
   "colour": "",
@@ -1208,7 +1208,7 @@
  "S16": {
   "name": "灯塔水母",
   "species": "",
-  "form": "a small bell-shaped transparent body, the bell diameter and height about equal, 90 to 150 tentacles around the bell margin, round tentacle bulbs arranged in 2 to 3 rows, a manubrium hanging from the center of the underside, a velum at the bell margin",
+  "form": "a small bell-shaped transparent body, the bell diameter and height about equal, many tentacles around the bell margin, round tentacle bulbs around the margin",
   "fins": "",
   "markings": "",
   "colour": "身体透明；性腺略带红色，胃囊呈鲜艳的红色",
@@ -1262,7 +1262,7 @@
  "S23": {
   "name": "深海虾虎",
   "species": "",
-  "form": "an elongated slender body, a large head, a blunt snout, large eyes, a terminal mouth, ctenoid scales",
+  "form": "an elongated slender body, a large head, a blunt snout, large eyes, a mouth at the front of the head",
   "fins": "two dorsal fins, the pelvic fins joined into a disc under the throat, a rounded tail fin",
   "markings": "",
   "colour": "",
@@ -1271,8 +1271,8 @@
  "S25": {
   "name": "鮟鱇鱼",
   "species": "",
-  "form": "a large broad depressed head, a huge mouth, backward-curved teeth, loose scaleless skin, a fishing lure on the head, gill openings behind the pectoral-fin base, a stout body tapering to the tail",
-  "fins": "a dorsal fin with the front rays forming a lure, small pectoral fins, pelvic fins set forward under the throat",
+  "form": "a large broad head, a huge mouth, backward-curved teeth, loose skin, a fishing lure on the head, gill openings behind the pectoral fins, a stout body tapering to the tail",
+  "fins": "a dorsal fin with a lure at the front, small pectoral fins, pelvic fins set forward under the throat",
   "markings": "",
   "colour": "",
   "source": "模型知识（**未联网查证**）"
@@ -1289,8 +1289,8 @@
  "S27": {
   "name": "树须鱼",
   "species": "",
-  "form": "a short body, smooth skin, many barbels on the lower jaw branching like tree roots, a short illicium set behind the tip of the snout, a nearly horizontal mouth cleft, no second dorsal spine, no fleshy flap on the back, 4 to 5 branchiostegal rays",
-  "fins": "a dorsal fin with 3 rays, an anal fin with 2 to 4 rays",
+  "form": "a short body, smooth skin, many barbels on the lower jaw branching like tree roots, a short fishing lure set behind the tip of the snout, a nearly horizontal mouth cleft, no second dorsal spine, no fleshy flap on the back",
+  "fins": "a dorsal fin, an anal fin",
   "markings": "",
   "colour": "",
   "source": "百科原文归一化（AI）"
@@ -1325,8 +1325,8 @@
  "S31": {
   "name": "皱鳃鲨",
   "species": "",
-  "form": "an eel-like body, six gill slits on each side with frilled and overlapping gill septa, a very short snout, a wide mouth set at the front, teeth of the same shape in both jaws with three long cusps each, nostrils on the lower side of the head, a spiracle",
-  "fins": "a small leaf-shaped dorsal fin positioned between the pelvic-fin base and behind the anal fin, an anal fin larger than the dorsal fin, small paddle-shaped pectoral fins",
+  "form": "an eel-like body, frilled gill openings along the sides, a very short snout, a wide mouth set at the front, teeth of the same shape in both jaws with long cusps, nostrils on the lower side of the head",
+  "fins": "a small leaf-shaped dorsal fin, an anal fin larger than the dorsal fin, small paddle-shaped pectoral fins",
   "markings": "",
   "colour": "",
   "source": "百科原文归一化（AI）"
@@ -1343,8 +1343,8 @@
  "S35": {
   "name": "深海银鲛",
   "species": "",
-  "form": "an elongated tapering body, a large head with a blunt snout, large eyes, smooth scaleless skin, the gill slits covered by a single operculum",
-  "fins": "two dorsal fins with a stout spine in front of the first, large wing-like pectoral fins, a long whip-like tail",
+  "form": "an elongated tapering body, a large head with a blunt snout, large eyes, smooth skin, the gill openings covered by a single flap",
+  "fins": "two dorsal fins with a stout spine in front, large wing-like pectoral fins, a long whip-like tail",
   "markings": "",
   "colour": "",
   "source": "模型知识（**未联网查证**）"
@@ -1352,8 +1352,8 @@
  "S36": {
   "name": "单棘魨",
   "species": "",
-  "form": "a laterally compressed elongated body, a small pointed head, a small terminal mouth, leathery skin with small scales, a prominent first dorsal spine above the eye",
-  "fins": "a first dorsal fin reduced to a single stout spine, a second dorsal fin, a small anal fin, a rounded tail fin",
+  "form": "an elongated body, a small pointed head, a small mouth at the front of the head, leathery skin, a prominent dorsal spine above the eye",
+  "fins": "a dorsal fin reduced to a single stout spine, a second dorsal fin, a small anal fin, a rounded tail fin",
   "markings": "",
   "colour": "",
   "source": "模型知识（**未联网查证**）"
@@ -1361,7 +1361,7 @@
  "S43": {
   "name": "格陵兰鲨",
   "species": "Somniosus microcephalus",
-  "form": "a stout heavy cylindrical body, a short blunt rounded snout, small eyes, a small mouth near the tip of the snout, a short caudal peduncle without a keel",
+  "form": "a stout heavy body, a short blunt rounded snout, small eyes, a small mouth near the tip of the snout",
   "fins": "small rounded pectoral fins, two small dorsal fins set far back near the tail, no anal fin, a nearly symmetrical tail fin",
   "markings": "",
   "colour": "灰褐色至黑褐色，腹部颜色较浅",
@@ -1379,7 +1379,7 @@
  "S45": {
   "name": "小头睡鲨",
   "species": "Somniosus microcephalus",
-  "form": "a stout heavy cylindrical body, a short blunt rounded snout, small eyes, a small mouth near the tip of the snout, a short caudal peduncle without a keel",
+  "form": "a stout heavy body, a short blunt rounded snout, small eyes, a small mouth near the tip of the snout",
   "fins": "small rounded pectoral fins, two small dorsal fins set far back near the tail, no anal fin, a nearly symmetrical tail fin",
   "markings": "",
   "colour": "灰褐色至黑褐色，腹部颜色较浅",
@@ -1388,7 +1388,7 @@
  "S49": {
   "name": "北极霞水母",
   "species": "Cyanea capillata",
-  "form": "a large bell-shaped body with a bell margin diameter of 30 to 80 cm, many long trailing tentacles",
+  "form": "a large bell-shaped body, many long trailing tentacles",
   "fins": "",
   "markings": "",
   "colour": "伞形边缘小于12厘米的小型个体通常是黄色或粉红色；12厘米到45厘米之间的是红色或黄褐色；45厘米以上的呈深棕红色",
@@ -1397,8 +1397,8 @@
  "S51": {
   "name": "黑口鱼",
   "species": "",
-  "form": "a body covered with scales, teeth in several rows on both jaws",
-  "fins": "the dorsal fin origin in front of the anal fin origin, the first pectoral fin ray not elongated into a filament",
+  "form": "teeth in several rows on both jaws",
+  "fins": "the dorsal fin set in front of the anal fin, pectoral fins not elongated into filaments",
   "markings": "",
   "colour": "",
   "source": "百科原文归一化（AI）"
@@ -1415,7 +1415,7 @@
  "S58": {
   "name": "海沟幽灵·大王乌贼",
   "species": "Architeuthis dux",
-  "form": "a huge body with a mantle about 4 m long, long arms and two long feeding tentacles reaching 10 m or more",
+  "form": "a huge body with a long mantle, long arms and two long feeding tentacles",
   "fins": "",
   "markings": "",
   "colour": "",
@@ -1424,7 +1424,7 @@
  "C01": {
   "name": "溪哥",
   "species": "",
-  "form": "an elongated laterally compressed body, a small head, a blunt rounded snout, a large oblique mouth, small scales, a complete lateral line, the male with nuptial tubercles on the snout",
+  "form": "an elongated body, a small head, a blunt rounded snout, a large oblique mouth, small bumps on the snout in males",
   "fins": "",
   "markings": "",
   "colour": "",
@@ -1433,8 +1433,8 @@
  "C12": {
   "name": "缨口鳅",
   "species": "Crossostoma davidi",
-  "form": "a slender flattened body, a depressed head, a blunt rounded snout, an inferior mouth with fleshy fringed lips, barbels at the corners of the mouth, small scales, a complete lateral line",
-  "fins": "the pectoral and pelvic fins broad and spread out to grip the substrate, a low dorsal fin",
+  "form": "a slender body, a blunt rounded snout, a downward-pointing mouth with fleshy fringed lips, barbels at the corners of the mouth",
+  "fins": "pectoral and pelvic fins spread out, a low dorsal fin",
   "markings": "",
   "colour": "",
   "source": "百科原文归一化（AI）"
@@ -1442,8 +1442,8 @@
  "C15": {
   "name": "褐鳟",
   "species": "Salmo trutta",
-  "form": "an elongated spindle-shaped body, a medium-sized head, a short blunt snout, a terminal mouth, small cycloid scales, a complete lateral line",
-  "fins": "a single dorsal fin with a small adipose fin behind it, a slightly forked tail fin",
+  "form": "an elongated spindle-shaped body, a medium-sized head, a short blunt snout, a mouth at the front of the head",
+  "fins": "a single dorsal fin, a slightly forked tail fin",
   "markings": "spots scattered along the flanks",
   "colour": "身体为褐色，并有黑色及红色的斑点",
   "source": "百科原文归一化（AI）"
@@ -1451,7 +1451,7 @@
  "C16": {
   "name": "溪石斑",
   "species": "",
-  "form": "an elongated laterally compressed body, a small head, a blunt rounded snout, an inferior mouth with a horny lower lip, barbels at the corners of the mouth, ctenoid scales, a complete lateral line",
+  "form": "an elongated body, a small head, a blunt rounded snout, a downward-pointing mouth with a horny lower lip, barbels at the corners of the mouth",
   "fins": "",
   "markings": "vertical bands crossing the flanks",
   "colour": "",
@@ -1460,7 +1460,7 @@
  "C23": {
   "name": "福建小鳔鮈",
   "species": "Microphysogobio fukiensis",
-  "form": "an elongated slightly compressed body, a small head, a blunt rounded snout, an inferior mouth, a pair of barbels at the corners of the mouth, small scales, a complete lateral line",
+  "form": "an elongated body, a small head, a blunt rounded snout, a downward-pointing mouth, a pair of barbels at the corners of the mouth",
   "fins": "",
   "markings": "",
   "colour": "",
@@ -1487,7 +1487,7 @@
  "SS01": {
   "name": "星磷鱼",
   "species": "",
-  "form": "a slender diamond-sectioned body, a small pointed head, a large oblique mouth, crisply bevelled scale edges, a narrow caudal peduncle",
+  "form": "a slender body, a small pointed head, a large oblique mouth",
   "fins": "a long trailing dorsal crest, a translucent fan-shaped tail fin, slender filamentous pelvic fins",
   "markings": "a sparse line of luminous points along the flank, a single glowing patch behind the eye",
   "colour": "深靛底、磷青点、星屑银辉",
@@ -1541,7 +1541,7 @@
  "SS07": {
   "name": "陨尘鲳",
   "species": "",
-  "form": "a deep oval body, a small head, a short blunt snout, a small mouth, fine points fused into faceted scales",
+  "form": "a deep oval body, a small head, a short blunt snout, a small mouth, fine faceted points",
   "fins": "a long low dorsal fin, a slightly forked tail fin, small pectoral fins",
   "markings": "a loose trail of tiny craters along the flank, a short streak near the gill cover",
   "colour": "烟灰底、尘金微粒、暗铜高光",
@@ -1559,7 +1559,7 @@
  "SS09": {
   "name": "星尘鳀",
   "species": "",
-  "form": "a slender spindle-shaped body, a pointed snout, a large mouth, a single fine line of glowing specks along the midline, a narrow caudal peduncle",
+  "form": "a slender spindle-shaped body, a pointed snout, a large mouth, a single fine line of glowing specks along the midline",
   "fins": "a short dorsal fin set far back, a deeply forked tail fin, small pectoral fins",
   "markings": "an even row of glowing specks along the midline, a faint spot at the tail base",
   "colour": "浅靛底、星尘白点、银灰腹面",
@@ -1605,7 +1605,7 @@
   "name": "星屑鰕虎",
   "species": "",
   "form": "a small stout body, a large blunt head, a wide mouth, fused pelvic fins forming a disc, a row of tiny luminous specks along the flank",
-  "fins": "a dorsal fin split into two parts, a rounded tail fin, pectoral fins with even rays",
+  "fins": "a dorsal fin split into two parts, a rounded tail fin, pectoral fins",
   "markings": "a loose row of luminous specks along the flank, a spot on the gill cover",
   "colour": "砂青底、星屑银点、头部暗纹",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
@@ -1640,7 +1640,7 @@
  "SS18": {
   "name": "陨石鳃",
   "species": "",
-  "form": "a deep angular body with faceted plates, a large head, a wide mouth, a row of short gill slits, a heavy blunt snout",
+  "form": "a deep angular body with faceted plates, a large head, a wide mouth, a heavy blunt snout",
   "fins": "a spined dorsal fin with even peaks, a slightly forked tail fin",
   "markings": "a cluster of pitted craters over the gill cover, a single seam at the tail base",
   "colour": "石黑底、熔铜斑、冷铁高光",
@@ -1676,7 +1676,7 @@
  "SS22": {
   "name": "霜鳞鲑",
   "species": "",
-  "form": "a streamlined spindle-shaped body, a small head, a short snout, a terminal mouth, crystalline scales with clean cut edges",
+  "form": "a streamlined spindle-shaped body, a small head, a short snout, a mouth at the front of the head, crystalline edges with clean cuts",
   "fins": "a short dorsal fin, a slightly forked tail fin, small pectoral fins",
   "markings": "an even row of frost-like facet points along the flank, a faint arc above the lateral line",
   "colour": "冰蓝底、霜晶银面、脊线冷白",
@@ -1712,7 +1712,7 @@
  "SS26": {
   "name": "幽蓝鳞鲀",
   "species": "",
-  "form": "a deep angular oval body with faceted plate scales, a large head, a small terminal mouth, a stout dorsal spine, a pointed snout",
+  "form": "a deep angular oval body with faceted plates, a large head, a mouth at the front of the head, a stout dorsal spine, a pointed snout",
   "fins": "a dorsal fin with a stout front spine, a rounded tail fin, small pectoral fins",
   "markings": "a band across the eye, a faint seam along the flank plates",
   "colour": "幽蓝底、暗青棱面、眼周冷线",
@@ -1730,7 +1730,7 @@
  "SS28": {
   "name": "陨纹金枪",
   "species": "",
-  "form": "a robust spindle-shaped body, a pointed head, a large mouth, fine faceted scales, a row of finlets behind the dorsal and anal fins",
+  "form": "a robust faceted spindle-shaped body, a pointed head, a large mouth, a row of finlets behind the dorsal and anal fins",
   "fins": "a long dorsal fin, a deeply forked tail fin, a row of finlets",
   "markings": "broken crater-like streaks along the flank, a single seam near the gill cover",
   "colour": "铁蓝底、陨纹铜斑、腹部冷银",
@@ -1784,7 +1784,7 @@
  "SS34": {
   "name": "渊影鲛",
   "species": "",
-  "form": "a deep torpedo-shaped body, a long pointed snout, a row of even triangular teeth, five gill slits, a keeled flank",
+  "form": "a deep torpedo-shaped body, a long pointed snout, a row of even triangular teeth, a sharp keel along the flank",
   "fins": "a low second dorsal fin, a crescent-shaped tail fin, long pectoral fins",
   "markings": "a faint sheen line along the flank, a single mark at the gill slits",
   "colour": "渊黑底、影银侧线、背鳍深灰",
@@ -1829,8 +1829,8 @@
  "SS39": {
   "name": "碎陨皇带",
   "species": "",
-  "form": "an extremely long ribbon-like body with a diamond cross-section, a small blunt head, a short mouth, a trailing crest of even spaced rays along the back, a row of luminous pores at the crest base",
-  "fins": "a low crest of even rays along the entire back, tiny pectoral fins, a small fan tail fin",
+  "form": "an extremely long ribbon-like body, a small blunt head, a short mouth, a trailing crest along the back, a row of luminous pores at the crest base",
+  "fins": "a low crest along the entire back, tiny pectoral fins, a small fan tail fin",
   "markings": "a scatter of broken luminous fragments along the flank, a fine seam at the crest base",
   "colour": "深靛底、碎陨银屑、脊冠冷光",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
@@ -1847,7 +1847,7 @@
  "SS41": {
   "name": "幽暗龙鱼",
   "species": "",
-  "form": "a sinuous ribbon-like body with faintly faceted scales, a narrow wedge-shaped head, a pair of swept-back horn-like crests, sparse luminous pores spaced evenly along the spine",
+  "form": "a sinuous faintly faceted ribbon-like body, a narrow wedge-shaped head, a pair of swept-back horn-like crests, sparse luminous pores spaced evenly along the spine",
   "fins": "a low continuous dorsal crest of evenly spaced spines, a pair of long trailing pelvic tendrils",
   "markings": "a single row of evenly spaced luminous nodes along the flank, a faint chevron pattern behind the eye",
   "colour": "墨靛底、幽蓝微光",
@@ -1892,7 +1892,7 @@
  "SS46": {
   "name": "虚空鲛",
   "species": "",
-  "form": "a torpedo-shaped body with faintly faceted flank plates, a long pointed snout, a row of slender recurved teeth, five gill slits",
+  "form": "a torpedo-shaped body with faintly faceted flank plates, a long pointed snout, a row of slender recurved teeth",
   "fins": "a tall triangular dorsal fin, long swept-back pectoral fins",
   "markings": "a single row of evenly spaced luminous pores along the flank, faint void bands crossing the flank",
   "colour": "深空蓝底、冷白星点",
@@ -1928,7 +1928,7 @@
  "SS50": {
   "name": "星核龙鱼",
   "species": "",
-  "form": "a sinuous serpentine body with faintly faceted scales, a tapered head, a pair of rearward-swept horns, a single luminous core node at the throat",
+  "form": "a sinuous faintly faceted serpentine body, a tapered head, a pair of rearward-swept horns, a single luminous core node at the throat",
   "fins": "a low continuous dorsal crest of evenly spaced spines, a pair of long trailing whisker tendrils",
   "markings": "a row of evenly spaced luminous nodes along the spine, a halo ring behind the head",
   "colour": "深靛底、核心金辉",
@@ -1938,7 +1938,7 @@
   "name": "裂空皇带鱼",
   "species": "",
   "form": "a very long slender ribbon-like body, a small head with a blunt snout, a single tapering dorsal crest running the full length of the back, a pair of short trailing pelvic filaments",
-  "fins": "a continuous dorsal crest of evenly spaced rays, a tiny fan-shaped tail fin",
+  "fins": "a continuous dorsal crest, a tiny fan-shaped tail fin",
   "markings": "a faint line of luminous pores along the flank, a single streak splitting the dorsal crest",
   "colour": "深空银底、裂光白纹",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
@@ -1946,7 +1946,7 @@
  "SS52": {
   "name": "渊眼巨鲨",
   "species": "",
-  "form": "a torpedo-shaped body with angular faceted flank plates, a long pointed snout, a single large eye set high on the head, five gill slits",
+  "form": "a torpedo-shaped body with angular faceted flank plates, a long pointed snout, a single large eye set high on the head",
   "fins": "a tall triangular dorsal fin, a crescent tail fin with a long upper lobe",
   "markings": "a single luminous ring encircling each eye, a sparse line of pores along the flank",
   "colour": "渊黑底、幽蓝瞳环",
@@ -1991,7 +1991,7 @@
  "SS57": {
   "name": "陨铁巨口鲨",
   "species": "",
-  "form": "a stout torpedo-shaped body with angular faceted plates, a long pointed snout, an enormous gaping mouth, five gill slits",
+  "form": "a stout torpedo-shaped body with angular faceted plates, a long pointed snout, an enormous gaping mouth",
   "fins": "a tall triangular dorsal fin, long angular pectoral fins",
   "markings": "a sparse line of luminous pores along the flank, faint crater-like pits scattered on the back",
   "colour": "铁灰底、熔星褐点",
@@ -2063,7 +2063,7 @@
  "SS65": {
   "name": "陨砂鲈",
   "species": "",
-  "form": "an elongated laterally compressed body with faintly grainy faceted scales, a pointed head, a large oblique mouth, the lower jaw slightly protruding",
+  "form": "an elongated faintly grainy faceted body, a pointed head, a large oblique mouth, the lower jaw slightly protruding",
   "fins": "a dorsal fin with a deep notch, a slightly forked tail fin",
   "markings": "a sparse scatter of granular luminous dots along the flank, a faint line of pores",
   "colour": "砂褐底、陨粒微光",
@@ -2081,7 +2081,7 @@
  "SS67": {
   "name": "暗礁鲷",
   "species": "",
-  "form": "a deep oval laterally compressed body with faintly faceted scales, a large head, a pointed snout, a small mouth",
+  "form": "a deep oval faintly faceted body, a large head, a pointed snout, a small mouth",
   "fins": "a long dorsal fin with a spiny front section, a forked tail fin",
   "markings": "a faint line of luminous pores along the flank, a single spot at the base of the tail",
   "colour": "暗蓝底、礁石微光",
@@ -2126,7 +2126,7 @@
  "SS72": {
   "name": "陨铁巨鲛",
   "species": "",
-  "form": "a stout torpedo-shaped body with angular faceted armor plates, a long pointed snout, a row of serrated teeth, five gill slits",
+  "form": "a stout torpedo-shaped body with angular faceted armor plates, a long pointed snout, a row of serrated teeth",
   "fins": "a tall triangular dorsal fin, long angular pectoral fins, a crescent tail fin",
   "markings": "a sparse line of luminous pores along the flank, faint crater pits scattered on the back",
   "colour": "铁灰底、熔核橙点",
@@ -2136,7 +2136,7 @@
   "name": "星核皇带",
   "species": "",
   "form": "a very long slender ribbon-like body, a small blunt head, a single tapering dorsal crest running the whole back, a pair of long trailing pelvic filaments",
-  "fins": "a continuous dorsal crest of evenly spaced rays, a tiny fan-shaped tail fin",
+  "fins": "a continuous dorsal crest, a tiny fan-shaped tail fin",
   "markings": "a line of evenly spaced luminous nodes along the crest, a faint halo behind the head",
   "colour": "深靛底、核心星辉",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
@@ -2162,7 +2162,7 @@
  "SS76": {
   "name": "星陨之主·天鳞",
   "species": "",
-  "form": "a sinuous serpentine body covered in faintly faceted overlapping scale plates, a tapered head, a pair of large rearward-swept horns, a row of luminous nodes along the spine",
+  "form": "a sinuous serpentine body covered in faintly faceted overlapping plates, a tapered head, a pair of large rearward-swept horns, a row of luminous nodes along the spine",
   "fins": "a low continuous dorsal crest of evenly spaced spines, a pair of long trailing whisker tendrils",
   "markings": "a single row of evenly spaced luminous nodes along the spine, a faint halo ring behind the head",
   "colour": "墨靛底、天鳞星辉",
@@ -2181,7 +2181,7 @@
   "name": "星陨王座·裂空皇带",
   "species": "",
   "form": "a very long slender ribbon-like body, a small blunt head crowned by a low faceted crest, a tall dorsal crest running the full length of the back, a pair of long trailing pelvic filaments",
-  "fins": "a continuous dorsal crest of evenly spaced rays, a tiny fan-shaped tail fin",
+  "fins": "a continuous dorsal crest, a tiny fan-shaped tail fin",
   "markings": "a line of luminous nodes along the crest, a single streak splitting the dorsal crest",
   "colour": "深空靛底、星裂银纹",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
@@ -2207,7 +2207,7 @@
  "SSS01": {
   "name": "时砂小鱼",
   "species": "",
-  "form": "a small spindle-shaped body with soft bevelled edges, a blunt conical head, a small terminal mouth, a gently curved lateral line, a short slender caudal peduncle",
+  "form": "a small spindle-shaped body with soft bevelled edges, a blunt conical head, a mouth at the front of the head",
   "fins": "a short dorsal fin set far back, a rounded tail fin, small rounded pectoral fins",
   "markings": "faint concentric rings along the flanks",
   "colour": "沙金半透明底、乳白年轮纹",
@@ -2216,8 +2216,8 @@
  "SSS02": {
   "name": "溯流鲑",
   "species": "",
-  "form": "an elongated fusiform body with a slightly arched back, a pointed snout, a terminal mouth, the lower jaw slightly hooked, cycloid scales, a straight complete lateral line, a narrow caudal peduncle",
-  "fins": "a short-based dorsal fin, a small fleshy adipose fin, a slightly forked tail fin, pointed pectoral fins",
+  "form": "an elongated spindle-shaped body with a slightly arched back, a pointed snout, a mouth at the front of the head, the lower jaw slightly hooked",
+  "fins": "a short-based dorsal fin, a small fleshy fin, a slightly forked tail fin, pointed pectoral fins",
   "markings": "a line of short vertical dashes along the flank",
   "colour": "铁青背、逆行水流白腹",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
@@ -2225,7 +2225,7 @@
  "SSS03": {
   "name": "零度蝶鱼",
   "species": "",
-  "form": "a deep diamond-shaped laterally compressed body with crisp bevelled edges, a small pointed head, a short tubular snout, a small mouth, a continuous dorsal profile, a short compressed caudal peduncle",
+  "form": "a deep diamond-shaped body with crisp bevelled edges, a small pointed head, a short tubular snout, a small mouth, a continuous dorsal profile",
   "fins": "a long dorsal fin joined to the anal fin by a thin membrane, a rounded tail fin, fan-shaped pectoral fins",
   "markings": "two narrow vertical bands crossing the flanks, a single band through the eye",
   "colour": "霜白底、冰青竖带",
@@ -2234,7 +2234,7 @@
  "SSS04": {
   "name": "昨日鲈",
   "species": "",
-  "form": "a stout oval body with a straight upper profile, a large head, a slightly concave forehead, a wide terminal mouth, the lower jaw projecting slightly, ctenoid scales, a gently arched lateral line",
+  "form": "a stout oval body with a straight upper profile, a large head, a slightly concave forehead, a mouth at the front of the head, the lower jaw projecting slightly",
   "fins": "a dorsal fin with a deep notch between the spiny and soft parts, a slightly concave tail fin, fan-shaped pectoral fins",
   "markings": "a faint horizontal band along the middle of the flank, scattered marks on the gill cover",
   "colour": "褪色褐金、旧纸白边缘",
@@ -2243,7 +2243,7 @@
  "SSS05": {
   "name": "遗迹鳉",
   "species": "",
-  "form": "a small cylindrical body with a flat-topped head, a short blunt snout, an upturned small mouth, an eroded scalloped edge to the gill cover, cycloid scales, a gently curved lateral line",
+  "form": "a small cylindrical body with a flat-topped head, a short blunt snout, an upturned small mouth, an eroded scalloped edge to the gill cover",
   "fins": "a long continuous dorsal fin with a rounded outline, a rounded tail fin, small rounded pectoral fins",
   "markings": "a row of short vertical notches along the upper flank",
   "colour": "砂岩灰褐、风化白斑",
@@ -2252,7 +2252,7 @@
  "SSS06": {
   "name": "虚时鲳",
   "species": "",
-  "form": "a deep oval laterally compressed body with smooth bevelled edges, a small blunt head, a short snout, a small terminal mouth, the upper jaw slightly longer than the lower, a slender compressed caudal peduncle",
+  "form": "a deep oval body with smooth bevelled edges, a small blunt head, a short snout, a mouth at the front of the head, the upper jaw slightly longer than the lower",
   "fins": "a long dorsal fin, a matching long anal fin, a deeply forked tail fin, long slender pectoral fins",
   "markings": "a faint vertical shadow band behind the gill cover",
   "colour": "墨青灰蓝、虚白高光",
@@ -2261,7 +2261,7 @@
  "SSS07": {
   "name": "刹那鲴",
   "species": "",
-  "form": "an elongated slightly compressed body with a gently convex back, a conical head, a short blunt snout, a small inferior mouth with a thin lower lip, cycloid scales, a complete lateral line, a long caudal peduncle",
+  "form": "an elongated body with a gently convex back, a conical head, a short blunt snout, a downward-pointing mouth with a thin lower lip",
   "fins": "a short dorsal fin with a smooth outline, a deeply forked tail fin, long pointed pectoral fins",
   "markings": "a row of small paired spots along the lateral line",
   "colour": "琥珀褐、微光白点",
@@ -2270,7 +2270,7 @@
  "SSS08": {
   "name": "须臾鲹",
   "species": "",
-  "form": "a fusiform slender body with a rounded belly, a pointed conical head, a small terminal mouth, the upper jaw slightly longer than the lower, small cycloid scales, a slightly curved lateral line, a narrow compressed caudal peduncle",
+  "form": "a spindle-shaped slender body with a rounded belly, a pointed conical head, a mouth at the front of the head, the upper jaw slightly longer than the lower",
   "fins": "a long dorsal fin with a low anterior lobe, a deeply forked tail fin, long sickle-shaped pectoral fins",
   "markings": "a row of small scutes along the caudal peduncle, short diagonal stripes on the upper flank",
   "colour": "银灰蓝背、微金侧线",
@@ -2279,7 +2279,7 @@
  "SSS09": {
   "name": "瞬息鳉",
   "species": "",
-  "form": "a small slender cylindrical body with a flattened dorsal profile, a rounded head, a short blunt snout, an upturned small mouth, cycloid scales, a gently curved lateral line, a slender caudal peduncle",
+  "form": "a small slender cylindrical body with a flattened dorsal profile, a rounded head, a short blunt snout, an upturned small mouth",
   "fins": "a long dorsal fin set far back, a rounded tail fin, small rounded pectoral fins",
   "markings": "a row of tiny irregular flecks along the flank",
   "colour": "浅琥珀半透明、瞬息白闪",
@@ -2288,7 +2288,7 @@
  "SSS10": {
   "name": "一刻鲹",
   "species": "",
-  "form": "a moderately elongated fusiform body with a slightly arched back, a pointed snout, a small terminal mouth, small cycloid scales, a curved lateral line, a narrow caudal peduncle",
+  "form": "a moderately elongated spindle-shaped body with a slightly arched back, a pointed snout, a mouth at the front of the head",
   "fins": "a long dorsal fin with a pointed anterior lobe, a deeply forked tail fin, long pointed pectoral fins",
   "markings": "a single short vertical tick band behind the head",
   "colour": "青灰底、细微刻度纹",
@@ -2297,7 +2297,7 @@
  "SSS11": {
   "name": "时光鲽",
   "species": "",
-  "form": "a deep oval laterally compressed body with a low head, both eyes set close together near the upper edge, a small mouth, a continuous curved lateral line, a short caudal peduncle",
+  "form": "a deep oval body with a low head, both eyes set close together near the upper edge, a small mouth",
   "fins": "a long dorsal fin running the full length of the body, a matching long anal fin, a rounded tail fin",
   "markings": "a faint sunburst of thin lines radiating from the eye",
   "colour": "流沙褐、时光金晕",
@@ -2306,7 +2306,7 @@
  "SSS12": {
   "name": "琥珀鲷",
   "species": "",
-  "form": "a deep oval laterally compressed body with a steep forehead, a large blunt head, a small mouth, the upper jaw slightly longer than the lower, ctenoid scales, a complete lateral line, a narrow caudal peduncle",
+  "form": "a deep oval body with a steep forehead, a large blunt head, a small mouth, the upper jaw slightly longer than the lower",
   "fins": "a single long dorsal fin with low spines, a slightly forked tail fin, long pointed pectoral fins",
   "markings": "faint concentric growth rings around the eye, a single spot at the base of the tail",
   "colour": "琥珀橙金、树脂透底",
@@ -2315,7 +2315,7 @@
  "SSS13": {
   "name": "遗迹石斑",
   "species": "",
-  "form": "a stout oval body with a large head, a slightly concave forehead, a wide oblique mouth, the lower jaw projecting, small ctenoid scales, a gently curved lateral line, a deep caudal peduncle",
+  "form": "a stout oval body with a large head, a slightly concave forehead, a wide oblique mouth, the lower jaw projecting",
   "fins": "a long dorsal fin with strong spines and a rounded soft portion, a rounded tail fin, large rounded pectoral fins",
   "markings": "eroded irregular patches scattered along the upper flank",
   "colour": "石灰褐、斑驳风化纹",
@@ -2324,8 +2324,8 @@
  "SSS14": {
   "name": "残响鲻",
   "species": "",
-  "form": "an elongated cylindrical body with a slightly flattened back, a small conical head, a short blunt snout, a small inferior mouth, cycloid scales, a faint incomplete lateral line, a slender caudal peduncle",
-  "fins": "two separate short dorsal fins, a forked tail fin, pointed pectoral fins set high on the flank",
+  "form": "an elongated cylindrical body with a slightly flattened back, a small conical head, a short blunt snout, a downward-pointing mouth",
+  "fins": "a pair of separate short dorsal fins, a forked tail fin, pointed pectoral fins set high on the flank",
   "markings": "a row of faint longitudinal lines along the flank",
   "colour": "灰青底、余韵银线",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
@@ -2333,8 +2333,8 @@
  "SSS15": {
   "name": "静默鳕",
   "species": "",
-  "form": "an elongated slightly compressed body, a large head, a short blunt snout, a terminal mouth, a single chin barbel, small cycloid scales, a curved lateral line, a narrow caudal peduncle",
-  "fins": "three separate dorsal fins, two separate anal fins, a slightly rounded tail fin, pointed pectoral fins",
+  "form": "an elongated body, a large head, a short blunt snout, a mouth at the front of the head, a single chin barbel",
+  "fins": "a row of three separate dorsal fins, a pair of separate anal fins, a slightly rounded tail fin, pointed pectoral fins",
   "markings": "a faint marbled pattern along the upper flank",
   "colour": "静灰褐、哑光白腹",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
@@ -2342,7 +2342,7 @@
  "SSS16": {
   "name": "尘时鲹",
   "species": "",
-  "form": "a fusiform body with a rounded belly, a pointed conical head, a small terminal mouth, cycloid scales, a slightly curved lateral line, a narrow compressed caudal peduncle",
+  "form": "a spindle-shaped body with a rounded belly, a pointed conical head, a mouth at the front of the head",
   "fins": "a long low dorsal fin, a deeply forked tail fin, long sickle-shaped pectoral fins",
   "markings": "a scattering of fine granular points along the upper flank",
   "colour": "尘灰蓝、微光尘点",
@@ -2351,8 +2351,8 @@
  "SSS17": {
   "name": "初雪鳟",
   "species": "",
-  "form": "an elongated fusiform body with a slightly arched back, a conical head, a short pointed snout, a terminal mouth, small cycloid scales, a straight lateral line, a narrow caudal peduncle",
-  "fins": "a short dorsal fin, a small fleshy adipose fin, a slightly forked tail fin, pointed pectoral fins",
+  "form": "an elongated spindle-shaped body with a slightly arched back, a conical head, a short pointed snout, a mouth at the front of the head",
+  "fins": "a short dorsal fin, a small fleshy fin, a slightly forked tail fin, pointed pectoral fins",
   "markings": "a row of small scattered flakes along the flank, a few flakes on the gill cover",
   "colour": "初雪白底、淡青灰背",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
@@ -2360,7 +2360,7 @@
  "SSS18": {
   "name": "沙漏鲽",
   "species": "",
-  "form": "a deep oval laterally compressed body with a low head, both eyes set close together near the upper edge, a small mouth, a curved lateral line, a short caudal peduncle",
+  "form": "a deep oval body with a low head, both eyes set close together near the upper edge, a small mouth",
   "fins": "a long dorsal fin running the full length of the body, a matching long anal fin, a rounded tail fin",
   "markings": "an hourglass-shaped band across the middle of the flank",
   "colour": "沙金褐、沙漏白纹",
@@ -2369,7 +2369,7 @@
  "SSS19": {
   "name": "回音鲈",
   "species": "",
-  "form": "a stout oval body with a straight upper profile, a large head, a slightly concave forehead, a wide terminal mouth, the lower jaw projecting slightly, ctenoid scales, a gently arched lateral line",
+  "form": "a stout oval body with a straight upper profile, a large head, a slightly concave forehead, a mouth at the front of the head, the lower jaw projecting slightly",
   "fins": "a dorsal fin with a deep notch between the spiny and soft parts, a slightly concave tail fin, fan-shaped pectoral fins",
   "markings": "a series of nested arcs echoing along the flank",
   "colour": "回音灰蓝、边缘亮白",
@@ -2378,7 +2378,7 @@
  "SSS20": {
   "name": "旧日鲳",
   "species": "",
-  "form": "a deep oval laterally compressed body with smooth edges, a small blunt head, a short snout, a small terminal mouth, the upper jaw slightly longer than the lower, a slender compressed caudal peduncle",
+  "form": "a deep oval body with smooth edges, a small blunt head, a short snout, a mouth at the front of the head, the upper jaw slightly longer than the lower",
   "fins": "a long dorsal fin, a matching long anal fin, a deeply forked tail fin, long slender pectoral fins",
   "markings": "a faint vertical band marking the midpoint of the flank",
   "colour": "旧金灰、暮色晕染",
@@ -2387,7 +2387,7 @@
  "SSS21": {
   "name": "年轮鲷",
   "species": "",
-  "form": "a deep oval laterally compressed body with a steep forehead, a large blunt head, a small mouth, ctenoid scales, a complete lateral line, a narrow caudal peduncle",
+  "form": "a deep oval body with a steep forehead, a large blunt head, a small mouth",
   "fins": "a single long dorsal fin with low spines, a slightly forked tail fin, long pointed pectoral fins",
   "markings": "a series of concentric rings spreading from the flank, a spot at the base of the tail",
   "colour": "木褐年轮、浅金底",
@@ -2396,7 +2396,7 @@
  "SSS22": {
   "name": "未时鰕虎",
   "species": "",
-  "form": "an elongated cylindrical body with a slightly depressed head, a broad blunt snout, a large terminal mouth, the eyes set high and close together, cycloid scales, no lateral line, a slender caudal peduncle",
+  "form": "an elongated body with a slightly flattened head, a broad blunt snout, a large mouth at the front of the head, eyes set high and close together",
   "fins": "two separate dorsal fins, the first with thin spines, a rounded tail fin, broad rounded pectoral fins",
   "markings": "a row of small square blocks along the upper flank",
   "colour": "未时琥珀褐、细砂白",
@@ -2405,7 +2405,7 @@
  "SSS23": {
   "name": "星轨鳗",
   "species": "",
-  "form": "a slender ribbon-like body of rounded cross-section, a small pointed head, a short tapered snout, a small terminal mouth, minute embedded scales, a row of subtle luminous pores along the flank",
+  "form": "a slender ribbon-like body, a small pointed head, a short tapered snout, a small mouth at the front of the head, a row of subtle luminous pores along the flank",
   "fins": "a low continuous dorsal fin fusing with the tail fin, no pectoral fins",
   "markings": "a line of evenly spaced luminous points along the flank",
   "colour": "深靛底、星轨银点",
@@ -2414,7 +2414,7 @@
  "SSS24": {
   "name": "虚空鲽",
   "species": "",
-  "form": "a deep oval laterally compressed body with a low head, both eyes set close together near the upper edge, a small mouth, a curved lateral line, a short caudal peduncle",
+  "form": "a deep oval body with a low head, both eyes set close together near the upper edge, a small mouth",
   "fins": "a long dorsal fin running the full length of the body, a matching long anal fin, a rounded tail fin",
   "markings": "a scattering of sparse luminous points across the upper surface",
   "colour": "虚空墨蓝、稀疏星点",
@@ -2423,7 +2423,7 @@
  "SSS25": {
   "name": "昨日鲹",
   "species": "",
-  "form": "a fusiform body with a rounded belly, a pointed conical head, a small terminal mouth, cycloid scales, a slightly curved lateral line, a narrow compressed caudal peduncle",
+  "form": "a spindle-shaped body with a rounded belly, a pointed conical head, a small mouth at the front of the head",
   "fins": "a long dorsal fin with a low anterior lobe, a deeply forked tail fin, long sickle-shaped pectoral fins",
   "markings": "a row of small scutes along the caudal peduncle, a faint diagonal stripe on the upper flank",
   "colour": "褪色蓝灰、昨日金线",
@@ -2432,7 +2432,7 @@
  "SSS26": {
   "name": "远景鲳",
   "species": "",
-  "form": "a deep oval laterally compressed body with smooth bevelled edges, a small blunt head, a short snout, a small terminal mouth, a slender compressed caudal peduncle",
+  "form": "a deep oval body with smooth bevelled edges, a small blunt head, a short snout, a small mouth at the front of the head",
   "fins": "a long dorsal fin, a matching long anal fin, a deeply forked tail fin, long slender pectoral fins",
   "markings": "a single thin vertical band crossing the flank",
   "colour": "远景青灰、地平线白",
@@ -2441,7 +2441,7 @@
  "SSS27": {
   "name": "回响鲻",
   "species": "",
-  "form": "an elongated cylindrical body with a slightly flattened back, a small conical head, a short blunt snout, a small inferior mouth, cycloid scales, a faint incomplete lateral line, a slender caudal peduncle",
+  "form": "an elongated body with a slightly flattened back, a small conical head, a short blunt snout, a small downward-pointing mouth",
   "fins": "two separate short dorsal fins, a forked tail fin, pointed pectoral fins set high on the flank",
   "markings": "a row of faint longitudinal lines along the flank",
   "colour": "灰青底、回响银线",
@@ -2450,7 +2450,7 @@
  "SSS28": {
   "name": "初光鲻",
   "species": "",
-  "form": "an elongated cylindrical body with a slightly flattened back, a small conical head, a short blunt snout, a small inferior mouth, cycloid scales, a faint incomplete lateral line, a slender caudal peduncle",
+  "form": "an elongated body with a slightly flattened back, a small conical head, a short blunt snout, a small downward-pointing mouth",
   "fins": "two separate short dorsal fins, a forked tail fin, pointed pectoral fins set high on the flank",
   "markings": "a row of faint luminous points along the upper flank",
   "colour": "初光青白、第一道光金",
@@ -2477,7 +2477,7 @@
  "SSS31": {
   "name": "遗光鲹",
   "species": "",
-  "form": "a fusiform body with a rounded belly, a pointed conical head, a small terminal mouth, cycloid scales, a slightly curved lateral line, a narrow compressed caudal peduncle",
+  "form": "a spindle-shaped body with a rounded belly, a pointed conical head, a small mouth at the front of the head",
   "fins": "a long dorsal fin with a low anterior lobe, a deeply forked tail fin, long sickle-shaped pectoral fins",
   "markings": "a row of small scutes along the caudal peduncle, a few luminous points on the upper flank",
   "colour": "暗金灰、余光亮点",
@@ -2486,7 +2486,7 @@
  "SSS32": {
   "name": "空时鳕",
   "species": "",
-  "form": "an elongated slightly compressed body, a large head, a short blunt snout, a terminal mouth, a single chin barbel, small cycloid scales, a curved lateral line, a narrow caudal peduncle",
+  "form": "an elongated body, a large head, a short blunt snout, a mouth at the front of the head, a single chin barbel",
   "fins": "three separate dorsal fins, two separate anal fins, a slightly rounded tail fin, pointed pectoral fins",
   "markings": "a faint marbled pattern along the upper flank, sparse luminous pores on the head",
   "colour": "空青灰、虚空微光",
@@ -2495,7 +2495,7 @@
  "SSS33": {
   "name": "逆时鳗",
   "species": "",
-  "form": "a slender ribbon-like body of oval cross-section, a small pointed head, a short tapered snout, a small terminal mouth, minute embedded scales, a row of short ring marks along the flank",
+  "form": "a slender ribbon-like body, a small pointed head, a short tapered snout, a small mouth at the front of the head, a row of short ring marks along the flank",
   "fins": "a low continuous dorsal fin fusing with the tail fin, no pectoral fins",
   "markings": "a row of short concentric ring marks along the flank",
   "colour": "逆流墨青、环纹微光",
@@ -2504,7 +2504,7 @@
  "SSS34": {
   "name": "千年纪鱼",
   "species": "",
-  "form": "an oval laterally compressed body with a slightly arched back, a medium-sized head, a short blunt snout, a small terminal mouth, cycloid scales, a complete lateral line, a narrow caudal peduncle",
+  "form": "an oval body with a slightly arched back, a medium-sized head, a short blunt snout, a small mouth at the front of the head",
   "fins": "a long dorsal fin with low spines, a slightly forked tail fin, fan-shaped pectoral fins",
   "markings": "a series of thin stacked rings along the flank",
   "colour": "纪年褐、层叠年轮",
@@ -2513,7 +2513,7 @@
  "SSS35": {
   "name": "虚空旗鱼",
   "species": "",
-  "form": "an elongated fusiform body with a long slender bill, a pointed conical head, a small mouth, small embedded scales, a straight lateral line, a narrow keeled caudal peduncle",
+  "form": "an elongated spindle-shaped body with a long slender bill, a pointed conical head, a small mouth",
   "fins": "a tall sail-like dorsal fin, a deeply forked tail fin, long slender pectoral fins",
   "markings": "a row of short vertical bars along the flank",
   "colour": "虚空深蓝、星屑切面",
@@ -2522,8 +2522,8 @@
  "SSS36": {
   "name": "纪元鲟",
   "species": "",
-  "form": "an elongated cylindrical body with a flattened snout, a long pointed rostrum, a small inferior mouth, four barbels before the mouth, a row of bony scutes along the back, a short caudal peduncle",
-  "fins": "a dorsal fin set far back, a heterocercal tail fin, large pectoral fins",
+  "form": "an elongated body with a flattened snout, a long pointed rostrum, a small downward-pointing mouth, four barbels before the mouth, a row of bony scutes along the back",
+  "fins": "a dorsal fin set far back, a tail fin with a long upper lobe, large pectoral fins",
   "markings": "a row of angular scutes along the back and flank",
   "colour": "纪元灰褐、骨甲浅缘",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
@@ -2549,7 +2549,7 @@
  "SSS39": {
   "name": "回响鲷",
   "species": "",
-  "form": "a deep oval laterally compressed body with a steep forehead, a large blunt head, a small mouth, the upper jaw slightly longer than the lower, ctenoid scales, a complete lateral line, a narrow caudal peduncle",
+  "form": "a deep oval body with a steep forehead, a large blunt head, a small mouth, an upper jaw slightly longer than the lower",
   "fins": "a single long dorsal fin with low spines, a slightly forked tail fin, long pointed pectoral fins",
   "markings": "a series of nested arcs echoing across the flank",
   "colour": "回响灰褐、银白弧线",
@@ -2558,7 +2558,7 @@
  "SSS40": {
   "name": "时空褶皱·空棘鱼",
   "species": "",
-  "form": "a stout oval body with a thick rounded head, a blunt snout, a large terminal mouth, cosmoid scales, a straight lateral line, a thick fleshy caudal peduncle",
+  "form": "a stout oval body with a thick rounded head, a blunt snout, a large mouth at the front of the head",
   "fins": "a single dorsal fin, a large rounded tail fin with a central lobe, thick fleshy lobe-like pectoral fins",
   "markings": "a scattering of folded patches along the flank",
   "colour": "褶皱深橄榄、时间层叠",
@@ -2576,7 +2576,7 @@
  "SSS42": {
   "name": "残时皇带",
   "species": "",
-  "form": "a narrow ribbon-like head with a small upturned snout, a translucent domed cranium, a fan-shaped crest of soft rays rising from the nape, a chain of eroded ring segments along the flank",
+  "form": "a narrow ribbon-like head with a small upturned snout, a translucent domed head, a fan-shaped crest rising from the nape, a chain of eroded ring segments along the flank",
   "fins": "a continuous dorsal crest running the full length of the back, a pair of long oar-like pelvic fins, a tiny rounded tail fin",
   "markings": "a series of broken ring segments along the flank, a single stilled ripple line near the gill cover",
   "colour": "灰青底、锈蚀环纹",
@@ -2603,7 +2603,7 @@
  "SSS45": {
   "name": "逆空鲛",
   "species": "",
-  "form": "a slender elongated build with a strongly tapered rear, a row of broad saw-toothed teeth, five long gill slits, fused ring plates along the flank",
+  "form": "a slender elongated build with a strongly tapered rear, a row of broad saw-toothed teeth, fused ring plates along the flank",
   "fins": "a crescent-shaped tail fin with a long upper lobe, long narrow pectoral fins",
   "markings": "faint concentric growth rings along the flank, a single line of dots below the gill slits",
   "colour": "铁青底、霜白腹",
@@ -2612,7 +2612,7 @@
  "SSS46": {
   "name": "溯光鲹",
   "species": "",
-  "form": "a streamlined spindle-shaped body with a keeled belly, a small pointed head, a terminal mouth, a gently curved lateral line, small cycloid scales",
+  "form": "a streamlined spindle-shaped body with a keeled belly, a small pointed head, a mouth at the front of the head",
   "fins": "a long low dorsal fin, a deeply forked tail fin, a row of small finlets behind the dorsal and anal fins",
   "markings": "a row of evenly spaced luminous pores along the flank, faint vertical hairlines near the head",
   "colour": "暗蓝底、星屑银点",
@@ -2639,7 +2639,7 @@
  "SSS49": {
   "name": "回环鳕",
   "species": "",
-  "form": "an elongated body that curls into a gentle spiral, a rounded head, a small barbel at the chin, fine cycloid scales",
+  "form": "an elongated body that curls into a gentle spiral, a rounded head, a small barbel at the chin",
   "fins": "three separate dorsal fins, two anal fins, a rounded tail fin",
   "markings": "a loop of concentric arcs along the flank, a single dot near the gill cover",
   "colour": "青灰底、年轮褐",
@@ -2666,7 +2666,7 @@
  "SSS52": {
   "name": "时刻鲳",
   "species": "",
-  "form": "a deep oval body with a keeled belly, a small blunt head, a small terminal mouth, a short caudal peduncle",
+  "form": "a deep oval body with a keeled belly, a small blunt head, a small mouth at the front of the head",
   "fins": "a long low dorsal fin, a matching anal fin, a deeply forked tail fin, short pectoral fins",
   "markings": "a fine grid of parallel lines across the flank, a single ring near the gill cover",
   "colour": "霜银底、时分刻线",
@@ -2684,8 +2684,8 @@
  "SSS54": {
   "name": "终焉鲨",
   "species": "",
-  "form": "a heavy deep-chested build, a blunt squared snout, rows of small serrated teeth, gill slits ringed by eroded grooves",
-  "fins": "a tall triangular dorsal fin, long falcate pectoral fins, a crescent tail fin",
+  "form": "a heavy deep-chested build, a blunt squared snout, rows of small serrated teeth",
+  "fins": "a tall triangular dorsal fin, long sickle-shaped pectoral fins, a crescent tail fin",
   "markings": "worn longitudinal grooves along the flank, a broken band at the tail base",
   "colour": "焦黑底、余烬红边",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
@@ -2738,7 +2738,7 @@
  "SSS60": {
   "name": "逆熵巨鱿",
   "species": "",
-  "form": "a long tapered mantle with reversed overlapping scales, a smooth matte surface, ten arms of graded length, a pair of long filaments",
+  "form": "a long tapered mantle, a smooth matte surface, ten arms of graded length, a pair of long filaments",
   "fins": "a pair of triangular fins flaring from the mantle tip",
   "markings": "descending chevrons along the mantle, a ring of dots at the arm bases",
   "colour": "冷灰底、逆熵蓝",
@@ -2783,7 +2783,7 @@
  "SSS65": {
   "name": "逆光鳕",
   "species": "",
-  "form": "an elongated body with a slightly arched back, a moderate head, a small chin barbel, a clear lateral line",
+  "form": "an elongated body with a slightly arched back, a moderate head, a small chin barbel",
   "fins": "three dorsal fins, two anal fins, a slightly forked tail fin",
   "markings": "a row of luminous pores along the lateral line, a faint rim behind the gill cover",
   "colour": "背光墨底、逆光银",
@@ -2792,7 +2792,7 @@
  "SSS66": {
   "name": "纪年鲹",
   "species": "",
-  "form": "a streamlined spindle body with a keeled belly, a small head, a terminal mouth, small scales",
+  "form": "a streamlined spindle body with a keeled belly, a small head, a mouth at the front of the head",
   "fins": "a long low dorsal fin, a deeply forked tail fin, a row of finlets behind the fins",
   "markings": "stacked year-ring arcs along the flank, a single dot near the tail base",
   "colour": "青银底、纪年褐",
@@ -2801,7 +2801,7 @@
  "SSS67": {
   "name": "溯时鲻",
   "species": "",
-  "form": "an elongated rounded body, a broad flattened head, a small terminal mouth, a short caudal peduncle",
+  "form": "an elongated rounded body, a broad flattened head, a small mouth at the front of the head",
   "fins": "two separate dorsal fins, a forked tail fin, long pectoral fins",
   "markings": "faint longitudinal lines along the flank, a single ring behind the eye",
   "colour": "灰青底、溯痕银",
@@ -2810,7 +2810,7 @@
  "SSS68": {
   "name": "残页鲷",
   "species": "",
-  "form": "a deep oval body with a steep forehead, a small mouth, a large eye, a narrow caudal peduncle",
+  "form": "a deep oval body with a steep forehead, a small mouth, a large eye",
   "fins": "a long dorsal fin with a spiny front, a rounded tail fin, long pectoral fins",
   "markings": "irregular angular patches like torn edges, a single band near the tail base",
   "colour": "豆褐底、残页黄",
@@ -2819,7 +2819,7 @@
  "SSS69": {
   "name": "空页鲈",
   "species": "",
-  "form": "a moderately elongated body with a slightly concave forehead, a large mouth, a short snout, a gently curved lateral line",
+  "form": "a moderately elongated body with a slightly concave forehead, a large mouth, a short snout",
   "fins": "a dorsal fin with a deep notch, a slightly forked tail fin, small pectoral fins",
   "markings": "a broad blank area on the flank with faint edge lines, a single dot behind the eye",
   "colour": "素白底、空页灰",
@@ -2828,7 +2828,7 @@
  "SSS70": {
   "name": "遗忘鲳",
   "species": "",
-  "form": "a deep oval body with a keeled belly, a small blunt head, a small mouth, a short caudal peduncle",
+  "form": "a deep oval body with a keeled belly, a small blunt head, a small mouth",
   "fins": "a long low dorsal fin, a matching anal fin, a deeply forked tail fin",
   "markings": "faint fading bands along the flank, a dissolving patch behind the gill cover",
   "colour": "雾灰底、褪色银",
@@ -2837,7 +2837,7 @@
  "SSS71": {
   "name": "前尘鳉",
   "species": "",
-  "form": "a small elongated body with a flattened top, a broad rounded head, an upturned mouth, no lateral line",
+  "form": "a small elongated body with a flattened top, a broad rounded head, an upturned mouth",
   "fins": "a long dorsal fin, a rounded tail fin, short pectoral fins",
   "markings": "a band of scattered dust-like specks along the flank",
   "colour": "尘灰底、微光点",
@@ -2846,7 +2846,7 @@
  "SSS72": {
   "name": "后时鰕虎",
   "species": "",
-  "form": "a small stout body, a large blunt head, a wide mouth, fused pelvic fins forming a disc, no lateral line",
+  "form": "a small stout body, a large blunt head, a wide mouth, fused pelvic fins forming a disc",
   "fins": "two dorsal fins, a rounded tail fin, fused pelvic fins forming a sucking disc",
   "markings": "a few faint vertical bands along the flank, a single ring near the tail base",
   "colour": "砂灰底、后时青",
@@ -2873,7 +2873,7 @@
  "SSS75": {
   "name": "流年鲻",
   "species": "",
-  "form": "an elongated rounded body, a broad flat head, a small terminal mouth, a short caudal peduncle",
+  "form": "an elongated rounded body, a broad flat head, a small mouth at the front of the head",
   "fins": "two separate dorsal fins, a forked tail fin, long pectoral fins",
   "markings": "faint longitudinal lines along the flank, a row of thin rings near the gill cover",
   "colour": "青灰底、流年银",
@@ -2882,7 +2882,7 @@
  "SSS76": {
   "name": "空洞鳕",
   "species": "",
-  "form": "an elongated body with a slightly arched back, a moderate head, a small chin barbel, a clear lateral line",
+  "form": "an elongated body with a slightly arched back, a moderate head, a small chin barbel",
   "fins": "three dorsal fins, two anal fins, a slightly forked tail fin",
   "markings": "a hollow oval gap on each flank, a sparse line of dots above the lateral line",
   "colour": "虚白底、空洞黑",
@@ -2909,7 +2909,7 @@
  "SSS79": {
   "name": "溯流皇带",
   "species": "",
-  "form": "a narrow ribbon-like body, a small upturned head, a fan crest of soft rays on the nape, a chain of eroded ring segments",
+  "form": "a narrow ribbon-like body, a small upturned head, a fan crest on the nape, a chain of eroded ring segments",
   "fins": "a continuous dorsal crest along the back, long oar-like pelvic fins, a tiny tail fin",
   "markings": "broken ring segments along the flank, a single stilled ripple behind the gill cover",
   "colour": "银青底、溯流霜",
@@ -2927,7 +2927,7 @@
  "SSS81": {
   "name": "空时鲛",
   "species": "",
-  "form": "a long tapered snout on a streamlined head, narrow angular jaws lined with even needle teeth, five slim parallel gill slits, a low even keel along the flank, matte crystalline hide with crisp facet cuts",
+  "form": "a long tapered snout on a streamlined head, narrow angular jaws lined with even needle teeth, a low even keel along the flank, matte crystalline hide with crisp facet cuts",
   "fins": "a tall triangular dorsal fin, a matched pair of swept pectoral fins, a crescent tail fin with a long upper lobe",
   "markings": "a single row of evenly spaced luminous pores along the flank",
   "colour": "深靛底、冷银棱面，尾缘一线冷光",
@@ -2972,7 +2972,7 @@
  "SSS86": {
   "name": "纪元巨鲨",
   "species": "",
-  "form": "a heavy streamlined head, a long tapered snout, wide jaws lined with even triangular teeth, five long gill slits, a low keel along the flank, smooth matte hide",
+  "form": "a heavy streamlined head, a long tapered snout, wide jaws lined with even triangular teeth, a low keel along the flank, smooth matte hide",
   "fins": "a tall triangular dorsal fin, long swept pectoral fins, a crescent tail fin with a long upper lobe",
   "markings": "faint layered ridge lines banding the flanks",
   "colour": "深蓝黑底、纪元铜锈边，通体冷光",
@@ -2981,8 +2981,8 @@
  "SSS87": {
   "name": "时光巨龙",
   "species": "",
-  "form": "a serpentine body with evenly spaced dorsal spines along the ridge, a pair of swept-back head horns, two long barbels trailing from the jaw, glass-like scales in overlapping rows",
-  "fins": "a continuous low dorsal crest of thin rays, a pair of narrow pectoral fins, a long tapering tail fin",
+  "form": "a serpentine body with evenly spaced dorsal spines along the ridge, a pair of swept-back head horns, two long barbels trailing from the jaw",
+  "fins": "a continuous low dorsal crest, a pair of narrow pectoral fins, a long tapering tail fin",
   "markings": "a double row of luminous nodes down the spine",
   "colour": "墨蓝底、时光琥珀纹，脊线冷金",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
@@ -2999,8 +2999,8 @@
  "SSS89": {
   "name": "逆流皇带",
   "species": "",
-  "form": "a small pointed head, a short blunt snout, a small forward dorsal fin, a pair of long trailing pelvic-fin rays, crest rays evenly spaced and tapering toward the tail",
-  "fins": "a full-length dorsal crest of thin rays, long trailing pelvic-fin rays, a small tail fin",
+  "form": "a small pointed head, a short blunt snout, a small forward dorsal fin, a pair of long trailing pelvic fins, an evenly spaced crest tapering toward the tail",
+  "fins": "a full-length dorsal crest, long trailing pelvic fins, a small tail fin",
   "markings": "a single row of luminous pores along the flank",
   "colour": "银粉底、逆流冷光脊，全长星屑线",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
@@ -3017,7 +3017,7 @@
  "SSS91": {
   "name": "纪元龙鱼",
   "species": "",
-  "form": "a serpentine body, a row of evenly spaced dorsal spines, a crest of thin blades along the nape, a pair of short barbels under the jaw, resinous scales",
+  "form": "a serpentine body, a row of evenly spaced dorsal spines, a crest of thin blades along the nape, a pair of short barbels under the jaw",
   "fins": "a continuous low dorsal crest, a pair of narrow pectoral fins, a long tapering tail fin",
   "markings": "a row of luminous nodes along the spine, a single seam line down the flank",
   "colour": "暗青底、纪元琥珀脊，鳞缘冷金",
@@ -3035,8 +3035,8 @@
  "SSS93": {
   "name": "初源之影·混沌",
   "species": "",
-  "form": "a serpentine body carrying an uneven assembly of features, a ridge of irregular dorsal spines, twin coiled horns, mismatched scale plating along the back",
-  "fins": "a ragged dorsal crest of uneven rays, a pair of asymmetric pectoral fins",
+  "form": "a serpentine body carrying an uneven assembly of features, a ridge of irregular dorsal spines, twin coiled horns",
+  "fins": "a ragged dorsal crest, a pair of asymmetric pectoral fins",
   "markings": "scattered faceted plates along the back",
   "colour": "混沌青褐底、拼接质感，杂色棱面",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
@@ -3044,7 +3044,7 @@
  "SSS94": {
   "name": "终焉纪元·忘川",
   "species": "",
-  "form": "a long lean streamlined body, a narrow tapered snout, underslung jaws set with rows of even teeth, five long gill slits, smooth matte hide",
+  "form": "a long lean streamlined body, a narrow tapered snout, underslung jaws set with rows of even teeth, smooth matte hide",
   "fins": "a tall dorsal fin, long swept pectoral fins, a crescent tail fin with a long upper lobe",
   "markings": "a single band crossing the mid-body, a row of luminous pores along the flank",
   "colour": "忘川灰蓝底、冷潮线，牙列象牙白",
@@ -3062,7 +3062,7 @@
  "SSS96": {
   "name": "创世之鳞",
   "species": "",
-  "form": "a serpentine body armored in large overlapping faceted scales, a row of evenly spaced dorsal spines, a pair of short forward-swept horns",
+  "form": "a serpentine body, a row of evenly spaced dorsal spines, a pair of short forward-swept horns",
   "fins": "a continuous low dorsal crest, a pair of narrow pectoral fins, a long tapering tail fin",
   "markings": "overlapping scale rows across the flank, a single row of luminous nodes along the spine",
   "colour": "创世青金底、层鳞棱面，脊线冷光",
@@ -3098,7 +3098,7 @@
  "SSS100": {
   "name": "终焉之影·忘川",
   "species": "",
-  "form": "a massive deep-bodied form, a broad head with a short tapered snout, wide jaws, five long gill slits, a low keel along the flank",
+  "form": "a massive deep-bodied form, a broad head with a short tapered snout, wide jaws, a low keel along the flank",
   "fins": "a tall dorsal fin, long swept pectoral fins, a strongly curved tail fin with a long upper lobe",
   "markings": "a faint vertical band behind the gill slits",
   "colour": "终末墨蓝底、微光鳞面，尾缘冷白",
@@ -3107,7 +3107,7 @@
  "B33": {
   "name": "湖心巨鲤",
   "species": "",
-  "form": "a deep oval body with a rounded belly, a large blunt head, a small terminal mouth, two pairs of long barbels at the mouth corners, large cycloid scales",
+  "form": "a deep oval body with a rounded belly, a large blunt head, a small mouth at the front of the head, two pairs of long barbels at the mouth corners",
   "fins": "a long-based dorsal fin, a short anal fin, a large forked tail fin",
   "markings": "a line of raised scales along the flank",
   "colour": "湖心青灰底、金边大鳞，须端浅银",
@@ -3116,7 +3116,7 @@
  "B34": {
   "name": "百斤鳡王",
   "species": "",
-  "form": "a long slender pike-like body, a pointed conical head, a large terminal mouth, the lower jaw slightly protruding, rows of sharp teeth, small scales",
+  "form": "a long slender pike-like body, a pointed conical head, a large mouth at the front of the head, a lower jaw slightly protruding, sharp teeth",
   "fins": "a long dorsal fin, pointed pectoral fins, a deeply forked tail fin",
   "markings": "a faint line along the mid-flank",
   "colour": "水虎青底、背脊深纹，牙口惨白",
@@ -3125,8 +3125,8 @@
  "A46": {
   "name": "白浪之神·大青针",
   "species": "",
-  "form": "a very long slender needle-like body, jaws drawn out into a long thin beak lined with fine teeth, small set eyes, a straight lateral line",
-  "fins": "small set-back pectoral fins, a dorsal fin set far back near the tail, a slightly forked tail fin",
+  "form": "a very long slender needle-like body, jaws drawn out into a long thin beak lined with fine teeth, small set eyes",
+  "fins": "a dorsal fin set far back near the tail, a slightly forked tail fin, small set-back pectoral fins",
   "markings": "a thin line running along the flank",
   "colour": "白浪银底、背线深青，针吻冷白",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
@@ -3134,7 +3134,7 @@
  "S01": {
   "name": "深海鳕",
   "species": "",
-  "form": "an elongated body tapering to a slim tail stock, a large head, a blunt snout, a small barbel under the chin, small cycloid scales",
+  "form": "an elongated body tapering to a slim tail stock, a large head, a blunt snout, a small barbel under the chin",
   "fins": "three separate dorsal fins, two anal fins, a slightly forked tail fin",
   "markings": "a line running along the mid-flank",
   "colour": "冷灰底、腹部浅白，须端深色",
@@ -3143,7 +3143,7 @@
  "S06": {
   "name": "深海鲷",
   "species": "",
-  "form": "a laterally compressed deep body, a steep forehead, a small terminal mouth, a large eye, ctenoid scales",
+  "form": "a deep body, a steep forehead, a small mouth at the front of the head, a large eye",
   "fins": "a long dorsal fin with a distinct spiny front section, a short anal fin, a forked tail fin",
   "markings": "a small blotch at the base of the tail fin",
   "colour": "深海墨青底、背棘冷金，腹面浅灰",
@@ -3170,7 +3170,7 @@
  "S24": {
   "name": "无光鳕",
   "species": "",
-  "form": "a moderately proportioned body, a large head, a blunt snout, a small chin barbel, small scales, low sensory pores along the head",
+  "form": "a moderately proportioned body, a large head, a blunt snout, a small chin barbel, sensory pores along the head",
   "fins": "three separate dorsal fins, two anal fins, a slightly forked tail fin",
   "markings": "a line of sensory pores along the head and flank",
   "colour": "无光黑蓝底、哑光，须端深灰",
@@ -3206,7 +3206,7 @@
  "S50": {
   "name": "深海鳚",
   "species": "",
-  "form": "a slender elongated body, a blunt rounded head, a small terminal mouth, large eyes set high, no barbels, naked skin with no scales",
+  "form": "a slender elongated body, a blunt rounded head, a small mouth at the front of the head, large eyes set high, no barbels, naked skin",
   "fins": "a long continuous dorsal fin with a shallow notch, a long anal fin, small pectoral fins",
   "markings": "faint vertical bars crossing the flank",
   "colour": "海底泥青底、腹部浅，眼周深色",
@@ -3224,7 +3224,7 @@
  "S56": {
   "name": "狼牙鲷",
   "species": "",
-  "form": "a deep laterally compressed body, a large head, a moderate eye, a row of exposed fangs along both jaws, ctenoid scales",
+  "form": "a deep body, a large head, a moderate eye, a row of exposed fangs along both jaws",
   "fins": "a spiny dorsal fin with stout front spines, a short anal fin with two spines, a forked tail fin",
   "markings": "a line of pores along the head, a blotch at the base of the tail fin",
   "colour": "深鲷青底、棘缘冷金，牙列象牙白",
@@ -3233,7 +3233,7 @@
  "S57": {
   "name": "角高体金眼鲷",
   "species": "",
-  "form": "a deep diamond-shaped body, a steep forehead with a short frontal crest, a very large eye, a small terminal mouth, ctenoid scales",
+  "form": "a deep diamond-shaped body, a steep forehead with a short frontal crest, a very large eye, a small mouth at the front of the head",
   "fins": "a long spiny dorsal fin, a short anal fin, a forked tail fin",
   "markings": "a row of raised spines along the back, a spot at the base of the tail fin",
   "colour": "深海青底、大眼冷金环，背棘浅灰",
@@ -3251,7 +3251,7 @@
  "S60": {
   "name": "海沟之主·深渊巨鲨",
   "species": "",
-  "form": "a massive heavy body, a broad streamlined head with a short tapered snout, wide jaws lined with rows of triangular teeth, five long gill slits",
+  "form": "a massive heavy body, a broad streamlined head with a short tapered snout, wide jaws lined with rows of triangular teeth, five long gill openings",
   "fins": "a tall triangular dorsal fin, long swept pectoral fins, a crescent tail fin with a long upper lobe",
   "markings": "faint ridge lines banding the flanks",
   "colour": "深渊漆黑底、吸光哑面，牙列冷白",
@@ -3269,7 +3269,7 @@
  "S62": {
   "name": "海沟终焉·原始巨口鲨",
   "species": "",
-  "form": "a massive deep body, a broad head with a short tapered snout, an enormous gape mouth reaching far back, small teeth in many rows, five long gill slits",
+  "form": "a massive deep body, a broad head with a short tapered snout, an enormous mouth reaching far back, small teeth in many rows, five long gill openings",
   "fins": "a rounded dorsal fin set far back, large swept pectoral fins, a long crescent tail fin",
   "markings": "a row of luminous pores along the flank",
   "colour": "终焉墨青底、巨口冷白内衬，背脊深纹",

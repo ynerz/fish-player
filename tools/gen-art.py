@@ -799,11 +799,16 @@ def species_tag(f):
 def proportion_line(f):
     """由 `body_ratio`（≈ 体深 / 体长）生成显式比例句。返回空串表示不写。
 
-    ⚠️ 只对有躯干的体型（`TORSO_SHAPES`）成立 —— 沿用了 `form_profile()` 原有的门槛：
-       鳐是扁盘、水母没有「体深」、鳗 / 皇带是长带，用「体深占体长几分之几」描述它们
-       会拼出「a very deep rounded fish」这种错话。
+    ⚠️ **只对 `shape == "fish"` 生效**。比例句的引导词写的是「a slender elongated **fish**」，
+       所以对**非鱼**的体型用它会造成两个错误：
+       ① **类别错误** —— 章鱼 / 鱿鱼 / 水母 / 鲸 都不是鱼（实测拼出过「章鱼 = a moderately
+          slender fish」）；
+       ② **框架不成立** —— 鳐是扁盘、水母没有「体深」、鳗 / 皇带是长带，
+          「体深占体长几分之几」对它们没有意义。
+       非 `fish` 体型的鱼靠**物种名 + 已清洗的 form** 描述即可（它们的名字本身就带形态线索：
+       「鲨」「鲸」「鳐」「水母」「皇带」「章鱼」）。
     """
-    if f.get("shape", "fish") not in TORSO_SHAPES:
+    if f.get("shape", "fish") != "fish":
         return ""
     r = f.get("body_ratio")
     if not r or r <= 0:

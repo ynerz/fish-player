@@ -34,6 +34,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -202,7 +203,8 @@ TEMPLATE = u"""<!DOCTYPE html>
     <span class="stat">快捷键：1=合格　2=重出　·　点图放大　·　<span id="runState">检查本地运行器…</span></span>
   </div>
   <div id="warn"></div>
-  <div class="stat" style="margin-top:4px">图片若显示不出来：请用「项目根目录起 http 服务」的方式打开本页（<code>python -m http.server 8765</code> → <code>127.0.0.1:8765/docs/卡片评审.html</code>）。</div>
+  <div class="stat" style="margin-top:4px">图片若显示不出来：请用「项目根目录起 http 服务」的方式打开本页（<code>python -m http.server 8765</code> → <code>127.0.0.1:8765/docs/卡片评审.html</code>）。
+    想**点一下就直接重出**：双击 <code>tools\评审台.cmd</code>（起本地运行器并自动开浏览器，三种跑法都解锁）。</div>
 </header>
 <div class="grid" id="grid"></div>
 
@@ -216,8 +218,21 @@ TEMPLATE = u"""<!DOCTYPE html>
   <p id="cmds"></p>
   <div class="acts">
     <button id="cp">复制</button>
-    <button id="run" disabled>开始重出</button>
+    <button id="runWin" disabled>在窗口里开跑（推荐）</button>
+    <button id="run" disabled>后台跑</button>
     <button id="close">关闭</button>
+  </div>
+  <p style="margin-top:6px">
+    <label class="stat"><input type="checkbox" id="dryWin"> 先干跑一遍（只打印提示词、不出图，约几秒）</label>
+  </p>
+  <p>「在窗口里开跑」会**新开一个控制台窗口**跑这些卡（看得见进度、随时关窗口就停，
+     不随 AI 会话被回收）；跑完回这一页点下面那个按钮刷图。<br>
+     想「**继续补还没出过的**卡」（整批续跑、不是重出标记的这些）→
+     <button id="runLoop" disabled style="padding:2px 8px;font-size:12px">打开 gen-art-loop.cmd</button></p>
+  <div id="winNote" style="display:none;margin-top:8px;padding:8px 10px;border-radius:6px;
+       background:rgba(91,143,214,.14);border:1px solid var(--accent)">
+    <span id="winNoteTxt"></span>
+    <button id="winDone" style="margin-left:8px">我已跑完 → 刷新图片并清结论</button>
   </div>
 </dialog>
 
@@ -469,18 +484,26 @@ function api(path, opt) {
 
 function runnerNote(txt) { document.getElementById('runState').textContent = txt; }
 
-api('/api/ping').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
-  RUNNER = !!(j && j.ok);
-  var b = document.getElementById('run');
-  b.disabled = !RUNNER;
-  b.textContent = RUNNER ? '开始重出' : '开始重出（未连接运行器）';
-  runnerNote(RUNNER
-    ? '本地运行器：已连接 —— 可以直接「开始重出」'
-    : '本地运行器：未连接 —— 只能用「复制」把命令拿去别处跑');
-}).catch(function () {
-  document.getElementById('run').textContent = '开始重出（未连接运行器）';
-  runnerNote('本地运行器：未连接（静态打开时就是这样）');
-});
+/* 三种跑法都得跟着运行器在不在 —— 静态打开时**全部置灰**并说明原因，
+   否则就是「点了没反应」（这个坑 2026-10-08 已经栽过一次）。 */
+var RUN_BTNS = ['runWin', 'run', 'runLoop'];
+
+function setRunner(on) {
+  RUNNER = on;
+  RUN_BTNS.forEach(function (id) {
+    var b = document.getElementById(id);
+    b.disabled = !on;
+    if (!on) { b.title = '要在「本地运行器」里打开本页才能用（见页面顶部说明）'; }
+  });
+  document.getElementById('runWin').textContent = on ? '在窗口里开跑（推荐）' : '在窗口里开跑（未连接运行器）';
+  document.getElementById('run').textContent = on ? '后台跑' : '后台跑（未连接）';
+  runnerNote(on ? '本地运行器：已连接 —— 三种跑法都能用'
+                : '本地运行器：未连接 —— 只能「复制」命令去别处跑');
+}
+
+api('/api/ping').then(function (r) { return r.ok ? r.json() : null; })
+  .then(function (j) { setRunner(!!(j && j.ok)); })
+  .catch(function () { setRunner(false); });
 
 /* 把当前标成「重出」的收成 [{morph, ids}] 交给运行器 */
 function collectGroups() {
@@ -495,6 +518,40 @@ function collectGroups() {
               .map(function (k) { return { morph: k, ids: by[k].slice().sort() }; });
 }
 
+function markedTotal(groups) {
+  return groups.reduce(function (a, g) { return a + g.ids.length; }, 0);
+}
+
+function markedTip(groups) {
+  return groups.map(function (g) {
+    return '· ' + (SLOT_LABEL[g.morph] || g.morph) + '：' + g.ids.join(' ');
+  }).join('\\n');
+}
+
+function showWinNote(txt) {
+  document.getElementById('winNote').style.display = '';
+  document.getElementById('winNoteTxt').textContent = txt;
+}
+
+/* 刷图 = ① 加时间戳绕开缓存（否则浏览器把旧图拿出来，看着像「没重出」）
+         ② 清掉这些档的「重出」结论 —— 新图必须重新审 */
+function refreshImages() {
+  CACHE_BUST = '?t=' + Date.now();
+  DATA.forEach(function (d) {
+    if (!state[d.id]) return;
+    d.slots.forEach(function (s) { if (state[d.id][s.k] === 'bad') delete state[d.id][s.k]; });
+    if (!Object.keys(state[d.id]).length) delete state[d.id];
+  });
+  render(); save();
+}
+
+document.getElementById('winDone').onclick = function () {
+  refreshImages();
+  document.getElementById('dlgTitle').textContent = '已刷新';
+  document.getElementById('dlgTip').innerHTML = '图已按新文件重取、这些档的结论已清空 —— '
+    + '**请重新审这几张**。旧图在 <code>assets/cards/_superseded/</code> 下按本轮时间戳归档。';
+};
+
 function pollJob() {
   api('/api/job').then(function (r) { return r.json(); }).then(function (j) {
     var out = document.getElementById('out');
@@ -507,42 +564,94 @@ function pollJob() {
   }).catch(function () { setTimeout(pollJob, 2000); });
 }
 
-/* 跑完：把图刷成新的（绕开缓存）+ 清掉这些档的结论（新图要重新审） */
 function onJobDone(j) {
   if (!j.ok) return;
-  CACHE_BUST = '?t=' + Date.now();
-  DATA.forEach(function (d) {
-    if (!state[d.id]) return;
-    d.slots.forEach(function (s) { if (state[d.id][s.k] === 'bad') delete state[d.id][s.k]; });
-    if (!Object.keys(state[d.id]).length) delete state[d.id];
-  });
-  render(); save();
+  refreshImages();
   document.getElementById('dlgTitle').textContent = '重出完成';
   document.getElementById('dlgTip').innerHTML = '跑完了 ' + j.ok + ' 张（失败 ' + j.fail + '）。'
     + '页面的图已刷新、结论已清空 —— **请重新审这几张**。'
     + '旧图在 <code>assets/cards/_superseded/</code> 下按本轮时间戳归档。';
 }
 
+function postRegen(body, onOk) {
+  api('/api/regen', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then(function (r) { return r.json(); }).then(function (res) {
+    if (!res.ok) { alert('没能开跑：' + (res.msg || '未知原因')); return; }
+    onOk(res);
+  }).catch(function (e) { alert('连不上运行器：' + e); });
+}
+
+function noMark() {
+  alert('还没有把任何一张标成「重出」——先在卡片上点「重出」再来。');
+}
+
+/* ① 在窗口里开跑：新开一个**用户自己的**控制台窗口（用户口径 2026-10-08）。
+   为什么这条路更靠谱：AI 会话起的进程会随回合结束被回收（tools/gen-art-loop.cmd
+   开头那段备注就是这个结论），而生图是几十分钟量级 —— 看得见进度、能随时关掉。 */
+document.getElementById('runWin').onclick = function () {
+  var groups = collectGroups(), total = markedTotal(groups);
+  if (!total) { noMark(); return; }
+  var dry = document.getElementById('dryWin').checked;
+  if (!confirm('要在**新窗口**里' + (dry ? '干跑' : '重出') + '这 ' + total + ' 张吗？\\n\\n'
+      + markedTip(groups)
+      + '\\n\\n' + (dry ? '干跑：只打印提示词、**不出图**，几秒就完。'
+                       : '每张约 50 秒（共约 ' + Math.max(1, Math.round(total * 50 / 60)) + ' 分钟）。')
+      + '\\n旧图**不会**被覆盖，会移进 assets/cards/_superseded/<本轮时间戳>/。\\n'
+      + '窗口归你：关掉它就停，跑完的图会留下。')) return;
+  document.getElementById('out').value = '正在生成窗口脚本…';
+  postRegen({ mode: 'window', groups: groups, dry: dry }, function (res) {
+    document.getElementById('dlgTitle').textContent = dry ? '已开窗口（干跑）' : '已开窗口，正在跑…';
+    document.getElementById('dlgTip').innerHTML = dry
+      ? '窗口里只打印提示词，不会出图。看完关掉即可。'
+      : '跑到哪一张窗口里实时可见；**关掉窗口就停**。跑完回这一页点下面那个按钮刷图。';
+    document.getElementById('out').value =
+      '窗口脚本（这个文件可以双击重跑）：\\n' + res.script
+      + '\\n\\n' + (res.dry ? '（干跑模式）' : '')
+      + '下面是这批的口径 —— 与窗口里跑的是同一条命令：\\n'
+      + groups.map(function (g) {
+          return 'gen-art.py --list ' + g.ids.join(',')
+               + (g.morph === 'master' ? '' : ' --only-morph ' + g.morph);
+        }).join('\\n');
+    showWinNote(dry ? '干跑窗口已打开（不出图）——看完提示词关掉它就行。'
+                    : '窗口里在跑 ' + res.total + ' 张（约 '
+                      + Math.max(1, Math.round(res.total * 50 / 60)) + ' 分钟）。跑完回来点右边按钮。');
+    if (res.rejected && res.rejected.length) {
+      alert('有 ' + res.rejected.length + ' 项被拒（不合法的 id / 档名）：\\n' + res.rejected.join('\\n'));
+    }
+  });
+};
+
+/* ② 后台跑：服务里跑，页面轮询日志、跑完自动刷图（不用切窗口；但关掉服务窗就断） */
 document.getElementById('run').onclick = function () {
-  var groups = collectGroups();
-  var total = groups.reduce(function (a, g) { return a + g.ids.length; }, 0);
-  if (!total) { alert('还没有把任何一张标成「重出」——先在卡片上点「重出」再来。'); return; }
-  var tip = groups.map(function (g) {
-    return '· ' + (SLOT_LABEL[g.morph] || g.morph) + '：' + g.ids.join(' ');
-  }).join('\\n');
-  if (!confirm('要重出这 ' + total + ' 张吗？\\n\\n' + tip
+  var groups = collectGroups(), total = markedTotal(groups);
+  if (!total) { noMark(); return; }
+  if (!confirm('要在**后台**跑这 ' + total + ' 张吗？（不弹窗，日志显示在这里）\\n\\n'
+      + markedTip(groups)
       + '\\n\\n每张约 50 秒；旧图**不会**被覆盖，会移进 assets/cards/_superseded/<本轮时间戳>/。\\n'
-      + '跑完这些档的结论会被清掉，等你重新审。')) return;
+      + '跑完这些档的结论会被清掉，等你重新审。\\n'
+      + '⚠️ 关掉运行器窗口会把这一轮一起带走 —— 要稳就用「在窗口里开跑」。')) return;
   document.getElementById('dlgTitle').textContent = '正在重出…';
   document.getElementById('dlgTip').innerHTML = '每张约 50 秒，可以放着不管；跑完会自动刷新图片。';
   document.getElementById('out').value = '正在启动…';
-  api('/api/regen', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ groups: groups }),
-  }).then(function (r) { return r.json(); }).then(function (res) {
-    if (!res.ok) { alert('没能开跑：' + (res.msg || '未知原因')); return; }
-    pollJob();
-  }).catch(function (e) { alert('连不上运行器：' + e); });
+  postRegen({ mode: 'bg', groups: groups }, function () { pollJob(); });
+};
+
+/* ③ 打开 gen-art-loop.cmd：那是 `--skip-existing` 的**整批续跑**，
+   补的是「还没出过的」——**不会**重出你标记的这些（它们已经存在）。 */
+document.getElementById('runLoop').onclick = function () {
+  if (!confirm('打开 tools/gen-art-loop.cmd？\\n\\n'
+      + '⚠️ 它是 `--skip-existing` 的**整批续跑**：只补「**还没出过**」的卡，\\n'
+      + '不会重出你已经标记的这些（它们已经存在、会被跳过）。\\n\\n'
+      + '要重出标记的这些 → 用「在窗口里开跑」。\\n'
+      + '要顺手把整批没出完的补上 → 就是它。\\n\\n确定打开？')) return;
+  postRegen({ mode: 'loop' }, function () {
+    document.getElementById('dlgTitle').textContent = '已打开 gen-art-loop.cmd';
+    document.getElementById('dlgTip').innerHTML = '整批续跑已在**新窗口**里开始（补还没出过的卡）。'
+      + '关掉那个窗口就停。它**不会**动你标记的这些 —— 那些用左边的按钮。';
+    showWinNote('gen-art-loop.cmd 窗口已打开（整批续跑）。');
+  });
 };
 
 document.getElementById('close').onclick = function () { document.getElementById('dlg').close(); };document.getElementById('cp').onclick = function () {
@@ -609,19 +718,171 @@ def build_page(only):
     return html, len(rows)
 
 
+# ======================= 重出：命令口径 + 两种跑法 =======================
+# 用户口径 2026-10-08：「你就不能让我点击后自动打开 gen-art-loop.cmd 重新生图吗」。
+# ⇒ 页面上的按钮要能**真的把生图开起来**，而且要开在**用户自己拥有的窗口**里：
+#    `tools/gen-art-loop.cmd` 开头那段备注就是这个结论（AI 会话起的进程会随回合结束
+#    被回收），而生图是几十分钟量级 —— 看得见进度、能随时 Ctrl-C 比页面轮询踏实。
+#
+# 两种跑法共用**同一条命令口径**（`regen_argv`）：
+#   · 后台跑（`mode:"bg"`）  ：服务里开线程逐个跑子进程，页面轮询日志、跑完自动刷图
+#   · 窗口跑（`mode:"window"`）：写一个 .cmd（可双击重跑），`startfile` 开新控制台窗口
+# 口径要是分家，「页面显示的命令」和「真的跑的命令」就是两回事 —— 本项目最忌这个。
+
+MORPH_KEYS = ("master", "bright", "albino", "golden", "shiny")
+# 窗口脚本里用的 ASCII 档名 —— **不许**用 MORPH_CN 那套中文：
+#   cmd.exe 按系统 ANSI 代码页读 .cmd，中文会被拆成乱命令（`gen-art-loop.cmd` 的注释就是这条教训）。
+#   2026-10-08 我第一版真把「闪光」写进去了，被 tools/test-review-cards.py 当场逮住。
+MORPH_EN = {"master": "master(+normal)", "bright": "rainbow", "albino": "albino",
+            "golden": "golden", "shiny": "glitter"}
+# id 的真实形状就是 `[A-Z]数字`（见 fish.js），这里放宽到「字母数字下划线短横」并限长
+ID_OK = re.compile(r"^[A-Za-z0-9_-]{1,16}$")
+
+
+def regen_argv(morph, ids):
+    """一个档（可含多张）的 gen-art.py 命令行。"""
+    cmd = [sys.executable, os.path.join("tools", "gen-art.py"), "--list", ",".join(ids)]
+    if morph != "master":
+        cmd += ["--only-morph", morph]
+    return cmd
+
+
+def clean_groups(raw):
+    """把请求里的 `[{morph, ids}]` 洗成可信的 `[{"morph","ids","cmd"}]`。
+
+    🔴 **必须洗，不能信**：窗口模式下这些值会被**写进 .cmd 文件**、再交给 cmd.exe
+       以用户权限执行 —— 一个 id 里塞 `& del /f /q …` 就是命令注入。
+       页面虽然只绑回环 + 带一次性 token，但「把外部字符串拼进 shell 命令」这条路
+       本身就不该留（token 防的是别的网页，防不住这个）。
+    返回 `(groups, rejected)`：被拒的原样返回、不静默丢 —— 用户得看见自己点了什么。
+    """
+    out, bad = [], []
+    for g in (raw or []):
+        if not isinstance(g, dict):
+            bad.append(repr(g)[:40])
+            continue
+        morph = str(g.get("morph") or "master")
+        if morph not in MORPH_KEYS:
+            bad.append("morph=%s" % morph)
+            continue
+        ids = []
+        for x in (g.get("ids") or []):
+            x = str(x)
+            if ID_OK.match(x):
+                if x not in ids:
+                    ids.append(x)
+            else:
+                bad.append("id=%s" % x[:24])
+        if ids:
+            out.append({"morph": morph, "ids": ids, "cmd": regen_argv(morph, ids)})
+    return out, bad
+
+
+def build_console_script(groups, dry=False):
+    """生成一个**双击也能重跑**的 .cmd 内容。
+
+    ⚠️ 内容**全 ASCII**：cmd.exe 按系统 ANSI 代码页读 .cmd 文件，UTF-8 中文会被
+       拆成乱命令 —— 这条教训是 `tools/gen-art-loop.cmd` 用血换来的（它开头就写着）。
+       Python 那侧的中文输出不受影响（`chcp 65001` + `PYTHONUTF8=1` 两行罩着）。
+    ⚠️ 不要把 `(` `)` 之外的 `&` `|` `<` `>` 放进 echo 文本 —— 那是 cmd 的控制字符。
+    """
+    n = sum(len(g["ids"]) for g in groups)
+    L = ["@echo off",
+         "rem " + "=" * 73,
+         "rem  Re-render cards marked on the review page.",
+         "rem  Generated by tools/review-cards.py --serve -- do not hand-edit,",
+         "rem  this window is disposable (re-run it any time).",
+         "rem  Old images are NOT overwritten: they move into",
+         "rem  assets\\cards\\_superseded\\<round-timestamp>\\",
+         "rem " + "=" * 73,
+         "setlocal",
+         "chcp 65001 >nul",
+         "set PYTHONUTF8=1",
+         'cd /d "%s"' % ROOT,
+         'set "PY=%s"' % sys.executable,
+         'title re-render %d card slot%s%s'
+         % (n, "" if n == 1 else "s", " (DRY RUN)" if dry else ""),
+         "echo " + "=" * 63,
+         "echo   Re-render %d card slot%s%s"
+         % (n, "" if n == 1 else "s", "  -- DRY RUN, no image is written" if dry else ""),
+         "echo   workdir : %CD%",
+         "echo   speed   : about 60 s per image",
+         "echo   close this window to stop  --  finished images are kept",
+         "echo " + "=" * 63,
+         "echo."]
+    for i, g in enumerate(groups, 1):
+        label = MORPH_EN.get(g["morph"], g["morph"])     # ASCII（见 MORPH_EN 的说明）
+        cmd = g["cmd"] + (["--prompt-only"] if dry else [])
+        # 参数里若出现绝对路径，打印成相对 ROOT 的更短好读。
+        # 🔴 必须 try：解释器在 C:、项目在 D: —— 跨盘符时 `relpath` 直接抛 ValueError
+        #    （2026-10-08 被 tools/test-review-cards.py 当场逮住：点「在窗口里开跑」会 500）。
+        shown = []
+        for x in cmd:
+            try:
+                shown.append(os.path.relpath(x, ROOT) if os.path.isabs(x) else x)
+            except ValueError:
+                shown.append(x)
+        L.append("echo [%d/%d] %s x%d  ->  %s"
+                 % (i, len(groups), label, len(g["ids"]), ",".join(g["ids"])))
+        # `-u` 是为了让 Python 的输出**即时**刷进 cmd 窗口（不然要等缓冲满）
+        L.append('"%PY%" -u ' + " ".join('"%s"' % c if " " in c else c for c in shown[1:]))
+        L.append("echo   exit=%ERRORLEVEL%")
+        L.append("echo.")
+    L += ["echo " + "=" * 63,
+          "echo   Done.  images : assets\\cards\\",
+          "echo          ledger : assets\\cards\\manifest.json",
+          "echo          old    : assets\\cards\\_superseded\\ (by round)",
+          "echo   back on the review page: click the refresh button --",
+          "echo   it reloads the new images and clears those verdicts.",
+          "echo " + "=" * 63,
+          "pause"]
+    return "\r\n".join(L) + "\r\n"
+
+
+def launch_console(script):
+    """用一个**用户自己的新控制台窗口**跑脚本（等价于双击它）。
+
+    为什么不是后台 Popen：会话起的进程会随回合结束被回收（gen-art-loop.cmd 的备注），
+    而且那样用户看不见进度、也没法等它跑完再看。
+    ⚠️ 测试钩子：环境变量 `REVIEW_NO_LAUNCH=1` 时只写脚本不开窗口
+       —— 否则「开窗口」这条路根本没法自动化验证（会真的弹窗、还要 pause）。
+    """
+    if os.environ.get("REVIEW_NO_LAUNCH"):
+        print("  （REVIEW_NO_LAUNCH=1：只生成脚本，不开窗口）")
+        return False
+    try:
+        os.startfile(script)                      # Windows：ShellExecute，起新控制台
+    except AttributeError:                        # 非 Windows 兜底（本工具只在 Windows 用）
+        subprocess.Popen(["cmd", "/c", "start", "", script], cwd=ROOT)
+    return True
+
+
+def write_console_script(groups, dry=False):
+    """把窗口脚本写到 `_tmp/`（不会进版本库）并返回路径。"""
+    tmpdir = os.path.join(ROOT, "_tmp")
+    if not os.path.isdir(tmpdir):
+        os.makedirs(tmpdir)
+    path = os.path.join(tmpdir, "regen-%s.cmd" % time.strftime("%Y%m%d-%H%M%S"))
+    io.open(path, "w", encoding="ascii", newline="\r\n").write(
+        build_console_script(groups, dry))
+    return path
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=os.path.join(ROOT, "docs", "卡片评审.html"))
     ap.add_argument("--only", default="", help="只列这些 id（逗号分隔）")
     ap.add_argument("--serve", action="store_true",
-                    help="起**本地运行器**：页面上能直接「开始重出」（真的跑 gen-art.py）")
+                    help="起**本地运行器**：页面上能直接「重出」（真的跑 gen-art.py）")
     ap.add_argument("--port", type=int, default=8770, help="--serve 的端口（只绑 127.0.0.1）")
+    ap.add_argument("--open", action="store_true",
+                    help="--serve 起来后自动用默认浏览器打开本页（给「双击就能用」的启动器配的）")
     args = ap.parse_args()
 
     only = set(x.strip() for x in args.only.split(",") if x.strip()) if args.only else None
 
     if args.serve:
-        serve(args.port, only)
+        serve(args.port, only, open_browser=args.open)
         return
 
     html, n = build_page(only)
@@ -629,22 +890,28 @@ def main():
     print("评审台已写出：%s" % args.out)
     print("  卡片 %d 张（已出图的鱼）；形态描述与拉丁名一并嵌入" % n)
     print("  ⚠️ 静态打开**不能**在页里直接重出（浏览器跑不了 python）。")
-    print("     要能直接跑：python tools/review-cards.py --serve → 开 http://127.0.0.1:8770/")
+    print("     要能直接跑：双击 tools\\评审台.cmd，或 python tools/review-cards.py --serve --open")
 
 
-def serve(port, only):
+def serve(port, only, open_browser=False):
     """本地运行器：把评审页发出去，并开一个**能真的跑重出**的口子。
 
     为什么需要它（用户口径 2026-10-08：「导出重出清单时，它自己能直接跑起来」）：
       评审页是静态 HTML，浏览器里**跑不了 python**。所以给一个只绑本机回环的小服务：
         GET  /            → 评审页（内存里现拼，把 token 嵌进去）
         GET  /assets/...  → 直接喂卡的图（不用再另开一个 http.server）
-        GET  /api/ping    → 运行器在不在（页面据此启用「开始重出」）
+        GET  /api/ping    → 运行器在不在（页面据此启用按钮）
         GET  /api/job     → 当前任务状态 + 日志尾部（页面轮询）
-        POST /api/regen   → 真的开跑（后台线程，逐档跑 gen-art.py 子进程）
+        POST /api/regen   → 真的开跑，三种 mode：
+                            · `bg`     ：后台线程逐档跑子进程（页面轮询日志、跑完自动刷图）
+                            · `window` ：写一个 .cmd + `startfile` 开**新控制台窗口**跑
+                                         （用户口径 2026-10-08：「点击后自动打开 … 重新生图」）
+                            · `loop`   ：开他本来的 `tools/gen-art-loop.cmd`（整批续跑）
 
     ⚠️ 安全：**只绑 127.0.0.1**，且 `/api/regen` 要带页面内嵌的一次性 token ——
-       否则本机任意网页都能往这里 POST、触发跑命令。
+       否则本机任意网页都能往这里 POST、触发跑命令。**另外**请求里的 id / 档名会被
+       写进 .cmd 再交给 cmd.exe 执行 ⇒ 一律过 `clean_groups()` 白名单（token 防的是
+       别的网页，防不住命令注入）。
     ⚠️ 出图是**逐个跑子进程**（不 import 进来）：失败只是一个子进程非 0 退出，不会把服务带崩。
     """
     import http.server, socketserver, threading, uuid
@@ -657,13 +924,8 @@ def serve(port, only):
     def worker(groups):
         try:
             for g in groups:
-                morph = g.get("morph") or "master"
-                ids = [str(x) for x in (g.get("ids") or [])]
-                if not ids:
-                    continue
-                cmd = [sys.executable, os.path.join("tools", "gen-art.py"), "--list", ",".join(ids)]
-                if morph != "master":
-                    cmd += ["--only-morph", morph]
+                morph, ids = g["morph"], g["ids"]
+                cmd = g["cmd"]                    # 与「窗口跑」共用同一份口径（见 regen_argv）
                 job["cur"] = "%s ×%d" % (morph, len(ids))
                 job["log"].append("$ " + " ".join(cmd))
                 try:
@@ -725,17 +987,45 @@ def serve(port, only):
             try:
                 n = int(self.headers.get("Content-Length") or 0)
                 body = json.loads(self.rfile.read(n) or b"{}")
-                groups = [g for g in (body.get("groups") or []) if g.get("ids")]
             except Exception as e:
                 return self._send(400, json.dumps({"ok": False, "msg": "body 读不出来：%s" % e}))
+
+            mode = str(body.get("mode") or "bg")
+
+            # ---- 路 A：开用户自己的 gen-art-loop.cmd 窗口（用户点名要的那条）----
+            # ⚠️ 语义要讲清楚：那是 `--skip-existing` 的**续跑**，补的是「还没出过的」，
+            #    不会重出已经存在的卡 —— 所以它**不是**「重出我标记的这些」。
+            if mode == "loop":
+                loop = os.path.join(ROOT, "tools", "gen-art-loop.cmd")
+                if not os.path.exists(loop):
+                    return self._send(404, json.dumps({"ok": False, "msg": "找不到 tools/gen-art-loop.cmd"}))
+                launched = launch_console(loop)
+                return self._send(200, json.dumps(
+                    {"ok": True, "mode": "loop", "launched": launched, "script": loop}))
+
+            groups, rejected = clean_groups(body.get("groups"))
             if not groups:
-                return self._send(400, json.dumps({"ok": False, "msg": "没有要重出的"}))
+                return self._send(400, json.dumps(
+                    {"ok": False, "msg": "没有要重出的（或参数不合法）", "rejected": rejected[:5]}))
+
+            # ---- 路 B：写成 .cmd，开新控制台窗口跑（可见、可 Ctrl-C、不随会话回收）----
+            if mode == "window":
+                dry = bool(body.get("dry"))
+                script = write_console_script(groups, dry)
+                launched = launch_console(script)
+                return self._send(200, json.dumps(
+                    {"ok": True, "mode": "window", "launched": launched, "dry": dry,
+                     "script": script,
+                     "total": sum(len(g["ids"]) for g in groups),
+                     "rejected": rejected[:5]}))
+
+            # ---- 路 C：后台跑（老路）：服务里开线程逐档跑，页面轮询日志 ----
             with lock:
                 job.update({"running": True, "cur": "排队中", "log": [], "done": 0,
                             "ok": 0, "fail": 0,
                             "total": sum(len(g["ids"]) for g in groups)})
             threading.Thread(target=worker, args=(groups,), daemon=True).start()
-            return self._send(200, json.dumps({"ok": True, "total": job["total"]}))
+            return self._send(200, json.dumps({"ok": True, "mode": "bg", "total": job["total"]}))
 
     # 开机自检：拿 `--stale` 试跑一次 gen-art.py（**不联网、不出图**），
     # 把「解释器不对 / 管线坏了」在第一次重出**之前**就告诉人。
@@ -752,10 +1042,22 @@ def serve(port, only):
 
     socketserver.ThreadingTCPServer.allow_reuse_address = True
     with socketserver.ThreadingTCPServer(("127.0.0.1", port), Handler) as httpd:
-        print("评审台运行器已启动：http://127.0.0.1:%d/" % port)
-        print("   · 标记「重出」后点「开始重出」就会真的跑（逐张约 50 秒）")
+        url = "http://127.0.0.1:%d/" % port
+        print("评审台运行器已启动：%s" % url)
+        print("   · 标记「重出」后点按钮就会真的跑（逐张约 50 秒）")
+        print("   · 「在窗口里开跑」= 新开一个你自己的控制台窗口（可关窗口停、不随会话回收）")
+        print("   · 「打开 gen-art-loop.cmd」= 整批续跑（补还没出过的卡，不是重出你标记的）")
         print("   · 旧图不会被覆盖：移进 assets/cards/_superseded/<本轮时间戳>/")
         print("   · 只绑本机回环；Ctrl-C 退出")
+        if open_browser:
+            # 服务**已经 bind 好**再开浏览器 —— 否则页面先到、`/api/ping` 探不到运行器，
+            # 三个按钮全灰，用户以为「点了没用」（就是 2026-10-08 那个报障的形状）。
+            try:
+                import webbrowser
+                webbrowser.open(url)
+                print("   · 已用默认浏览器打开本页")
+            except Exception as e:
+                print("   · 自动开浏览器失败（%s）—— 手动开 %s 即可" % (e, url))
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:

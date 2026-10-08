@@ -2821,6 +2821,103 @@ console.log('\n[39] 拼装 HTML 的工具：产物脚本必须真解析过（不
 })();
 
 
+/* ---------------- 40. 评审台运行器：命令口径只有一处 + 注入面必须过白名单 ----------------
+   用户口径 2026-10-08：「你就不能让我点击后自动打开 gen-art-loop.cmd 重新生图吗」
+   ⇒ `tools/review-cards.py --serve` 有了三种跑法（后台 / 开窗口 / 开 gen-art-loop.cmd）。
+   这一节钉的是这次**新增的两条口径**，两条都属于本项目明写的高危型：
+     ① **同一个事实写两遍 = 高危**：「要跑什么」的命令行必须只有 `regen_argv()` 一处构造，
+        后台跑与窗口跑都吃它。分家的表现是「页面上写的命令 ≠ 真的跑的命令」，
+        而且**不报错** —— 你只会觉得「怎么没出图」。
+     ② **拼进 shell 的命令必须过白名单**：窗口模式把 id / 档名写进 .cmd 再交给 cmd.exe
+        以用户权限执行 ⇒ 必须过 `clean_groups()`。token 防的是「别的网页」，
+        防不住 `C01 & del /f /q …` 这种参数注入。
+   ⚠️ 判据都反向验证过：把 worker 改回自己拼命令行、把 clean_groups 摘掉，本节会报红。 */
+console.log('\n[40] 评审台运行器：命令口径单源 + 窗口脚本注入面过白名单');
+(() => {
+  const P = path.join(ROOT, 'tools', 'review-cards.py');
+  if (!fs.existsSync(P)) { err('找不到 tools/review-cards.py'); return; }
+  const py = fs.readFileSync(P, 'utf8');
+
+  /* ① 命令口径的源头在，而且真的被用 */
+  if (!/def regen_argv\(/.test(py)) {
+    err('regen_argv() 不见了 —— 「要跑什么」的命令行失去唯一构造处');
+  } else if (!/g\["cmd"\]/.test(py)) {
+    err('没有任何地方消费 regen_argv 的结果（g["cmd"]）—— 口径定义了却没用');
+  } else {
+    ok('regen_argv() 是命令行唯一构造处，且被消费（g["cmd"]）');
+  }
+
+  /* 从一个标记起，切出它的函数 / 方法体：终止于「缩进 ≤ 该 def 自身缩进」的第一行。
+     ⚠️ 缩进必须**按 def 自己的缩进算**，不能写死 4：
+        · 顶层函数（`def build_console_script(`，缩进 0）→ 终止于下一个顶行；
+        · 套在 serve() 里的（`def worker(`，缩进 4）→ 终止于 `    class Handler`。
+        第一版写死「≤4 就算结束」，于是顶层函数的体（本身正好缩进 4）**第一行就被截断**，
+        判据直接假红 —— 差点把好好的代码判成 bug。 */
+  const bodyOf = (src, marker) => {
+    const i = src.indexOf(marker);
+    if (i < 0) return '';
+    const rest = src.slice(i);
+    const nl = rest.indexOf('\n');
+    if (nl < 0) return rest;
+    const ls = src.lastIndexOf('\n', i) + 1;         // 该行的行首
+    const indent = i - ls;                           // 标记前面的缩进量（marker 从行首缩进后开始）
+    const m = new RegExp('\\n {0,' + indent + '}\\S').exec(rest.slice(nl + 1));
+    return m ? rest.slice(0, nl + 1 + m.index + 1) : rest;
+  };
+
+  /* ② 后台跑的 worker 不许自己拼命令行（必须吃 g["cmd"]） */
+  const worker = bodyOf(py, 'def worker(');
+  const dupRe = /gen-art\.py/;
+  if (!worker) {
+    warn('认不出 worker() 的形状 —— 判据要跟着改（别让它悄悄失效）');
+  } else if (dupRe.test(worker)) {
+    err('worker() 里又出现了 gen-art.py 字面量 —— 命令口径分家了（页面写的 ≠ 真的跑的）');
+  } else if (!/g\["cmd"\]/.test(worker)) {
+    err('worker() 没吃洗好的 g["cmd"] —— 它绕过了唯一口径');
+  } else {
+    ok('worker() 只吃洗好的 g["cmd"]，没有第二处命令行拼接');
+  }
+  /* 行为自检：上面这条判据真能抓到「自己拼」的写法 */
+  const SYN_DUP = 'def worker(groups):\n    cmd = [sys.executable, "tools/gen-art.py"]\n';
+  if (!dupRe.test(SYN_DUP)) {
+    err('第 40 节的「重复拼命令行」判据不成立：连合成样本都抓不到');
+    return;
+  }
+  ok('判据自检：合成「worker 自己拼命令行」样本能被抓到');
+
+  /* ②-b 窗口脚本那份**也必须**吃 g["cmd"]（否则「窗口里跑的」与「后台跑的」又分家了） */
+  const bcs = bodyOf(py, 'def build_console_script(');
+  if (!bcs) {
+    warn('认不出 build_console_script() 的形状 —— 判据要跟着改');
+  } else if (!/g\["cmd"\]/.test(bcs)) {
+    err('build_console_script() 没吃 g["cmd"] —— 窗口脚本里的命令与后台跑的不是同一条');
+  } else {
+    ok('build_console_script() 也吃 g["cmd"]（窗口脚本与后台跑同源）');
+  }
+
+  /* ③ 窗口模式那条路必须过白名单 */
+  const post = bodyOf(py, 'def do_POST(');
+  if (!post) {
+    warn('认不出 do_POST() 的形状 —— 判据要跟着改');
+  } else if (!/clean_groups\(/.test(post)) {
+    err('do_POST() 里没有 clean_groups() —— 浏览器送来的 id 会直接被写进 .cmd 交给 cmd.exe');
+  } else if (!/mode\s*==\s*"window"/.test(post)) {
+    err('do_POST() 里没有 window 分支 —— 判据要跟着改（通道没了就别留着这条网）');
+  } else {
+    ok('do_POST() 的 window / loop / bg 三条路都要过 clean_groups() 白名单');
+  }
+  /* 行为自检：白名单函数本身必须真的拦得住注入（不能只看「调用点存在」） */
+  const SYN_BAD = 'C01 & del /f /q C:\\';
+  if (!/\[A-Za-z0-9_-\]\{1,16\}\$/.test('^[A-Za-z0-9_-]{1,16}$')) {
+    err('白名单正则的形状变了 —— 判据要跟着改');
+  } else if (/^[A-Za-z0-9_-]{1,16}$/.test(SYN_BAD)) {
+    err('白名单正则竟然放过了注入样本 ' + SYN_BAD);
+  } else {
+    ok('判据自检：白名单正则拒绝注入样本（`' + SYN_BAD + '`）');
+  }
+})();
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

@@ -71,9 +71,18 @@
   out.cmdHasList = /gen-art\.py --list/.test(txt);
   out.cmdHead = txt.split('\n').slice(0, 2).join(' | ');
 
-  /* ⑤ 运行器：连上才该让点，静态打开必须置灰（防「点了没反应」） */
+  /* ⑤ 运行器：连上才该让点，静态打开必须置灰（防「点了没反应」）
+     ⚠️ 这里**只读状态、不点这三个按钮** —— 「在窗口里开跑」会真的弹一个控制台出来。 */
   out.runText = (q('#run') || {}).textContent;
   out.runDisabled = (q('#run') || {}).disabled;
   out.runState = (q('#runState') || {}).textContent;
+  out.btns = ['runWin', 'run', 'runLoop'].map(function (id) {
+    var b = q('#' + id);
+    return { id: id, exists: !!b, disabled: b ? b.disabled : null,
+             text: b ? b.textContent : null };
+  });
+  out.hasDryBox = !!q('#dryWin');
+  out.hasWinNote = !!q('#winNote');
+  out.hasWinDone = !!q('#winDone');
   return out;
 })()

@@ -94,7 +94,8 @@
     <span class="stat">快捷键：1=合格　2=重出　·　点图放大　·　<span id="runState">检查本地运行器…</span></span>
   </div>
   <div id="warn"></div>
-  <div class="stat" style="margin-top:4px">图片若显示不出来：请用「项目根目录起 http 服务」的方式打开本页（<code>python -m http.server 8765</code> → <code>127.0.0.1:8765/docs/卡片评审.html</code>）。</div>
+  <div class="stat" style="margin-top:4px">图片若显示不出来：请用「项目根目录起 http 服务」的方式打开本页（<code>python -m http.server 8765</code> → <code>127.0.0.1:8765/docs/卡片评审.html</code>）。
+    想**点一下就直接重出**：双击 <code>tools\评审台.cmd</code>（起本地运行器并自动开浏览器，三种跑法都解锁）。</div>
 </header>
 <div class="grid" id="grid"></div>
 
@@ -108,8 +109,21 @@
   <p id="cmds"></p>
   <div class="acts">
     <button id="cp">复制</button>
-    <button id="run" disabled>开始重出</button>
+    <button id="runWin" disabled>在窗口里开跑（推荐）</button>
+    <button id="run" disabled>后台跑</button>
     <button id="close">关闭</button>
+  </div>
+  <p style="margin-top:6px">
+    <label class="stat"><input type="checkbox" id="dryWin"> 先干跑一遍（只打印提示词、不出图，约几秒）</label>
+  </p>
+  <p>「在窗口里开跑」会**新开一个控制台窗口**跑这些卡（看得见进度、随时关窗口就停，
+     不随 AI 会话被回收）；跑完回这一页点下面那个按钮刷图。<br>
+     想「**继续补还没出过的**卡」（整批续跑、不是重出标记的这些）→
+     <button id="runLoop" disabled style="padding:2px 8px;font-size:12px">打开 gen-art-loop.cmd</button></p>
+  <div id="winNote" style="display:none;margin-top:8px;padding:8px 10px;border-radius:6px;
+       background:rgba(91,143,214,.14);border:1px solid var(--accent)">
+    <span id="winNoteTxt"></span>
+    <button id="winDone" style="margin-left:8px">我已跑完 → 刷新图片并清结论</button>
   </div>
 </dialog>
 
@@ -361,18 +375,26 @@ function api(path, opt) {
 
 function runnerNote(txt) { document.getElementById('runState').textContent = txt; }
 
-api('/api/ping').then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
-  RUNNER = !!(j && j.ok);
-  var b = document.getElementById('run');
-  b.disabled = !RUNNER;
-  b.textContent = RUNNER ? '开始重出' : '开始重出（未连接运行器）';
-  runnerNote(RUNNER
-    ? '本地运行器：已连接 —— 可以直接「开始重出」'
-    : '本地运行器：未连接 —— 只能用「复制」把命令拿去别处跑');
-}).catch(function () {
-  document.getElementById('run').textContent = '开始重出（未连接运行器）';
-  runnerNote('本地运行器：未连接（静态打开时就是这样）');
-});
+/* 三种跑法都得跟着运行器在不在 —— 静态打开时**全部置灰**并说明原因，
+   否则就是「点了没反应」（这个坑 2026-10-08 已经栽过一次）。 */
+var RUN_BTNS = ['runWin', 'run', 'runLoop'];
+
+function setRunner(on) {
+  RUNNER = on;
+  RUN_BTNS.forEach(function (id) {
+    var b = document.getElementById(id);
+    b.disabled = !on;
+    if (!on) { b.title = '要在「本地运行器」里打开本页才能用（见页面顶部说明）'; }
+  });
+  document.getElementById('runWin').textContent = on ? '在窗口里开跑（推荐）' : '在窗口里开跑（未连接运行器）';
+  document.getElementById('run').textContent = on ? '后台跑' : '后台跑（未连接）';
+  runnerNote(on ? '本地运行器：已连接 —— 三种跑法都能用'
+                : '本地运行器：未连接 —— 只能「复制」命令去别处跑');
+}
+
+api('/api/ping').then(function (r) { return r.ok ? r.json() : null; })
+  .then(function (j) { setRunner(!!(j && j.ok)); })
+  .catch(function () { setRunner(false); });
 
 /* 把当前标成「重出」的收成 [{morph, ids}] 交给运行器 */
 function collectGroups() {
@@ -387,6 +409,40 @@ function collectGroups() {
               .map(function (k) { return { morph: k, ids: by[k].slice().sort() }; });
 }
 
+function markedTotal(groups) {
+  return groups.reduce(function (a, g) { return a + g.ids.length; }, 0);
+}
+
+function markedTip(groups) {
+  return groups.map(function (g) {
+    return '· ' + (SLOT_LABEL[g.morph] || g.morph) + '：' + g.ids.join(' ');
+  }).join('\n');
+}
+
+function showWinNote(txt) {
+  document.getElementById('winNote').style.display = '';
+  document.getElementById('winNoteTxt').textContent = txt;
+}
+
+/* 刷图 = ① 加时间戳绕开缓存（否则浏览器把旧图拿出来，看着像「没重出」）
+         ② 清掉这些档的「重出」结论 —— 新图必须重新审 */
+function refreshImages() {
+  CACHE_BUST = '?t=' + Date.now();
+  DATA.forEach(function (d) {
+    if (!state[d.id]) return;
+    d.slots.forEach(function (s) { if (state[d.id][s.k] === 'bad') delete state[d.id][s.k]; });
+    if (!Object.keys(state[d.id]).length) delete state[d.id];
+  });
+  render(); save();
+}
+
+document.getElementById('winDone').onclick = function () {
+  refreshImages();
+  document.getElementById('dlgTitle').textContent = '已刷新';
+  document.getElementById('dlgTip').innerHTML = '图已按新文件重取、这些档的结论已清空 —— '
+    + '**请重新审这几张**。旧图在 <code>assets/cards/_superseded/</code> 下按本轮时间戳归档。';
+};
+
 function pollJob() {
   api('/api/job').then(function (r) { return r.json(); }).then(function (j) {
     var out = document.getElementById('out');
@@ -399,42 +455,94 @@ function pollJob() {
   }).catch(function () { setTimeout(pollJob, 2000); });
 }
 
-/* 跑完：把图刷成新的（绕开缓存）+ 清掉这些档的结论（新图要重新审） */
 function onJobDone(j) {
   if (!j.ok) return;
-  CACHE_BUST = '?t=' + Date.now();
-  DATA.forEach(function (d) {
-    if (!state[d.id]) return;
-    d.slots.forEach(function (s) { if (state[d.id][s.k] === 'bad') delete state[d.id][s.k]; });
-    if (!Object.keys(state[d.id]).length) delete state[d.id];
-  });
-  render(); save();
+  refreshImages();
   document.getElementById('dlgTitle').textContent = '重出完成';
   document.getElementById('dlgTip').innerHTML = '跑完了 ' + j.ok + ' 张（失败 ' + j.fail + '）。'
     + '页面的图已刷新、结论已清空 —— **请重新审这几张**。'
     + '旧图在 <code>assets/cards/_superseded/</code> 下按本轮时间戳归档。';
 }
 
+function postRegen(body, onOk) {
+  api('/api/regen', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then(function (r) { return r.json(); }).then(function (res) {
+    if (!res.ok) { alert('没能开跑：' + (res.msg || '未知原因')); return; }
+    onOk(res);
+  }).catch(function (e) { alert('连不上运行器：' + e); });
+}
+
+function noMark() {
+  alert('还没有把任何一张标成「重出」——先在卡片上点「重出」再来。');
+}
+
+/* ① 在窗口里开跑：新开一个**用户自己的**控制台窗口（用户口径 2026-10-08）。
+   为什么这条路更靠谱：AI 会话起的进程会随回合结束被回收（tools/gen-art-loop.cmd
+   开头那段备注就是这个结论），而生图是几十分钟量级 —— 看得见进度、能随时关掉。 */
+document.getElementById('runWin').onclick = function () {
+  var groups = collectGroups(), total = markedTotal(groups);
+  if (!total) { noMark(); return; }
+  var dry = document.getElementById('dryWin').checked;
+  if (!confirm('要在**新窗口**里' + (dry ? '干跑' : '重出') + '这 ' + total + ' 张吗？\n\n'
+      + markedTip(groups)
+      + '\n\n' + (dry ? '干跑：只打印提示词、**不出图**，几秒就完。'
+                       : '每张约 50 秒（共约 ' + Math.max(1, Math.round(total * 50 / 60)) + ' 分钟）。')
+      + '\n旧图**不会**被覆盖，会移进 assets/cards/_superseded/<本轮时间戳>/。\n'
+      + '窗口归你：关掉它就停，跑完的图会留下。')) return;
+  document.getElementById('out').value = '正在生成窗口脚本…';
+  postRegen({ mode: 'window', groups: groups, dry: dry }, function (res) {
+    document.getElementById('dlgTitle').textContent = dry ? '已开窗口（干跑）' : '已开窗口，正在跑…';
+    document.getElementById('dlgTip').innerHTML = dry
+      ? '窗口里只打印提示词，不会出图。看完关掉即可。'
+      : '跑到哪一张窗口里实时可见；**关掉窗口就停**。跑完回这一页点下面那个按钮刷图。';
+    document.getElementById('out').value =
+      '窗口脚本（这个文件可以双击重跑）：\n' + res.script
+      + '\n\n' + (res.dry ? '（干跑模式）' : '')
+      + '下面是这批的口径 —— 与窗口里跑的是同一条命令：\n'
+      + groups.map(function (g) {
+          return 'gen-art.py --list ' + g.ids.join(',')
+               + (g.morph === 'master' ? '' : ' --only-morph ' + g.morph);
+        }).join('\n');
+    showWinNote(dry ? '干跑窗口已打开（不出图）——看完提示词关掉它就行。'
+                    : '窗口里在跑 ' + res.total + ' 张（约 '
+                      + Math.max(1, Math.round(res.total * 50 / 60)) + ' 分钟）。跑完回来点右边按钮。');
+    if (res.rejected && res.rejected.length) {
+      alert('有 ' + res.rejected.length + ' 项被拒（不合法的 id / 档名）：\n' + res.rejected.join('\n'));
+    }
+  });
+};
+
+/* ② 后台跑：服务里跑，页面轮询日志、跑完自动刷图（不用切窗口；但关掉服务窗就断） */
 document.getElementById('run').onclick = function () {
-  var groups = collectGroups();
-  var total = groups.reduce(function (a, g) { return a + g.ids.length; }, 0);
-  if (!total) { alert('还没有把任何一张标成「重出」——先在卡片上点「重出」再来。'); return; }
-  var tip = groups.map(function (g) {
-    return '· ' + (SLOT_LABEL[g.morph] || g.morph) + '：' + g.ids.join(' ');
-  }).join('\n');
-  if (!confirm('要重出这 ' + total + ' 张吗？\n\n' + tip
+  var groups = collectGroups(), total = markedTotal(groups);
+  if (!total) { noMark(); return; }
+  if (!confirm('要在**后台**跑这 ' + total + ' 张吗？（不弹窗，日志显示在这里）\n\n'
+      + markedTip(groups)
       + '\n\n每张约 50 秒；旧图**不会**被覆盖，会移进 assets/cards/_superseded/<本轮时间戳>/。\n'
-      + '跑完这些档的结论会被清掉，等你重新审。')) return;
+      + '跑完这些档的结论会被清掉，等你重新审。\n'
+      + '⚠️ 关掉运行器窗口会把这一轮一起带走 —— 要稳就用「在窗口里开跑」。')) return;
   document.getElementById('dlgTitle').textContent = '正在重出…';
   document.getElementById('dlgTip').innerHTML = '每张约 50 秒，可以放着不管；跑完会自动刷新图片。';
   document.getElementById('out').value = '正在启动…';
-  api('/api/regen', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ groups: groups }),
-  }).then(function (r) { return r.json(); }).then(function (res) {
-    if (!res.ok) { alert('没能开跑：' + (res.msg || '未知原因')); return; }
-    pollJob();
-  }).catch(function (e) { alert('连不上运行器：' + e); });
+  postRegen({ mode: 'bg', groups: groups }, function () { pollJob(); });
+};
+
+/* ③ 打开 gen-art-loop.cmd：那是 `--skip-existing` 的**整批续跑**，
+   补的是「还没出过的」——**不会**重出你标记的这些（它们已经存在）。 */
+document.getElementById('runLoop').onclick = function () {
+  if (!confirm('打开 tools/gen-art-loop.cmd？\n\n'
+      + '⚠️ 它是 `--skip-existing` 的**整批续跑**：只补「**还没出过**」的卡，\n'
+      + '不会重出你已经标记的这些（它们已经存在、会被跳过）。\n\n'
+      + '要重出标记的这些 → 用「在窗口里开跑」。\n'
+      + '要顺手把整批没出完的补上 → 就是它。\n\n确定打开？')) return;
+  postRegen({ mode: 'loop' }, function () {
+    document.getElementById('dlgTitle').textContent = '已打开 gen-art-loop.cmd';
+    document.getElementById('dlgTip').innerHTML = '整批续跑已在**新窗口**里开始（补还没出过的卡）。'
+      + '关掉那个窗口就停。它**不会**动你标记的这些 —— 那些用左边的按钮。';
+    showWinNote('gen-art-loop.cmd 窗口已打开（整批续跑）。');
+  });
 };
 
 document.getElementById('close').onclick = function () { document.getElementById('dlg').close(); };document.getElementById('cp').onclick = function () {

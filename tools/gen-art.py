@@ -755,15 +755,46 @@ def body_hint_always(f):
     return ""
 
 
+# —— 物种名进提示词（2026-10-08 用户拍板：「物种名进提示词」）——
+#   为什么：在此之前提示词里**完全没有生物名**（中文名与拉丁名都不进，实测确认），
+#   模型只知道「一条鱼」而不知道是**哪一种** —— 于是「鲢鱼 / 沙丁鱼」都只能画成一条普通鱼。
+#   加一个名字能直接调出模型对物种的先验知识，**比再加三个形容词有效得多**。
+#   代价：名字是中文（Qwen-Image 是双语的，认）；180 条虚构名（SS/SSS）对模型无意义，
+#   但无害 —— 只是没有增益，不会画错。
+#   `off` / `cn` / `cn_latin` 三挡**只用于 A/B 对拍**（见 `docs/images/name-ab/`），
+#   对拍定稿后正式出图固定用 `cn_latin`。
+NAME_MODE = "cn_latin"
+
+
+def species_tag(f):
+    """提示词里的物种名标签（口径见 NAME_MODE）。返回空串表示不加名字。
+
+    ⚠️ 名字里可能带**游戏造名前缀**：26 条带 `·`（如「海沟幽灵·大王乌贼」）。
+    只取 `·` 之后的部分 —— 否则「海沟幽灵」这四个字会被模型当成画面内容画进去。
+    """
+    if NAME_MODE == "off":
+        return ""
+    name = (f.get("name") or "").split("·")[-1].strip()
+    if not name:
+        return ""
+    if NAME_MODE == "cn_latin":
+        sp = (trait_of(f["id"], "species") or "").strip()
+        if sp:
+            return "%s (%s)" % (name, sp)
+    return name
+
+
 def build_prompt(f):
     """拼提示词。顺序**照 v9**，别改：
 
-        BASE + " of a <形态句>." + <构图句> + <颜色句> + LIGHT + GEOM + BG
+        BASE + " of <主语>." + <构图句> + <颜色句> + LIGHT + GEOM + BG
 
-    ⚠️ 头部引导有**两种**形态（2026-10-08 起，见 ⓪ 的说明）：
-       · **没有**查证过的 `form` → `of a single <体型模板>.`（体型模板当主体）
-       · **有**查证过的 `form` → `of a <类目词>` 或 `of <form…>`：体型模板让位，
+    ⚠️ 头部引导有**三种**形态（2026-10-08 起，见 `species_tag` 与 ⓪ 的说明）：
+       · **有物种名**（默认）→ `of a 鲢鱼 (Hypophthalmichthys molitrix), <形态句>.`
+         名字当主语名词，类目词让位（"a 鲢鱼" 本身就是名词短语）
+       · 无物种名 + **有**查证过的 `form` → `of a <类目词>` 或 `of <form…>`：体型模板让位，
          物种描述当主体 —— 否则体型模板会把「几何兜底」说成「物种」（小龙虾画成乌贼）
+       · 无物种名 + **没有** `form` → `of a single <体型模板>.`（体型模板当主体）
 
     ⚠️ 三条不能动的：
        1. **BASE 必须是第一句** —— 它是风格锚点，放到后面会被内容描述盖过
@@ -788,8 +819,11 @@ def build_prompt(f):
     #         对被兜底进来的鱼会说谎 → **整句丢弃**，身体完全交给 `form` 描述。
     #       冠词必须跟着换：`form` 自带 "a …"，再写 "a single" 会拼出
     #       "of a single a cylindrical body…" 这种双冠词。
+    #    物种名（如果有）按 `species_tag` 的规则当**主语名词**，此时连类目词都不必写 ——
+    #    "a 鲢鱼" 本身就是个名词短语，再写 "fish" 是重复。
+    name_tag = species_tag(f)
     if verified:
-        bits = ["fish"] if shape == "fish" else []
+        bits = [] if name_tag else (["fish"] if shape == "fish" else [])
         lead = "a " if bits else ""
     else:
         bits = [spec["d"]]
@@ -832,7 +866,7 @@ def build_prompt(f):
     fin_word = spec.get("finSafe", spec["fin"]) if verified else spec["fin"]
     rar = RARITY[rar_i].format(fin=fin_word, extra=extra)
 
-    head = BASE + " of " + lead + ", ".join(bits) + "."
+    head = BASE + " of " + (("a " + name_tag + ", ") if name_tag else lead) + ", ".join(bits) + "."
     frame = ("full side view, whole body visible, facing left, "
              "centered with generous margin, " + rar + ".")
     return " ".join([head, frame, palette_desc(f), LIGHT, GEOM, BG])

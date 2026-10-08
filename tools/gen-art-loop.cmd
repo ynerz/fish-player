@@ -35,7 +35,14 @@ echo ===========================================================
 echo   Fish card rendering - continuous
 echo   workdir : %CD%
 echo   segment : %BUDGET% min  ^(0 = unlimited^)
-echo   speed   : ~62 s per image, ~5.2 min per fish (6 images)
+echo   images  : 6 per fish normally; 7 for legendary
+echo             legendary shiny is rendered TWICE - id-shiny.png and id-shiny-2.png
+echo   speed   : about 60 s per image at 25 steps, 110 s at 35 steps
+echo             golden and shiny use 35 steps; real speed varies with machine load
+echo   note    : --skip-existing only fills in MISSING files.
+echo             Cards made with an OLDER prompt are NOT re-rendered.
+echo             Run  gen-art.py --stale  for that list, or use the review page
+echo             to re-render the ones you marked.
 echo   close this window to stop
 echo ===========================================================
 echo.

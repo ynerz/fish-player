@@ -12,13 +12,18 @@
   python tools/review-cards.py --only-pending  # 只列「没审过」的（依赖上次导出的清单）
 
 产物：`docs/卡片评审.html`（单文件、零依赖，**双击即可打开**；也可起 http 服务看）
-  · 每张卡：母版大图 + 五档小图 + id + 中文名 +（有的话）拉丁名 + 形态描述
-  · 「合格 / 重出」两个按钮，状态存在浏览器 localStorage，**刷新不丢**
-  · 顶部进度条 + 筛选；底部「导出重出清单」给出可直接执行的命令
+  · 每张卡：母版大图 + **5 个可评审单元**（母版含原色档 / 彩虹 / 白化 / 黄金 / 闪光），
+    外加 id + 中文名 +（有的话）拉丁名 + 形态描述
+  · **每个单元各自判**「合格 / 重出」—— 出问题的是单张图，不是整条鱼（用户口径 2026-10-08）
+  · **点任意一张图放大到原图**（`#lb` 层；点任意处或 Esc 关闭）。缩略图再大也不够用：
+    卡面 1152×768 而鱼只占中间一块，判「头身是不是一个色」这种细节必须能放到接近 1:1
+  · 状态存在浏览器 localStorage（键 `fishcard-review-v2`），**刷新不丢**
+  · 顶部进度条 + 筛选；「导出重出清单」**按档分组**给出可直接执行的命令
   · 「对照百科」按钮：新窗口搜该物种，方便和真动物比对
 
-⚠️ 重新生成时**必须连五档一起重出**（`<id>.png` + `<id>-<档>.png` 共 6 个文件）——
-   只重出母版会让五档还停在旧形态上，五档是母版抠图+调色来的，形态改不了。
+⚠️ 五档自 2026-10-07 起是**独立文生图**（同种子、同提示词、只差颜色句；
+   曾走图生图，已弃用）⇒ **单档可以独立重出**，不必须连母版一起。
+   母版重出会顺带刷新它的 `<id>-normal.png`（原色档就是母版抠图）。
 """
 import argparse
 import glob
@@ -92,7 +97,7 @@ def build_rows(only_ids=None):
             "id": f["id"], "name": f["name"], "lat": (t.get("species") or "").strip(),
             "rar": f["rar"], "shape": f["shape"],
             "form": (t.get("form") or "").strip(), "fins": (t.get("fins") or "").strip(),
-            "morphs": morphs, "slots": slots,
+            "slots": slots,
         })
     rows.sort(key=lambda r: r["id"])
     return rows
@@ -122,21 +127,35 @@ TEMPLATE = u"""<!DOCTYPE html>
   .stat { color:var(--dim); }
   .stat b { color:var(--fg); font-weight:500; }
   .grid { display:grid; gap:14px; padding:16px;
-          grid-template-columns:repeat(auto-fill,minmax(340px,1fr)); }
+          grid-template-columns:repeat(auto-fill,minmax(430px,1fr)); }
   .c { background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
   .c.ok  { border-color:var(--ok); }
   .c.bad { border-color:var(--bad); }
-  .c > img { width:100%; display:block; background:#2b2b2e; aspect-ratio:3/2; object-fit:contain; }
-  .morphs { display:flex; gap:3px; padding:3px 3px 0; }
-  .morphs img { width:20%; aspect-ratio:3/2; object-fit:contain; background:#2b2b2e; border-radius:3px; }
-  .slots { border-top:1px solid var(--line); }
-  .slot { display:flex; align-items:center; gap:8px; padding:5px 10px; border-bottom:1px solid var(--line); }
-  .slot.ok  { background:rgba(63,158,106,.14); }
-  .slot.bad { background:rgba(192,80,63,.16); }
-  .slot img { width:76px; aspect-ratio:3/2; object-fit:contain; background:#2b2b2e; border-radius:3px; flex:0 0 auto; }
-  .sl-label { flex:1 1 auto; font-size:12px; }
-  .sl-acts { display:flex; gap:6px; flex:0 0 auto; }
-  .sl-acts button { min-width:52px; }
+  .c > img { width:100%; display:block; background:#2b2b2e; aspect-ratio:3/2; object-fit:contain;
+             cursor:zoom-in; }
+  /* 可评审单元：**每张都要能看清**。
+     原来缩略图写死 76px（用户口径 2026-10-08「其他版本的图太小了，不清晰」）——
+     卡面原图是 1152×768、鱼只占中间一部分，76px 下连鳍都数不清。
+     现在改成网格：一格里一张，缩略图占满格子宽（≈200px，是原来的 2.6 倍）；
+     **点任意一张还能放大到原图**（见 #lb）。 */
+  .slots { display:grid; grid-template-columns:repeat(auto-fit,minmax(185px,1fr));
+           gap:8px; padding:8px; border-top:1px solid var(--line); }
+  .slot { border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#1d1f24; }
+  .slot.ok  { border-color:var(--ok);  background:rgba(63,158,106,.14); }
+  .slot.bad { border-color:var(--bad); background:rgba(192,80,63,.16); }
+  .slot img { width:100%; display:block; background:#2b2b2e; aspect-ratio:3/2; object-fit:contain;
+              cursor:zoom-in; }
+  .sl-label { font-size:12px; padding:5px 8px 0; }
+  .sl-acts { display:flex; gap:6px; padding:6px 8px 8px; }
+  .sl-acts button { flex:1; min-width:0; padding:4px 0; }
+
+  /* 放大层：评审要靠它看清细节，所以放到「能到 1:1」为止（1152×768 在 1440 屏上基本是原尺寸） */
+  #lb { position:fixed; inset:0; z-index:50; background:rgba(0,0,0,.9); display:none;
+        align-items:center; justify-content:center; cursor:zoom-out; }
+  #lb.on { display:flex; }
+  #lb img { max-width:97vw; max-height:90vh; object-fit:contain; background:#2b2b2e; }
+  #lb .lb-tip { position:absolute; left:0; right:0; bottom:14px; text-align:center;
+                color:#c9cdd5; font-size:12px; }
   .m { padding:8px 10px 10px; }
   .nm { font-size:15px; font-weight:500; }
   .nm span { color:var(--dim); font-weight:400; font-size:12px; margin-left:6px; }
@@ -172,11 +191,13 @@ TEMPLATE = u"""<!DOCTYPE html>
     <button id="f-bad">重出</button>
     <button id="exp">导出重出清单</button>
     <button id="rst">清空</button>
-    <span class="stat">快捷键：1=合格　2=重出</span>
+    <span class="stat">快捷键：1=合格　2=重出　点图放大</span>
   </div>
   <div class="stat" style="margin-top:4px">图片若显示不出来：请用「项目根目录起 http 服务」的方式打开本页（<code>python -m http.server 8765</code> → <code>127.0.0.1:8765/docs/卡片评审.html</code>）。</div>
 </header>
 <div class="grid" id="grid"></div>
+
+<div id="lb"><img alt=""><div class="lb-tip">点任意处关闭（Esc 也可以）</div></div>
 
 <dialog id="dlg">
   <h2>重出清单（**按单档**给）</h2>
@@ -300,9 +321,22 @@ function paintCard(id) {
   });
 }
 
+/* 点任意一张图 → 放大到原图。
+   缩略图再大也不够用（用户口径 2026-10-08「其他版本的图太小了，不清晰」）：
+   卡面是 1152×768、鱼只占中间一块，评审要判断「头身是不是一个色」这种细节，
+   必须能放到接近 1:1。放大层铺满视口，点任意处或 Esc 关闭。 */
+var lb = document.getElementById('lb'), lbImg = lb.querySelector('img');
+function zoom(src) { lbImg.src = src; lb.classList.add('on'); }
+function unzoom() { lb.classList.remove('on'); lbImg.removeAttribute('src'); }
+lb.addEventListener('click', unzoom);
+
 document.getElementById('grid').addEventListener('click', function (ev) {
   var b = ev.target.closest('button');
-  if (!b) return;
+  if (!b) {
+    var im = ev.target.closest('img');
+    if (im) zoom(im.src);
+    return;
+  }
   if (b.dataset.go) {
     window.open('https://www.bing.com/search?q=' + encodeURIComponent(b.dataset.go + ' 鱼 形态特征'), '_blank');
     return;
@@ -378,6 +412,7 @@ document.getElementById('cp').onclick = function () {
 
 document.addEventListener('keydown', function (e) {
   if (e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'Escape' && lb.classList.contains('on')) { unzoom(); return; }
   if (e.key === '1' || e.key === 'y') { var b = document.querySelector('.b-ok:not(.on)'); if (b) b.click(); }
   if (e.key === '2' || e.key === 'n') { var c = document.querySelector('.b-bad:not(.on)'); if (c) c.click(); }
 });

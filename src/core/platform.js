@@ -9,18 +9,24 @@
    在 index.html（或 app.json 入口）里替换掉本文件，逻辑层一行不用改。
 
    接口（8 组）：
-     storage    get / set / remove / kind
+     storage    get / set / kind
      audio      createContext() / load(url) → Promise<AudioBuffer|null> / playFile（小程序占位）
                 —— 小程序要换成 wx.createInnerAudioContext
      canvas     create(w,h)              —— 小程序要换成 wx.createOffscreenCanvas
      image      create() / load(url) → Promise<Image|null>   —— 小程序换成 wx.createImage
-     sys        dpr() / size() / now() / raf(fn) / cancelRaf(h) / isVisible() / reload()
+     sys        dpr() / now() / raf(fn) / cancelRaf(h) / isVisible() / reload()
                 onReady(fn) / onResize(fn) / onVisibility(fn) / onFocus(fn) / onBlur(fn)
                 onError(fn) / onRejection(fn) / isFile()
      input      down(el,fn) / up(fn) / cancel / leave / key
      clipboard  write(text) → Promise<boolean>   —— 小程序换成 wx.setClipboardData
      dialog     confirm(msg) / prompt(msg,def)   —— 小程序换成 wx.showModal
+
+   ⚠️ 上面只列**现行**接口。这里曾多列过 `storage.remove` 与 `sys.size()` 两个 ——
+      2026-10-08 全项目 API 扫描实测它们**零消费**，已删（进了 `verify` 32-b 的 REMOVED 名单；
+      32-c 的子能力网也要求每个子键都有调用点）。**别照着旧版本把它们加回来**：
+      「看着像基础设施」的 API 正是本项目反复清掉的那类债。
    ========================================================= */
+
 window.G = window.G || {};
 
 G.Platform = (function () {

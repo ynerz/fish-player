@@ -35,6 +35,12 @@ global.localStorage = {
  'src/ui/tutorial.js']
   .forEach(r => (new Function(fs.readFileSync(path.join(ROOT, r), 'utf8'))).call(global));
 
+/* ⚠️ 档案（N1）必须先 init：真实运行时 main.js 就是这么做的，
+   存档键因此是 `<saveKey>.<uid>`。整套测试都在「默认档案」下跑，
+   所以下面凡是要读写「当前存档」的地方都必须走 G.Profile.key()，
+   直接写 CFG.saveKey 会落到一个没人读的老键上（曾经的 20 项失败就这么来的）。 */
+if (global.G.Profile && global.G.Profile.init) global.G.Profile.init();
+
 const G = global.G, CFG = G.CONFIG, L = G.Loot, F = G.Fight, St = G.State, U = G.U;
 /* fishing.js 是纯逻辑（渲染靠 G.Scene，只在运行时才碰），所以能在 Node 里单测。
    让离线补算这类「只有关闭页面才走到」的路径也有断言覆盖。 */
@@ -240,7 +246,7 @@ ok(St.spend(400) === true && St.get().coin === 600, 'spend 正常扣款');
 
 /* 存读档往返 */
 St.save(true);
-const raw = store[CFG.saveKey];
+const raw = store[G.Profile.key()];
 ok(!!raw && raw.length > 100, `存档已写入 localStorage（${raw.length} 字节）`);
 St.load();
 ok(St.get().book[f0.id].n === 2, '重载后图鉴数据保持');
@@ -248,7 +254,7 @@ ok(St.get().book[f0.id].n === 2, '重载后图鉴数据保持');
 /* migrate：缺字段的老存档要能补上 */
 G_('State · 老存档迁移');
 const legacy = { v: 1, coin: 777, field: 'D', unlocked: { D: true }, book: {}, baits: {}, rods: ['bamboo'], lines: ['n2'], decors: [] };
-store[CFG.saveKey] = JSON.stringify(legacy);
+store[G.Profile.key()] = JSON.stringify(legacy);
 St.load();
 const sm = St.get();
 ok(sm.coin === 777, '老存档的既有字段保留');
@@ -1057,7 +1063,7 @@ const legacy2 = {
            maxKg: 2, maxKgFish: 'x', totalValue: 100, days: 0 },
   settings: { sound: true, volume: 0.5, ambient: true, idle: false },
 };
-store[CFG.saveKey] = JSON.stringify(legacy2);
+store[G.Profile.key()] = JSON.stringify(legacy2);
 St.load();
 const sv = St.get();
 ok(sv.v === St.SAVE_V, `老存档版本号被升到 ${St.SAVE_V}（不写死数字）`);
@@ -1072,7 +1078,7 @@ ok(sv.achInit === false, 'v2 → v3 标记「成就还没补登记」，避免�
 const dirty2 = JSON.parse(JSON.stringify(legacy2));
 dirty2.stats.byRar = 'oops'; dirty2.stats.byField = [1, 2]; dirty2.medals = -5; dirty2.titleSel = 123;
 dirty2.stats.streak = NaN;
-store[CFG.saveKey] = JSON.stringify(dirty2);
+store[G.Profile.key()] = JSON.stringify(dirty2);
 St.load();
 const sd = St.get();
 ok(Array.isArray(sd.stats.byRar) && sd.stats.byRar.length === 4, '脏 byRar 被纠正成 4 档数组');
@@ -1224,7 +1230,7 @@ ok(St.SAVE_V === 5, `SAVE_V = ${St.SAVE_V}（v5 新增周常挑战）`);
 St.get().weekly = 'garbage';
 const legacyW = JSON.parse(JSON.stringify(St.get()));
 legacyW.v = 4; legacyW.weekly = 'garbage';
-store[CFG.saveKey] = JSON.stringify(legacyW);
+store[G.Profile.key()] = JSON.stringify(legacyW);
 St.load();
 ok(St.get().weekly === null, 'v4 老存档里的脏 weekly 被清成 null');
 ok(St.get().v === St.SAVE_V, '迁移后写回当前 SAVE_V');
@@ -1309,24 +1315,24 @@ ok(St.get().tut.step === 1 && St.get().tut.done === false, '中途进度写进�
 
 G_('Tutorial · 老存档迁移与脏数据');
 const legacy3 = JSON.parse(JSON.stringify(legacy2));
-store[CFG.saveKey] = JSON.stringify(legacy3);
+store[G.Profile.key()] = JSON.stringify(legacy3);
 St.load();
 ok(St.get().v === St.SAVE_V, `老存档版本号被升到 ${St.SAVE_V}（当前 SAVE_V，不写死）`);
 ok(St.get().tut && St.get().tut.done === true, '老存档（v<4）默认「已看过」，不往老玩家脸上糊教学');
 ok(T.active() === false, '所以老存档不会弹教学气泡');
 const dirtyT = JSON.parse(JSON.stringify(legacy2));
 dirtyT.tut = { step: 'oops', done: 'yes' };
-store[CFG.saveKey] = JSON.stringify(dirtyT);
+store[G.Profile.key()] = JSON.stringify(dirtyT);
 St.load();
 ok(St.get().tut.step === 0 && St.get().tut.done === true, '脏 tut 被纠正成 0..N 的整数 + 布尔');
 const overT = JSON.parse(JSON.stringify(legacy2));
 overT.v = 4; overT.tut = { step: 99, done: false };
-store[CFG.saveKey] = JSON.stringify(overT);
+store[G.Profile.key()] = JSON.stringify(overT);
 St.load();
 ok(St.get().tut.step === tSteps.length && St.get().tut.done === true, 'step 越界被夹回总步数并视为已完成');
 const badT = JSON.parse(JSON.stringify(legacy2));
 badT.v = 4; badT.tut = 'nonsense';
-store[CFG.saveKey] = JSON.stringify(badT);
+store[G.Profile.key()] = JSON.stringify(badT);
 St.load();
 ok(!!St.get().tut && St.get().tut.step === 0 && St.get().tut.done === false, 'tut 不是对象时重建为默认值');
 St.reset();
@@ -1492,7 +1498,7 @@ const goodSave = JSON.parse(JSON.stringify(St.get()));
 function loadWith(mut) {
   const d = JSON.parse(JSON.stringify(goodSave));
   mut(d);
-  store[CFG.saveKey] = JSON.stringify(d);
+  store[G.Profile.key()] = JSON.stringify(d);
   const before = St.get();
   St.load();
   return { before, after: St.get() };
@@ -1566,7 +1572,7 @@ ok(!loadThrew(d => { d.rods = 5; d.lines = 5; d.decors = { a: 1 }; }), '拥有�
    现在：每个存档源都单独 try，坏了退下一级；全废才开新档，
    并且把原始文本挪到 rescue 键（否则下一个自动存档就把证据盖掉了），
    再通过 St.loadNote() 让 main.js 播一条 toast。
-   ⚠️ 会反复覆盖 store[CFG.saveKey]，放在最后几节之一。
+   ⚠️ 会反复覆盖 store[G.Profile.key()]，放在最后几节之一。
    ========================================================= */
 G_('State · 读档失败不再白屏（退备份 → 再退新档）');
 const realErrLoad = console.error;
@@ -1574,9 +1580,9 @@ console.error = () => {};        // G.Track.error 会打 console，这里不希�
 const pristine = JSON.parse(JSON.stringify(St.get()));
 
 /* ① 主存档是半截 JSON（写到一半断电 / 手改坏了），备份是好的 → 用备份 */
-store[CFG.saveKey] = '{"v":5,"coin":99,';
+store[G.Profile.key()] = '{"v":5,"coin":99,';
 const bakGood = JSON.parse(JSON.stringify(pristine)); bakGood.coin = 4321;
-store[CFG.saveKeyBak] = JSON.stringify(bakGood);
+store[G.Profile.keyBak()] = JSON.stringify(bakGood);
 let loadErr1 = null;
 try { St.load(); } catch (e) { loadErr1 = e; }
 ok(!loadErr1, '主存档是半截 JSON 时 load() 不抛异常（原来会冒到 boot 变白屏）', loadErr1 && loadErr1.message);
@@ -1584,25 +1590,25 @@ ok(St.get().coin === 4321, '退到备份档，进度真的恢复了');
 ok(/备份/.test(St.loadNote()), '并且给出「已从备份恢复」的提示语');
 
 /* ② 主存档是合法 JSON 但不是对象 → 同样退备份 */
-store[CFG.saveKey] = '"not an object"';
+store[G.Profile.key()] = '"not an object"';
 St.load();
 ok(St.get().coin === 4321 && /备份/.test(St.loadNote()), '主存档不是对象时也退备份');
 
 /* ③ 主 + 备份全废 → 开新档，但原始内容必须留一份 */
-store[CFG.saveKey] = '{oops';
-store[CFG.saveKeyBak] = 'also not json';
+store[G.Profile.key()] = '{oops';
+store[G.Profile.keyBak()] = 'also not json';
 let loadErr3 = null;
 try { St.load(); } catch (e) { loadErr3 = e; }
 ok(!loadErr3, '两份存档都读不出来时 load() 也不抛异常（原来直接白屏）', loadErr3 && loadErr3.message);
 ok(St.get().coin === CFG.economy.startCoin, '两份都读不出来时开新档而不是白屏');
 ok(/重置/.test(St.loadNote()), '并且明确告诉玩家「已重置为新档」');
-const rescueTxt = String(store[CFG.saveKeyRescue] || '');
+const rescueTxt = String(store[G.Profile.keyRescue()] || '');
 ok(rescueTxt.indexOf('{oops') >= 0,
    '原始坏档被挪到 rescue 键留存（否则下一个自动存档就把证据盖掉了）');
 ok(rescueTxt.indexOf('also not json') >= 0, '备份的原始内容也一起留存');
 
 /* ④ 一切正常时不打扰玩家 */
-store[CFG.saveKey] = JSON.stringify(pristine);
+store[G.Profile.key()] = JSON.stringify(pristine);
 St.load();
 ok(St.loadNote() === '', '正常读档时不产生任何提示语（别没事找事弹警告）');
 ok(St.get().coin === pristine.coin, '正常读档走的还是主存档');

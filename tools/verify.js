@@ -2557,20 +2557,46 @@ console.log('\n[33-c] 五档提示词必须复用母版骨架，只换颜色句'
     err(`COLOR_TOKEN_DEFAULTS 里 ${defBad.join('、')} 不再是原值 —— 默认体型（fish 等 301 条）的`
       + '提示词会跟着变，已出的卡会全部被判成过期'); return;
   }
-  /* ⑤b 四个消费点必须走「按体型」的那条路（写死常量就会在这里被抓住） */
+  /* ⑤b 六个消费点必须走「按体型 / 物种」的那条路（写死常量就会在这里被抓住） */
   const NEED = [
     ['def palette_color(', 'color_tokens(', '颜色句部件词'],
     ['def build_prompt(', 'light_for(', 'LIGHT 锚点'],
-    ['def build_prompt(', 'shape_word(shape, "frame"', '构图句朝向'],
-    ['def build_prompt(', 'shade_for(morph, shape', '明暗句'],
+    ['def build_prompt(', 'shape_word(f, "frame"', '构图句朝向'],
+    ['def build_prompt(', 'shade_for(morph, f', '明暗句'],
     ['def build_morph_prompt(', 'scope_for(', '五档收尾从句'],
     ['def build_morph_prompt(', 'fill_color_tokens(', '颜色句占位符'],
   ];
   const nt = NEED.filter(([d, w]) => !has(bodyOf(src, d), w))
     .map(([d, , label]) => `${label}（${d}里缺 ${w}）`);
   if (nt.length) {
-    err('这些公共段没有走「按体型」的分流：' + nt.join('；')
-      + ' —— 写死常量对非鱼体型就是错的解剖（水母被要求长 fins，实测彩图变鱼）'); return;
+    err('这些公共段没有走「按体型 / 物种」的分流：' + nt.join('；')
+      + ' —— 写死常量对非鱼类型就是错的解剖（水母被要求长 fins，实测彩图变鱼）'); return;
+  }
+  /* ⑤b2 **物种层**（`SPECIES_WORDS`，按鱼 id）—— `shape` 只是几何模板，
+     甲壳类 / 海参类 / 棘皮 / 环节会被兜底到「最接近但不同类」的体型上，
+     光换体型层的词救不回来（小龙虾拿到「arms」、海猪拿到「tentacles」、海蛇尾拿到「fins」）。
+     ⚠️ 这里能拿到 G.FISH，所以**逐个 id 核对它真是一条鱼** ——
+        gen-art.py 的加载期自检只查得到 id 的格式，查不到「这条鱼在不在表里」。 */
+  if (!/^SPECIES_WORDS\s*=\s*\{/m.test(src)) {
+    err('gen-art.py 里没有 `SPECIES_WORDS` —— 体型兜底的那几条非鱼类又会拿到不属于自己的部件词'); return;
+  }
+  const spBlock = (src.match(/^SPECIES_WORDS\s*=\s*\{[\s\S]*?\n\}/m) || [''])[0];
+  const spIds = (spBlock.match(/^\s{4}"([A-Z]+\d+)":\s*\{/gm) || [])
+    .map(x => x.replace(/[\s":{]/g, ''));
+  if (!spIds.length) { err('读不到 SPECIES_WORDS 的鱼 id'); return; }
+  const allIds = {};
+  G.FISH.forEach(f => { allIds[f.id] = f; });
+  const ghostIds = spIds.filter(i => !allIds[i]);
+  if (ghostIds.length) {
+    err(`SPECIES_WORDS 里有不存在的鱼 id：${ghostIds.join('、')}`
+      + ' —— id 打错 = 覆写永远读不到，那条鱼照旧收到不属于自己的部件词'); return;
+  }
+  /* ⑤b3 物种层只许落在**非 fish 的兜底条目**上 —— 往鱼身上加物种覆写会让
+     「301 条鱼族逐字不变」这条保证悄悄失效（图上什么都看不出来）。 */
+  const onFish = spIds.filter(i => allIds[i].shape === 'fish');
+  if (onFish.length) {
+    err(`SPECIES_WORDS 覆盖了 fish 体型的条目：${onFish.join('、')}`
+      + ' —— 物种层的用途是救「体型兜底救不回的非鱼类」，加到鱼身上只会让口径漂、且不报错'); return;
   }
   /* ⑤c 自检必须真被调用（「记得手动跑一下」在本项目反复栽跟头） */
   if (!/def check_shape_words\(/.test(src) || !/^check_shape_words\(\)\s*$/m.test(src)) {
@@ -2587,7 +2613,7 @@ console.log('\n[33-c] 五档提示词必须复用母版骨架，只换颜色句'
       + '且必须在 `if rar_i == 3:` 之后）—— 给普通鱼加奇幻句 = 362 条卡口径全变、稀有度递进当场作废');
     return;
   }
-  ok(`体型措辞按体型分流（${declared.join('/')} 有覆写、其余 ${realShapes.filter(s => declared.indexOf(s) < 0).length} `
+  ok(`措辞三层分流（体型层 ${declared.join('/')}、物种层 ${spIds.join('/')}；其余 ${realShapes.filter(s => declared.indexOf(s) < 0).length} `
     + '个体型走默认值）＋ 默认占位符＝原句 ＋ 自检加载即跑 ＋ 传说点题只挂 rar3');
 })();
 

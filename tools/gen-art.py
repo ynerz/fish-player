@@ -168,9 +168,13 @@ LIGHT = ("strong rim light along the back and tail, no ambient fill light, "
 LIGHT_HEAD = "strong rim light along the back and tail"
 
 
-def light_for(shape):
-    """这一段用哪句 `LIGHT`。**唯一入口**（`fish` 等体型原样返回 `LIGHT`）。"""
-    head = shape_word(shape, "light")
+def light_for(f):
+    """这一段用哪句 `LIGHT`。**唯一入口**（默认体型原样返回 `LIGHT`）。
+
+    ⚠️ 收 `f`（整条鱼）而不是 `shape` —— 措辞现在是**两层覆写**：
+       默认 → `SHAPE_WORDS[shape]` → `SPECIES_WORDS[id]`（见 `words_for()`）。
+    """
+    head = shape_word(f, "light")
     return (head + LIGHT[len(LIGHT_HEAD):]) if head else LIGHT
 
 # ④ 背景 —— 逐字取自 v9（`gen9.py` 的 BG）。
@@ -562,7 +566,7 @@ SHAPE_WORDS = {
                    "under": "lower bell", "over": "bell top", "surface": "facets"},
         "no_eye": True,
         "frame": "full frontal view, whole body visible, radially symmetric",
-        "shade": "a clearly lighter lower bell margin and a darker bell top",
+        "shade": "a clearly lighter {under} margin and a darker {over}",
         "light": "strong rim light along the bell top and the tentacles",
         "scope": "the whole jellyfish including the bell and the tentacles",
     },
@@ -570,14 +574,14 @@ SHAPE_WORDS = {
     # （实测 `S28 深海章鱼` 的五档卡就是一只鱿鱼：长外套膜 + 三角鳍 + 尾鳍）。
     "squid": {
         "tokens": {"part": "arms", "partsg": "arm", "sides": "body",
-                   "under": "underside", "surface": "skin"},
+                   "under": "lower surface", "surface": "skin"},
         "light": "strong rim light along the upper body and the arms",
         "scope": "the whole creature including the head and the arms",
     },
     # 鳐：`fins` 应作 `wings`。侧视朝向与背腹明暗对鳐都成立（鳐本来就是背深腹浅），故只换这两处。
     "ray": {
         "tokens": {"part": "wings", "partsg": "wing", "sides": "disc",
-                   "under": "underside", "surface": "skin"},
+                   "under": "lower surface", "surface": "skin"},
         "scope": "the whole ray including the head and the wings",
     },
     # 鲸：`fins` 说得通（胸鳍 / 背鳍），错的是 `LIGHT` 的 «tail» 与 `MORPH_SCOPE` 的 «fish»。
@@ -595,24 +599,110 @@ COLOR_TOKEN_DEFAULTS = {"part": "fins", "partsg": "fin", "sides": "flanks", "hea
                         "under": "belly", "over": "back", "surface": "scales"}
 
 
-def shape_word(shape, key, default=""):
-    """取某体型在 `SHAPE_WORDS` 里的那一项措辞。**唯一入口** —— 别在别处再读这个表。"""
-    return SHAPE_WORDS.get(shape or "", {}).get(key) or default
+# 🔴 **逐条物种覆写**（2026-10-09 加，第二层）—— 为什么 `SHAPE_WORDS` 还不够：
+#    `shape` 只是**几何模板**，非鱼类常被兜底到「最接近但不同类」的体型上：
+#    `D08 小龙虾` / `S21 巨型等足虫` 是**甲壳类**却走 `squid`、`S19 海猪` 是**海参类**却走 `jelly`、
+#    `S20 海蛇尾`（棘皮）/ `S22 管虫`（环节）走 `eel` —— 于是它们会拿到
+#    「arms」「tentacles」「fins」这些**不属于自己**的部件词，光换体型层的词救不回来。
+#    （2026-10-08 那条「命中即止」的审计已把「体型与物种自洽」定成「不是 bug」，
+#      但那说的是**别的**非鱼类；这 5 条的兜底是明确不贴的，见 `docs/改进待办.md`。）
+#
+# ⚠️ 只按 **id** 覆写这 5 条，**不动 `fish.js` / `fishart.js` / 体型表** ——
+#    改体型表属设计决策（2026-10-08 那条未决案），而且会连带影响 2D 渲染器的 `TPL`。
+# ⚠️ 每一条的覆写理由都写在自己那行上面：**这是「按物种的解剖事实」改，不是为了好看**。
+# ⚠️ 覆写是**逐键合并**：没写的键继续吃体型层与默认值（所以不必把 7 个占位符抄全）。
+SPECIES_WORDS = {
+    # 小龙虾（甲壳类，兜底成 squid）：部件是**螯与步足**，不是腕；体表是甲壳。
+    # ⚠️ `light` 必须一起覆写 —— 只写 `tokens` 的话，边光那句仍从 `squid` 层继承成
+    #    「along the upper body and the arms」（实测第一版就是这样漏的）。
+    "D08": {
+        "tokens": {"part": "claws", "partsg": "claw", "sides": "carapace",
+                   "head": "head", "under": "lower body", "over": "upper body",
+                   "surface": "surface"},
+        "light": "strong rim light along the shell and the claws",
+        "scope": "the whole creature including the head and the claws",
+    },
+    # 巨型等足虫（等足目，兜底成 squid）：七对步足 + 盾状甲壳；也没有腕
+    "S21": {
+        "tokens": {"part": "legs", "partsg": "leg", "sides": "carapace",
+                   "head": "head", "under": "lower body", "over": "upper body",
+                   "surface": "surface"},
+        "light": "strong rim light along the shell and the legs",
+        "scope": "the whole creature including the head and the legs",
+    },
+    # 海猪（海参类，兜底成 jelly）：**没有伞盖、没有触手**，靠腹面几对管足爬行；
+    # 又不辐射对称 ⇒ 朝向与明暗句都得退掉 `jelly` 层的覆写。
+    # ⚠️ `under` 取「lower surface」而不是「underside」：闪光档那句是 `a {under} only…`，
+    #    用 `underside` 会拼出 **「a underside」**（实测第一版就拼出来了）。
+    "S19": {
+        "tokens": {"part": "tube feet", "partsg": "tube foot", "sides": "body",
+                   "head": "front end", "under": "lower surface", "over": "upper surface",
+                   "surface": "skin"},
+        "frame": "full side view, whole body visible, facing left",
+        "shade": "a clearly lighter lower surface and a darker upper surface",
+        "light": "strong rim light along the back and the tube feet",
+        "scope": "the whole creature including the body and the tube feet",
+    },
+    # 海蛇尾（棘皮，兜底成 eel）：中央小盘 + 五条细长腕，五辐射对称 ⇒ 顶视才是它的正脸；
+    # `eel` 层的 `fins` / 背腹明暗对它同样是错的。**棘皮动物没有眼睛** ⇒ `no_eye`
+    "S20": {
+        "tokens": {"part": "arms", "partsg": "arm", "sides": "disc",
+                   "head": "central disc", "under": "lower surface", "over": "upper surface",
+                   "surface": "plates"},
+        "no_eye": True,
+        "frame": "full top view, whole body visible, five-fold symmetric",
+        "shade": "a clearly lighter lower surface and a darker upper surface",
+        "light": "strong rim light along the upper surface and the arms",
+        "scope": "the whole creature including the central disc and the arms",
+    },
+    # 管虫（环节，兜底成 eel）：身体是圆柱、前端是**羽毛状鳃冠**，没有尾；
+    # `fins` 与「背和尾打边光」都不成立。头部已特化成鳃冠、没有独立的眼 ⇒ `no_eye`
+    "S22": {
+        "tokens": {"part": "feathery crown", "partsg": "crown", "sides": "body",
+                   "head": "front end", "under": "lower body", "over": "back",
+                   "surface": "skin"},
+        "no_eye": True,
+        "light": "strong rim light along the body and the crown",
+        "scope": "the whole creature including the body and the crown",
+    },
+}
 
 
-def color_tokens(shape):
-    """这一体型的颜色句占位符取值（默认值 + 体型覆写）。"""
+def words_for(f):
+    """这一条鱼的措辞 —— **默认 → 体型 → 物种** 逐层覆写（唯一入口）。
+
+    ⚠️ 三层里只有「默认」是常量：`fish` / `shark` / `eel` / `oarfish` / `dragon` 且不在
+       `SPECIES_WORDS` 里的鱼，三层都不命中 ⇒ 逐字等于改动前的原句。
+    """
+    w = dict(SHAPE_WORDS.get((f or {}).get("shape") or "", {}))
+    sp = SPECIES_WORDS.get((f or {}).get("id") or "")
+    if sp:
+        w.update({k: v for k, v in sp.items() if k != "tokens"})
+        if sp.get("tokens"):
+            t = dict(w.get("tokens") or {})
+            t.update(sp["tokens"])
+            w["tokens"] = t
+    return w
+
+
+def shape_word(f, key, default=""):
+    """取这一条鱼在覆写表里的那一项措辞。**唯一入口** —— 别在别处再读这两张表。"""
+    return words_for(f).get(key) or default
+
+
+def color_tokens(f):
+    """这一条鱼的颜色句占位符取值（默认值 + 体型覆写 + 物种覆写）。"""
     t = dict(COLOR_TOKEN_DEFAULTS)
-    t.update(shape_word(shape, "tokens") or {})
+    t.update(words_for(f).get("tokens") or {})
     return t
 
 
-def fill_color_tokens(shape, text):
-    """把颜色句里的 `{part}` / `{sides}` / `{under}` / `{over}` / `{surface}` 换成本体型的词。
+def fill_color_tokens(f, text):
+    """把颜色句里的 `{part}` / `{sides}` / `{under}` / `{over}` / `{surface}` 换成本鱼的词。
 
     ⚠️ 对默认体型这必须是**恒等变换** —— `palette_color()` 与母版提示词逐字不变的保证就在这。
     """
-    for k, v in color_tokens(shape).items():
+    for k, v in color_tokens(f).items():
         text = text.replace("{" + k + "}", v)
     return text
 
@@ -626,37 +716,67 @@ EYE_CLAUSE_RE = re.compile(r",\s*(?:pale pink|small pink|coral pink|deep ruby-pi
 
 
 def check_shape_words():
-    """体型措辞表自检 —— **模块加载时就跑**（和 `check_pools()` 同一个套路）。
+    """体型 / 物种措辞表自检 —— **模块加载时就跑**（和 `check_pools()` 同一个套路）。
 
-    拦的是三类「不报错、只出错结果」的写法：
-      ① 体型名打错（覆写永远读不到，那条鱼照旧收到鱼类措辞）；
+    拦的是四类「不报错、只出错结果」的写法：
+      ① 体型名 / 鱼 id 打错（覆写永远读不到，那条鱼照旧收到鱼类措辞）；
       ② `tokens` 里写了没人消费的占位符键；
-      ③ 候选句里出现**没人替换的 `{xxx}`** —— 它会原样写进提示词，模型照样照办；
-      ④ 候选句里的 `... eye` 不在 `EYE_CLAUSE_RE` 覆盖内 —— 无眼体型会照抄一只鱼眼睛。
+      ③ **任何**措辞句里出现没人替换的 `{xxx}` —— 它会原样写进提示词，模型照样照办；
+      ④ 措辞句里的 `... eye` 不在 `EYE_CLAUSE_RE` 覆盖内 —— 无眼物种会照抄一只鱼眼睛。
+    ⚠️ 扫描面 = `MORPH_CANDIDATES` + `PALETTE_SHADE_BY_MORPH` + `EXTRA_BY_MORPH` +
+      两张覆写表的句值。**只扫候选总表是不够的**（2026-10-09 自己发现：明暗句与收尾句
+      也被改成了带占位符的模板，却漏在扫描面之外 —— 写错 `{undar}` 一样不报错）。
     """
+    ALLOWED_KEYS = ("tokens", "no_eye", "frame", "shade", "light", "scope")
     for sh, ov in SHAPE_WORDS.items():
         if sh not in SHAPES:
             raise RuntimeError("SHAPE_WORDS 里有不存在的体型：%s" % sh)
         for k in ov:
-            if k not in ("tokens", "no_eye", "frame", "shade", "light", "scope"):
-                raise RuntimeError("SHAPE_WORDS[%s] 有未知的键：%s" % (sh, k))
-        for k in (ov.get("tokens") or {}):
-            if k not in COLOR_TOKEN_DEFAULTS:
-                raise RuntimeError("SHAPE_WORDS[%s]['tokens'] 有未知占位符：%s（只许 %s）"
-                                   % (sh, k, "、".join(sorted(COLOR_TOKEN_DEFAULTS))))
+            if k not in ALLOWED_KEYS:
+                raise RuntimeError("SHAPE_WORDS[%s] 有未知的键：%s（只许 %s）"
+                                   % (sh, k, "、".join(ALLOWED_KEYS)))
+    for fid, ov in SPECIES_WORDS.items():
+        if not re.match(r"^[A-Z]{1,3}\d+$", fid):
+            raise RuntimeError("SPECIES_WORDS 的键必须是鱼 id（形如 D08 / SS17）：%r" % (fid,))
+        for k in ov:
+            if k not in ALLOWED_KEYS:
+                raise RuntimeError("SPECIES_WORDS[%s] 有未知的键：%s（只许 %s）"
+                                   % (fid, k, "、".join(ALLOWED_KEYS)))
+    for where, ov in (("SHAPE_WORDS", SHAPE_WORDS), ("SPECIES_WORDS", SPECIES_WORDS)):
+        for key, body in ov.items():
+            for k in (body.get("tokens") or {}):
+                if k not in COLOR_TOKEN_DEFAULTS:
+                    raise RuntimeError("%s[%s]['tokens'] 有未知占位符：%s（只许 %s）"
+                                       % (where, key, k, "、".join(sorted(COLOR_TOKEN_DEFAULTS))))
+    # ③④ 所有会写进提示词的句子统一过一遍。
+    #    ⚠️ 「按档」那两句（明暗 / 收尾）**走实际调用取样本**，不在自检里点名引用那两张表 ——
+    #       `verify §33-e` 盯着「按档例外只许出现两处」（定义 + 在 `xxx_for()` 里引用），
+    #       这里再点一次名就会被判成「有人可能把它加到别的档上」。
+    #       扫**填好占位符之后**的输出同样有效：没人替换的 `{undar}` 会原样留下来。
     allowed = set(COLOR_TOKEN_DEFAULTS) | {"base"}
-    for ck, (_tag, sent) in MORPH_CANDIDATES.items():
+    sentences = [("MORPH_CANDIDATES[%s]" % ck, sent)
+                 for ck, (_tag, sent) in MORPH_CANDIDATES.items()]
+    for m in (None,) + tuple(MORPH_ORDER):
+        for sh in list(SHAPES):
+            probe = {"id": "", "shape": sh}
+            sentences.append(("shade_for(%r, %s)" % (m, sh), shade_for(m, probe)))
+            sentences.append(("extra_for(%r, %s)" % (m, sh), extra_for(m, probe)))
+    for where, ov in (("SHAPE_WORDS", SHAPE_WORDS), ("SPECIES_WORDS", SPECIES_WORDS)):
+        for key, body in ov.items():
+            for k in ("frame", "shade", "light", "scope"):
+                if body.get(k):
+                    sentences.append(("%s[%s][%s]" % (where, key, k), body[k]))
+    for where, sent in sentences:
         for ph in re.findall(r"\{([a-z_]+)\}", sent):
             if ph not in allowed:
-                raise RuntimeError("MORPH_CANDIDATES[%s] 里有没人替换的占位符 {%s} —— "
+                raise RuntimeError("%s 里有没人替换的占位符 {%s} —— "
                                    "它会原样写进提示词（允许：%s）"
-                                   % (ck, ph, "、".join(sorted(allowed))))
+                                   % (where, ph, "、".join(sorted(allowed))))
         if " eye" in EYE_CLAUSE_RE.sub("", sent):
-            raise RuntimeError("MORPH_CANDIDATES[%s] 里有一句 `… eye` 不在 EYE_CLAUSE_RE 覆盖内：%s"
-                               " —— 改句子就要同步改正则，否则水母会照抄这只眼睛" % (ck, sent))
+            raise RuntimeError("%s 里有一句 `… eye` 不在 EYE_CLAUSE_RE 覆盖内：%s"
+                               " —— 改句子就要同步改正则，否则无眼物种会照抄这只眼睛"
+                               % (where, sent))
 
-
-check_shape_words()
 
 
 # —— 尾型：**只对有独立尾鳍、且 tail 字段说得通的体型成立** ——
@@ -803,26 +923,25 @@ PALETTE_SHADE_BY_MORPH = {
              "a darker {over}",
 }
 
-# 🔴 体型专属的明暗句（2026-10-09）：水母没有 belly / back —— 那句对它是**错的解剖**，
-#    但同时它承担着「上暗下亮」的**灰度梯度**语义（`paint-card.py` 的着色是灰度渐变映射，
-#    颜色 = 灰度的函数），所以只能**换措辞、不能删**。
-#    ⚠️ 目前只有水母需要：鳐 / 鲸 / 章鱼的背腹明暗都成立。
-PALETTE_SHADE_BY_SHAPE = {
-    "jelly": "a clearly lighter {under} margin and a darker {over}",
-}
+    # 🔴 体型专属的明暗句（2026-10-09）：水母没有 belly / back —— `PALETTE_SHADE` 对它是**错的解剖**。
+    #    注意它**写在 `SHAPE_WORDS["jelly"]` 里**、不另开一张表：明暗句现在与其它 4 处措辞一起
+    #    走同一套「默认 → 体型 → 物种」的覆写链（`shade_for()`），另开表就是第二份真相。
+    #    ⚠️ 但它承担着「上暗下亮」的**灰度梯度**语义（`paint-card.py` 的着色是灰度渐变映射，
+    #       颜色 = 灰度的函数），所以只能**换措辞、不能删**。
+    #    ⚠️ 目前只有水母在体型层需要：鳐 / 鲸 / 章鱼的背腹明暗都成立。
 
 
-def shade_for(morph, shape=None):
-    """这一档、这一体型用哪句「背腹明暗」。**唯一口径**。
+def shade_for(morph, f=None):
+    """这一档、这一条鱼用哪句「背腹明暗」。**唯一口径**。
 
-    ⚠️ **档位优先于体型**：闪光档那句是用户口径（「闪光的问题在于肚子没那么闪光」），
+    ⚠️ **档位优先于体型/物种**：闪光档那句是用户口径（「闪光的问题在于肚子没那么闪光」），
        任何体型都不许被它盖掉 —— 否则闪光档的腹部又会亮成一块均匀浅色、闪不起来。
-       ⚠️ 但**句子里的部位词仍按体型填**（水母 → `lower bell` / `bell top`），
+       ⚠️ 但**句子里的部位词仍按这条鱼填**（水母 → `lower bell` / `bell top`），
           否则水母的闪光档又会被写回 `belly` / `back`（实测就是这么漏的）。
     """
     text = (PALETTE_SHADE_BY_MORPH.get(morph) if morph else None) \
-        or PALETTE_SHADE_BY_SHAPE.get(shape or "", PALETTE_SHADE)
-    return fill_color_tokens(shape, text)
+        or shape_word(f, "shade", PALETTE_SHADE)
+    return fill_color_tokens(f, text)
 
 # 🔴 闪光档专用的「收尾句」，插在 `LIGHT` **之后**。
 #    为什么必须排在 LIGHT 后面（后说者赢）：`LIGHT` 写的是「光只在背和尾 + 深阴面」，
@@ -835,13 +954,19 @@ EXTRA_BY_MORPH = {
 }
 
 
-def extra_for(morph, shape=None):
+def extra_for(morph, f=None):
     """插在 LIGHT 之后的那句（大多数档为空字符串）。**唯一口径**。
 
-    ⚠️ 同样要按体型填部位词 —— 写死 `head and the belly` 的话，水母的闪光档会收到
+    ⚠️ 同样要按这条鱼填部位词 —— 写死 `head and the belly` 的话，水母的闪光档会收到
        「头」与「腹」，等于把这句话在做的补偿（给没被边光照到的区域补闪）指到不存在的部位上。
     """
-    return fill_color_tokens(shape, EXTRA_BY_MORPH.get(morph or "", ""))
+    return fill_color_tokens(f, EXTRA_BY_MORPH.get(morph or "", ""))
+
+
+# ⚠️ 自检**必须放在所有会被它扫描的表定义之后**（`MORPH_CANDIDATES` / `PALETTE_SHADE_BY_MORPH` /
+#    `EXTRA_BY_MORPH` / `SHAPE_WORDS` / `SPECIES_WORDS`）—— 第一版放在 `SHAPE_WORDS` 旁边，
+#    模块一 import 就 `NameError: PALETTE_SHADE_BY_MORPH is not defined`（当场被自己抓到）。
+check_shape_words()
 
 
 def palette_desc(f):
@@ -884,7 +1009,7 @@ def palette_color(f):
        水母的提示词于是直接下令「长鳍」，实测五档彩色卡被画成了鱼。
     """
     shape = f.get("shape", "fish")
-    part = color_tokens(shape)["part"]
+    part = color_tokens(f)["part"]
     body_name = color_name(f["body"])
     accent_name = color_name(f["accent"])
     if base_color(body_name) == base_color(accent_name) or \
@@ -1358,22 +1483,22 @@ def build_prompt(f, morph=None):
     rar = RARITY[rar_i].format(fin=fin_word, extra=extra)
 
     head = BASE + " of " + subject + ", ".join([b for b in bits if b]) + "."
-    # 构图句的**朝向词按体型换**（水母是辐射对称，没有「侧视朝左」这回事，见 SHAPE_WORDS）
-    frame_head = shape_word(shape, "frame", "full side view, whole body visible, facing left")
+    # 构图句的**朝向词按体型（再按物种）换**（水母是辐射对称，没有「侧视朝左」这回事）
+    frame_head = shape_word(f, "frame", "full side view, whole body visible, facing left")
     frame = frame_head + ", centered with generous margin, " + rar + "."
     # 面片措辞**按档取**（闪光档用 `GEOM_COARSE`，见 `geom_for()`）；母版传 None ⇒ 用 GEOM
-    # 颜色句 = `palette_color` + **按档 + 按体型**的明暗句
+    # 颜色句 = `palette_color` + **按档 + 按体型/物种**的明暗句
     #          （闪光档例外见 `PALETTE_SHADE_BY_MORPH`，水母见 `PALETTE_SHADE_BY_SHAPE`）；
-    # 收尾 = LIGHT（**按体型**取，见 `light_for()`）+ **按档**的补句（只有闪光档非空）+ GEOM + BG
+    # 收尾 = LIGHT（**按体型/物种**取，见 `light_for()`）+ **按档**的补句 + GEOM + BG
     # ⚠️ 末尾那个 "." 不能丢：`palette_desc()` 原本返回
     #    `palette_color(f) + ", " + PALETTE_SHADE + "."` —— 少了它**母版与每一档的提示词都会变**
     #    （实测母版第 662 字由 "darker back. strong" 变成 "darker back strong"），
     #    于是全项目所有卡被误判成过期。我第一版就丢过一次，靠"母版与 manifest 逐字相同"这条自检抓回来。
     parts = [head, frame,
-             palette_color(f) + ", " + shade_for(morph, shape) + ".",
-             light_for(shape)]
-    if extra_for(morph, shape):
-        parts.append(extra_for(morph, shape))
+             palette_color(f) + ", " + shade_for(morph, f) + ".",
+             light_for(f)]
+    if extra_for(morph, f):
+        parts.append(extra_for(morph, f))
     parts += [geom_for(morph), BG]
     return " ".join(parts)
 
@@ -1409,16 +1534,15 @@ def build_morph_prompt(f, morph, color_desc):
     #       所以 `pc` 出现在 `desc` 里不会被二次替换掉。
     if "{base}" in desc:
         desc = desc.replace("{base}", pc)
-    # 🔴 颜色句里的部件词 / 部位词**按体型**落地（水母 `tentacles`、八腕 `arms`、鳐 `wings`）；
-    #    对 `fish` 等体型是**恒等变换** ⇒ 鱼族的五档提示词逐字不变。
-    shape = f.get("shape", "fish")
-    desc = fill_color_tokens(shape, desc)
+    # 🔴 颜色句里的部件词 / 部位词**按这条鱼**落地（水母 `tentacles`、八腕 `arms`、
+    #    鳐 `wings`、小龙虾 `claws`…）；对默认体型是**恒等变换** ⇒ 鱼族的五档提示词逐字不变。
+    desc = fill_color_tokens(f, desc)
     # 无眼体型摘掉「… pink eye」那句（连前导逗号一起），否则水母会长出一只鱼眼睛
-    if shape_word(shape, "no_eye"):
+    if shape_word(f, "no_eye"):
         desc = EYE_CLAUSE_RE.sub("", desc)
-    # ⚠️ 收尾从句按**体型**取（`scope_for`）—— 写死 `MORPH_SCOPE` 会让水母的彩色档
+    # ⚠️ 收尾从句按**体型/物种**取（`scope_for`）—— 写死 `MORPH_SCOPE` 会让水母的彩色档
     #    又收到「the whole fish ... the fins」，正是 2026-10-09 那次报障。
-    return p.replace(pc, desc + ", " + scope_for(shape), 1)
+    return p.replace(pc, desc + ", " + scope_for(f), 1)
 
 
 # 五档颜色句的**统一作用范围**，追加在每一档后面 —— 与 `GEOM` / `LIGHT` 同一个套路：
@@ -1440,9 +1564,9 @@ MORPH_SCOPE_TAIL = "the whole fish including the head and the fins"
 MORPH_SCOPE = "with the same treatment over " + MORPH_SCOPE_TAIL
 
 
-def scope_for(shape):
-    """五档的收尾从句 —— 按体型换掉 `fish` / `fins` 两个词。**唯一入口**。"""
-    return "with the same treatment over " + shape_word(shape, "scope", MORPH_SCOPE_TAIL)
+def scope_for(f):
+    """五档的收尾从句 —— 按体型（再按物种）换掉 `fish` / `fins` 两个词。**唯一入口**。"""
+    return "with the same treatment over " + shape_word(f, "scope", MORPH_SCOPE_TAIL)
 
 
 def load_fish():
@@ -1664,24 +1788,35 @@ def write_prompts(fish):
     L.append("```")
     L.append("⚠️ `GEOM` 在**闪光档**换成更粗的大块面措辞（防小像素块）；`LIGHT` 只对**非鱼体型**"
              "换掉开头的部件锚点（水母 / 八腕 / 鲸，见下表），后半 4 句逐字不变。\n")
-    L.append("### 体型专属措辞（`SHAPE_WORDS`）\n")
-    L.append("公共段里有 5 处原本写成了「鱼的解剖」，对**所有体型**无条件生效 ——"
+    L.append("### 体型与物种专属措辞（`SHAPE_WORDS` → `SPECIES_WORDS`）\n")
+    L.append("公共段里有 5 处原本写成了「鱼的解剖」，对**所有类型**无条件生效 ——"
              "2026-10-09 修：水母的彩色档曾被这些词画成鱼。"
-             "下表是**按体型覆盖**的那部分；没列到的体型"
-             "（`fish` / `shark` / `eel` / `oarfish` / `dragon`）一律用默认值"
+             "现在是**两层覆写**：默认 → 体型（下表）→ 物种（`SPECIES_WORDS`，按鱼 id）。"
+             "没列到的体型（`fish` / `shark` / `eel` / `oarfish` / `dragon`）一律用默认值"
              "（`fins` / `flanks` / `belly` / `back` / `scales`，即改动前的原句）。\n")
-    L.append("| 体型 | 颜色句占位符 | 构图句朝向 | 明暗句 | LIGHT 锚点 | 五档收尾从句 |")
-    L.append("|---|---|---|---|---|---|")
+    L.append("| 层 | 键 | 颜色句占位符 | 构图句朝向 | 明暗句 | LIGHT 锚点 | 五档收尾从句 |")
+    L.append("|---|---|---|---|---|---|---|")
     for sh in sorted(SHAPE_WORDS):
         w = SHAPE_WORDS[sh]
         toks = w.get("tokens") or {}
-        L.append("| `%s` | %s | %s | %s | %s | %s |" % (
+        L.append("| 体型 | `%s` | %s | %s | %s | %s | %s |" % (
             sh,
             "、".join("`%s`=%s" % (k, v) for k, v in sorted(toks.items())) or "（默认）",
             w.get("frame") or "默认 侧视朝左",
             w.get("shade") or "默认 背腹",
             w.get("light") or "默认 背与尾",
             w.get("scope") or "默认 the whole fish…",
+        ))
+    for fid in sorted(SPECIES_WORDS):
+        w = SPECIES_WORDS[fid]
+        toks = w.get("tokens") or {}
+        L.append("| 物种 | `%s` | %s | %s | %s | %s | %s |" % (
+            fid,
+            "、".join("`%s`=%s" % (k, v) for k, v in sorted(toks.items())) or "（继承）",
+            w.get("frame") or "（继承）",
+            w.get("shade") or "（继承）",
+            w.get("light") or "（继承）",
+            w.get("scope") or "（继承）",
         ))
     L.append("")
 
@@ -1703,7 +1838,7 @@ def write_prompts(fish):
         var = build_prompt(f)
         # ⚠️ `LIGHT` 现在是**按体型**取的（水母 / 八腕 / 鲸 与默认不同），
         #    这里必须用同一个 `light_for()` 去剥，否则非鱼体型那几行的固定段剥不干净
-        for seg in (light_for(f.get("shape")), geom_for(None), BG):
+        for seg in (light_for(f), geom_for(None), BG):
             var = var.replace(seg, "")
         var = " ".join(var.split())
         L.append("| %s | %s | %s | %s | %s |" % (

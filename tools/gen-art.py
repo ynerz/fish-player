@@ -882,6 +882,199 @@ def fantasy_motif(name):
     return ""
 
 
+# ────────────────────────────────────────────────────────────────────────────
+# 🔴 **SS / SSS 钓场的「分场奇幻语汇」**（2026-10-09 晚，用户口径：
+#    「SS 鱼场和 SSS 渔场的鱼的名字基本都不是现实中的鱼了，都有一定的奇幻元素，
+#      看看现有的提示词是不是还是不够奇幻，一定要符合它的名称，
+#      使生成的图看起来就比前面渔场的要高级」）
+#
+# 🔎 **先量后改（改动前的实测，不是感觉）**：
+#   · SS(80) + SSS(100) = **180 条**，稀有度分布 普通 84 / 稀有 50 / 史诗 31 / 传说 15；
+#   · 名字能命中旧 `FANTASY_MOTIFS` 的有 **59 条**，但旧表唯一的门是 `rar == 3`
+#     ⇒ **只有 15 条真的加上了句子，另外 165 条一个字奇幻元素都没有**；
+#   · 星磷鱼 / 陨铁鲷 / 真空鳐 / 时砂小鱼 / 溯流鲑 这些名字里的设定，提示词里完全没兑现。
+#   ⇒ 问题**不是「句子写得不够奇幻」，是「门开得太小 + 语汇没覆盖这两场的名字」**。
+#
+# **两场的气质本来就分得开**（从 180 个名字里数出来的）：
+#   · **SS = 星空 · 陨铁 · 深渊**（星磷 / 陨铁 / 陨尘 / 暗星 / 夜穹 / 渊影 / 霜鳞 …）
+#     ⇒ 材质语汇 = **嵌在体表的矿物与发光微粒**
+#   · **SSS = 时间 · 纪元 · 遗迹 · 褶皱**（时砂 / 溯流 / 年轮 / 残页 / 刹那 / 终焉 …）
+#     ⇒ 材质语汇 = **被时间磨过的层次与结晶**
+#   ⇒ 于是 SSS 天然比 SS 高一级（SS 是「表面有一层东西」，SSS 是「内部有层次、整块在发光」），
+#     **这正是用户要的「比前面渔场高级」**，而且不需要靠加更多修饰词去堆。
+#
+# ⚠️ 与 `FANTASY_MOTIFS` 同一套三条硬约束（都在 §17.7 / §17.15 栽过）：
+#   ① 只用**结构 / 材质**词（`elaborate` / `ornate` 一出现就画成精细插画）；
+#   ② **不许引入新物件或新场景** —— `BG` 是 `completely empty`，
+#      所以「星」是**体表光点**、「沙」是**体表颗粒**、「页」是**磨平的斑块**，不许出现天空 / 道具；
+#   ③ 每条鱼**最多一句**（叠两句=词沙拉），表序 = 优先级，长键在前。
+#
+# ⚠️ **两张表各自独立、不做共用兜底**：同一个词（虚空 / 原初 / 星尘）在两场的句子**必须不同**，
+#    共用一张表会让 SSS 的「虚空鲽」与 SS 的「虚空鳗」长得一样 ⇒ 「更高一级」当场破功。
+#    ⇒ 因此 `check_deep_motifs()`（**加载即校验**）要求：**两场各自的每条鱼都必须命中**，
+#      且**表里不许有在该场一次都没命中的死行**（写了没人读 = 本项目最忌的那类数据）。
+# ────────────────────────────────────────────────────────────────────────────
+SS_MOTIFS = [
+    (("星陨之主", "星陨王座", "渊底月神", "永夜之主", "深渊终章", "星陨终焉", "星陨之王"),
+     "an unusually massive individual, its facets cut like polished dark star-stone with pale mineral seams"),
+    (("陨铁", "陨石", "陨核", "陨砾", "陨砂", "陨尘", "陨星"),
+     "small dark metallic ore inclusions embedded under the surface, splitting the shading into hard dark chips"),
+    (("星尘", "星屑", "星砂", "星磷", "微光", "微弱"),
+     "a fine suspension of tiny pale faceted chips drifting just beneath the surface"),
+    (("星纹", "陨纹", "星脉"),
+     "thin embossed veins drawn straight across the facets"),
+    (("陨光", "虚光"),
+     "a narrow band of metallic flake fused into the surface along one flank"),
+    (("星陨", "陨落", "碎星", "碎陨", "裂空"),
+     "several fractured facets along the back, their chipped edges catching the rim light"),
+    (("星蚀",),
+     "a dark eclipsed patch eating into one flank"),
+    (("暗星", "暗物质", "暗礁", "深星", "深海", "夜穹", "夜辉", "冷光"),
+     "the surface deepening to a matte near-black core with a cold slate sheen along the back"),
+    (("渊影", "渊眼"),
+     "a dark recessed hollow set into the body, reading as slow depth"),
+    (("虚空", "真空"),
+     "the outer surface fading out into a colourless void at the edges"),
+    (("星云", "星纱"),
+     "a soft nebula-like haze drifting inside the facets"),
+    (("幽蓝", "幽星", "幽暗"),
+     "the flanks fading into a deep matte cool blue"),
+    (("寂静", "幻影"),
+     "an unnaturally still, ghost-pale surface with the markings barely present"),
+    (("霜鳞",),
+     "a cold frost-white film creeping across the facets"),
+    (("星耀", "星核"),
+     "a single cut-stone core set deep in the body, its facets meeting in a sharp point"),
+    (("原初", "虚时"),
+     "the surface dulled and ancient, its facets weathered at the corners"),
+]
+
+SSS_MOTIFS = [
+    (("时之尽头", "时之终点", "纪元终焉", "终焉纪元", "初源之影", "最初之鳞", "创世之鳞",
+      "终末渔者", "终焉之影", "纪元褶皱", "时光褶皱", "时空褶皱", "时之褶皱", "无相巨鲲", "无相鲲"),
+     "an enormous ceremonial individual, its facets layered like stacked crystal plates with light caught between the layers"),
+    (("时砂", "沙漏", "时纱", "尘时", "时痕"),
+     "a fine film of pale sand-like grain drifting across the facets"),
+    (("尘光", "遗光", "初光", "拾光"),
+     "a thin dusty film of light lying on the surface"),
+    (("溯流", "溯光", "溯时", "逆时", "逆流", "逆熵", "逆光", "逆旅", "逆空",
+      "回环", "回响", "回音", "残响", "残时"),
+     "thin echo lines running backwards across the body"),
+    (("年轮", "纪年", "纪元", "时刻", "未时", "时间", "千年"),
+     "deep stepped terraces cut into the surface, each level a slightly different tone"),
+    (("时光", "流年"),
+     "long slow bands of light passing across the surface"),
+    (("遗迹", "旧日", "昨日", "遗忘", "前尘", "后时", "残页", "空页"),
+     "patches of the surface worn smooth and pale, the facets rubbed down"),
+    (("静默", "沉默", "寂时"),
+     "an unnaturally still surface with the markings almost absent"),
+    (("空洞", "空之", "空时", "无相", "忘川"),
+     "the body reading hollow, the surface desaturating to bare grey"),
+    (("刹那", "须臾", "瞬息", "一刻"),
+     "the whole surface held unnaturally still, as if frozen mid-motion"),
+    (("永恒",),
+     "the facets sealed under a glossy unbroken crystal skin"),
+    (("终焉", "终末"),
+     "the facets converging and narrowing towards a single dark point"),
+    (("琥珀",),
+     "a deep amber core held inside the facets"),
+    (("零度", "初雪"),
+     "a pale frost-white film across the facets"),
+    (("初源", "创世", "最初", "原初"),
+     "the surface pale and almost colourless, like a first unformed shape"),
+    (("黄昏",),
+     "the surface deepening to a flat dusk-dark tone"),
+    (("千面",),
+     "the facets shifting tone unevenly, no two neighbouring facets alike"),
+    (("虚空", "虚时", "虚年"),
+     "the outer surface fading out into a colourless void at the edges"),
+    (("影时",),
+     "a soft moving shadow band drifting slowly across the surface"),
+    (("远景",),
+     "the far facets fading pale, as if the body recedes into distance"),
+    (("星尘", "星轨", "暗物质"),
+     "pale dust and dark ore suspended in layers inside the body"),
+]
+
+DEEP_MOTIFS = {"SS": SS_MOTIFS, "SSS": SSS_MOTIFS}
+
+# 🔴 **奇幻句的用词纪律（机器强制，不靠自觉）**
+# 改动前实测：SS/SSS 180 条里有 **140 条**的形态档案本来就写着
+# `a soft glowing edge along the outer silhouette` —— 也就是说「会发光」这两场**人人都有**，
+# 拿它当奇幻卖点等于什么都没说。另有 47/180 条出现「奇幻句与形态档案撞同一个词」
+# （luminous 10 / glow 15 / glowing 7 / ring 13 / crystalline 1 / translucent 1）。
+# ⇒ 奇幻句**一律不许用下面这些词**，改用**材质与结构**词（chip / flake / terrace / seam /
+#   vein / cut-stone / sheen …）。它们是**新增的信息**，不是把已经说过一遍的东西再说一遍。
+#   ⚠️ 判据在 `check_deep_motifs()` 里按**词边界**扫（`ring` 不许命中 `during` / `spring`）。
+DEEP_MOTIF_BANNED = ("glow", "glowing", "luminous", "translucent", "crystalline",
+                     "concentric", "ring", "rings")
+
+
+def deep_motif(f):
+    """SS / SSS 两场的奇幻点题句。命中即止、没有就返回空串（表序 = 优先级）。
+
+    与 `fantasy_motif()` 的分工：那条只管**前面钓场的传说鱼**（rar == 3），
+    这条只管**两场的全部稀有度** —— 两场各 80 / 100 条的名字都是奇幻设定，
+    没有理由让其中的普通鱼画成现实里的鱼。
+    """
+    table = DEEP_MOTIFS.get(f.get("field"))
+    if not table:
+        return ""
+    name = f.get("name") or ""
+    for keys, sentence in table:
+        if any(k in name for k in keys):
+            return sentence
+    return ""
+
+
+def check_deep_motifs():
+    """加载即校验：**两场每条鱼都要命中，且表里不许有死行**（写了没人读 = 死数据）。
+
+    为什么要「加载即校验」而不是靠人目视：这两张表有 39 行、180 条鱼要覆盖，
+    而表格是**手写**的 —— 漏一条鱼（少一个词）或留着一条没人命中的死行，
+    表现都是「图出来才知道」，那时已经烧掉几十分钟出图时间。
+    ⚠️ 与 `check_pools()` / `check_shape_words()` 同一套路：不合格**直接抛**，不静默放行。
+    （它自己读一次 fish —— `load_fish()` 要起 node，为省这一次调用而给它加缓存不值得。）
+    """
+    fish = load_fish()
+    for field, table in sorted(DEEP_MOTIFS.items()):
+        rows = [(keys, s) for keys, s in table]
+        hit_rows, missing, used = set(), [], [0] * len(rows)
+        for f in fish:
+            if f.get("field") != field:
+                continue
+            name = f.get("name") or ""
+            got = -1
+            for i, (keys, _s) in enumerate(rows):
+                if any(k in name for k in keys):
+                    got = i
+                    break
+            if got < 0:
+                missing.append("%s %s" % (f["id"], name))
+            else:
+                hit_rows.add(got)
+                used[got] += 1
+        if missing:
+            raise SystemExit(
+                "❌ %s 场有 %d 条鱼没命中奇幻表（名字里的意象词没进表）：\n   %s"
+                % (field, len(missing), "、".join(missing[:20])))
+        dead = [(i, rows[i][0][0]) for i in range(len(rows)) if used[i] == 0]
+        if dead:
+            raise SystemExit(
+                "❌ %s 场奇幻表里有 %d 条死行（该场一次都没命中，写了没人读）：\n   %s"
+                % (field, len(dead), "、".join("第%d行(首键 %s)" % (i + 1, k) for i, k in dead)))
+        # 用词纪律：不许用形态档案里已经高频出现的「发光 / 透明」词（见 DEEP_MOTIF_BANNED）
+        for i, (_keys, sent) in enumerate(rows):
+            hitw = [w for w in DEEP_MOTIF_BANNED
+                    if re.search(r"\b" + w + r"\b", sent)]
+            if hitw:
+                raise SystemExit(
+                    "❌ %s 场奇幻表第 %d 行用了禁用词 %s：\n   %s\n"
+                    "   （这 %s 词在形态档案里已经大量出现，其中 glowing 覆盖 140/180 条）"
+                    % (field, i + 1, "、".join(hitw), sent, "、".join(hitw)))
+
+
+
 def color_name(hexstr):
     """十六进制 → 英文色名（AI 看不懂 hex，但认色名）"""
     h = (hexstr or "").lstrip("#")
@@ -1476,15 +1669,24 @@ def build_prompt(f, morph=None):
     #    （用户口径：「按身体特征对每条鱼先写一个描述」，让鱼更好分辨）
     bits.append(form_profile(f))
 
-    # ③b 传说级点题 —— **只有 rar == 3**，按名字里的意象词补一句奇幻描述（见 FANTASY_MOTIFS）。
+    # ③b 点题 —— 两道门，**互斥**，一条鱼最多一句：
+    #     ① **SS / SSS 两场**（任何稀有度）→ `deep_motif()`（分场语汇，见 SS_MOTIFS / SSS_MOTIFS）。
+    #        这两场 180 条名字全是奇幻设定，不能只有其中的传说鱼兑现（改动前实测：165/180 一条都没有）；
+    #     ② **前面钓场的传说鱼**（rar == 3）→ 原来的 `fantasy_motif()`。
+    #        ⛔ 前面钓场的普通 / 稀有 / 史诗鱼**一个字都不加** —— 那是「稀有度递进」的卖点，也是
+    #           「SS/SSS 看起来比前面高级」这句话的另一半（只有两场变强，对比才成立）。
     #     位置紧贴形态档案：它是「这条鱼身上长什么样」的一部分，
     #     排在花纹 / 特征位之前、颜色句之前，才不会把颜色与 LIGHT 收尾冲淡。
     #     ⚠️ `rar_i` 在这里就要定下来（后面 ④⑤ 与收尾句都还要用），别在下面再赋值一次。
     rar_i = min(3, f.get("rar", 0))
-    if rar_i == 3:
+    if f.get("field") in DEEP_MOTIFS:
+        motif = deep_motif(f)
+    elif rar_i == 3:
         motif = fantasy_motif(f.get("name", ""))
-        if motif:
-            bits.append(motif)
+    else:
+        motif = ""
+    if motif:
+        bits.append(motif)
 
     # ④ 体表花纹 —— 查证过的逐条特征最优先，其次按科属字给**真实倾向**，
     #    两者都没有就**不写**（⛔ 不许随机抽，见 MARK_BY_FAMILY 的注释）
@@ -1600,6 +1802,11 @@ def load_fish():
     if r.returncode != 0:
         print(r.stderr[-800:]); sys.exit(1)
     return json.loads(r.stdout)
+
+
+# SS / SSS 两场的奇幻表：**加载即校验**（漏词 / 死行都不许静默放行）。
+# ⚠️ 只能放在 `load_fish` 定义之后（它要读鱼名），所以不能跟顶部那几处校验并排。
+check_deep_motifs()
 
 
 def pick(fish, args):

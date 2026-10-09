@@ -5160,6 +5160,145 @@ if (!refBad) {
 }
 
 
+
+/* ---------------- 49. SS / SSS 两场的奇幻点题（分场语汇 + 三张网） ----------------
+   由来（2026-10-09 晚，用户口径）：「SS 鱼场和 SSS 渔场的鱼的名字基本都不是现实中的鱼了，
+   都有一定的奇幻元素，看看现有的提示词是不是还是不够奇幻，一定要符合它的名称，
+   使生成的图看起来就比前面渔场的要高级」。
+
+   🔎 改动前的实测（不是感觉）：SS(80) + SSS(100) = 180 条，稀有度 普通 84 / 稀有 50 / 史诗 31 / 传说 15；
+   名字能命中旧 `FANTASY_MOTIFS` 的 59 条，但旧表唯一的门是 `rar == 3`
+   ⇒ **只有 15 条真的加了句子，另外 165 条一个字奇幻元素都没有**。
+   ⇒ 病根不是「句子不够奇幻」，是「门开得太小 + 语汇没覆盖这两场的名字」。
+
+   本节钉住四件事（都在 `tools/gen-art.py` 里，**不依赖 python** —— `verify` 跑不了外部命令）：
+     ① **结构**：两张分场表 + `DEEP_MOTIFS` + 用词纪律表都在；`check_deep_motifs()` 是**模块级**调用
+        （定义了没人调 = 和没有一样）；
+     ② **三张网真的在函数体里**：覆盖网（`missing`）、死行网（`dead`）、用词纪律（`DEEP_MOTIF_BANNED`）；
+     ③ **唯一入口 + 两道门共存**：`deep_motif(` / `fantasy_motif(` 各只许**一处**调用点（定义行不算），
+        且 `build_prompt` 里「先按钓场、再按稀有度」的顺序不许反（反了 SS/SSS 那 15 条传说鱼会走旧表）；
+     ④ **用词纪律的静态版**：表里**每一句**都不许含形态档案里的高频词
+        （实测 glowing 覆盖 140/180 条 —— 拿「会发光」当奇幻卖点等于什么都没说）。
+        ⚠️ 这条在本节里做静态扫描，比 `check_deep_motifs()` 更早生效（`git commit` 时就拦得住）。 */
+console.log('\n[49] SS / SSS 奇幻点题：分场语汇、唯一入口、用词纪律');
+let deepBad = 0;
+(function () {
+  const REL = 'tools/gen-art.py';
+  const raw = fs.readFileSync(path.join(ROOT, REL), 'utf8');
+  /* 只剥**整行注释**（`^\s*#`）—— 句子与键都在字符串里，粗暴剥 `#` 会把它们一起削掉。
+     ⚠️ 结构性判据用剥过的；④ 抽句子用**原文**（句子本身就该被读到）。 */
+  const code = raw.replace(/^[ \t]*#[^\n]*$/gm, '');
+
+  /* ① 结构 */
+  ['SS_MOTIFS', 'SSS_MOTIFS', 'DEEP_MOTIFS', 'DEEP_MOTIF_BANNED'].forEach(n => {
+    if (!new RegExp('^' + n + ' = ', 'm').test(code)) {
+      err(REL + ' 里找不到 `' + n + ' = ` —— 分场奇幻语汇的表没了/改名了，本节要来更新');
+      deepBad++;
+    }
+  });
+  const calls = (code.match(/^check_deep_motifs\(\)$/gm) || []).length;
+  if (calls !== 1) {
+    err(REL + ' 的 `check_deep_motifs()` 不是**恰好一处**顶格调用（实得 ' + calls + ' 处）—— '
+      + '定义了没人调 = 漏词 / 死行照样能出图，这张网等于没有');
+    deepBad++;
+  }
+
+  /* ② 三张网真的写在函数体里 */
+  const ck = bodyOf(code, 'def check_deep_motifs(');
+  if (!ck) {
+    err(REL + ' 里找不到 `def check_deep_motifs(` —— 改名了就来更新本节（不许当成「没有网要检查」）');
+    deepBad++;
+  } else {
+    [['missing', '覆盖网（有鱼没命中）'], ['dead', '死行网（表里有没人读的行）'],
+     ['DEEP_MOTIF_BANNED', '用词纪律（句子里用了禁用词）']].forEach(([n, what]) => {
+      if (!has(ck, n)) { err(REL + ' 的 check_deep_motifs() 里没有 ' + what + ' —— 三张网缺一张'); deepBad++; }
+    });
+  }
+
+  /* ③ 唯一入口 + 两道门共存且顺序正确 */
+  const cnt = (t, n) => (t.match(new RegExp('(^|[^\\w.])' + n + '\\(', 'g')) || []).length;
+  const entryDeep = bodyOf(code, 'def deep_motif(');
+  const entryOld = bodyOf(code, 'def fantasy_motif(');
+  const bp = bodyOf(code, 'def build_prompt(');
+  if (!entryDeep || !entryOld || !bp) {
+    err(REL + ' 里找不到 `def deep_motif(` / `def fantasy_motif(` / `def build_prompt(` 之一 —— 改名了就来更新本节');
+    deepBad++;
+  } else {
+    /* 调用点 = 全文件里的调用数 − 定义行自己那一次。
+       ⚠️ 必须**先剥掉文档字符串**：`deep_motif()` 的说明里写着 `fantasy_motif()`，
+          不剥就会把它当成一处调用点（本节第一次跑就栽在这里）。 */
+    const noDoc = code.replace(/"""[\s\S]*?"""/g, '""');
+    const deepCalls = cnt(noDoc, 'deep_motif') - 1;
+    const oldCalls = cnt(noDoc, 'fantasy_motif') - 1;
+    if (deepCalls !== 1 || oldCalls !== 1) {
+      err('奇幻点题的调用点不是各一处（deep_motif ' + deepCalls + ' / fantasy_motif ' + oldCalls + '）—— '
+        + '点题要**只能从 build_prompt 里出一道门**，散出去就会出现「同一句被加两遍」或「某条鱼两条路都走」');
+      deepBad++;
+    }
+    if (!has(entryDeep, 'DEEP_MOTIFS.get(')) {
+      err('`deep_motif()` 没有按钓场取表（找不到 `DEEP_MOTIFS.get(`）—— 两场会共用一套句子，'
+        + '「SSS 比 SS 高级」当场破功');
+      deepBad++;
+    }
+    const iField = at(bp, 'in DEEP_MOTIFS');
+    const iRar = at(bp, 'rar_i == 3');
+    if (iField < 0 || iRar < 0) {
+      err('build_prompt() 的两道门不齐（按钓场 ' + (iField >= 0 ? '在' : '缺')
+        + ' / 按稀有度 ' + (iRar >= 0 ? '在' : '缺') + '）—— ');
+      deepBad++;
+    } else if (iField > iRar) {
+      err('build_prompt() 里两道门的**顺序反了**（按稀有度写在按钓场之前）—— '
+        + 'SS/SSS 那 15 条传说鱼会走旧表，分场语汇静默少 15 条（能跑，所以更危险）');
+      deepBad++;
+    }
+  }
+
+  /* ④ 用词纪律（静态扫表里的每一句） */
+  const blockOf = (name) => {
+    const i = code.indexOf(name + ' = [');
+    if (i < 0) return '';
+    const e = closeOf(code, code.indexOf('[', i));
+    return e > 0 ? code.slice(i, e) : '';
+  };
+  const BANNED = ['glow', 'glowing', 'luminous', 'translucent', 'crystalline', 'concentric', 'ring', 'rings'];
+  let sentences = 0, badSent = [];
+  ['SS_MOTIFS', 'SSS_MOTIFS'].forEach(name => {
+    const blk = blockOf(name);
+    if (!blk) { err('取不到 ' + name + ' 的表体（改写法了来更新本节）'); deepBad++; return; }
+    const lits = [...blk.matchAll(/"([^"\n]{20,})"/g)].map(m => m[1]);
+    if (lits.length < 10) {
+      err(name + ' 里只认出 ' + lits.length + ' 句（≥20 字符的双引号串）—— 取不到句子 = 本节判据恒真，'
+        + '必须报错而不是放行');
+      deepBad++;
+      return;
+    }
+    sentences += lits.length;
+    lits.forEach(s => {
+      const hit = BANNED.filter(w => new RegExp('\\b' + w + '\\b').test(s));
+      if (hit.length) badSent.push(name + '：' + hit.join('/') + ' → ' + s.slice(0, 52));
+    });
+  });
+  if (badSent.length) {
+    err('分场奇幻句里有 ' + badSent.length + ' 句用了形态档案的高频词 —— ' +
+      '实测 glowing 覆盖 140/180 条、「会发光」不是这两场的奇幻卖点：\n     ' + badSent.join('\n     '));
+    deepBad++;
+  }
+  /* 判据自检：两种坏样本必须被认出，好样本必须放过 */
+  const isBad = s => BANNED.filter(w => new RegExp('\\b' + w + '\\b').test(s)).length > 0;
+  if (!isBad('thin luminous veins across the facets') || !isBad('deep concentric growth-ring bands')
+      || isBad('a cold frost-white film creeping across the facets')
+      || isBad('thin embossed veins drawn straight across the facets')) {
+    err('第 49 节判据自检不成立：分不出「含禁用词」与「不含但有近义词」的句子'
+      + '（ring 必须按词边界，不许命中 creeping）');
+    deepBad++;
+  }
+
+  if (!deepBad) {
+    ok('SS / SSS 分场奇幻点题在位：两张表 ' + sentences + ' 句、模块级加载即校验、'
+      + '点题只有一处入口且两道门顺序正确、句子不含形态档案高频词');
+  }
+})();
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

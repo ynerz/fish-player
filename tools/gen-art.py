@@ -504,29 +504,46 @@ def morph_versions(f, key):
 #    它就是「各档池子的第 0 项」，**不是**另一份颜色句定义。
 MORPHS = [(k, MORPH_CANDIDATES[MORPH_POOL[k][0][0]][1]) for k in MORPH_ORDER]
 
-# —— 体型：形态句 + 「华丽」作用在哪个部件上 + 颜色句里的部件名词 ——
+# —— 体型：形态句 + 「华丽」作用在哪个部件上 ——
 #    `fin` 决定稀有度递进加长哪个部位；水母是触手、鳐是翼、鲸是尾叶。
 #    ⚠️ 形态句里**不要写尾型** —— 尾型一律由 `tail` 字段给，否则会拼出
 #       「forks tail, a fan-shaped tail」这种自相矛盾的话（实测踩过）。
+#    🔴 2026-10-09 新增 3 个体型（`crustacean` / `star` / `worm`，9 → 12）：
+#       它们原来**没有专属体型**，被兜底成 squid / jelly / eel ⇒ 数据模型里写着
+#       「小龙虾 = 鱿鱼」，2D 画出来是一只乌贼。工程侧必须同步四处，缺一处就会**静默**
+#       回落或报错（都不是「图难看」那么轻）：
+#         · `src/render/fishart.js` 的 `TPL`（缺 = 回落 `TPL.fish`，画面与鱼无异）
+#         · `tools/review-cards.py` 的 `SHAPE_CN`（缺 = 评审页裸印内部键）
+#         · `tools/style-preview.html` 的「全形态总览」代表鱼（缺 = 那节少一种形态）
+#         · 文档里的「N 种体型」（`verify §33` 现算比对）
+#    ⚠️ 新体型的 `d` **只描述构造、不许点名动物**（2026-10-08 的教训：写了动物名就是物种指令，
+#       实测把小龙虾画成乌贼）。
 SHAPES = {
     "fish":    {"d": "streamlined fish with a rounded body and small pectoral fins",
-                "fin": "fins", "finSafe": "fins", "part": "fins"},
+                "fin": "fins", "finSafe": "fins"},
     "eel":     {"d": "long slender eel with a ribbon-like serpentine body and a continuous fin along the back",
-                "fin": "dorsal fin", "finSafe": "fins", "part": "fins"},
+                "fin": "dorsal fin", "finSafe": "fins"},
     "ray":     {"d": "flat wide manta ray with a broad diamond body and wing-like fins",
-                "fin": "wings", "finSafe": "wings", "part": "wings"},
+                "fin": "wings", "finSafe": "wings"},
     "squid":   {"d": "squid with an elongated mantle, pointed tip, triangular side fins and a cluster of tentacles",
-                "fin": "side fins", "finSafe": "arms", "part": "side fins"},
+                "fin": "side fins", "finSafe": "arms"},
     "jelly":   {"d": "jellyfish with a rounded bell dome and long tentacles hanging below",
-                "fin": "tentacles", "finSafe": "tentacles", "part": "tentacles"},
+                "fin": "tentacles", "finSafe": "tentacles"},
     "oarfish": {"d": "ribbon fish with an extremely long thin body and a tall crest fin running the whole back",
-                "fin": "crest fin", "finSafe": "fins", "part": "fins"},
+                "fin": "crest fin", "finSafe": "fins"},
     "shark":   {"d": "shark with a torpedo body, pointed snout and a tall triangular dorsal fin",
-                "fin": "fins", "finSafe": "fins", "part": "fins"},
+                "fin": "fins", "finSafe": "fins"},
     "whale":   {"d": "whale with a bulky rounded body, a wide horizontal fluke and a small dorsal fin",
-                "fin": "fluke", "finSafe": "fluke", "part": "fluke"},
+                "fin": "fluke", "finSafe": "fluke"},
     "dragon":  {"d": "serpentine dragon fish with a long sinuous body, spiny dorsal ridge and whisker barbels",
-                "fin": "fins", "finSafe": "fins", "part": "fins"},
+                "fin": "fins", "finSafe": "fins"},
+    # ⚠️ 下面 3 条的 `d` **只写构造、不写动物名**（写了就是给模型下物种指令）
+    "crustacean": {"d": "a jointed body under a hard segmented shell, a row of small jointed legs beneath it and a fan-shaped tail",
+                "fin": "claws", "finSafe": "limbs"},
+    "star":    {"d": "a small central disc with five long flexible tapering arms radiating out from it",
+                "fin": "arms", "finSafe": "arms"},
+    "worm":    {"d": "a soft elongated body, a ring of short tentacles at the front end, small tube feet along the underside",
+                "fin": "front tentacles", "finSafe": "tentacles"},
 }
 # `fin` 与 `finSafe` 的区别（2026-10-08 加）：
 #   · `fin`     —— **没有查证过的 `form` 时**用，可以点具体部位（"side fins" / "crest fin"）；
@@ -590,6 +607,35 @@ SHAPE_WORDS = {
         "light": "strong rim light along the back and the fluke",
         "scope": "the whole whale including the head and the fluke",
     },
+    # ── 2026-10-09 新增的 3 个体型（`fish.js` 里那 5 条不再被兜底到别类身上）──
+    # 甲壳类：无鳍，部件是**壳与步足**；侧视成立，背腹成立（甲壳类就是背深腹浅）
+    "crustacean": {
+        "tokens": {"part": "limbs", "partsg": "limb", "sides": "shell", "head": "head",
+                   "under": "lower body", "over": "upper body", "surface": "shell"},
+        "light": "strong rim light along the shell and the limbs",
+        "scope": "the whole creature including the head and the limbs",
+    },
+    # 棘皮·五辐射：**没有头 / 尾 / 背腹**，顶视才是它的正脸；且**没有眼**
+    "star": {
+        "tokens": {"part": "arms", "partsg": "arm", "sides": "disc", "head": "central disc",
+                   "under": "lower surface", "over": "upper surface", "surface": "plates"},
+        "no_eye": True,
+        "frame": "full top view, whole body visible, five-fold symmetric",
+        "shade": "a clearly lighter lower surface and a darker upper surface",
+        "light": "strong rim light along the upper surface and the arms",
+        "scope": "the whole creature including the central disc and the arms",
+    },
+    # 软长形无脊椎：口端一圈短触手，腹面管足；没有尾，也**没有眼**。
+    # ⚠️ 这一条是**通用层**（海猪 / 管虫共用），两条各自的专门部件词留在 `SPECIES_WORDS`
+    #    —— 这正是「体型层 = 剪影原型、物种层 = 专门词汇」的分工。
+    "worm": {
+        "tokens": {"part": "front tentacles", "partsg": "tentacle", "sides": "body",
+                   "head": "front end", "under": "lower body", "over": "back",
+                   "surface": "skin"},
+        "no_eye": True,
+        "light": "strong rim light along the body and the front tentacles",
+        "scope": "the whole creature including the body and the front tentacles",
+    },
 }
 
 # 颜色句里的占位符默认值 —— **`fish` / `shark` / `eel` / `oarfish` / `dragon` 全走默认值**，
@@ -599,69 +645,41 @@ COLOR_TOKEN_DEFAULTS = {"part": "fins", "partsg": "fin", "sides": "flanks", "hea
                         "under": "belly", "over": "back", "surface": "scales"}
 
 
-# 🔴 **逐条物种覆写**（2026-10-09 加，第二层）—— 为什么 `SHAPE_WORDS` 还不够：
-#    `shape` 只是**几何模板**，非鱼类常被兜底到「最接近但不同类」的体型上：
-#    `D08 小龙虾` / `S21 巨型等足虫` 是**甲壳类**却走 `squid`、`S19 海猪` 是**海参类**却走 `jelly`、
-#    `S20 海蛇尾`（棘皮）/ `S22 管虫`（环节）走 `eel` —— 于是它们会拿到
-#    「arms」「tentacles」「fins」这些**不属于自己**的部件词，光换体型层的词救不回来。
-#    （2026-10-08 那条「命中即止」的审计已把「体型与物种自洽」定成「不是 bug」，
-#      但那说的是**别的**非鱼类；这 5 条的兜底是明确不贴的，见 `docs/改进待办.md`。）
+# 🔴 **逐条物种覆写**（2026-10-09 加，第三次修订 —— **只留 2 条**）
 #
-# ⚠️ 只按 **id** 覆写这 5 条，**不动 `fish.js` / `fishart.js` / 体型表** ——
-#    改体型表属设计决策（2026-10-08 那条未决案），而且会连带影响 2D 渲染器的 `TPL`。
-# ⚠️ 每一条的覆写理由都写在自己那行上面：**这是「按物种的解剖事实」改，不是为了好看**。
+# 这条时间线值得留着，因为它演示了「同一个症状的两种修法，正确的那种会把另一种吃掉」：
+#   ① 第一版：`D08` / `S21` / `S19` / `S20` / `S22` 全走 `SPECIES_WORDS`。
+#      原因：`shape` 只是**几何模板**，这 5 条被兜底到「最接近但不同类」的体型上
+#      （甲壳类→squid、海参类→jelly、棘皮/环节→eel）⇒ 拿到 arms / tentacles / fins
+#      这些**不属于自己**的部件词，光换体型层的词救不回来。
+#   ② 第二版（用户口径「体型表也要改」）：给它们补了专属体型
+#      `crustacean` / `star` / `worm` ⇒ **上面 3 条（D08 / S21 / S20）的覆写就该删掉了**，
+#      留着反而是第二份真相（体型层已经说对，物种层再重复一遍只会漂）。
+#   ③ 现在只剩 `worm` **内部**要分开说的两条 —— 这就是本层真正的用途：
+#      **体型层给剪影原型、物种层给专门词汇**（通用层说「front tentacles」，
+#      海参是「tube feet」、管虫是「feathery crown」）。
+#
 # ⚠️ 覆写是**逐键合并**：没写的键继续吃体型层与默认值（所以不必把 7 个占位符抄全）。
+# ⚠️ 每一条的覆写理由都写在自己那行上面：**这是「按物种的解剖事实」改，不是为了好看**。
+# ⚠️ 它**不许**覆盖 `shape == "fish"` 的条目（`verify §33-c` 的 ⑤b3 盯着）——
+#    鱼族的提示词逐字不变是「已出的卡不被误判成过期」的前提。
 SPECIES_WORDS = {
-    # 小龙虾（甲壳类，兜底成 squid）：部件是**螯与步足**，不是腕；体表是甲壳。
-    # ⚠️ `light` 必须一起覆写 —— 只写 `tokens` 的话，边光那句仍从 `squid` 层继承成
-    #    「along the upper body and the arms」（实测第一版就是这样漏的）。
-    "D08": {
-        "tokens": {"part": "claws", "partsg": "claw", "sides": "carapace",
-                   "head": "head", "under": "lower body", "over": "upper body",
-                   "surface": "surface"},
-        "light": "strong rim light along the shell and the claws",
-        "scope": "the whole creature including the head and the claws",
-    },
-    # 巨型等足虫（等足目，兜底成 squid）：七对步足 + 盾状甲壳；也没有腕
-    "S21": {
-        "tokens": {"part": "legs", "partsg": "leg", "sides": "carapace",
-                   "head": "head", "under": "lower body", "over": "upper body",
-                   "surface": "surface"},
-        "light": "strong rim light along the shell and the legs",
-        "scope": "the whole creature including the head and the legs",
-    },
-    # 海猪（海参类，兜底成 jelly）：**没有伞盖、没有触手**，靠腹面几对管足爬行；
-    # 又不辐射对称 ⇒ 朝向与明暗句都得退掉 `jelly` 层的覆写。
-    # ⚠️ `under` 取「lower surface」而不是「underside」：闪光档那句是 `a {under} only…`，
-    #    用 `underside` 会拼出 **「a underside」**（实测第一版就拼出来了）。
+    # 🔴 2026-10-09 第二轮：这 5 条**已经有了自己的体型**（`crustacean` / `star` / `worm`），
+    #    所以物种层只剩 `worm` 内部的两条需要分开说 —— 「体型层给剪影原型、
+    #    物种层给专门词汇」，两层各司其职：
+    #      · 海猪（海参类）：口端那圈是**管足**，不是触手；
+    #      · 管虫（环节）：口端那圈是**羽毛状鳃冠**（比通用层说得更具体）。
+    #    其余三条（D08 / S21 / S20）的专门词汇已经写在体型层，**不再需要逐条覆写**。
+    # 海猪（海参类，走 `worm`）：靠腹面几对管足爬行，口端是短的口触手
     "S19": {
-        "tokens": {"part": "tube feet", "partsg": "tube foot", "sides": "body",
-                   "head": "front end", "under": "lower surface", "over": "upper surface",
-                   "surface": "skin"},
-        "frame": "full side view, whole body visible, facing left",
-        "shade": "a clearly lighter lower surface and a darker upper surface",
+        "tokens": {"part": "tube feet", "partsg": "tube foot",
+                   "under": "lower surface", "over": "upper surface"},
         "light": "strong rim light along the back and the tube feet",
         "scope": "the whole creature including the body and the tube feet",
     },
-    # 海蛇尾（棘皮，兜底成 eel）：中央小盘 + 五条细长腕，五辐射对称 ⇒ 顶视才是它的正脸；
-    # `eel` 层的 `fins` / 背腹明暗对它同样是错的。**棘皮动物没有眼睛** ⇒ `no_eye`
-    "S20": {
-        "tokens": {"part": "arms", "partsg": "arm", "sides": "disc",
-                   "head": "central disc", "under": "lower surface", "over": "upper surface",
-                   "surface": "plates"},
-        "no_eye": True,
-        "frame": "full top view, whole body visible, five-fold symmetric",
-        "shade": "a clearly lighter lower surface and a darker upper surface",
-        "light": "strong rim light along the upper surface and the arms",
-        "scope": "the whole creature including the central disc and the arms",
-    },
-    # 管虫（环节，兜底成 eel）：身体是圆柱、前端是**羽毛状鳃冠**，没有尾；
-    # `fins` 与「背和尾打边光」都不成立。头部已特化成鳃冠、没有独立的眼 ⇒ `no_eye`
+    # 管虫（环节，走 `worm`）：前端是羽毛状鳃冠，没有尾
     "S22": {
-        "tokens": {"part": "feathery crown", "partsg": "crown", "sides": "body",
-                   "head": "front end", "under": "lower body", "over": "back",
-                   "surface": "skin"},
-        "no_eye": True,
+        "tokens": {"part": "feathery crown", "partsg": "crown"},
         "light": "strong rim light along the body and the crown",
         "scope": "the whole creature including the body and the crown",
     },

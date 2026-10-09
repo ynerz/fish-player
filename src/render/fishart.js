@@ -11,6 +11,9 @@
      shark  鲨
      whale  鲸 / 海兽
      dragon 龙鱼 / 幻兽
+     crustacean 甲壳类（小龙虾 / 等足虫：甲壳 + 步足 + 尾扇）
+     star   棘皮·海蛇尾（中央盘 + 五辐射的腕）
+     worm   软长形无脊椎（海猪 / 管虫：软体长身 + 前端触手环 + 腹面管足）
    ========================================================= */
 window.G = window.G || {};
 
@@ -741,6 +744,150 @@ G.FishArt = (function () {
     ctx.lineTo(0.22 * L, -h * 0.98);
     ctx.stroke();
     eye(ctx, L, h, 0.36 * L, -h * 0.16, Math.max(1.4, L * 0.038), p);
+  };
+
+  /* ── 甲壳类：甲壳 + 步足 + 尾扇（小龙虾 / 巨型等足虫）─────────────────────────
+     为什么单开一个模板：这 2 条原来兜底成 `squid`，而 `TPL.squid` 画的是
+     「长筒外套膜 + 三角鳍」= **一只乌贼**（与 AI 出图那条同源的老毛病）。
+     ⚠️ 剪影上**刻意不画任何鳍** —— 甲壳类的辨识特征恰恰是「没有鳍 + 一列步足 + 尾扇」。 */
+  TPL.crustacean = function (ctx, fish, L, opt, p, rand) {
+    var t = (opt.t || 0);
+    var h = L * Math.max(0.18, Math.min(0.32, (fish.body_ratio || 0.34) * 0.90));
+    /* 步足（4 对，随呼吸轻微摆动） */
+    ctx.strokeStyle = U.rgba(p.accentDark, 0.95);
+    ctx.lineCap = 'round';
+    for (var i = 0; i < 4; i++) {
+      var x = (0.30 - i * 0.20) * L;
+      var wob = Math.sin(t * 2.2 + i * 0.8) * h * 0.10;
+      ctx.lineWidth = LWM(0.9, L * 0.012);
+      ctx.beginPath();
+      ctx.moveTo(x, h * 0.26);
+      ctx.quadraticCurveTo(x - L * 0.05, h * (0.86 + i * 0.05), x - L * 0.15, h * 1.06 + wob);
+      ctx.stroke();
+    }
+    /* 尾扇（-x 端，5 片） */
+    ctx.fillStyle = U.rgba(p.accent, 0.92);
+    for (var s = 0; s < 5; s++) {
+      var a = (s / 4 - 0.5) * 1.6;
+      ctx.beginPath();
+      ctx.moveTo(-0.46 * L, h * 0.04);
+      ctx.lineTo(-0.50 * L - Math.cos(a) * L * 0.34, h * 0.04 + Math.sin(a) * h * 1.15);
+      ctx.lineTo(-0.38 * L, h * 0.04);
+      ctx.closePath(); ctx.fill();
+    }
+    /* 甲壳（头胸甲 + 分节腹，一体成型） */
+    ctx.beginPath();
+    ctx.moveTo(0.56 * L, -h * 0.16);
+    ctx.bezierCurveTo(0.50 * L, -h * 0.94, 0.08 * L, -h * 1.02, -0.26 * L, -h * 0.68);
+    ctx.quadraticCurveTo(-0.42 * L, -h * 0.40, -0.44 * L, 0);
+    ctx.quadraticCurveTo(-0.42 * L, h * 0.36, -0.26 * L, h * 0.60);
+    ctx.bezierCurveTo(0.08 * L, h * 0.98, 0.50 * L, h * 0.88, 0.56 * L, -h * 0.16);
+    ctx.closePath();
+    var g = ctx.createLinearGradient(0, -h, 0, h);
+    g.addColorStop(0, p.bodyDark); g.addColorStop(0.45, p.body); g.addColorStop(1, p.belly);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.7, L * 0.008); ctx.stroke();
+    /* 腹节横线 */
+    ctx.strokeStyle = U.rgba(p.bodyDark, 0.55); ctx.lineWidth = LWM(0.7, L * 0.008);
+    for (var k = 0; k < 4; k++) {
+      var sx = (-0.02 - k * 0.11) * L;
+      ctx.beginPath();
+      ctx.moveTo(sx, -h * 0.80 + k * h * 0.34);
+      ctx.lineTo(sx, h * 0.76 - k * h * 0.28);
+      ctx.stroke();
+    }
+    /* 触角（两根，向前） */
+    ctx.strokeStyle = U.rgba(p.accent, 0.9); ctx.lineWidth = LWM(0.8, L * 0.011);
+    [0, 1].forEach(function (i) {
+      ctx.beginPath();
+      ctx.moveTo(0.50 * L, (i ? 0.10 : -0.10) * h);
+      ctx.quadraticCurveTo(0.80 * L, (i ? 0.38 : -0.38) * h, 0.96 * L, (i ? 0.12 : -0.12) * h);
+      ctx.stroke();
+    });
+    eye(ctx, L, h, 0.40 * L, -h * 0.32, Math.max(1.4, L * 0.036), p);
+  };
+
+  /* ── 棘皮·海蛇尾：中央盘 + 五辐射的腕 ────────────────────────────────────
+     原来兜底成 `eel`（长条鱼）。⚠️ 它是**五辐射对称**的，没有「正脸 / 尾巴」之分，
+     所以这里不画尾也不画眼（棘皮动物没有眼）。 */
+  TPL.star = function (ctx, fish, L, opt, p, rand) {
+    var t = (opt.t || 0);
+    var r = L * 0.62;
+    var disc = L * 0.15;
+    /* ⚠️ 五辐射对称**必须用径向渐变** —— 竖向渐变会让朝上/朝下的腕一黑一白 */
+    var g = ctx.createRadialGradient(0, 0, disc * 0.4, 0, 0, r);
+    g.addColorStop(0, U.lighten(p.body, 0.30));
+    g.addColorStop(0.55, p.body);
+    g.addColorStop(1, p.bodyDark);
+    for (var i = 0; i < 5; i++) {
+      var a = -Math.PI / 2 + i * (Math.PI * 2 / 5) + Math.sin(t * 0.8) * 0.05;
+      var wob = Math.sin(t * 1.6 + i * 1.1) * L * 0.028;
+      var ca = Math.cos(a), sa = Math.sin(a);
+      var w = L * 0.075;
+      ctx.beginPath();
+      ctx.moveTo(ca * disc - sa * disc * 0.5, sa * disc + ca * disc * 0.5);
+      ctx.quadraticCurveTo(ca * r * 0.55 - sa * w, sa * r * 0.55 + ca * w, ca * r + wob, sa * r + wob * 0.6);
+      ctx.quadraticCurveTo(ca * r * 0.55 + sa * w, sa * r * 0.55 - ca * w,
+                           ca * disc + sa * disc * 0.5, sa * disc - ca * disc * 0.5);
+      ctx.closePath();
+      ctx.fillStyle = g; ctx.fill();
+      ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.6, L * 0.007); ctx.stroke();
+    }
+    /* 中央盘 */
+    ctx.beginPath(); ctx.arc(0, 0, disc * 1.06, 0, 6.3);
+    var g2 = ctx.createRadialGradient(0, -disc * 0.3, disc * 0.2, 0, 0, disc * 1.4);
+    g2.addColorStop(0, U.lighten(p.body, 0.35)); g2.addColorStop(1, p.bodyDark);
+    ctx.fillStyle = g2; ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.6, L * 0.007); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, disc * 0.55, 0, 6.3);
+    ctx.strokeStyle = U.rgba(p.accent, 0.7); ctx.lineWidth = LWM(0.7, L * 0.009); ctx.stroke();
+  };
+
+  /* ── 软长形无脊椎：软体长身 + 前端触手环 + 腹面管足（海猪 / 管虫）────────────
+     海参类（海猪）与环节类（管虫）的**共同剪影**就是它 —— 一条软体的长身，
+     口端一圈短的触手/羽枝，腹面一排管足。
+     ⚠️ 口端那圈**故意画短**：长的羽状鳃冠只对管虫成立，短的触手环对**两者都成立**
+        （海参本来就有口触手），这样共用一个体型才不会偏袒其中一条。
+     ⚠️ 不画眼：这 2 条在提示词里也是无眼（见 gen-art.py 的 `no_eye`）。 */
+  TPL.worm = function (ctx, fish, L, opt, p, rand) {
+    var t = (opt.t || 0);
+    var h = L * Math.max(0.14, Math.min(0.26, (fish.body_ratio || 0.34) * 0.64));
+    /* 腹面管足 */
+    ctx.fillStyle = U.rgba(p.accentDark, 0.85);
+    for (var i = 0; i < 7; i++) {
+      var x = (0.34 - i * 0.13) * L;
+      ctx.beginPath(); ctx.ellipse(x, h * 0.86, L * 0.026, L * 0.018, 0, 0, 6.3); ctx.fill();
+    }
+    /* 身体：前粗后细的软长形 */
+    ctx.beginPath();
+    ctx.moveTo(0.54 * L, -h * 0.42);
+    ctx.bezierCurveTo(0.34 * L, -h * 1.22, -0.30 * L, -h * 1.00, -0.66 * L, -h * 0.26);
+    ctx.quadraticCurveTo(-0.76 * L, 0, -0.66 * L, h * 0.28);
+    ctx.bezierCurveTo(-0.30 * L, h * 1.12, 0.34 * L, h * 1.26, 0.54 * L, h * 0.44);
+    ctx.quadraticCurveTo(0.62 * L, 0, 0.54 * L, -h * 0.42);
+    ctx.closePath();
+    var g = ctx.createLinearGradient(0, -h * 1.2, 0, h * 1.2);
+    g.addColorStop(0, p.bodyDark); g.addColorStop(0.45, p.body); g.addColorStop(1, p.belly);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.7, L * 0.008); ctx.stroke();
+    /* 体表横皱 */
+    ctx.strokeStyle = U.rgba(p.bodyDark, 0.45); ctx.lineWidth = LWM(0.6, L * 0.008);
+    for (var m = 0; m < 3; m++) {
+      var sx = (-0.08 - m * 0.19) * L;
+      ctx.beginPath(); ctx.moveTo(sx, -h * 0.82); ctx.lineTo(sx, h * 0.82); ctx.stroke();
+    }
+    /* 口端触手环（6 根短羽枝，随水流轻摆） */
+    ctx.strokeStyle = U.rgba(p.accent, 0.92);
+    ctx.lineCap = 'round';
+    for (var k = 0; k < 6; k++) {
+      var a = (k / 5 - 0.5) * 1.9;
+      var wob = Math.sin(t * 2.0 + k * 0.9) * h * 0.14;
+      ctx.lineWidth = LWM(0.9, L * (0.017 - Math.abs(a) * 0.004));
+      ctx.beginPath();
+      ctx.moveTo(0.52 * L, a * h * 0.30);
+      ctx.quadraticCurveTo(0.72 * L, a * h * 0.62, 0.86 * L, a * h * 0.72 + wob);
+      ctx.stroke();
+    }
   };
 
   /* =========================================================

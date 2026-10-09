@@ -401,7 +401,7 @@ src/core/weather.js           天气 + 时段（影响稀有档权重与稀有�
 src/core/fishing.js           钓鱼主循环状态机 + 离线补算
 src/core/goals.js             每日任务 / 成就 / 称号的判定与结算
 src/core/track.js             错误采集（空壳：环形缓冲 + 可导出文本，不接外部服务）
-src/render/fishart.js         参数化鱼类绘制器（9 种体型 × 6 套候选画风，默认 flat）
+src/render/fishart.js         参数化鱼类绘制器（12 种体型 × 6 套候选画风，默认 flat）
 src/render/scene.js           Canvas 场景渲染（渐变缓存 + 装饰绘制）
 src/ui/hud.js                 顶栏、底栏、按钮、提示、拉扯 UI、渔获播报
 src/ui/panels.js              钓场/图鉴/商店/鱼护/目标/统计/设置/结算卡
@@ -445,7 +445,7 @@ node tools/build.js --release  # 剔除 devtools，断言产物里搜不到 G.Ch
 node tools/build.js --check    # 只跑断言不写盘
 ```
 
-产物 ≈ **517 KB / 1 个网络请求**（原本 27 个），可以 `file://` 双击直接跑。
+产物 ≈ **550 KB / 1 个网络请求**（原本 27 个），可以 `file://` 双击直接跑。
 
 ---
 
@@ -764,7 +764,7 @@ node tools/build.js --check    # 只跑断言不写盘
 ```
 
 - 把 `index.html` + 样式表 + `src/` 下全部脚本**内联成一个 HTML**
-- 产物 ≈ **517 KB / 1 个网络请求**（原本 27 个），可以 `file://` 双击直接跑 ——
+- 产物 ≈ **550 KB / 1 个网络请求**（原本 27 个），可以 `file://` 双击直接跑 ——
   这也是「零外部依赖」最硬的证据
 - ⚠️ 它只是**可选的发布步骤**，不在开发流程里（改完刷新浏览器即可）；`dist/` 不入库
 - `<script src>` 必须连续挨成一块，`config.js` 第一（建 `window.G`）、`main.js` 最后（boot）——

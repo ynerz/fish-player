@@ -4666,23 +4666,64 @@ console.log('\n[44] 档位槽的口径必须同源（档位键集 / 按文件枚
      ② 已删：§8.4 清单里的 3D 产物必须继续**不存在** —— 要复活它就得连 §8.4 / §8.5 与本节
         的清单一起改（一次显式决策），不许悄悄加回来。
      ③ 自检：两张清单都不许为空（空集 ⇒ 断言恒真 = 假通过）。
-   ⚠️ 判据只查**文件在不在**，不查内容 —— 「在不在」是这里唯一要守的不变量。 */
+   🔴 2026-10-09 改：两张清单**不再在 verify 里硬编码**，改成**从 §8.4 现算**
+      —— 原先它们是「同一个事实的第二份真相」：文档那张表改了、数组不跟，本节一声不吭
+      （只有文件被真删/真复活时才响，**清单本身漂了它不管**）。这与本书反复栽的坑型同源
+      （`33-b` 的钓场数字、`34` 的节数都是这个修法）。
+      现算规则（先量后改：实测派生结果与旧硬编码**逐元素相等、0 误报**）：
+        · MUST_KEEP    = §8.4 里含「必须留」的行中**第一个**反引号里的路径
+        · MUST_BE_GONE = §8.4「已删」表的**第一列**里的反引号路径（要求含 `/`，
+                         排掉 `改进待办.md` 这类非文件行）
+      ⚠️ **只取第一列**是关键：第 2 列「谁在引用」里写着 `tools/test.js` / `fishmesh.js`，
+         整行取反引号会把**不该删的**也算进来（实测过）。
+      ⚠️ 判据只查**文件在不在**，不查内容 —— 「在不在」是这里唯一要守的不变量。 */
 console.log('\n[45] 素材路线的硬约束要有机制（文档的「必留 / 已删」两张清单 == 磁盘现状）');
 (function () {
-  /* 来源：docs/AI素材方案.md §8.4（改那份清单必须同步这里，反之亦然） */
-  const MUST_KEEP = [
-    'src/render/fishpaint.js',   // 颜色口径唯一来源：paint-card.py 靠 node -e 调它的 palette()
-    'src/render/fishart.js',     // 游戏内的鱼 / 未收集剪影 / 鱼护与水族箱小图全靠它
-  ];
-  const MUST_BE_GONE = [         // 3D 撤销（2026-10-08 用户口径「生成 3D 基本不可行」）时清掉的
-    'src/render/mesh3d.js', 'src/render/fishmesh.js', 'vendor/three.min.js',
-    'docs/3D渲染方案.md', 'docs/three.js迁移方案.md',
-    'tools/style-preview-3d.html', 'tools/three-preview.html',
-  ];
   const ex = rel => fs.existsSync(path.join(ROOT, rel));
   let bad45 = 0;
+
+  /* ---------- 从 docs/AI素材方案.md §8.4 现算两张清单 ---------- */
+  const docSrc = fs.readFileSync(path.join(ROOT, 'docs/AI素材方案.md'), 'utf8');
+  const sec = (docSrc.match(/### 8\.4[\s\S]*?(?=\n### )/) || [''])[0];
+  const parse = txt => {
+    const keep = [];
+    (txt.split('\n')).forEach(line => {
+      const m = /`([^`]*)`[^`\n]*必须留/.exec(line);
+      if (m) keep.push(m[1]);
+    });
+    const gone = [];
+    (txt.match(/^\|\s*`[^|]*?\s*\|/gm) || []).forEach(col => {
+      (col.match(/`([^`]*)`/g) || []).forEach(x => {
+        const v = x.slice(1, -1);
+        if (v.indexOf('/') >= 0) gone.push(v);
+      });
+    });
+    return { keep: keep, gone: gone };
+  };
+  /* 判据自检：喂一段合成的 §8.4，确认「只取第一列」与「必须留取第一个」都对 */
+  const SYNTH = [
+    '### 8.4 清理清单', '',
+    '| 已删 | 谁在引用 | 已同步改动 |', '|---|---|---|',
+    '| `src/render/aaa.js` | `tools/test.js` / `bbb.js` | x |',
+    '| `改进待办.md` 的队列 | — | y |',
+    '| `bbb.js` 本身 | — | z |', '',
+    '- **`src/render/keep1.js` 必须留** —— 理由',
+    '- **`src/render/keep2.js` 必须留，而且更关键** —— 理由', '',
+    '### 8.5 下一节', ''].join('\n');
+  const self = parse(SYNTH);
+  if (self.keep.join() !== 'src/render/keep1.js,src/render/keep2.js'
+      || self.gone.join() !== 'src/render/aaa.js'
+      || self.gone.indexOf('tools/test.js') >= 0 || self.gone.indexOf('bbb.js') >= 0) {
+    err('第 45 节的 §8.4 解析器判据自检不成立：应只取第一列、且「必须留」只取第一个反引号'
+      + `（实测 keep=${JSON.stringify(self.keep)} gone=${JSON.stringify(self.gone)}）`);
+    return;
+  }
+  const derived = parse(sec);
+  const MUST_KEEP = derived.keep;
+  const MUST_BE_GONE = derived.gone;
+  if (!sec) { err('docs/AI素材方案.md 里找不到 §8.4 —— 清单的来源没了'); return; }
   if (!MUST_KEEP.length || !MUST_BE_GONE.length) {
-    err('第 45 节的两张清单有一个是空的 —— 空集会让本节断言恒真（判据自检）');
+    err('第 45 节从 §8.4 现算出的两张清单有一个是空的 —— 空集会让本节断言恒真（判据自检）');
     bad45++;
   }
   MUST_KEEP.forEach(rel => {
@@ -4696,7 +4737,7 @@ console.log('\n[45] 素材路线的硬约束要有机制（文档的「必留 / 
   });
   MUST_BE_GONE.forEach(rel => {
     if (ex(rel)) {
-      err(rel + ' 又出现了 —— 3D 路线已撤销（§8.4 清单）：要复活它就得连'
+      err(rel + ' 又出现了 —— 3D 路线已撤销（§8.4 清单）：要复活它就得连 '
         + 'docs/AI素材方案.md §8.4 / §8.5 与本节清单一起改，不能悄悄加回来');
       bad45++;
     }

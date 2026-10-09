@@ -101,7 +101,7 @@ G.Scene = (function () {
     if (!g) g = gradCache[key] = make();
     return g;
   }
-  function clearGradCache() { gradCache = {}; glowSprite = null; }
+  function clearGradCache() { gradCache = {}; glowSprite = null; beamSprite = null; beamKey = ''; }
 
   /* 极光带：4 条渐变只跟画布高度有关（i 决定位置与色相），同样缓存。
      ⚠️ 单独抽成具名函数，让 i 走参数而不是循环变量 —— 闭包捕获 var 循环变量
@@ -133,6 +133,40 @@ G.Scene = (function () {
     c2.fillStyle = g;
     c2.beginPath(); c2.arc(cx, cx, cx, 0, 6.3); c2.fill();
     glowSprite = c;
+    return c;
+  }
+
+  /* 水下光束：**预渲染**成一张离屏图，每帧只 drawImage。
+     原来是每帧 4 次带 `ctx.filter = 'blur(Npx)'` 的斜条填充 —— Canvas2D 的 filter
+     会强制开一层离屏再跑高斯卷积，是整帧里最贵的一笔；而这道光束只跟
+     「画布尺寸 + 太阳位置」有关，跟时间无关（太阳位置随时段走 ⇒ 缓存键带上它）。
+     做法与 `lanternGlow()` 完全一致，resize / setField 由 `clearGradCache()` 一起清掉。
+     ⚠️ 只截地平线往下的那一段（上方没有光束内容），省一半显存；但往上留
+        `BEAM_PAD` 的余量 —— 不留的话模糊的光晕会在截断面被切出一道硬边。 */
+  var BEAM_PAD = 40;
+  var beamSprite = null, beamKey = '';
+  function sunBeamTop() { return Math.max(0, horizonY() - BEAM_PAD); }
+  function sunBeam(th) {
+    var hy = horizonY(), y0 = sunBeamTop();
+    var key = y0 + '_' + W + 'x' + H + '_' + Math.round(th.sun.x * W) + '_' + dpr;
+    if (beamSprite && beamKey === key) return beamSprite;
+    var c = G.Platform.canvas.create(Math.round(W * dpr), Math.round((H - y0) * dpr));
+    var c2 = c.getContext('2d');
+    c2.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c2.filter = 'blur(' + Math.round(Math.max(10, W * 0.014)) + 'px)';
+    c2.fillStyle = '#ffffff';
+    for (var i = 0; i < 4; i++) {
+      var bx = (th.sun.x * W) + (i - 1.5) * 62;
+      c2.beginPath();
+      c2.moveTo(bx - 18, hy - y0);
+      c2.lineTo(bx + 18, hy - y0);
+      c2.lineTo(bx + 118 + i * 34, H - y0);
+      c2.lineTo(bx + 22 + i * 34, H - y0);
+      c2.closePath();
+      c2.fill();
+    }
+    c2.filter = 'none';
+    beamSprite = c; beamKey = key;
     return c;
   }
 
@@ -575,21 +609,10 @@ G.Scene = (function () {
     var hy = horizonY();
     // 水下光束（模糊处理，避免出现硬边斜条）
     if (th.sun) {
+      var y0 = sunBeamTop();
       ctx.save();
       ctx.globalAlpha = 0.055;
-      ctx.filter = 'blur(' + Math.round(Math.max(10, W * 0.014)) + 'px)';
-      ctx.fillStyle = '#ffffff';
-      for (var i = 0; i < 4; i++) {
-        var bx = (th.sun.x * W) + (i - 1.5) * 62;
-        ctx.beginPath();
-        ctx.moveTo(bx - 18, hy);
-        ctx.lineTo(bx + 18, hy);
-        ctx.lineTo(bx + 118 + i * 34, H);
-        ctx.lineTo(bx + 22 + i * 34, H);
-        ctx.closePath();
-        ctx.fill();
-      }
-      ctx.filter = 'none';
+      ctx.drawImage(sunBeam(th), 0, y0, W, H - y0);
       ctx.restore();
     }
     // 鱼影

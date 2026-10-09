@@ -4485,6 +4485,61 @@ console.log('\n[44] 档位槽的口径必须同源（档位键集 / 按文件枚
 })();
 
 
+/* ---------------- 45. 素材路线的硬约束要有机制（文档的「必留 / 已删」两张清单 == 磁盘现状） ----------------
+   `docs/AI素材方案.md` §8.4 写着两张清单 —— 一张是「⛔ 两个绝对不能删」（`fishpaint.js` /
+   `fishart.js`），一张是「3D 撤销时已清理」的产物清单 —— §8.5 还写着「改结论时要连门禁一起改」。
+   但 2026-10-08 写下这些时**没有任何东西盯着它们**：规矩写在文档里、没有机制 ⇒ 这条规矩不成立
+   （同型已栽多次：2026-10-07 那句「项数不再写进文档」就是这么漂回来的，后来才补了 34-b）。
+   本节把两张清单接上机制，形态与 32-b「已清理过的死接口不许复活」**同源** ——
+   只是对象从「运行时接口」换成「磁盘文件」。
+   三条判据：
+     ① 必留：两颗文件必须存在（`fishpaint.js` = 出图管线的颜色口径唯一来源，删了管线当场断；
+        `fishart.js` = 3D 一撤之后**唯一活着的画鱼代码**）。
+     ② 已删：§8.4 清单里的 3D 产物必须继续**不存在** —— 要复活它就得连 §8.4 / §8.5 与本节
+        的清单一起改（一次显式决策），不许悄悄加回来。
+     ③ 自检：两张清单都不许为空（空集 ⇒ 断言恒真 = 假通过）。
+   ⚠️ 判据只查**文件在不在**，不查内容 —— 「在不在」是这里唯一要守的不变量。 */
+console.log('\n[45] 素材路线的硬约束要有机制（文档的「必留 / 已删」两张清单 == 磁盘现状）');
+(function () {
+  /* 来源：docs/AI素材方案.md §8.4（改那份清单必须同步这里，反之亦然） */
+  const MUST_KEEP = [
+    'src/render/fishpaint.js',   // 颜色口径唯一来源：paint-card.py 靠 node -e 调它的 palette()
+    'src/render/fishart.js',     // 游戏内的鱼 / 未收集剪影 / 鱼护与水族箱小图全靠它
+  ];
+  const MUST_BE_GONE = [         // 3D 撤销（2026-10-08 用户口径「生成 3D 基本不可行」）时清掉的
+    'src/render/mesh3d.js', 'src/render/fishmesh.js', 'vendor/three.min.js',
+    'docs/3D渲染方案.md', 'docs/three.js迁移方案.md',
+    'tools/style-preview-3d.html', 'tools/three-preview.html',
+  ];
+  const ex = rel => fs.existsSync(path.join(ROOT, rel));
+  let bad45 = 0;
+  if (!MUST_KEEP.length || !MUST_BE_GONE.length) {
+    err('第 45 节的两张清单有一个是空的 —— 空集会让本节断言恒真（判据自检）');
+    bad45++;
+  }
+  MUST_KEEP.forEach(rel => {
+    if (!ex(rel)) {
+      err(rel + ' 不见了 —— 它是 §8.4 的「⛔ 绝对不能删」：'
+        + (rel.indexOf('fishpaint') >= 0
+            ? 'paint-card.py 靠 node -e 调它的 palette()，删了出图管线当场断'
+            : '游戏内的鱼 / 剪影 / 鱼护与水族箱小图全靠它，删了画面全废'));
+      bad45++;
+    }
+  });
+  MUST_BE_GONE.forEach(rel => {
+    if (ex(rel)) {
+      err(rel + ' 又出现了 —— 3D 路线已撤销（§8.4 清单）：要复活它就得连'
+        + 'docs/AI素材方案.md §8.4 / §8.5 与本节清单一起改，不能悄悄加回来');
+      bad45++;
+    }
+  });
+  if (!bad45) {
+    ok('§8.4 的两张清单与磁盘一致：必留 ' + MUST_KEEP.length + ' 颗都在、已删 '
+      + MUST_BE_GONE.length + ' 项都没复活');
+  }
+})();
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

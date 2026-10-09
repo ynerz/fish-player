@@ -2349,6 +2349,94 @@ G_('Audio · 环境音的开启 / 停止');
 })();
 
 /* =========================================================
+   Audio —— 环境音的**循环采样通道**（2026-10-09，队列 Q20 剩余那半件）
+   ⚠️ 判据刻意不是「有没有调用 G.Assets」——那是实现细节；
+      这里要钉的是行为：**采样就绪后真的接管、并且接缝被处理过**。
+      素材用一段「1.0s 有信号 + 0.2s 数字静音」的合成 buffer，
+      复刻真实素材那个毛病（本地出的那一段结尾有 1.4 秒静音）。
+   ========================================================= */
+G_('Audio · 环境音的循环采样通道');
+(function () {
+  const SR = 8000, ALIVE = Math.floor(SR * 1.0), LEN = Math.floor(SR * 1.2);
+  const made = { osc: [], src: [], gain: [] };
+  const param = () => ({
+    value: 0,
+    setValueAtTime(v) { this.value = v; },
+    linearRampToValueAtTime(v) { this.value = v; },
+    cancelScheduledValues() {},
+  });
+  const mkNode = () => ({ _dis: false, connect() {}, disconnect() { this._dis = true; } });
+  const fakeCtx = {
+    sampleRate: SR, currentTime: 10, state: 'running',
+    destination: mkNode(),
+    resume() {},
+    createGain() { const g = mkNode(); g.gain = param(); made.gain.push(g); return g; },
+    createBuffer(ch, len) { return { getChannelData: () => new Float32Array(len) }; },
+    createBufferSource() {
+      const s = mkNode();
+      s.start = () => { s._started = true; }; s.stop = () => { s._stopped = true; };
+      made.src.push(s); return s;
+    },
+    createBiquadFilter() { const f = mkNode(); f.frequency = { value: 0 }; f.Q = { value: 0 }; return f; },
+    createOscillator() {
+      const o = mkNode(); o.frequency = { value: 0 };
+      o.start = () => { o._started = true; }; o.stop = () => { o._stopped = true; };
+      made.osc.push(o); return o;
+    },
+  };
+  const data = new Float32Array(LEN);
+  let sd = 12345;
+  for (let i = 0; i < ALIVE; i++) {
+    sd = (sd * 1103515245 + 12345) & 0x7fffffff;
+    data[i] = (sd / 0x7fffffff * 2 - 1) * 0.3;      // 有信号段（后 0.2s 保持全 0 = 静音）
+  }
+  const head0 = data[0];                            // 淡化前的首样本
+  const tail0 = data[ALIVE - Math.floor(SR * 0.125)];// 淡化后「应当被搬到开头」的那个样本
+  const buf = { sampleRate: SR, length: LEN, duration: LEN / SR, getChannelData: () => data };
+
+  let feed = null;
+  const realCreate = G.Platform.audio.createContext;
+  const realSfx = G.Assets.sfx;
+  const realTimeout = global.setTimeout;
+  const timers = [];
+  global.setTimeout = fn => { timers.push(fn); return 0; };   // 不许留真定时器（会挂住进程）
+  G.Platform.audio.createContext = () => fakeCtx;
+  G.Assets.sfx = () => ({ then(res) { feed = res; } });
+  new Function(fs.readFileSync(path.join(ROOT, 'src/core/audio.js'), 'utf8')).call(global);
+  const A = G.Audio;
+
+  A.setEnabled(true);
+  A.startAmbience();
+  ok(made.src.length === 1 && made.osc.length === 1,
+     '采样还没回来时先出合成音（未就绪 ≠ 静音）');
+
+  feed(buf);                                         // 采样到位 → 热切换
+  ok(made.src.length === 2 && made.src[1]._started === true,
+     '采样到位就热切换（新起一个采样源），不是等下一次 startAmbience');
+  ok(made.osc[0]._stopped === true,
+     '热切换时旧的 LFO 立刻停（它连在旧 gain 上，留着淡不干净）');
+  timers.forEach(fn => fn());                        // 交叉淡化结束后收旧节点
+  ok(made.src[0]._stopped === true && made.gain.some(g => g._dis),
+     '淡出结束后旧的缓冲源与 gain 都收掉（不在后台留节点）');
+
+  const s2 = made.src[1];
+  ok(s2.loop === true && Math.abs(s2.loopEnd - 0.875) < 1e-6,
+     `循环终点 = 有信号段末尾再减去 0.125s 淡化（loopEnd=${s2.loopEnd.toFixed(3)}s，应当 0.875s）`);
+  ok(s2.loopEnd < 1.0, '循环终点落在数字静音段之前（否则每圈都要静 0.2 秒）');
+  ok(Math.abs(data[0] - tail0) < 1e-6 && data[0] !== head0,
+     '接缝做过交叉淡化：新首样本 = 尾段对应样本（不是原首样本）');
+
+  A.stopAmbience();
+  ok(made.src[1]._stopped === true && made.gain.filter(g => g._dis).length >= 2,
+     'stopAmbience 把采样那一套也收干净（两条路同一套收法）');
+
+  G.Platform.audio.createContext = realCreate;
+  G.Assets.sfx = realSfx;
+  global.setTimeout = realTimeout;
+  G.Audio = audioStub;
+})();
+
+/* =========================================================
    Audio —— 背景音乐：lookahead 调度 + 收声 + 「意图位」
    ⚠️ 这一节额外把 `setInterval` / `setTimeout` 换成**只记录、不真跑**的版本：
      调度器要能手动推着走（时序可控），而且测试跑完不许留下真定时器

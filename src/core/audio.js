@@ -13,6 +13,18 @@ G.Audio = (function () {
   var ambGain = null;
   var ambSrc = null;
   var ambLfo = null;   // 环境音的缓慢起伏 LFO（停止时要一起收，见 stopAmbience）
+  /* 环境音的**循环采样**（2026-10-09 加，队列 Q20 的剩余那半件）。
+     ⚠️ 键必须是 `[a-z][a-z0-9]*`（`G.Assets.resolve` 的口径）⇒ 不能写 `amb_water`。
+     ⚠️ 电平与低通**两条路共用**同一对常量：采样与合成必须是同一个音色口径，
+        否则「换成采样」这件事会顺手改掉音量平衡（那就是一次没人要求的平衡调整）。 */
+  var AMB_KEY = 'ambience';
+  var AMB_GAIN = 0.10;
+  var AMB_FILTER_HZ = 520;
+  var AMB_FADE = 0.5;              // 合成 → 采样的热切换交叉淡化（秒）
+  var ambSampleBuf = null;         // 解码好的整段水声（拿到就一直用它）
+  var ambSampleAsked = false;      // 只请求一次（失败的键由 G.Assets 记备忘，不再重试）
+  var ambSampled = false;          // 当前在放的是不是采样
+  var ambSeamEnd = 0;              // 采样循环的终点（秒）；0 = 整段循环
   var enabled = true;
   var vol = 0.55;
   /* 音乐音量（**相对总音量**的比例）。⚠️ 它是这个量的**唯一真相**：
@@ -348,46 +360,30 @@ G.Audio = (function () {
       });
     },
 
-    /* 环境：低频水声涌动 */
+    /* 环境：低频水声涌动
+       —— 2026-10-09 起是**采样优先 + 合成回退**（与一次性音效同一口径；队列 Q20 的剩余那半件）。
+       有 `assets/audio/ambience.mp3` 就**整段循环**放，没有 / 读不到（`file://` 下必然读不到）
+       就照旧合成。⚠️ 它**不在**下面那个自动包装层里（`NO_SAMPLE`）—— 循环播放要管节点
+       生命周期（起、热切换、收），与「放一次就完」的一次性音效不是一回事，
+       所以它在这里自己管：`ambSrc` / `ambGain` 两个字段**永远指向当前在放的那一套**，
+       `stopAmbience()` 一套收法把两条路都收干净。 */
     startAmbience: function () {
       if (!enabled || !ensure()) return;
       resume();
-      if (ambSrc) return;
-      var len = Math.floor(ctx.sampleRate * 3);
-      var buf = ctx.createBuffer(1, len, ctx.sampleRate);
-      var d = buf.getChannelData(0);
-      var last = 0;
-      for (var i = 0; i < len; i++) {
-        var w = Math.random() * 2 - 1;
-        last = (last + 0.02 * w) / 1.02;         // 布朗噪声
-        d[i] = last * 3.2;
-      }
-      var src = ctx.createBufferSource();
-      src.buffer = buf; src.loop = true;
-      var flt = ctx.createBiquadFilter();
-      flt.type = 'lowpass'; flt.frequency.value = 520;
-      ambGain = ctx.createGain();
-      ambGain.gain.value = 0.10;
-      src.connect(flt); flt.connect(ambGain); ambGain.connect(busAmb || master);
-      src.start();
-      ambSrc = src;
-      // 缓慢起伏
-      var lfo = ctx.createOscillator();
-      var lfoG = ctx.createGain();
-      lfo.frequency.value = 0.09; lfoG.gain.value = 0.055;
-      lfo.connect(lfoG); lfoG.connect(ambGain.gain);
-      lfo.start();
-      ambLfo = lfo;
+      if (ambSrc) return;                        // 已经在放（合成 / 采样都算）
+      if (startAmbSample()) return;              // 采样就绪 → 不建合成那一套
+      startSynthAmbience();                      // 没就绪 → **照旧出声**（绝不是静音）
+      requestAmbSample();                        // 同时后台预取，回来了再热切换
     },
     /* ⚠️ 三样都要收：buffer 源、LFO、以及挂在 busAmb 上的那个 gain 节点。
        原来只 `ambSrc.stop()` —— LFO 是另一个独立振荡器，不 stop 就会**一直跑下去**
        （它连在 ambGain.gain 上，而 ambGain 自己也还挂在总线上），
-       表现是：在设置里反复开关环境音，后台悄悄多出几套一直在跑的振荡器。 */
+       表现是：在设置里反复开关环境音，后台悄悄多出几套一直在跑的振荡器。
+       ⚠️ 采样那条路没有 LFO，但**同一套字段、同一套收法**能一起收掉 —— 不要为此分两支。 */
     stopAmbience: function () {
-      try { if (ambSrc) ambSrc.stop(); } catch (e) {}
-      try { if (ambLfo) ambLfo.stop(); } catch (e) {}
-      try { if (ambGain) ambGain.disconnect(); } catch (e) {}
+      stopAmbNodes(ambSrc, ambLfo, ambGain);
       ambSrc = null; ambGain = null; ambLfo = null;
+      ambSampled = false;
     },
 
     /* ---------------------------------------------------------
@@ -421,6 +417,165 @@ G.Audio = (function () {
   };
 
   /* ==========================================================================
+   * 环境音的循环采样通道（2026-10-09 加）—— 队列 Q20 的剩余那半件
+   *
+   * 与一次性音效的区别（**不在**下面那层自动包装里）：这里要的是**一个常驻节点**，
+   * 「放一次就完」的包装层管不了「起 → 热切换 → 收」这套生命周期。
+   *
+   * 三条必须守住的：
+   *   1. **未就绪 ≠ 静音**：采样是异步的，首次 `startAmbience()`（main.js 的首次手势）
+   *      必然还没回来 ⇒ 本次照旧合成出声、同时后台预取。与一次性音效同一条口径。
+   *   2. 🔴 **采样回来必须热切换，不能等下一次 `startAmbience()`**：
+   *      环境音只在**首次手势**与设置开关处启动（`main.js:arm()` / 设置面板），
+   *      等下一次很可能就是**整局都在放合成音** —— 那是「静默失效」的典型形态。
+   *      切换走 0.5s 交叉淡化：硬切会「啪」一声。
+   *   3. **失败一律不抛**：`G.Assets.sfx` 拿不到就永久走合成（`file://` 下必然拿不到），
+   *      与图片 / 一次性音效同一口径。
+   *
+   * ⚠️ **循环接缝**：采样是「整段循环」放的，生成端不保证能出无缝素材（实测有 3% 是结尾静音），
+   *    兜底全在 `seamEnd()` 里：**切掉尾巴上那截静音 → 剩下的接缝做自交叉淡化 →
+   *    循环点提前到 `loopEnd`**。这是**代码侧的确定性兜底**，换素材也不用重做。
+   * ======================================================================== */
+
+  /* 收一套环境音节点。**合成与采样共用** —— 两条路的字段是同一对（`ambSrc` / `ambGain`），
+     所以收尾只有这一处（`stopAmbience()` 与热切换的淡出都走它）。 */
+  function stopAmbNodes(src, lfo, gain) {
+    try { if (src) src.stop(); } catch (e) {}
+    try { if (lfo) lfo.stop(); } catch (e) {}
+    try { if (gain) gain.disconnect(); } catch (e) {}
+  }
+
+  /* 循环接缝：**先把尾巴上那截静音切掉**，再把结尾 N 秒与开头 N 秒交叉淡化。
+     ⚠️ 两件事都不能省，两条理由都是实测出来的（2026-10-09）：
+       · 生成端的素材**结尾常常是一截数字静音** —— 现成这一段（seed 20261013）的
+         43.55s 之后全是 0，共 1.4s / 3%。不管它，每圈都要静 1.4 秒，
+         比接缝「咔」一声明显得多。判据：20ms 一窗算 RMS，从尾部往前找
+         第一个「≥ 中位 RMS 的 30%」的窗口（淡出段同样会被切掉）。
+       · 剩下的接缝电平不连续 ⇒ 交叉淡化：把结尾 N 秒混进开头 N 秒，
+         循环点提前到 `end - N`。N 现算 `min(0.35s, 可用长度/8)`。
+     ⚠️ 就地改 buffer（`getChannelData` 返回的是**引用**）⇒ 同一个 buffer **只许调一次**。
+     返回循环终点（秒）—— `startAmbSample()` 拿它当 `loopEnd`。 */
+  function seamEnd(buf) {
+    var sr = buf.sampleRate, len = buf.length;
+    if (!(len > 0)) return 0;
+    var d = buf.getChannelData(0);
+
+    /* ① 20ms 一窗算 RMS —— **保持时间顺序**（后面要「从尾部往前」找） */
+    var win = Math.max(1, Math.floor(sr * 0.02)), k = Math.floor(len / win);
+    var rms = [], wi, i, acc, t;
+    for (wi = 0; wi < k; wi++) {
+      acc = 0;
+      for (i = wi * win; i < (wi + 1) * win; i++) acc += d[i] * d[i];
+      rms.push(Math.sqrt(acc / win));
+    }
+    /* ② 找中位：取的是**排序后的副本**。⚠️ 别拿排过序的那个数组去「从尾部往前找」——
+       那找到的是最大值，不是时间上的最后一个窗口（这里踩过一次）。 */
+    var sorted = rms.slice().sort(function (a, b) { return a - b; });
+    var med = sorted[sorted.length >> 1] || 0;
+    var end = len;
+    if (med > 0) {
+      var floor = med * 0.3;
+      for (wi = k - 1; wi >= 0; wi--) {
+        if (rms[wi] >= floor) { end = Math.min(len, (wi + 1) * win); break; }
+      }
+      if (end < len * 0.5) end = len;      // 找过头（大半截都判成静音）⇒ 不裁，别把素材切没了
+    }
+    /* ③ 交叉淡化掉剩下的接缝 */
+    var n = Math.floor(Math.min(0.35, (end / sr) / 8) * sr);
+    if (!(n > 0) || end < n * 4) return end / sr;
+    for (i = 0; i < n; i++) {
+      t = i / n;                                        // 0 → 1
+      d[i] = d[i] * t + d[end - n + i] * (1 - t);
+    }
+    return (end - n) / sr;
+  }
+
+  /* 合成环境音（布朗噪声 + 缓慢起伏）。原来那段原样搬来，只是把 0.10 / 520 换成常量。 */
+  function startSynthAmbience() {
+    var len = Math.floor(ctx.sampleRate * 3);
+    var buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    var d = buf.getChannelData(0);
+    var last = 0;
+    for (var i = 0; i < len; i++) {
+      var w = Math.random() * 2 - 1;
+      last = (last + 0.02 * w) / 1.02;                 // 布朗噪声
+      d[i] = last * 3.2;
+    }
+    var src = null, g = null, lfo = null;
+    try {
+      src = ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      var flt = ctx.createBiquadFilter();
+      flt.type = 'lowpass'; flt.frequency.value = AMB_FILTER_HZ;
+      g = ctx.createGain();
+      g.gain.value = AMB_GAIN;
+      src.connect(flt); flt.connect(g); g.connect(busAmb || master);
+      src.start();
+      /* 缓慢起伏 */
+      lfo = ctx.createOscillator();
+      var lfoG = ctx.createGain();
+      lfo.frequency.value = 0.09; lfoG.gain.value = 0.055;
+      lfo.connect(lfoG); lfoG.connect(g.gain);
+      lfo.start();
+      ambSrc = src; ambGain = g; ambLfo = lfo; ambSampled = false;
+    } catch (e) { stopAmbNodes(src, lfo, g); }        // 起不来就当没起（调用方本来就有回退）
+  }
+
+  /* 起采样那一套。成功返回 true；拿不到 buffer / 任何一步抛了都返回 false 让调用方走合成。 */
+  function startAmbSample() {
+    if (!ambSampleBuf || !ctx) return false;
+    var src = null, g = null;
+    try {
+      resume();
+      src = ctx.createBufferSource();
+      src.buffer = ambSampleBuf;
+      src.loop = true;
+      if (ambSeamEnd > 0) { src.loopStart = 0; src.loopEnd = ambSeamEnd; }
+      var flt = ctx.createBiquadFilter();
+      flt.type = 'lowpass'; flt.frequency.value = AMB_FILTER_HZ;
+      g = ctx.createGain();
+      g.gain.value = AMB_GAIN;
+      src.connect(flt); flt.connect(g); g.connect(busAmb || master);
+      src.start();
+      ambSrc = src; ambGain = g; ambLfo = null; ambSampled = true;
+      return true;
+    } catch (e) { stopAmbNodes(src, null, g); return false; }
+  }
+
+  /* 后台预取整段水声。只请求一次（失败由 G.Assets 记备忘，不再重试）。 */
+  function requestAmbSample() {
+    if (ambSampleAsked) return;
+    ambSampleAsked = true;
+    if (!G.Assets || !G.Assets.sfx) return;
+    G.Assets.sfx(AMB_KEY).then(function (b) {
+      if (!b) return;
+      ambSampleBuf = b;
+      ambSeamEnd = seamEnd(b);                         // ⚠️ 全项目只在这里调（就地改 buffer）
+      if (enabled && ambSrc && ambGain && !ambSampled) hotSwapAmb();
+    });
+  }
+
+  /* 合成 → 采样：新的淡入、旧的淡出，淡完把旧的三件收掉。
+     ⚠️ 旧的 LFO 要**立刻**停 —— 它连在旧 gain 上，留着就会把淡出抖回去（淡不干净）。 */
+  function hotSwapAmb() {
+    var oldSrc = ambSrc, oldGain = ambGain, oldLfo = ambLfo;
+    ambSrc = null; ambGain = null; ambLfo = null;
+    try { if (oldLfo) oldLfo.stop(); } catch (e) {}
+    if (!startAmbSample()) { ambSrc = oldSrc; ambGain = oldGain; ambLfo = oldLfo; return; }
+    try {
+      var t = ctx.currentTime;
+      ambGain.gain.setValueAtTime(0, t);
+      ambGain.gain.linearRampToValueAtTime(AMB_GAIN, t + AMB_FADE);
+      if (oldGain) {
+        oldGain.gain.cancelScheduledValues(t);
+        oldGain.gain.setValueAtTime(oldGain.gain.value, t);
+        oldGain.gain.linearRampToValueAtTime(0, t + AMB_FADE);
+      }
+    } catch (e) {}
+    setTimeout(function () { stopAmbNodes(oldSrc, null, oldGain); }, AMB_FADE * 1000 + 150);
+  }
+
+  /* ==========================================================================
    * 采样音效层（2026-10-08 加）
    *
    * 做法：**公开 API 一个都不变**（仍是 cast / splash / …），只在下面把 `API` 上
@@ -441,13 +596,22 @@ G.Audio = (function () {
    *      三者最终都汇到 `master`，所以 `setVolume` / `setEnabled` 仍然只有一处生效，
    *      而音乐已经能单独调（`setMusicVolume`）；环境音暂时只有开关（它本来就压到 0.10）。
    *
-   * ⚠️ **循环播放的三件事不做采样**：环境音（startAmbience / stopAmbience）
-   *    与背景音乐（startBgm / stopBgm）都要循环、都有节点生命周期，
-   *    与一次性音效不是一回事 —— 它们进 `NO_SAMPLE`，见下面那张表。
-   *    真要做音乐采样，走的是「整段循环 buffer」的另一套（见 docs/改进待办.md）。
+   * ⚠️ **这一层只管一次性音效**：开关（`setEnabled` / `setVolume` / `setMusicVolume`）、
+   *    环境音、背景音乐都在 `NO_SAMPLE` 里。两种理由要分清：
+   *    · **环境音** —— 2026-10-09 起**已经接采样**了，但它要管节点生命周期
+   *      （起 → 热切换 → 收），走的是上面那套「**整段循环 buffer**」的通道，不是这里；
+   *    · **背景音乐** —— **按拍板保持程序化合成**（换成采样会丢掉「随时段 / 天气换参数」
+   *      这个既有特性，见 docs/开发者文档.md §17.13「素材接入：G.Assets 素材表」）。
    * ======================================================================== */
   var sampleBuf = {};    // id → AudioBuffer（拿到之后就一直用它）
   var sampleAsked = {};  // id → true（只请求一次）
+  /* **不套采样包装**的方法名单。「套包装」= 「放一次就完」的那种自动回退；
+     下面这两个跟别的不一样：
+       · `startAmbience` / `stopAmbience` —— 已经接采样了，但它自己管生命周期
+         （见上面「环境音的循环采样通道」）；
+       · `startBgm` / `stopBgm` —— 按拍板**保持程序化**（不换采样）。
+     开关三个不进包装是因为它们不发声（`setVolume` 那个「总开关关着也要记住音量」
+     的行为由 `test.js` 盯着）。 */
   var NO_SAMPLE = {
     setEnabled: 1, setVolume: 1, setMusicVolume: 1,
     startAmbience: 1, stopAmbience: 1,

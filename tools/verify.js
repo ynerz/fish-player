@@ -3826,6 +3826,87 @@ console.log('\n[41] 背景音乐随条件换参数：修饰量单一来源、键
 })();
 
 
+/* ---------------- 41-b. 环境音的循环采样通道：入口唯一 + 素材对得上 + BGM 不许被顺手接采样 ----------------
+   🔎 由来（2026-10-09，队列 Q20 的剩余那半件）：环境音从「纯合成」升级成
+   「采样优先 + 合成回退」。这一层会出的两种退化**都是静默的**，所以必须上机制：
+     ① 有人为了「BGM 也换成素材」顺手把采样接到 `startBgm` 上 —— 那会丢掉
+        「随时段 / 天气换参数」这个**已拍板保留**的特性（`Weather.bgmSpec`），
+        而且换完还照常出声，只有细心听才发现「每场每时的音乐都一样了」。
+     ② 键名改了 / 素材文件没跟上 —— `G.Assets.sfx()` 拿不到就**静默回退合成**，
+        不报错、不写日志，表现只是「换了素材怎么好像没差别」。
+   ⇒ 本节两件事：**入口唯一**（`G.Assets.sfx(` 全项目只许那两个已知调用点）与
+      **素材对得上**（键从代码里**现算**，不是本节写死的）。
+   ⚠️ 判据一律「抓不到就报错」：取不到函数体 / 表体 = 报红，不许因此恒真。 */
+console.log('\n[41-b] 环境音的循环采样通道：入口唯一 + 素材对得上 + BGM 不许被顺手接采样');
+(() => {
+  const AUD = fs.readFileSync(path.join(ROOT, 'src/core/audio.js'), 'utf8');
+  const code = AUD.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const body = (m, what) => {
+    const b = bodyOf(code, m);
+    if (!b) { err(`取不到 ${what} —— 改写法了来更新第 41-b 节的判据`); return null; }
+    return b;
+  };
+  let bad = 0, subBad = 0;
+
+  /* ① 采样入口唯一：全项目恰 2 处 —— 一次性音效的自动包装层 + 环境音的 requestAmbSample。
+        多一处（有人绕开它自己取素材）少一处（包装层被拆了）都报红。 */
+  const hits = (code.match(/G\.Assets\.sfx\s*\(/g) || []).length;
+  const wrap = body('Object.keys(API).forEach(', '一次性音效包装层');
+  const req = body('function requestAmbSample(', 'requestAmbSample() 的函数体');
+  if (wrap !== null && req !== null) {
+    const nWrap = (wrap.match(/G\.Assets\.sfx\s*\(/g) || []).length;
+    const nReq = (req.match(/G\.Assets\.sfx\s*\(/g) || []).length;
+    if (hits !== 2 || nWrap !== 1 || nReq !== 1) {
+      err(`audio.js 里 G.Assets.sfx( 共 ${hits} 处（包装层 ${nWrap} / 环境音 ${nReq}）——`
+        + '采样入口只许这两个已知调用点，多一处就是有人绕开它们自己取素材');
+      bad++;
+    }
+  } else bad++;
+
+  /* ② BGM **保持程序化**（已拍板）：音乐那几条路里不许出现素材取用 */
+  const bgmBad = [];
+  ['startBgm: function', 'function bgmPump(', 'stopBgm: function'].forEach(m => {
+    const b = body(m, m + ' 的函数体');
+    if (b === null) { bad++; return; }
+    if (/Assets|sample/i.test(b)) bgmBad.push(m.replace(/: function$/, '').replace('function ', ''));
+  });
+  if (bgmBad.length) {
+    err(`背景音乐那几条路里出现了素材取用（${bgmBad.join(' / ')}）—— BGM 按拍板`
+      + '**保持程序化合成**：换成采样会丢掉「随时段 / 天气换参数」这个已有特性');
+    bad++;
+  }
+
+  /* ③ 素材对得上：键从 audio.js **现算**，再核对磁盘 */
+  const km = /AMB_KEY\s*=\s*'([a-z][a-z0-9]*)'/.exec(code);
+  if (!km) { err('audio.js 里找不到 AMB_KEY 的定义（格式：`var AMB_KEY = \'小写字母数字\';`）'); bad++; }
+  else if (!fs.existsSync(path.join(ROOT, 'assets/audio/' + km[1] + '.mp3'))) {
+    err(`audio.js 的采样键是 ${km[1]}，但 assets/audio/${km[1]}.mp3 不存在 —— `
+      + '那就永远只放合成音（G.Assets 拿不到会静默回退，不报任何错）');
+    bad++;
+  } else ok(`循环采样键 ${km[1]} 与磁盘上的 assets/audio/${km[1]}.mp3 对得上（键是现算的）`);
+
+  /* ④ 环境音仍在 NO_SAMPLE 里（它要自己管「起 / 热切换 / 收」），
+        且电平与低通**两条路共用**同一对常量（各写各的就会分家） */
+  const i0 = at(code, 'var NO_SAMPLE');
+  const e0 = i0 < 0 ? -1 : closeOf(code, code.indexOf('{', i0));
+  if (e0 < 0) { err('取不到 NO_SAMPLE 的表体 —— 改写法了来更新第 41-b 节的判据'); bad++; }
+  else if (!/startAmbience:\s*1/.test(code.slice(i0, e0))) {
+    err('startAmbience 从 NO_SAMPLE 里出来了 —— 它要管节点生命周期，不该被'
+      + '「放一次就完」的自动包装层包住');
+    bad++;
+  }
+  ['AMB_GAIN', 'AMB_FILTER_HZ'].forEach(k => {
+    const n = (code.match(new RegExp('\\b' + k + '\\b', 'g')) || []).length;
+    if (n < 2) { err(`${k} 在 audio.js 里只出现 ${n} 次（定义 + 至少一处使用）——`
+      + '合成与采样两条路各写各的数值就会分家'); subBad++; }
+  });
+  bad += subBad;
+
+  if (!bad) ok('循环采样只有那两个已知入口、BGM 保持程序化、素材键与磁盘对得上、'
+    + '环境音仍自管生命周期（电平 / 低通两条路共用常量）');
+})();
+
+
 /* ---------------- 42. 接触表：判定口径不许有第二份 ----------------
    背景：`tools/contact-sheet.py`（把一批卡面拼成一张大图，人一次过 20~40 张）。
    它要在缩略图上画红 / 黄框，**最省事的写法就是自己再判一遍几何** ——
@@ -4193,6 +4274,10 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
     const AL = [
       'stSrc' + SL + '0, fnAt)',                  // §32-h ② 挖空 blank 定义段（前半）
       'stSrc' + SL + 'fnAt + blankSrc.length)',   // §32-h ② 挖空（后半）—— 与前半合成「挖洞」
+      /* 41-b（2026-10-09）：`NO_SAMPLE` 是**对象字面量**（不是函数体）⇒ 按缩进切不适用；
+         段尾走 ⑩ 的 closeOf()，这里只把「表头 → 表尾之后」那一段取出来做一次「名单里有没有
+         startAmbience」的判断（`e0` 已经是 closeOf() 给的**结构边界**，不是位置锚点）。 */
+      'code' + SL + 'i0, e0)',
       /* Q38（2026-10-09）把「取段落」那三条收成结构边界后，它们不再按位置切：
          blank() 的段走 bodyOf()、VIEWS.settings 段与 MORPH_POOL 字典走 closeOf() ⇒ 条目已随代码删掉。 */
     ].map(norm);

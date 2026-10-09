@@ -391,15 +391,17 @@ src/data/fields.js            7 个钓场 + 场景主题 + 预估时长 + 咬口
 src/data/fish.js              362 种鱼（由 tools/gen-fish.py 生成，不要手改）
 src/data/items.js             13 鱼饵 / 8 鱼竿 / 8 鱼线 / 14 装饰
 src/data/goals.js             每日任务模板 / 31 个成就 / 称号表
+src/data/assistant.js         陪伴助手的台词表（场景键 → 台词数组，纯数据）
 src/core/util.js              随机数、颜色、格式化
-src/core/platform.js          平台适配层（存储 / 音频 / 画布 / 系统信息 / 输入 / 剪贴板 / 对话框）
-src/core/audio.js             Web Audio 程序化音效 + 随钓场 / 时段 / 天气换参数的背景音乐（无音频素材文件）
+src/core/platform.js          平台适配层（存储 / 音频 / 画布 / 系统信息 / 输入 / 剪贴板 / 对话框 / 语音合成）
+src/core/audio.js             Web Audio 程序化音效 + 随钓场 / 时段 / 天气换参数的背景音乐（另有 16 个音效与 1 段环境音的本地采样，缺失时自动回退合成）
 src/core/loot.js              掉率 / 重量 / 颜色 / 售价（游戏与仿真共用同一份）
 src/core/state.js             存档、图鉴、鱼护、水族箱、生态值、解锁、商店
 src/core/fight.js             张力拉扯玩法
 src/core/weather.js           天气 + 时段（影响稀有档权重与稀有颜色概率）
 src/core/fishing.js           钓鱼主循环状态机 + 离线补算
 src/core/goals.js             每日任务 / 成就 / 称号的判定与结算
+src/core/assistant.js         陪伴助手（G.Assistant）：什么时候说哪一句 / 说不说出声（不碰 DOM）
 src/core/track.js             错误采集（空壳：环形缓冲 + 可导出文本，不接外部服务）
 src/render/fishart.js         参数化鱼类绘制器（12 种体型 × 6 套候选画风，默认 flat）
 src/render/cardart.js         AI 卡面的取用与回退链（G.CardArt：有图贴图、拿不到就程序化绘制）
@@ -446,7 +448,7 @@ node tools/build.js --release  # 剔除 devtools，断言产物里搜不到 G.Ch
 node tools/build.js --check    # 只跑断言不写盘
 ```
 
-产物 ≈ **601 KB / 1 个网络请求**（原本 29 个），可以 `file://` 双击直接跑。
+产物 ≈ **637 KB / 1 个网络请求**（原本 31 个），可以 `file://` 双击直接跑。
 
 ---
 
@@ -488,7 +490,7 @@ node tools/build.js --check    # 只跑断言不写盘
     netKept, released, netMax, tankMax,
     streak, maxStreak,
   },
-  settings: { sound, volume, ambient, music, musicVol, idle },
+  settings: { sound, volume, ambient, music, musicVol, idle, speech, voice, speechRate, speechPitch },
   lastSeen
 }
 ```
@@ -509,7 +511,7 @@ node tools/build.js --check    # 只跑断言不写盘
 - 代码本身零依赖原生 JS，主要工作：`localStorage` → `wx.setStorageSync`、
   `Web Audio` → `wx.createInnerAudioContext`、Canvas API 对齐、接入广告/分享能力。
 - 平台相关能力**已经全部收在 `src/core/platform.js`**（存储 / 音频 / 画布 / 图像 / 系统信息（含帧调度）/
-  输入 / 剪贴板 / 对话框 **8 组**接口），
+  输入 / 剪贴板 / 对话框 / **语音合成** **9 组**接口），
   上小程序时补一份 `platform.weapp.js` 替换掉它即可，逻辑层一行不用改。
 - 输入要注意：小程序**没有空格键**，「长按收线」要换成 `touchstart/touchend`。
 - 商业化 5 项在这一步开启。
@@ -769,7 +771,7 @@ node tools/build.js --check    # 只跑断言不写盘
 ```
 
 - 把 `index.html` + 样式表 + `src/` 下全部脚本**内联成一个 HTML**
-- 产物 ≈ **601 KB / 1 个网络请求**（原本 29 个），可以 `file://` 双击直接跑 ——
+- 产物 ≈ **637 KB / 1 个网络请求**（原本 31 个），可以 `file://` 双击直接跑 ——
   这也是「零外部依赖」最硬的证据
 - ⚠️ 它只是**可选的发布步骤**，不在开发流程里（改完刷新浏览器即可）；`dist/` 不入库
 - `<script src>` 必须连续挨成一块，`config.js` 第一（建 `window.G`）、`main.js` 最后（boot）——

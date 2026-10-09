@@ -5614,6 +5614,8 @@ let storyBad = 0;
   const panelSrc = strip(fs.readFileSync(path.join(ROOT, 'src/ui/panels.js'), 'utf8'));
   const sceneSrc = strip(fs.readFileSync(path.join(ROOT, 'src/render/scene.js'), 'utf8'));
   const mainSrc = strip(fs.readFileSync(path.join(ROOT, 'src/main.js'), 'utf8'));
+  const hudSrc = strip(fs.readFileSync(path.join(ROOT, 'src/ui/hud.js'), 'utf8'));
+  const htmlSrc = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
 
   /* ① 内容表：取**按序加载过的那一份**（不重新解析，免得同一份内容出现两个真相） */
   const NPCS = (sandbox.G && sandbox.G.STORY_NPCS) || null;
@@ -5704,6 +5706,88 @@ let storyBad = 0;
   });
   if (brBad.length) { err('分支互动配得不对：' + brBad.join('；')); storyBad++; }
 
+  /* ③-c 🔴 限时比试（N7 四期）：`duel` 块要能撑起「开一场、到点结算」。
+     四种坏法都是**静默**的：
+       · `ms` / `pool` 不是正数 / 非负整数 ⇒ 窗口是 0 毫秒（开完立刻结算）或抽不出鱼；
+       · `win` / `lose` 缺一边 ⇒ 那一种结果**永远说不出话**，玩家只会看到面板一闪；
+       · `cond.field` 列了隐藏钓场 ⇒ 那里一竿十几分钟，限时比试变成**必输**；
+       · `pool` 那一档在某个列出钓场里没有鱼 ⇒ 开不了赛（引擎按「不开」处理，什么都不说）。
+     判据一律**拿内容表 + 鱼种表现算**（不写死任何钓场 id / 档位），且带空集自检。 */
+  const RAR_BUCKETS = (sandbox.G && sandbox.G.FISH_BY_FIELD_RARITY) || null;
+  const FIELDS_T = (sandbox.G && sandbox.G.FIELDS) || null;
+  const duelBad = [];
+  let duelEvs = 0;
+  const TOKEN_ALLOW = ['name', 'rival', 'best', 'score'];
+  EVS.forEach(ev => {
+    if (ev.duel === undefined) return;
+    duelEvs++;
+    const dd = ev.duel;
+    const at1 = ev.id + ' 的 duel';
+    if (!dd || typeof dd !== 'object' || Array.isArray(dd)) { duelBad.push(at1 + ' 不是对象'); return; }
+    if (!(dd.ms > 0) || dd.ms % 1 !== 0) duelBad.push(at1 + '.ms 不是正整数（窗口 0 毫秒 = 开完立刻结算）');
+    if (!(dd.pool >= 0) || dd.pool % 1 !== 0) duelBad.push(at1 + '.pool 不是非负整数（它是稀有度下标）');
+    /* 结算台词：两段都要非空，而且**都要真的带占位符** ——
+       不带就等于「比完了但看不出谁重」，玩家没有任何可核对的东西。 */
+    const seenTok = {};
+    ['win', 'lose'].forEach(k => {
+      const lines = dd[k];
+      if (!Array.isArray(lines) || !lines.length
+        || lines.some(s => typeof s !== 'string' || !s.trim())) {
+        duelBad.push(at1 + '.' + k + ' 不是非空字符串数组（那一种结果永远说不出话）');
+        return;
+      }
+      const seenKey = {};
+      lines.forEach(s => {
+        /* 占位符形态固定是 `{英文}`；写错名字**不报错**，只会把 `{xxx}` 原样念出来 */
+        (s.match(/\{[A-Za-z_$][\w$]*\}/g) || []).forEach(t => {
+          const name = t.slice(1, -1);
+          seenTok[name] = 1;
+          seenKey[name] = 1;
+          if (TOKEN_ALLOW.indexOf(name) < 0) {
+            duelBad.push(at1 + '.' + k + ' 用了不认识的占位符 ' + t
+              + '（只许 ' + TOKEN_ALLOW.map(x => '{' + x + '}').join(' / ') + '）');
+          }
+        });
+      });
+      /* 🔴 两段台词**都要**同时给出他的重量与你的成绩（`{rival}` + `{best}`）——
+         只留 `{score}` 的话就是「比完了但看不出谁重」，玩家没有任何可核对的东西。
+         这一条 2026-10-10 的反向验证逮到过：第一版只判「这一段里至少有 1 个占位符」，
+         把 win 第一段三个占位符全删掉仍然绿（第二段那个 {score} 替它满足了）。 */
+      ['rival', 'best'].forEach(tk => {
+        if (!seenKey[tk]) {
+          duelBad.push(at1 + '.' + k + ' 没用 {' + tk + '} —— 那一段里看不出两边各多重');
+        }
+      });
+    });
+    if (!seenTok.score) {
+      duelBad.push(at1 + ' 的结算台词里没有 `{score}` —— 存档里那本战绩（wins / losses）**没有消费方**');
+    }
+    /* 场地：必须显式列，且**不许列隐藏钓场**（`requireFull` 那两处一竿就要十几分钟）。 */
+    const cf = ev.cond && ev.cond.field;
+    if (!Array.isArray(cf) || !cf.length) {
+      duelBad.push(ev.id + ' 的 cond.field 没有列钓场 —— 隐藏钓场（SS / SSS）会跟着办比试，'
+        + '那里一竿十几分钟，限时比试变成必输');
+    } else if (!FIELDS_T) {
+      duelBad.push('拿不到 G.FIELDS，判据抓不到钓场表（先修本节判据本身）');
+    } else {
+      const hidden = {};
+      FIELDS_T.forEach(f => { if (f.requireFull) hidden[f.id] = 1; });
+      cf.forEach(fid => {
+        if (!FIELDS_T.some(f => f.id === fid)) duelBad.push(ev.id + ' 的 cond.field 列了不存在的钓场「' + fid + '」');
+        if (hidden[fid]) duelBad.push(ev.id + ' 在隐藏钓场「' + fid + '」办比试 —— 那里一竿十几分钟，限时比试变成必输');
+      });
+      /* `pool` 那一档在每个列出钓场里都要抽得出鱼，否则引擎按「不开赛」处理 */
+      if (!RAR_BUCKETS) duelBad.push('拿不到 G.FISH_BY_FIELD_RARITY，判不出 pool 那一档有没有鱼');
+      else cf.forEach(fid => {
+        const b = (RAR_BUCKETS[fid] || [])[dd.pool];
+        if (!Array.isArray(b) || !b.length) {
+          duelBad.push(ev.id + ' 的 duel.pool=' + dd.pool + ' 在钓场「' + fid + '」里一条鱼都没有 —— 那里开不了赛');
+        }
+      });
+    }
+  });
+  if (duelBad.length) { err('限时比试配得不对：' + duelBad.join('；')); storyBad++; }
+
   /* ④ 🔴 奖励硬约束：**键只许在纯外观白名单里**，绝不许给金币 / 鱼饵 / 装备 / 掉率。
      白名单现在**是空的** —— 本轮两条事件都是「纯剧情、零奖励」，那是**有意**的。
      要给东西的那一轮必须同时改这里并写明是纯外观（这是有意留的一道闸门）。 */
@@ -5767,6 +5851,18 @@ let storyBad = 0;
     [mainSrc, 'G.Story.choose(', 'main.js 没把玩家的选择交回引擎 —— 分支不落存档、后续事件永远不出现'],
     [panelSrc, 'd.choices', 'panels.js 的对话面板不渲染选项 —— 分支在界面上根本不存在'],
     [panelSrc, 'onPick', 'panels.js 没把点击交出去 —— 点了选项没有任何反应'],
+    /* ⬇ N7 四期：限时比试 —— 这条链路最长（渔获管线 → 判定 → 顶栏芯片 → 结算对话），
+       断任何一环都**不报错**，只是「比了一场没人知道」。 */
+    [coreCode, 'function startDuel(', 'core/story.js 没有 startDuel() —— 命中带 duel 的事件也不会开赛'],
+    [mainSrc, 'G.Story.noteCatch(', 'main.js 没把「这一竿的成果」喂给判定 —— 比试时你上的鱼永远不算'],
+    [coreCode, 'function settleDuel(', 'core/story.js 没有 settleDuel() —— 到点了也没人结算这场比试'],
+    [mainSrc, 'G.Story.settleDuel(', 'main.js 没在主循环里问「到点没有」—— 窗口过了也不会有结果'],
+    [coreCode, 'function duelInfo(', 'core/story.js 没有 duelInfo() —— 界面拿不到「还在比」的证据'],
+    [mainSrc, 'G.Story.duelInfo(', 'main.js 没把比试进度交给顶栏 —— 玩家不知道还在比'],
+    [hudSrc, 'function setDuel(', 'hud.js 没有 setDuel() —— 顶栏那枚倒计时芯片画不出来'],
+    [mainSrc, 'Hud.setDuel(', 'main.js 没调 setDuel() —— 比试进行中界面上一点痕迹都没有'],
+    [hudSrc, "'#duelChip'", 'hud.js 没抓比试芯片的元素'],
+    [htmlSrc, 'id="duelChip"', 'index.html 里没有 #duelChip 容器 —— 芯片无处安放'],
   ];
   const miss = wires.filter(w => !has(w[0], w[1]));
   if (miss.length) { err('隔壁钓鱼佬的接线缺了 ' + miss.length + ' 处：\n     ' + miss.map(w => w[2]).join('\n     ')); storyBad++; }
@@ -5831,6 +5927,36 @@ let storyBad = 0;
   }
   if (brChain.length) { err('分支互动的链路没接上：' + brChain.join('、')); storyBad++; }
 
+  /* ⑦-e 🔴 限时比试的**四段链路**必须都在（与 ⑦-b / ⑦-d 同一类判据）。
+     断哪一段都不报错，只是这场比试**静默地不成立**：
+       · `tryFire()` 里没有「已有未结算的比试 ⇒ 跳过 duel 事件」的守卫
+         ⇒ 第二场把第一场的窗口整个覆盖，玩家刚比到一半那局凭空消失；
+       · `noteCatch()` 没把重量写进 `d.best` ⇒ 你上多少鱼，结算时都是 0（永远输）；
+       · `settleDuel()` 没同时读 `d.best` 与 `d.target` ⇒ 判不出谁赢（要么恒赢要么恒输）；
+       · `settleDuel()` 没清窗口字段 ⇒ 守卫永远挡住下一场（比过一场就再也开不了赛）。
+     ⚠️ 与 ⑦-d 同款：判「字段真被读了 / 写了」必须**认标识符边界与赋值本身** ——
+        子串比对会被一次改名喂饱（`st.duel.end` → `st.duels.end` 照样命中）。 */
+  const duelChain = [];
+  const noteBody = bodyOf(coreCode, 'function noteCatch(');
+  const settleBody = bodyOf(coreCode, 'function settleDuel(');
+  if (!readsField(fireBody, 'st\\.duel\\.end')) {
+    duelChain.push('tryFire() 没读「已有未结算的比试」——第二场会把第一场覆盖掉（刚比到一半那局凭空消失）');
+  }
+  if (!/d\.best\s*=(?!=)/.test(noteBody)) {
+    duelChain.push('noteCatch() 没把这一竿的重量写进 best —— 比试时你上多少鱼都算 0（永远输）');
+  }
+  if (!readsField(noteBody, 'd\\.end')) {
+    duelChain.push('noteCatch() 没看「有没有进行中的比试」——不在比试时也会乱记账');
+  }
+  if (!readsField(settleBody, 'd\\.best') || !readsField(settleBody, 'd\\.target')) {
+    duelChain.push('settleDuel() 没同时读 best 与 target —— 判不出谁赢（恒赢或恒输）');
+  }
+  /* 「窗口清零」认的是**写**：`d.best = 0` / `d.target = 0` 这类赋值，不是「提到过」。 */
+  if (!/d\.(best|target|end)\s*=(?!=)/.test(bodyOf(coreCode, 'function clearDuel('))) {
+    duelChain.push('clearDuel() 没把窗口字段清零 —— 之后再也开不了新的一场（守卫永久挡着）');
+  }
+  if (duelChain.length) { err('比试的链路没接上：' + duelChain.join('、')); storyBad++; }
+
   /* ⑧ 存档：字段要在 blank() 里，migrate() 要纠正**每一个**容器类型（脏档兜底）
      ⚠️ 判据必须认**字段声明 / 赋值本身**，不能只认「这段文字里出现过 story 这个词」——
         第一版写成 `has(body, 'story')`，反向验证当场假通过：把 `story:` 那一行删掉之后，
@@ -5885,10 +6011,13 @@ let storyBad = 0;
 
   if (!storyBad) {
     ok('隔壁钓鱼佬在位：' + npcIds.length + ' 个 NPC / ' + EVS.length + ' 条事件，'
-      + '字段全有人读、接线齐全（含点他搭话与分支选项两条通路）、命中框与画法同源、'
+      + '字段全有人读、接线齐全（含点他搭话、分支选项与限时比试三条通路）、命中框与画法同源、'
       + withPool + ' 个闲聊池结构合法、'
       + (withChoices ? withChoices + ' 条事件带分支（其中 ' + withNeed + ' 条按先前的选择开门）'
         : '没有带分支的事件') + '、'
+      + (duelEvs ? duelEvs + ' 条事件办限时比试（占位符只许 '
+        + TOKEN_ALLOW.map(x => '{' + x + '}').join(' / ') + '、场地不含隐藏钓场且 pool 有鱼）'
+        : '没有办比试的事件') + '、'
       + '存档 story 的 ' + contKeys.length + ' 个容器两边对得上且有迁移纠正、'
       + '奖励白名单为空（纯剧情）、引擎不用 Math.random');
   }

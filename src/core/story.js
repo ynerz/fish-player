@@ -26,8 +26,10 @@
 
      ④ **存档只记事实**：`s.story.fired`（各事件触发过几次，`once` 就靠它）、
         `s.story.at`（最近一次触发的时刻）、`s.story.talk`（跟各 NPC 主动搭话过几次，
-        闲聊池靠它轮流）与 `s.story.pick`（各事件**每个选项各被选过几次**，
-        `need` 那道门与以后的任何「上次我选了什么」都靠它）。重开游戏这些事实都不会变。
+        闲聊池靠它轮流）、`s.story.pick`（各事件**每个选项各被选过几次**，
+        `need` 那道门与以后的任何「上次我选了什么」都靠它）与 `s.story.duel`
+        （**比试那一本账**：进行中的窗口 + 累计战绩 `wins` / `losses`）。
+        重开游戏这些事实都不会变。
 
      ⑤ **主动搭话（`talk()`）不走概率**：玩家点了画布上那个人，就该有回应 ——
         概率门是给「事件找上门」用的（无端弹窗需要克制），不是给「玩家主动问」用的。
@@ -45,6 +47,22 @@
           再添一个 `favor` 数值只会多一份真相，而且**没有任何消费方**（死字段那类问题）。
         · `choose()` 与 `talk()` 同款：**不走概率门**（玩家已经点了，回应必须来），
           越界 / 那条事件没有 `choices` ⇒ 给 `null`（调用方据此收起面板，不猜一项）。
+
+     ⑦ **限时比试（N7 四期）** —— 唯一一条**会动渔获管线**的互动，比叙事分支多一个维度：
+        · 带 `duel: { ms, pool, win, lose }` 的事件命中 ⇒ `startDuel()` 把「他这一场的那条鱼」
+          （鱼名 + 重量）**按哈希定死**并存进 `s.story.duel`，窗口到点才算。
+          ⇒ 同一份存档 + 同一组条件 + 同一个序号，他永远是同一条同重的鱼（口径 ①）。
+        · **玩家这一侧靠 `noteCatch(kg)` 喂进来**：`main.js` 在每次成功上鱼时调它。
+          ⚠️ **挂机上的鱼不算**（见 `noteCatch()` 里那句）—— 比的是「你亲手钓」。
+        · 结算在 `settleDuel()`（主循环每帧问一次）：到点 **且** 人回到 idle、没挂机、
+          没面板开着才结算 —— 与 `consider()` 同款四道门，绝不打断玩家手里那一竿。
+          结算完把结果当成**一次普通对话**交给同一个 `cb.onEvent`（UI 不必认识比试）。
+        · 窗口刚过、玩家手里那一竿还在拉 ⇒ 那一条**仍然算数**（判「进行中」只看 `end > 0`，
+          只有结算才清零）。时间到的那一刻不去抢玩家手里的鱼。
+        · 🔴 **平局算他赢**（严格 `>` 才算你赢）。`wins` / `losses` 是**持久事实**，
+          新开一场只重置窗口字段，**不清战绩**。
+        · 🔴 **一次只比一场**：`tryFire()` 里有一道守卫（已有未结算的比试时跳过 `duel` 事件）。
+          没有它会让第二场把第一场的窗口整个覆盖掉 —— 第一场就凭空消失了。
    ========================================================= */
 
 window.G = window.G || {};
@@ -72,6 +90,13 @@ G.Story = (function () {
     var n = (all && typeof all === 'object') ? all[id] : null;
     return n || null;
   }
+  /* 按 id 找一条事件（比试结算要回内容表拿 `win` / `lose` 台词）。
+     ⚠️ 找不到给 null —— 内容表里删掉那条事件之后，存档里那场比试不该把引擎带崩。 */
+  function evOf(id) {
+    var list = evs();
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return null;
+  }
   /* 存档里的那块（缺字段时给个空壳：脏档 / 老档都不该让这里抛） */
   function rec() {
     var s = (G.State && G.State.get) ? G.State.get() : null;
@@ -81,6 +106,7 @@ G.Story = (function () {
     if (!t.at || typeof t.at !== 'object') t.at = {};
     if (!t.talk || typeof t.talk !== 'object') t.talk = {};
     if (!t.pick || typeof t.pick !== 'object') t.pick = {};
+    if (!t.duel || typeof t.duel !== 'object') t.duel = {};
     if (s) s.story = t;            /* 顺手纠正回去，省得每个调用点各纠正一次 */
     return t;
   }
@@ -139,6 +165,11 @@ G.Story = (function () {
       if (!condOk(ev, p)) continue;
       if (!needOk(ev, st)) continue;
       if (ev.once && (st.fired[ev.id] || 0) > 0) continue;
+      /* 已有**未结算**的比试 ⇒ 不再开第二场（口径 ⑦）。少了这一条，第二场会把
+         第一场的窗口整个覆盖掉 —— 玩家刚比到一半的那局就凭空消失了，且不报错。
+         ⚠️ 判「进行中」只看 `end > 0`（结算时才清零），与 `noteCatch()` 同一口径。
+         这条仍在「纯函数」范围内：它只读存档。 */
+      if (ev.duel && st.duel.end > 0) continue;
       var last = st.at[ev.id];
       if (last && (p.now - last) < ev.cooldownMs) continue;
       if (rollFor(ev, p) >= ev.chance) continue;
@@ -263,6 +294,164 @@ G.Story = (function () {
     return payload(npcOf(ev.npc), c.lines, ev.title);
   }
 
+  /* ---------------- 限时比试（N7 四期，口径 ⑦） ----------------
+     一条比试的生命周期（四处，都在本文件里）：
+       `consider()` 命中带 `duel` 的事件 ⇒ `startDuel()` 定死他那条鱼 + 写窗口
+       ⇒ 玩家每上一条鱼 `noteCatch()` 喂进来
+       ⇒ 到点、人回到 idle 时 `settleDuel()` 结算，结果当成一次普通对话交出去。 */
+
+  /* 他这一场的那条鱼：从本钓场 `pool` 那一档的鱼里按哈希抽一条，重量取哈希百分位。
+     🔴 纯函数（只吃入参 + 鱼种表）：同一份存档 + 同一组条件 + 同一个序号 ⇒
+        永远是同一条鱼、同一个重量（口径 ①）。
+     ⚠️ 只读 `G.FISH_BY_FIELD_RARITY`（`Loot` 那条路会掷 `Math.random()`，用不得）；
+        档位抽不出鱼 ⇒ `null`（调用方据此**不开赛**，而不是办一场没有对手的比试）。 */
+  function rivalOf(ev, p) {
+    var d = ev.duel;
+    var salt = [p.field, p.wx, p.tm, p.seq, ev.id].join('|');
+    var all = G.FISH_BY_FIELD_RARITY || {};
+    var bucket = (all[p.field] || [])[d.pool] || [];
+    if (!bucket.length) return null;
+    var f = bucket[hash32('pick|' + salt) % bucket.length];
+    var kg = f.minKg + (f.maxKg - f.minKg) * (hash32('kg|' + salt) / 4294967296);
+    return { name: f.name, kg: kg };
+  }
+
+  /* 收场：只清**这一场**的窗口字段。🔴 `wins` / `losses` 是持久事实，**不清** ——
+     否则「比过几场赢了几个」会在下一场开赛时凭空归零。 */
+  function clearDuel(d) {
+    d.id = ''; d.end = 0; d.name = ''; d.target = 0; d.best = 0; d.casts = 0;
+  }
+
+  /* 开一场：把窗口与「他那条鱼」写进存档。抽不出鱼 / 内容表没配 `ms` ⇒ 不开（不抛）。 */
+  function startDuel(ev, p) {
+    var dd = ev.duel;
+    if (!dd || !(dd.ms > 0)) return false;
+    var r = rivalOf(ev, p);
+    if (!r) return false;
+    var d = rec().duel;
+    d.id = ev.id;
+    d.end = p.now + dd.ms;
+    d.name = r.name;
+    d.target = r.kg;
+    d.best = 0;
+    d.casts = 0;
+    if (G.State && G.State.save) G.State.save(true);
+    return true;
+  }
+
+  /* 存档里的数字兜底：`duel` 的每个字段都是从盘上读回来的，脏档（字符串 / NaN）
+     会让 `+1` 变成**字符串拼接**、让 `>` 的比较**恒假** —— 而且两者都不报错。
+     与 `state.js` 的 `safeNum()` 同一个态度，只是这里更严（负数也当脏值）。 */
+  function numOr0(v) {
+    return (typeof v === 'number' && isFinite(v) && v >= 0) ? v : 0;
+  }
+
+  /* 顶栏那枚倒计时芯片要的数据（`main.js` 每半秒问一次）。没有进行中的比试 ⇒ `null`。 */
+  function duelInfo() {
+    var d = rec().duel;
+    if (!d || !(d.end > 0)) return null;
+    var o = {};
+    o.name = d.name || '';
+    o.target = numOr0(d.target);
+    o.best = numOr0(d.best);
+    o.casts = numOr0(d.casts);
+    o.leftMs = Math.max(0, d.end - now());
+    return o;
+  }
+
+  /* 玩家上了一条鱼（`main.js` 的 `onCatch` 里调）—— 只有「比试进行中 + 不是挂机」才记账。
+     ⚠️ 挂机上的鱼**不算**：比的是「你亲手钓」（挂机本来就是二等公民，与
+        `config.idle.rareWeightMul` 那条口径同族）。窗口里开着挂机刷出来的重量
+        会让这场比试变成走个过场。
+     ⚠️ 判「进行中」只看 `end > 0`：窗口刚过、这一竿还在拉的那条**仍然算数** ——
+        时间到的那一刻不去抢玩家手里的鱼（结算只发生在 idle 时刻，见 `settleDuel()`）。 */
+  function noteCatch(kg) {
+    if (!(kg > 0)) return false;
+    var d = rec().duel;
+    if (!d || !(d.end > 0)) return false;
+    if (G.Fishing && G.Fishing.isIdleMode && G.Fishing.isIdleMode()) return false;
+    d.casts = numOr0(d.casts) + 1;
+    if (kg > numOr0(d.best)) d.best = kg;
+    if (G.State && G.State.save) G.State.save(true);   /* 与 mark() / talk() 同样立刻落盘 */
+    return true;
+  }
+
+  /* 重量文本：走 `U.kg()`（与鱼护 / 结算卡同一套显示口径）。
+     ⚠️ 不在这儿另写一份格式化 —— 两处写法迟早分家。 */
+  function kgTxt(v) {
+    return (G.U && G.U.kg) ? G.U.kg(v) : (Math.round(v * 100) / 100 + ' kg');
+  }
+  /* 结算台词里的四个占位符。⚠️ 一律用**函数式替换**：鱼名 / 数字里若出现 `$&`
+     这类字符，字符串式替换会把它们当替换模式解释掉（静默）。 */
+  function fillLine(s, d, bestTxt, scoreTxt) {
+    return String(s)
+      .replace(/\{name\}/g, function () { return d.name || '那条鱼'; })
+      .replace(/\{rival\}/g, function () { return kgTxt(d.target); })
+      .replace(/\{best\}/g, function () { return bestTxt; })
+      .replace(/\{score\}/g, function () { return scoreTxt; });
+  }
+
+  /* 造一条**不在内容表里**的事件对象（比试的结算用）。
+     写成「造对象 + 裸返回」的小工厂：字段全在函数体里列清楚，也不在模块顶层的
+     返回块里出现内联字面量（硬规矩 31）。 */
+  function mkEv(id, npcId, title, lines) {
+    var o = {};
+    o.id = id;
+    o.npc = npcId;
+    o.title = title;
+    o.lines = lines;
+    return o;
+  }
+
+  /* 到点就结算。返回那个结果事件，或 `null`（没有进行中的比试 / 没到点 / 门没过）。
+     🔴 四道门与 `consider()` **同款**（顺序即优先级）：必须是 idle ⇒ 不能是挂机 ⇒
+        不能有面板 / 结算卡开着。前两条是「别打断玩家手里那一竿」，第三条是「两层
+        modal 叠在一起会打架」。少任何一条都会出现「鱼还在拉扯、比试结果盖上来」。
+     ⚠️ 结果走**同一个 `cb.onEvent`**：UI 层不必认识比试（它只会看到一次普通对话）。
+     返回值仍是那种「不是内容表里的」事件对象 —— 调用方按 `id` / `title` / `lines` 用即可。 */
+  function settleDuel() {
+    var d = rec().duel;
+    if (!d || !(d.end > 0)) return null;
+    var t = now();
+    if (t < d.end) return null;
+    if (G.Fishing && G.Fishing.getState && G.Fishing.getState() !== 'idle') return null;
+    if (G.Fishing && G.Fishing.isIdleMode && G.Fishing.isIdleMode()) return null;
+    if (G.Panels && ((G.Panels.isOpen && G.Panels.isOpen())
+      || (G.Panels.isCatchOpen && G.Panels.isCatchOpen()))) return null;
+
+    var ev = evOf(d.id);
+    var best = numOr0(d.best), target = numOr0(d.target);
+    var win = best > target;                     /* 🔴 平局算他赢（严格大于才算你赢） */
+    var lines = (ev && ev.duel) ? (win ? ev.duel.win : ev.duel.lose) : null;
+    if (!Array.isArray(lines) || !lines.length) {
+      /* 内容表没配结算台词（或那条事件被删了）⇒ 悄悄收场 —— 宁可少一句 flavor，
+         也不能把玩家卡在一场**永远结不了**的比试里（窗口字段不清，之后再也开不了新场）。
+         ⚠️ 正常情况走不到：`verify` 第 50 节要求 `win` / `lose` 都是非空字符串数组。 */
+      clearDuel(d);
+      if (G.State && G.State.save) G.State.save(true);
+      return null;
+    }
+    /* 战绩**两边都写**（`0` 而不是缺字段）：只写赢的那个的话，存档里就是 `{wins:1}`
+       —— 读 `duel.losses` 的地方拿到 `undefined`。与「计数数组补成密集的」同一条教训：
+       稀疏的存档读起来像坏数据（也容易被后来的人当成脏档去修）。
+       ⚠️ 先归一化再自增：`wins` 是字符串时 `+1` 会变成拼接（`"3"+1 === "31"`），而且不报错。 */
+    d.wins = numOr0(d.wins);
+    d.losses = numOr0(d.losses);
+    if (win) d.wins++; else d.losses++;
+    var bestTxt = (best > 0) ? kgTxt(best) : '空手';
+    var scoreTxt = '你 ' + d.wins + ' 胜 ' + d.losses + ' 负';
+    /* ⚠️ 台词必须在 `clearDuel()` **之前**填好 —— 它要读 `d.name` / `d.target`。 */
+    var out = mkEv(ev.id + (win ? 'Win' : 'Lose'), ev.npc, ev.title, lines.map(function (s) {
+      return fillLine(s, d, bestTxt, scoreTxt);
+    }));
+    clearDuel(d);
+    /* 与 `consider()` 共用全局兜底间隔：刚比完别再紧接着碰上一位邻居（会连开两个弹窗）。 */
+    lastAt = t;
+    if (G.State && G.State.save) G.State.save(true);
+    if (cb.onEvent) cb.onEvent(out, npcOf(ev.npc), rewardOf(ev));
+    return out;
+  }
+
   /* `init({ onEvent })`：`onEvent(ev, npc, reward)` 由 UI 层实现（现在是开对话面板）。
      没有回调时引擎照旧记账、只是没人看得到（测试里就是这么用的）。 */
   function init(opts) {
@@ -289,10 +478,15 @@ G.Story = (function () {
     var gap = cfg().minGapMs || 0;
     if (lastAt && (t - lastAt) < gap) return null;
 
-    var ev = tryFire(probeOf(c, seq, t));
+    var probe = probeOf(c, seq, t);
+    var ev = tryFire(probe);
     if (!ev) return null;
     lastAt = t;
     mark(ev, t);
+    /* 带 `duel` 的事件：顺手开一场比试。⚠️ 顺序在 `mark()` **之后**、回调**之前** ——
+       面板打开的那一刻 `duelInfo()` 必须已经是新窗口，否则顶栏芯片会慢一拍
+       （玩家先看到对话、半秒后才看到「比试进行中」）。 */
+    if (ev.duel) startDuel(ev, probe);
     if (cb.onEvent) cb.onEvent(ev, npcOf(ev.npc), rewardOf(ev));
     return ev;
   }
@@ -308,6 +502,9 @@ G.Story = (function () {
     neighbor: neighbor,
     talk: talk,
     choose: choose,
+    noteCatch: noteCatch,
+    settleDuel: settleDuel,
+    duelInfo: duelInfo,
     tryFire: tryFire,
     rollFor: rollFor,
     reset: reset,

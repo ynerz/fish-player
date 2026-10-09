@@ -233,6 +233,17 @@ html,body{
 }
 @keyframes breathe{ 0%,100%{opacity:1;} 50%{opacity:.62;} }
 
+/* 比试进行中（N7 四期）：顶栏左上角、钓场名牌下方 —— 与右上角的挂机芯片互不遮挡。
+   颜色刻意用暖橙（挂机用绿）：两枚芯片同时在场时一眼能分开。
+   文案由 hud.js 的 setDuel() 现算，这里只管长相。 */
+.duel-chip{
+  position:absolute; left:14px; top:56px; z-index:12;
+  padding:5px 12px; border-radius:20px;
+  background:rgba(214,140,42,.94); color:#fff;
+  font-size:12px; font-weight:700; letter-spacing:.5px;
+  box-shadow:var(--shadow-s); pointer-events:none;
+}
+
 /* Toast */
 .toasts{
   position:absolute; left:50%; top:64px; transform:translateX(-50%);

@@ -320,6 +320,10 @@
     Hud.syncAll();
     /* 每一竿的收获都进播报栏 —— 挂机时也能看到钓到了什么 */
     Hud.pushCatch(info);
+    /* 比试（N7 四期）：这一竿的成果要喂给事件判定（口径 ⑦）。
+       ⚠️ 引擎自己会拦「没在比试 / 挂机上的鱼」两种情况，这里不做第二份判断 ——
+          「挂机不算」的判据只有一处（`core/story.js` 的 `noteCatch()`）。 */
+    if (G.Story) G.Story.noteCatch(info.kg);
     /* 陪伴助手：传说鱼 / 破纪录时接一句话（挂机 / 普通鱼由它自己判断，这里不写白名单） */
     G.Assistant.onCatch(info);
 
@@ -344,8 +348,11 @@
   }
 
   /* 隔壁钓鱼佬真的开口了（引擎已经记完账）→ 开对话。
-     复用现有 modal：底栏会自动进禁用态、ESC / 点遮罩都能关，不必另写一套。 */
+     复用现有 modal：底栏会自动进禁用态、ESC / 点遮罩都能关，不必另写一套。
+     ⚠️ 带 `duel` 的那条（比试开场）顺手提一句「比试开始了」—— 顶栏那枚倒计时芯片
+        是慢慢出现的，一句即时提示能让玩家立刻把注意力放到这次比试上。 */
   function onStoryEvent(ev, npc) {
+    if (ev.duel) Hud.toast({ text: '⚔ 比试开始 —— 这一会儿谁上的鱼更沉', kind: 'good' });
     P.open('dialog', dialogPayload(ev, npc));
   }
 
@@ -503,6 +510,11 @@
       dashing: !!(fsnap && fsnap.dashing),
     });
 
+    /* 比试（N7 四期）：到点就结算。⚠️ **每帧问一次**，不是只在结算卡关闭时问 ——
+       窗口是在「几竿之后」到点的，那时候玩家多半正闲着，等下一竿结算才冒出来会
+       让人以为这一场没下文。门（idle / 非挂机 / 无面板）全在引擎里，这里不重复判。 */
+    if (focused && G.Story) G.Story.settleDuel();
+
     /* ⚠️ 失焦时**连渲染一起停**。
        失焦 = 暂停（上面 St.tick / Weather / Goals / F.update 全都按 focused 拦住了），
        画面本来就是静止的；原来这里无条件 `S.render(dt)`，多显示器下切到别的应用，
@@ -514,7 +526,12 @@
     if (focused && F.getState() === 'fight') Hud.updateFight(G.Fight.snapshot());
 
     hudTimer += dt;
-    if (focused && hudTimer > 0.4) { hudTimer = 0; Hud.syncStats(); }
+    if (focused && hudTimer > 0.4) {
+      hudTimer = 0;
+      Hud.syncStats();
+      /* 比试那枚倒计时芯片：每 0.4 秒问一次引擎要数据（没有进行中的比试 ⇒ null ⇒ 收起） */
+      if (G.Story) Hud.setDuel(G.Story.duelInfo());
+    }
 
     G.Platform.sys.raf(loop);
   }

@@ -30,6 +30,7 @@ G.Hud = (function () {
     el.badgeName = U.$('.fb-name');
     el.badgeSub  = U.$('.fb-sub');
     el.idleChip  = U.$('#idleChip');
+    el.duelChip  = U.$('#duelChip');
     el.catchLog  = U.$('#catchLog');
     el.wxIcon    = U.$('#wxIcon');
     el.wxText    = U.$('#wxText');
@@ -182,8 +183,26 @@ G.Hud = (function () {
     el.idleChip.classList.toggle('hidden', !s.settings.idle);
   }
 
-  /* ---------------- 天气 / 时段 ---------------- */
-  function setWeather(sn) {
+  /* ---------------- 比试（N7 四期） ----------------
+     限时比试进行中时，顶栏挂一枚倒计时芯片：目标 / 自己这一场最大的那条 / 剩余时间。
+     🔴 它**不是装饰**：比试的窗口有 4 分钟，只靠开场那 2.5 秒的 toast，玩家根本
+        不知道自己还在比 —— 这枚芯片就是「比试进行中」唯一的常驻可见提示。
+     `o` 为 null = 没有进行中的比试 ⇒ 收起（`main.js` 每 0.4 秒问一次引擎）。
+     ⚠️ 文案里的数字全部**现算**（`U.kg()` 与剩余秒数），不写死任何阈值；
+        自己还没上鱼时显示「—」而不是 `0 g`（0 g 看着像一条真鱼）。 */
+  function setDuel(o) {
+    if (!el.duelChip) return;
+    if (!o) { el.duelChip.classList.add('hidden'); return; }
+    var sec = Math.max(0, Math.ceil((o.leftMs || 0) / 1000));
+    var mm = Math.floor(sec / 60), ss = sec % 60;
+    el.duelChip.classList.remove('hidden');
+    el.duelChip.textContent = '⚔ 比试 · 目标 ' + U.kg(o.target || 0)
+      + ' · 你 ' + ((o.best > 0) ? U.kg(o.best) : '—')
+      + ' · ' + mm + ':' + (ss < 10 ? '0' : '') + ss;
+    el.duelChip.title = '限时比最大重量：时间到之前上一条比目标更沉的鱼就算赢';
+  }
+
+  /* ---------------- 天气 / 时段 ---------------- */  function setWeather(sn) {
     if (!sn || !el.wxText) return;
     el.wxIcon.textContent = sn.wx.icon + sn.tm.icon;
     el.wxText.textContent = sn.wx.name + ' · ' + sn.tm.name + ' ' + sn.clock;
@@ -286,6 +305,6 @@ G.Hud = (function () {
     fightTip: fightTip,
     toast: toast, setField: setField, setWeather: setWeather,
     setTitle: setTitle, syncTitle: syncTitle, syncGoalBadge: syncGoalBadge,
-    pushCatch: pushCatch,
+    pushCatch: pushCatch, setDuel: setDuel,
   };
 })();

@@ -3657,10 +3657,15 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
 (function () {
   var S7 = G.Story, PL = G.Platform, Fish7 = G.Fishing;
   var realSnap = G.Weather.snapshot, realPanels = G.Panels;
-  /* 三组受控条件：分别命中「借线」（傍晚）/「旧靴子」（有雾）/ 谁都不命中（大晴天正午） */
-  var DUSK = { field: 'D', wx: 'clear', tm: 'dusk' };
-  var FOG  = { field: 'D', wx: 'fog',   tm: 'day'  };
-  var DRY  = { field: 'D', wx: 'clear', tm: 'day'  };
+  /* 三组受控条件：分别命中「借线」（傍晚）/「旧靴子」（有雾）/ 谁都不命中。
+     ⚠️ 后两组刻意用**隐藏钓场 SS** 当场地（N7 四期加「比试」之后改的）：
+        「比试」的 `cond.field` 只列五个常规钓场 —— SS / SSS 一竿要十几分钟，
+        限时比试在那里只会变成必输，所以内容表里就不办。
+        拿 D 场当场地的话，大晴天正午会命中「比试」、有雾白天则会与「旧靴子」抢掷点
+        （谁先过概率门谁赢），这两条断言的**意图**（无人命中 / 命中哪一条）就守不住了。 */
+  var DUSK = { field: 'D',  wx: 'clear', tm: 'dusk' };
+  var FOG  = { field: 'SS', wx: 'fog',   tm: 'day'  };
+  var DRY  = { field: 'SS', wx: 'clear', tm: 'day'  };
 
   function clean() { S7.reset(); St.get().story = { fired: {}, at: {} }; }
   /* 从 seq=1 往下**扫**一个真能命中的序号（不写死数字：改一次台词 / chance 就会失效） */
@@ -3689,7 +3694,7 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
 
     /* ---------- ② 条件门 ---------- */
     clean();
-    ok(firstHit(DRY) === null, '条件都不满足时（大晴天正午）一条事件都不触发');
+    ok(firstHit(DRY) === null, '条件都不满足时（隐藏钓场 + 大晴天正午）一条事件都不触发');
     clean();
     var h1 = firstHit(DUSK);
     ok(h1 && h1.ev.id === 'borrow', '傍晚无雨 ⇒ 命中「借线」（条件门 + 概率门都过）'
@@ -3964,6 +3969,201 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
     ok(Array.isArray(St.get().story.pick[brEv.id]),
        '脏档被纠正成数组（否则选项计数写不进去）');
     clean();
+
+    /* ---------- ⑬ 限时比试（N7 四期）：开赛 / 记账 / 到点结算 ----------
+       用的是**真内容表**那条（不加探针）：`consider()` 在「常规钓场 + 白天」下只会命中它
+       —— `borrow` 要傍晚、`boot` 要有雾、`repay` 要先前借过线（`clean()` 把 pick 清了）。 */
+    var duelEv = null;
+    for (var di = 0; di < G.STORY_EVENTS.length; di++) {
+      if (G.STORY_EVENTS[di].duel) { duelEv = G.STORY_EVENTS[di]; break; }
+    }
+    ok(!!duelEv, '内容表里有办限时比试的事件（比试在位）');
+    ok(!!(duelEv && Array.isArray(duelEv.duel.win) && duelEv.duel.win.length
+      && Array.isArray(duelEv.duel.lose) && duelEv.duel.lose.length),
+      '比试配了赢 / 输两段结算台词（缺一边 = 那种结果永远说不出话）');
+
+    G.Weather.snapshot = function () { return { wx: { key: 'clear' }, tm: { key: 'day' } }; };
+    St.get().field = 'D';
+    G.Panels = { isOpen: function () { return false; }, isCatchOpen: function () { return false; } };
+    Fish7.hardReset();
+    St.setIdle(false);
+
+    /* 开赛要**扫**序号（内容表的 chance < 1 ⇒ 单次 consider() 多半不中，
+       而「没中就当成没开赛」会让下面一堆断言**因为错误的原因**通过）。
+       ⚠️ 从 seq=1 往下扫，不写死数字：改一次概率 / 台词都不会让这组用例失效。 */
+    function fireDuel() {
+      for (var n2 = 0; n2 < 600; n2++) { var e2 = S7.consider(); if (e2) return e2; }
+      return null;
+    }
+
+    /* ① 开赛 */
+    clean();
+    var duelFired = fireDuel();
+    ok(!!duelFired && duelFired.id === duelEv.id, '条件合适时真的会开一场比试');
+    var inf1 = S7.duelInfo();
+    ok(!!inf1, '开赛之后 duelInfo() 有数据（顶栏那枚倒计时芯片才有东西可显示）');
+    ok(!!(inf1 && typeof inf1.target === 'number' && inf1.target > 0), '他这条鱼的重量是个正数');
+    ok(!!(inf1 && typeof inf1.name === 'string' && inf1.name.trim()),
+       '他这条鱼有名字（结算台词要念出来）');
+    ok(!!(inf1 && inf1.best === 0 && inf1.casts === 0), '刚开赛时你这边还是空的');
+    ok(!!(inf1 && inf1.leftMs > 0), '窗口还没到点（leftMs > 0）');
+    ok(!!(St.get().story.duel && St.get().story.duel.end > 0),
+       '窗口结束时刻写进了存档（story.duel.end）—— 关掉页面再回来这场还认');
+    var tgt1 = inf1.target;
+
+    /* ② 可复现：清掉推进态、同一组条件与序号 ⇒ 他永远是同一条同重的鱼（口径①） */
+    S7.reset(); clean();
+    fireDuel();
+    ok(!!(S7.duelInfo() && S7.duelInfo().target === tgt1),
+       '同一份存档 + 同一组条件 + 同一个序号 ⇒ 他永远是同一条同重的鱼（不用随机数）');
+
+    /* ③ 窗口内上的鱼要算进来（`main.js` 的 onCatch 就是喂这一口） */
+    S7.noteCatch(tgt1 / 2);
+    ok(St.get().story.duel.best === tgt1 / 2 && St.get().story.duel.casts === 1,
+       'noteCatch() 把这一竿的重量记进 best / casts');
+    S7.noteCatch(tgt1 / 4);
+    ok(St.get().story.duel.best === tgt1 / 2 && St.get().story.duel.casts === 2,
+       '再来一条更轻的：best 取**最大**、casts 照样累加');
+
+    /* ④ 挂机上的鱼不算（比的是「你亲手钓」） */
+    St.setIdle(true);
+    var idleRec = S7.noteCatch(tgt1 * 99);
+    St.setIdle(false);
+    ok(idleRec === false && St.get().story.duel.best === tgt1 / 2,
+       '挂机时上的鱼不计入比试（否则开着挂机就能刷掉这一场）');
+
+    /* ⑤ 「立刻落盘」要**读盘**验 —— 只验内存的话，把引擎里那句 save 删掉照样是绿的 */
+    function diskDuelBest() {
+      var k3 = (G.Profile && G.Profile.key) ? G.Profile.key() : CFG.saveKey;
+      var raw = localStorage.getItem(k3);
+      if (!raw) return -1;
+      try {
+        var o3 = JSON.parse(raw);
+        var d3 = o3.story && o3.story.duel;
+        return (d3 && typeof d3.best === 'number') ? d3.best : 0;
+      } catch (e) { return -2; }
+    }
+    clean();
+    fireDuel();
+    var tgtDisk = S7.duelInfo().target;
+    St.save(true);
+    S7.noteCatch(tgtDisk / 8);
+    ok(diskDuelBest() === tgtDisk / 8,
+       '比试里的渔获**立刻落盘**（不等自动保存的节流窗口）—— 盘上 best=' + diskDuelBest());
+    St.load();
+    ok(St.get().story.duel.best === tgtDisk / 8, '存档往返之后这一场的成绩还在');
+
+    /* ⑥ 🔴 一次只比一场：已有**未结算**的比试时，`tryFire` 必须跳过办比试的事件。
+       **双向**验（只验一边会让「守卫写成恒真」也通过）—— 门是数据上的，不是注释。 */
+    function seqHitDuel() {
+      for (var s2 = 1; s2 <= 600; s2++) {
+        var got3 = S7.tryFire({ field: 'D', wx: 'clear', tm: 'day', seq: s2, now: 0 });
+        if (got3 && got3.id === duelEv.id) return s2;
+      }
+      return 0;
+    }
+    clean();
+    ok(seqHitDuel() > 0, '没有进行中的比试 ⇒ 办比试的事件能出现');
+    St.get().story.duel = { id: duelEv.id, end: 1e15 };
+    ok(seqHitDuel() === 0,
+       '已经有一场没结算 ⇒ 不再开第二场（少了这条守卫，第二场会把第一场整个覆盖）');
+
+    /* ⑦ 没到点不结算；三道门（打断钓鱼 / 挂机 / 面板）也都不结算 */
+    clean();
+    fireDuel();
+    ok(!!S7.duelInfo(), '开了一场新的，窗口真的在进行中');
+    ok(S7.settleDuel() === null, '窗口还没到点 ⇒ 不结算');
+    St.get().story.duel.end = 1;                       /* 把窗口拨到过去 */
+    Fish7.press();                                     /* idle → flying：玩家手里正忙 */
+    ok(S7.settleDuel() === null, '玩家手里那一竿还没收（非 idle）⇒ 不结算，不打断');
+    ok(!!S7.duelInfo(), '没结算时窗口还在（不会「闪一下就没」）');
+    Fish7.hardReset();
+    St.setIdle(true);
+    ok(S7.settleDuel() === null, '挂机时不结算（人不在屏幕前，弹面板只会打断他回来后的操作）');
+    St.setIdle(false);
+    G.Panels = { isOpen: function () { return true; }, isCatchOpen: function () { return false; } };
+    ok(S7.settleDuel() === null, '面板开着时不结算（两层 modal 叠在一起会打架）');
+    G.Panels = { isOpen: function () { return false; }, isCatchOpen: function () { return false; } };
+
+    /* ⑧ 到点结算：赢的那一侧 */
+    var gotEv = null;
+    S7.init({ onEvent: function (ev) { gotEv = ev; } });
+    St.get().story.duel.end = 1;
+    S7.noteCatch(tgt1 * 2);                            /* 比他那条沉 ⇒ 赢 */
+    var before4 = { coin: St.get().coin, medals: St.get().medals, eco: St.get().eco };
+    var out1 = S7.settleDuel();
+    /* 判「给的是哪一侧」：把模板按占位符切开，**每一段原文都要在填好的台词里按序出现**
+       —— 这样台词一个字不改也认得出，而且不写死任何句式（改文案这边不用跟着改）。 */
+    var fromTpl = function (tpl, filled) {
+      var parts = tpl.split(/\{[a-z]+\}/).filter(function (x) { return x.length; });
+      var pos = 0;
+      for (var pi = 0; pi < parts.length; pi++) {
+        var at = filled.indexOf(parts[pi], pos);
+        if (at < 0) return false;
+        pos = at + parts[pi].length;
+      }
+      return true;
+    };
+    var sameSide = function (tpl, got) {
+      return tpl.length === got.length && tpl.every(function (t, i) { return fromTpl(t, got[i]); });
+    };
+    ok(!!out1, '到点 + 前三条门都开 ⇒ 真结算');
+    ok(!!out1 && sameSide(duelEv.duel.win, out1.lines),
+       '结算给出的是**赢**那一侧（占位符换成了真数字，台词本身没被改写）');
+    ok(!!out1 && !sameSide(duelEv.duel.lose, out1.lines), '赢的时候不会误用输的那段台词');
+    ok(!!out1 && out1.lines.join('').indexOf('{') < 0,
+       '结算台词里的占位符**都被替换掉了**（写错名字会把 `{xxx}` 原样念给玩家听）');
+    ok(!!out1 && out1.lines.join('|').indexOf(G.U.kg(tgt1)) >= 0,
+       '台词里真的出现了**他的重量**（比完了看得出谁重）');
+    ok(!!out1 && out1.lines.join('|').indexOf(G.U.kg(tgt1 * 2)) >= 0,
+       '台词里真的出现了**你的成绩**');
+    ok(gotEv === out1, '结算结果走的是同一个对话回调（UI 层不必认识比试）');
+    ok(S7.duelInfo() === null, '结算完窗口就收起来了（顶栏芯片跟着消失）');
+    ok(St.get().story.duel.end === 0 && St.get().story.duel.best === 0
+      && St.get().story.duel.target === 0,
+       '窗口字段被清零 —— 否则「已有未结算的比试」那道守卫会永久挡住下一场');
+    ok(St.get().story.duel.wins === 1 && St.get().story.duel.losses === 0,
+       '战绩记了一笔胜，而且**两个数都在**（只写赢的那个的话，存档里就是 {wins:1}）');
+    ok(St.get().coin === before4.coin && St.get().medals === before4.medals
+      && St.get().eco === before4.eco,
+       '比试结算不动金币 / 纪念币 / 生态值（比试不是第二个经济系统）');
+
+    /* ⑨ 输的那一侧 + 平局算他赢 + 战绩不被下一场清掉 */
+    S7.reset();
+    clean();
+    St.get().story.duel = { id: duelEv.id, end: 1, name: '探测鱼', target: 5, best: 5, casts: 1,
+                            wins: 1, losses: 0 };
+    var out2 = S7.settleDuel();
+    ok(!!out2 && out2.lines.join('|').indexOf(G.U.kg(5)) >= 0,
+       '成绩**等于**他的重量时算他赢（平局算他赢：严格大于才算你赢）');
+    ok(!!out2 && St.get().story.duel.losses === 1 && St.get().story.duel.wins === 1,
+       '输了一笔照记，**先前的胜场没有被清零**');
+    ok(!!out2 && St.get().story.duel.wins === 1 && St.get().story.duel.losses === 1,
+       '战绩两边都在（稀疏的存档读起来像坏数据）');
+    /* 脏值：wins 是字符串时 `+1` 会变成**拼接**（"3"+1 === "31"），而且不报错 */
+    clean();
+    St.get().story.duel = { id: duelEv.id, end: 1, name: '探测鱼', target: 5, best: 0, casts: 0,
+                            wins: '3', losses: -7 };
+    S7.settleDuel();
+    ok(St.get().story.duel.losses === 1 && St.get().story.duel.wins === 0,
+       '战绩是脏值（字符串 / 负数）时先归一化再自增（否则会变成 "31"）');
+    /* 一条都没上时，`{best}` 要写成「空手」而不是 `0 g`（0 g 看着像一条真鱼） */
+    clean();
+    St.get().story.duel = { id: duelEv.id, end: 1, name: '探测鱼', target: 5, best: 0, casts: 0,
+                            wins: 0, losses: 0 };
+    var out3 = S7.settleDuel();
+    ok(!!out3 && out3.lines.join('|').indexOf('空手') >= 0,
+       '一条都没上时台词写「空手」而不是 `0 g`（0 g 看着像一条真鱼）');
+
+    /* ⑩ 脏档：story.duel 是数字 / 字符串时不抛 */
+    St.get().story.duel = 7;
+    var duelThrow = '';
+    try { S7.settleDuel(); S7.duelInfo(); S7.noteCatch(1); }
+    catch (e) { duelThrow = e.message; }
+    ok(duelThrow === '', '存档里的 duel 是数字时 settleDuel / duelInfo / noteCatch 都不抛'
+      + (duelThrow ? ' —— ' + duelThrow : ''));
+    clean();
+    S7.init({});
   } finally {
     /* 恢复现场：引擎内存态、天气桩、面板层、存档里的触发记录、idle 开关 */
     G.Weather.snapshot = realSnap;

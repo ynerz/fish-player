@@ -83,9 +83,13 @@ G.State = (function () {
          `at` = 各事件最近一次触发的时刻（毫秒，`cooldownMs` 靠它）；
          `talk` = 跟各 NPC **主动搭话**过几次（键是 NPC id，闲聊池靠它轮流）；
          `pick` = 各事件**每个选项各被选过几次**（键是事件 id、值是下标→次数的数组，
-         `need` 那道门靠它）—— 四者都是「存档只记事实」，
-         重开游戏「这条我见过没 / 上次说到哪 / 上次我选了什么」都不会变。 */
-      story: { fired: {}, at: {}, talk: {}, pick: {} },
+         `need` 那道门靠它）；
+         `duel` = **比试那一本账**（N7 四期）：进行中的窗口（`id` / `end` / `name` /
+         `target` / `best` / `casts`，`end = 0` 就是没有进行中的）+ **累计战绩**
+         `wins` / `losses`（开局只重置窗口字段，战绩不清）；
+         —— 五者都是「存档只记事实」，重开游戏「这条我见过没 / 上次说到哪 /
+         上次我选了什么 / 比过几场」都不会变。 */
+      story: { fired: {}, at: {}, talk: {}, pick: {}, duel: {} },
       stats: {
         casts: 0, catches: 0, escapes: 0, snaps: 0, idleCatches: 0,
         maxKg: 0, maxKgFish: '', totalValue: 0, days: 0,
@@ -271,6 +275,7 @@ G.State = (function () {
     if (!d.story.at || typeof d.story.at !== 'object' || Array.isArray(d.story.at)) d.story.at = {};
     if (!d.story.talk || typeof d.story.talk !== 'object' || Array.isArray(d.story.talk)) d.story.talk = {};
     if (!d.story.pick || typeof d.story.pick !== 'object' || Array.isArray(d.story.pick)) d.story.pick = {};
+    if (!d.story.duel || typeof d.story.duel !== 'object' || Array.isArray(d.story.duel)) d.story.duel = {};
 
     /* ---- 按版本号迁移 ---- */
     if (from < 2) {

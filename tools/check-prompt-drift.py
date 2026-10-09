@@ -66,20 +66,22 @@ def main():
                          "给了就当成断言，出现别的变化即退出码 1")
     args = ap.parse_args()
 
-    tmp = tempfile.mkdtemp(prefix="promptdrift-")
+    # 🔴 2026-10-09 修：副本必须放在 **`tools/` 下**（与它要替换的 `gen-art.py` 同级）。
+    #   放临时目录（原来是 `tempfile.mkdtemp()`）时副本的 `ROOT = dirname(dirname(__file__))`
+    #   指向 `%TEMP%`，而 `gen-art.py` 现在**模块级**就会调 `load_fish()`（`check_deep_motifs()`）
+    #   ⇒ import 副本的那一刻就去临时目录找 `src/data/config.js`、直接 MODULE_NOT_FOUND，
+    #   工具整条跑不起来（而它是「改提示词口径」之后的必跑步骤）。
+    #   ⚠️ 事后设 `old.ROOT` 没用 —— 报错发生在 import 期间，那行根本轮不到执行。
+    tmp = os.path.join(ROOT, "tools", "_promptdrift_old.py")   # ⚠️ 必须是 tools/ 下的**文件**
     try:
-        old_path = os.path.join(tmp, "gen-art.py")
+        old_path = tmp
         blob = subprocess.run(["git", "show", "%s:tools/gen-art.py" % args.rev],
                               cwd=ROOT, capture_output=True, text=True)
         if blob.returncode:
             print("✘ 取不到 %s:tools/gen-art.py —— %s" % (args.rev, blob.stderr.strip()[:120]))
             return 1
         open(old_path, "w", encoding="utf-8", newline="\n").write(blob.stdout)
-        # ⚠️ 副本要能读到 traits（按 __file__ 定位）—— 否则对照出来全是假的
-        for extra in ("fish-traits.json",):
-            src = os.path.join(ROOT, "tools", extra)
-            if os.path.exists(src):
-                shutil.copy(src, os.path.join(tmp, extra))
+        # 副本就在 `tools/` 下 ⇒ `fish-traits.json` 与 `src/` 原地就能找到，无需再复制。
 
         new = load(os.path.join(ROOT, "tools", "gen-art.py"), "mod_new")
         old = load(old_path, "mod_old")
@@ -117,7 +119,11 @@ def main():
         print("\n✔ 只变了预期的 slot（%s）" % "、".join(sorted(want)))
         return 0
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        # 副本是 `tools/` 下的一个文件 ⇒ 收尾删文件（原来是删临时目录）
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
 
 
 if __name__ == "__main__":

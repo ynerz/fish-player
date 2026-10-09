@@ -5275,7 +5275,8 @@ let deepBad = 0;
   const code = raw.replace(/^[ \t]*#[^\n]*$/gm, '');
 
   /* ① 结构 */
-  ['SS_MOTIFS', 'SSS_MOTIFS', 'DEEP_MOTIFS', 'DEEP_MOTIF_BANNED'].forEach(n => {
+  ['SS_MOTIFS', 'SSS_MOTIFS', 'DEEP_MOTIFS', 'DEEP_LEAD', 'DEEP_COLOR_HEAD',
+   'DEEP_MOTIF_BANNED'].forEach(n => {
     if (!new RegExp('^' + n + ' = ', 'm').test(code)) {
       err(REL + ' 里找不到 `' + n + ' = ` —— 分场奇幻语汇的表没了/改名了，本节要来更新');
       deepBad++;
@@ -5375,6 +5376,34 @@ let deepBad = 0;
       || isBad('thin embossed veins drawn straight across the facets')) {
     err('第 49 节判据自检不成立：分不出「含禁用词」与「不含但有近义词」的句子'
       + '（ring 必须按词边界，不许命中 creeping）');
+    deepBad++;
+  }
+
+  /* ⑤ 两条「口径不许被悄悄放开」的守卫（2026-10-09 晚用户要求加码之后补的）：
+        ① **闪烁族必须在禁用表里** —— 那是闪光档的卖点，原色档先「全身闪耀」就没有递进了；
+        ② **弱化原色的抬头必须真被 `palette_color()` 用上** —— 定义了没人用 = 又一条死配置。 */
+  const banLine = (code.match(/^DEEP_MOTIF_BANNED = \([\s\S]*?\)$/m) || [''])[0];
+  if (!banLine) {
+    err(REL + ' 里取不到 `DEEP_MOTIF_BANNED = (…)` 的取值行 —— 改写法了就来更新本节');
+    deepBad++;
+  } else {
+    const need = ['sparkle', 'glitter', 'glint', 'glow', 'luminous', 'ring'];
+    const miss = need.filter(w => !has(banLine, '"' + w + '"'));
+    if (miss.length) {
+      err('DEEP_MOTIF_BANNED 少了 ' + miss.join('、') + ' —— 禁用表是奇幻句唯一的用词闸门，'
+        + '少一个词就等于那条纪律没有（闪烁族尤其：它是闪光档的卖点，原色档不许先用掉）');
+      deepBad++;
+    }
+  }
+  const pcBody = bodyOf(code, 'def palette_color(');
+  if (!pcBody || !has(pcBody, 'DEEP_COLOR_HEAD.get(')) {
+    err('`palette_color()` 里没有用 `DEEP_COLOR_HEAD.get(` —— 「弱化原色的颜色提示词」这条口径'
+      + '定义了却没人用（两场仍会说 natural realistic colouring）');
+    deepBad++;
+  }
+  const leadMap = (code.match(/^DEEP_LEAD = \{[^}]*\}/m) || [''])[0];
+  if (!has(leadMap, '"SS"') || !has(leadMap, '"SSS"') || !has(leadMap, 'ordinary fish')) {
+    err('`DEEP_LEAD` 不完整（SS / SSS 两场各要一句，且必须点明「不是普通的鱼」）—— 实得：' + leadMap.slice(0, 80));
     deepBad++;
   }
 

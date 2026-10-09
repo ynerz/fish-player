@@ -916,98 +916,126 @@ def fantasy_motif(name):
 # ────────────────────────────────────────────────────────────────────────────
 SS_MOTIFS = [
     (("星陨之主", "星陨王座", "渊底月神", "永夜之主", "深渊终章", "星陨终焉", "星陨之王"),
-     "an unusually massive individual, its facets cut like polished dark star-stone with pale mineral seams"),
+     "its whole body reads as one block of polished star-stone, dark mineral seams running the full length of it and a faint inner light held inside those seams"),
     (("陨铁", "陨石", "陨核", "陨砾", "陨砂", "陨尘", "陨星"),
-     "small dark metallic ore inclusions embedded under the surface, splitting the shading into hard dark chips"),
+     "raw dark ore is fused over the entire body, whole slabs of iron-stone jutting through the skin so the facets break into hard black chips"),
     (("星尘", "星屑", "星砂", "星磷", "微光", "微弱"),
-     "a fine suspension of tiny pale faceted chips drifting just beneath the surface"),
+     "the whole surface is strewn with countless tiny pale flakes that carry their own light, spread evenly from the head to the very tip of the tail, as if the body had been rolled in crushed mineral dust"),
     (("星纹", "陨纹", "星脉"),
-     "thin embossed veins drawn straight across the facets"),
+     "bright mineral veins are drawn straight along the whole body, cutting unbroken across every facet from the head to the tail"),
     (("陨光", "虚光"),
-     "a narrow band of metallic flake fused into the surface along one flank"),
+     "a broad band of raw metallic flake is fused along the flank, burning brighter wherever the facets fold"),
     (("星陨", "陨落", "碎星", "碎陨", "裂空"),
-     "several fractured facets along the back, their chipped edges catching the rim light"),
+     "the rear half is shattered, fractured facets with sharp chipped edges scattered over the entire back"),
     (("星蚀",),
-     "a dark eclipsed patch eating into one flank"),
+     "a wide eclipsed patch eats into one flank, swallowing the colour unevenly as it spreads"),
     (("暗星", "暗物质", "暗礁", "深星", "深海", "夜穹", "夜辉", "冷光"),
-     "the surface deepening to a matte near-black core with a cold slate sheen along the back"),
+     "the entire body sinks into a matte near-black core, with a cold slate sheen sliding along the whole back"),
     (("渊影", "渊眼"),
-     "a dark recessed hollow set into the body, reading as slow depth"),
+     "a deep hollow is set into the body, opening into slow black depth"),
     (("虚空", "真空"),
-     "the outer surface fading out into a colourless void at the edges"),
+     "the edges of the body dissolve into a colourless void, as if the surface were fading out of the world"),
     (("星云", "星纱"),
-     "a soft nebula-like haze drifting inside the facets"),
+     "drifts of nebula-like haze are held inside the facets, whole clouds of colour suspended in the body itself"),
     (("幽蓝", "幽星", "幽暗"),
-     "the flanks fading into a deep matte cool blue"),
+     "the flanks sink into a deep matte blue, the colour deepening rather than lightening towards the tail"),
     (("寂静", "幻影"),
-     "an unnaturally still, ghost-pale surface with the markings barely present"),
+     "the whole surface is unnaturally still and ghost-pale, the markings barely there at all"),
     (("霜鳞",),
-     "a cold frost-white film creeping across the facets"),
+     "a cold frost-white film creeps over the entire body, every facet sealed under a layer of rime"),
     (("星耀", "星核"),
-     "a single cut-stone core set deep in the body, its facets meeting in a sharp point"),
+     "a single cut-stone core sits deep inside the body, its facets meeting at one sharp point"),
     (("原初", "虚时"),
-     "the surface dulled and ancient, its facets weathered at the corners"),
+     "the whole surface is dulled and ancient, weathered at every corner, the facets worn down into soft bevels"),
 ]
 
 SSS_MOTIFS = [
     (("时之尽头", "时之终点", "纪元终焉", "终焉纪元", "初源之影", "最初之鳞", "创世之鳞",
       "终末渔者", "终焉之影", "纪元褶皱", "时光褶皱", "时空褶皱", "时之褶皱", "无相巨鲲", "无相鲲"),
-     "an enormous ceremonial individual, its facets layered like stacked crystal plates with light caught between the layers"),
+     "the whole body is built of stacked crystal plates, hundreds of thin layers piled one upon another with light caught deep between them"),
     (("时砂", "沙漏", "时纱", "尘时", "时痕"),
-     "a fine film of pale sand-like grain drifting across the facets"),
+     "a fine film of pale sand-grain drifts over the whole body, gathering in every crease between the facets"),
     (("尘光", "遗光", "初光", "拾光"),
-     "a thin dusty film of light lying on the surface"),
+     "a thin dusty film of light lies over the whole surface, worn away in places"),
     (("溯流", "溯光", "溯时", "逆时", "逆流", "逆熵", "逆光", "逆旅", "逆空",
       "回环", "回响", "回音", "残响", "残时"),
-     "thin echo lines running backwards across the body"),
+     "thin echo lines run backwards along the whole body, doubling over one another in even rows"),
     (("年轮", "纪年", "纪元", "时刻", "未时", "时间", "千年"),
-     "deep stepped terraces cut into the surface, each level a slightly different tone"),
+     "deep age-bands are cut straight through the entire body, band after band laid down by long age"),
     (("时光", "流年"),
-     "long slow bands of light passing across the surface"),
+     "long slow bands of passing light lie along the body, one after another down its whole length"),
     (("遗迹", "旧日", "昨日", "遗忘", "前尘", "后时", "残页", "空页"),
-     "patches of the surface worn smooth and pale, the facets rubbed down"),
+     "the surface is worn smooth and pale in great patches, whole regions simply rubbed away by time"),
     (("静默", "沉默", "寂时"),
-     "an unnaturally still surface with the markings almost absent"),
+     "the entire surface is unnaturally still, the markings almost absent"),
     (("空洞", "空之", "空时", "无相", "忘川"),
-     "the body reading hollow, the surface desaturating to bare grey"),
+     "the body reads hollow, drained of colour, the bare structure showing through"),
     (("刹那", "须臾", "瞬息", "一刻"),
-     "the whole surface held unnaturally still, as if frozen mid-motion"),
+     "the whole surface is held unnaturally still, frozen mid-motion, as if time had stopped inside it"),
     (("永恒",),
-     "the facets sealed under a glossy unbroken crystal skin"),
+     "the entire body is sealed under one continuous glossy crystal skin, unbroken from the head to the tail"),
     (("终焉", "终末"),
-     "the facets converging and narrowing towards a single dark point"),
+     "the facets converge and narrow towards a single dark point at the very end of the body"),
     (("琥珀",),
-     "a deep amber core held inside the facets"),
+     "a deep amber core is held inside the facets, the colour thick and slowly deepening"),
     (("零度", "初雪"),
-     "a pale frost-white film across the facets"),
+     "a pale frost-white film lies across the entire body, every facet sealed under clear rime"),
     (("初源", "创世", "最初", "原初"),
-     "the surface pale and almost colourless, like a first unformed shape"),
+     "the whole surface is pale and almost colourless, like a form that has not yet taken its shape"),
     (("黄昏",),
-     "the surface deepening to a flat dusk-dark tone"),
+     "the entire body deepens to a flat dusk-dark tone"),
     (("千面",),
-     "the facets shifting tone unevenly, no two neighbouring facets alike"),
+     "no two neighbouring facets are alike, the tone shifting unevenly over the whole body"),
     (("虚空", "虚时", "虚年"),
-     "the outer surface fading out into a colourless void at the edges"),
+     "the edges dissolve into a colourless void, as if the surface were fading out of the world"),
     (("影时",),
-     "a soft moving shadow band drifting slowly across the surface"),
+     "a soft shadow band drifts slowly along the whole length of the body"),
     (("远景",),
-     "the far facets fading pale, as if the body recedes into distance"),
+     "the far facets fade pale, as if the body recedes away into distance"),
     (("星尘", "星轨", "暗物质"),
-     "pale dust and dark ore suspended in layers inside the body"),
+     "pale dust and dark ore are suspended in thick layers inside the body itself"),
 ]
 
+# 🔴 **两场的「身份句」**（2026-10-09 22:42 用户口径：「奇幻的表述要多一点，宏大一点」，
+#    原话给的例子：「这是个奇幻生物，它的皮肤不同于普通的鱼」）。
+#    位置：紧跟物种名之后、形态档案之前 —— 先让模型知道**它不是一条普通的鱼**，
+#    再看形态与材质句，出来的东西才不会被「鱼类解剖」拉回现实。
+#    ⚠️ 与三条硬约束不冲突：它说的是**这条生物的身份**，不引入任何新物件 / 背景。
+DEEP_LEAD = {
+    "SS": "a mythic creature of the abyss, unmistakably not an ordinary fish",
+    "SSS": "an elder being from a forgotten age, unmistakably not an ordinary fish",
+}
+
+
+def deep_lead(f):
+    """SS / SSS 的身份句（其他钓场返回空串）。"""
+    return DEEP_LEAD.get(f.get("field"), "")
+
+
 DEEP_MOTIFS = {"SS": SS_MOTIFS, "SSS": SSS_MOTIFS}
+
+# 两场的**颜色句抬头**（替掉前面钓场用的 `natural realistic colouring`）。
+# 为什么两场还要分开写：SS 是「深渊里的异界矿物生物」、SSS 是「走过漫长岁月的老东西」，
+# 同一个抬头会让两场又糊成一层（「更高级」正是靠这种一层层的差别堆出来的）。
+DEEP_COLOR_HEAD = {"SS": "unearthly colouring", "SSS": "primeval colouring"}
 
 # 🔴 **奇幻句的用词纪律（机器强制，不靠自觉）**
 # 改动前实测：SS/SSS 180 条里有 **140 条**的形态档案本来就写着
 # `a soft glowing edge along the outer silhouette` —— 也就是说「会发光」这两场**人人都有**，
 # 拿它当奇幻卖点等于什么都没说。另有 47/180 条出现「奇幻句与形态档案撞同一个词」
 # （luminous 10 / glow 15 / glowing 7 / ring 13 / crystalline 1 / translucent 1）。
-# ⇒ 奇幻句**一律不许用下面这些词**，改用**材质与结构**词（chip / flake / terrace / seam /
-#   vein / cut-stone / sheen …）。它们是**新增的信息**，不是把已经说过一遍的东西再说一遍。
-#   ⚠️ 判据在 `check_deep_motifs()` 里按**词边界**扫（`ring` 不许命中 `during` / `spring`）。
+# ⇒ 奇幻句**一律不许用下面这些词**，改用**材质与结构**词（flake / seam / vein / slab /
+#   terrace / age-band / cut-stone / sheen / rime …）：它们是**新增的信息**，
+#   不是把已经说过一遍的东西再说一遍。
+# 🔴 **再加上「闪烁族」**（sparkle / glitter / glint / star-shaped）：那是**闪光档的卖点**
+#   （`shiny` 的候选句就是星点 / 金属亮片）—— 原色档要是先「全身闪耀」了，
+#   闪光档就没有差异化可言，五档的递进当场作废。
+# ⚠️ 判据在 `check_deep_motifs()` 与 `verify` 第 ㊾ 节里**按词边界**扫
+#   （`ring` 不许命中 `during` / `spring`，也不许命中 `neighbouring`）。
 DEEP_MOTIF_BANNED = ("glow", "glowing", "luminous", "translucent", "crystalline",
-                     "concentric", "ring", "rings")
+                     "concentric", "ring", "rings",
+                     "sparkle", "sparkling", "glitter", "glittering", "glint", "scintillating")
+
 
 
 def deep_motif(f):
@@ -1234,7 +1262,13 @@ def palette_color(f):
         fin_desc = fin + " " + part
     else:
         fin_desc = accent_name + " " + part
-    return "natural realistic colouring, %s body with %s" % (body_name, fin_desc)
+    # 🔴 2026-10-09 22:42 用户口径：「**弱化原色的颜色提示词**」——
+    #   前面钓场照旧说 `natural realistic colouring`（那是它们的卖点：真实的鱼）；
+    #   但 SS / SSS 是奇幻生物，说「写实自然配色」等于把它按回现实鱼。
+    #   ⚠️ **色名仍然照实取**（`color_name(f["body"] / f["accent"])`，数据驱动），
+    #      只换**框**：颜色值不许在这里改，五档的递进与游戏内配色都依赖它。
+    head = DEEP_COLOR_HEAD.get(f.get("field"), "natural realistic colouring")
+    return "%s, %s body with %s" % (head, body_name, fin_desc)
 
 
 # 「躯干胖瘦」（`body_ratio`）对哪些体型成立 —— 鳐是扁平菱形、水母是伞盖，
@@ -1650,6 +1684,16 @@ def build_prompt(f, morph=None):
     # ⓪b 比例句**紧跟主语**（位置为什么重要见 `proportion_line` 的注释）
     if prop:
         subject += prop
+
+    # ⓪ c **身份句** —— 2026-10-09 22:42 用户口径：「奇幻的表述要多一点，宏大一点」，
+    #   原话例子「这是个奇幻生物，它的皮肤不同于普通的鱼」。
+    #   位置：物种名与比例句**之后**、形态档案**之前** —— 先让模型知道它不是普通的鱼，
+    #   再看后面的材质句，出来才不会被「鱼类解剖」拉回现实。
+    #   ⚠️ 只挂 SS / SSS 两场（见 `DEEP_LEAD`）；它说的是**这条生物的身份**，
+    #     不引入任何新物件或背景（§17.7 三条硬约束不冲突）。
+    lead = deep_lead(f)
+    if lead:
+        subject += lead + ", "
 
     # ① 体型决定性线索 —— **有 `form` 也照样输出**（为什么单独一张表见 BODY_HINTS_ALWAYS）
     #    `form` 已经说了「flat」就跳过，免得同一件事讲两遍。

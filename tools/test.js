@@ -1894,6 +1894,87 @@ const netTxt = panelText(netRoot);
 ok(netTxt.indexOf(netA.name) >= 0 && netTxt.indexOf(netB.name) >= 0,
    '鱼护与水族箱里的鱼都渲染出了名字');
 
+/* ---- ⑤-b 鱼护行的下标必须「点击时现查」----
+   `refresh()` 是 setTimeout(0) 排队的：状态已经变了、DOM 还没重建。
+   这个窗口里对着同一行再点一次，若还用渲染时闭包里的下标，
+   就会落在**另一条鱼**身上（卖出 / 放生的是玩家没选的那条）。
+   真跑：渲染两行 → 对其中一行连点两次「卖出」→ 第二次必须是拒绝，
+   鱼护里剩下的还得是原本那条。 */
+(function () {
+  const clickEl = (tag) => {
+    const n = mkEl(tag);
+    n._l = [];
+    n.addEventListener = (t, fn) => { if (t === 'click') n._l.push(fn); };
+    return n;
+  };
+  const prevCreate = global.document.createElement;
+  const prevDoc = global.document;
+  global.document.createElement = clickEl;
+  const prevAudio = G.Audio;
+  G.Audio = { coin() {}, deny() {}, splash() {}, click() {} };
+  /* 点击回调里会喊 refresh() → isOpen() → 读 modal：给一个「恒为隐藏」的 modal 桩，
+     让 refresh 走「面板没开 → 不重绘」的分支 —— 恰好就是真实浏览器里
+     「状态已变、DOM 还没重建」的那个窗口。 */
+  const modalEl = clickEl('div');
+  modalEl.classList = { add() {}, remove() {}, toggle() {}, contains: () => true };
+  global.document = {
+    createElement: clickEl,
+    querySelector: (s) => (s === '#modal' ? modalEl : null),
+    querySelectorAll: () => [],
+    addEventListener() {},
+  };
+  Panels.init();
+
+  const fa = G.FISH_BY_FIELD.D[0], fb = G.FISH_BY_FIELD.C[0];
+  const savedNet2 = St.get().net;
+  St.get().net = [{ f: fa.id, kg: 1.2, c: 'normal' }, { f: fb.id, kg: 2.0, c: 'normal' }];
+  const root2 = mkEl('div');
+  let err2 = null;
+  try { Panels.VIEWS.net.render(root2); } catch (e) { err2 = e; }
+  ok(!err2, '鱼护面板带「点击监听桩」也能渲染', err2 && err2.message);
+
+  const lists = [];
+  const rows = [];
+  (function walk(n) {
+    if (!n || !n.children) return;
+    if (n.className === 'net-list') lists.push(n);
+    if (n.className === 'net-row') rows.push(n);
+    n.children.forEach(walk);
+  })(root2);
+  /* 鱼护与水族箱的行都叫 net-row —— 只数第一块 net-list（鱼护在前面）里的 */
+  const netRows = lists.length ? (() => {
+    const out = [];
+    (function w2(n) {
+      if (!n || !n.children) return;
+      if (n.className === 'net-row') out.push(n);
+      n.children.forEach(w2);
+    })(lists[0]);
+    return out;
+  })() : rows;
+  ok(netRows.length === 2, '两格鱼护渲染出两行', '实际 ' + netRows.length + ' 行');
+
+  const rowA = netRows.find((r) => {
+    const info = r.children.find((c) => c.className === 'net-info');
+    return info && info.innerHTML.indexOf(fa.name) >= 0;
+  });
+  ok(!!rowA, '能按名字找到要点的那一行');
+  if (rowA) {
+    const opsA = rowA.children.find((c) => c.className === 'net-ops');
+    const sellA = opsA.children[0]._l[0];
+    sellA();   // 第一次点：卖掉这一行自己的鱼
+    ok(St.get().net.length === 1 && St.get().net[0].f === fb.id,
+       '第一次点击卖掉的就是这一行的鱼');
+    sellA();   // 同一窗口里再点同一行（DOM 尚未重建 = 旧下标已过期）
+    ok(St.get().net.length === 1 && St.get().net[0].f === fb.id,
+       '窗口期里的第二次点击不许落在别的鱼身上（下标现查 → 拒绝）',
+       '鱼护现在剩 ' + JSON.stringify(St.get().net));
+  }
+  St.get().net = savedNet2;
+  global.document = prevDoc;
+  global.document.createElement = prevCreate;
+  G.Audio = prevAudio;
+})();
+
 /* 还原环境，别影响后面的断言 */
 St.get().net = savedNet; St.get().tank = savedTank;
 G.FishArt = realFishArt;

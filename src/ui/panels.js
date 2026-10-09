@@ -782,6 +782,13 @@ G.Panels = (function () {
         var cm = G.Loot.colorByKey(entry.c);
         var row = U.el('div', 'net-row');
 
+        /* ⚠️ 下标**点击时现查**（`curIdx`），不许用渲染时闭包里的 `i`：
+           `refresh()` 是 setTimeout(0) 排队的 —— 状态变了、DOM 还没重建，
+           这个窗口里再点同一行，旧下标会落在**另一条鱼**身上
+           （例：卖掉排在第 0 位的那条后，它下面那行的旧下标 0 现在指向另一条鱼，
+             「卖出」toast 还印着旧名字）。条目对象是稳定的，`indexOf` 才是真相；
+           已被本窗口里上一次点击卖掉 / 放生的（indexOf = -1）只响拒绝音。 */
+        function curIdx() { return s.net.indexOf(entry); }
         var cv = G.Platform.canvas.create();
         miniSize(cv);                    // 先定尺寸，别让默认的 300×150 撑开行高
         row.appendChild(cv);
@@ -801,20 +808,26 @@ G.Panels = (function () {
           ops.appendChild(b);
         }
         mkBtn('卖出', '', function () {
-          var p = St.sellNetAt(i);
+          var k = curIdx();
+          if (k < 0) { G.Audio.deny(); return; }
+          var p = St.sellNetAt(k);
           G.Audio.coin();
           G.State.emit('toast', { text: '卖出 ' + fish.name + '，+' + U.coin(p) + ' 金', kind: 'good' });
           refresh();
         });
         mkBtn('放生 +' + St.ecoValue(entry), 'ghost', function () {
-          var r = St.releaseNetAt(i);
+          var k = curIdx();
+          if (k < 0) { G.Audio.deny(); return; }
+          var r = St.releaseNetAt(k);
           if (!r.ok) return;
           G.Audio.splash();
           G.State.emit('toast', { text: '放生了 ' + fish.name + '　生态值 +' + U.num(r.eco), kind: 'good' });
           refresh();
         });
         mkBtn('进水族箱', 'ghost', function () {
-          if (!St.moveToTank(i)) {
+          var k = curIdx();
+          if (k < 0) { G.Audio.deny(); return; }
+          if (!St.moveToTank(k)) {
             G.Audio.deny();
             G.State.emit('toast', { text: '水族箱满了，先扩容或取出几条', kind: 'warn' });
             return;
@@ -961,9 +974,13 @@ G.Panels = (function () {
             '　·　<span class="net-price">' + U.coin(St.netPrice(entry)) + ' 金</span></div>';
         row.appendChild(info2);
         var ops2 = U.el('div', 'net-ops');
+        /* ⚠️ 与鱼护列表同一坑：下标点击时现查（refresh 是 setTimeout(0) 排队的） */
+        function curTankIdx() { return s.tank.indexOf(entry); }
         var bOut = U.el('button', 'mini-btn ghost', '取出');
         U.on(bOut, 'click', function () {
-          if (!St.takeFromTank(i)) {
+          var k = curTankIdx();
+          if (k < 0) { G.Audio.deny(); return; }
+          if (!St.takeFromTank(k)) {
             G.Audio.deny();
             G.State.emit('toast', { text: '鱼护满了，先卖几条', kind: 'warn' });
             return;
@@ -973,7 +990,9 @@ G.Panels = (function () {
         bOut.disabled = St.netFull();
         var bSell = U.el('button', 'mini-btn', '卖出');
         U.on(bSell, 'click', function () {
-          var p = St.sellTankAt(i);
+          var k = curTankIdx();
+          if (k < 0) { G.Audio.deny(); return; }
+          var p = St.sellTankAt(k);
           G.Audio.coin();
           G.State.emit('toast', { text: '卖出 ' + fish.name + '，+' + U.coin(p) + ' 金', kind: 'good' });
           refresh();

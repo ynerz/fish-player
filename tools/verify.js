@@ -3087,6 +3087,33 @@ if (!gateNumBad) ok('7 份现行口径文档都没写死 test.js 的总项数（
       咬口 / 逃窜照常倒计时 —— 玩家一步都操作不了，必然断线或漏咬口。
       ⇒ 判据三条：结算卡必停（`isCatchOpen`）· 手动 / 挂机要分开（`isIdleMode`）·
       **不许出现无守卫的 `|| P.isOpen()`**（老坑的精确形态）。 */
+/* 34-c 存档结构必须有网（2026-10-09 立）
+   `blank()` 是整份存档结构的**唯一真相**，而 GDD §11 是玩家/后续开发者读的那份。
+   两边一旦漂移不会报错：加了字段忘了写文档 → 后来人照着文档写迁移，老档就悄悄丢字段。
+   这条只做**单向**断言（blank() 的字段必须都在 §11 出现过）——
+   反方向会误报，因为 §11 里有「`locked` / `createdAt` 已删除」这类历史说明。 */
+console.log('\n[34-c] GDD 的存档结构必须覆盖 blank() 的每个顶层字段');
+(function () {
+  const stateSrc = fs.readFileSync(path.join(ROOT, 'src/core/state.js'), 'utf8');
+  const blankBody = (stateSrc.match(/function blank\(\)\s*\{[\s\S]*?\n  \}/) || [''])[0];
+  if (!blankBody) { err('state.js 里找不到 blank()（存档结构的唯一真相）'); return; }
+  const fields = [...blankBody.matchAll(/^ {6}([a-zA-Z][a-zA-Z0-9]*)\s*[:,]/gm)].map(m => m[1]);
+  if (fields.length < 20) {
+    err(`blank() 只解析出 ${fields.length} 个顶层字段 —— 缩进或写法变了，先修这条断言本身`);
+    return;
+  }
+  const gdd = fs.readFileSync(path.join(ROOT, 'docs/GDD.md'), 'utf8');
+  const sec = (gdd.match(/## 11\. 存档结构[\s\S]*?(?=\n## )/) || [''])[0];
+  if (!sec) { err('GDD.md 里找不到「## 11. 存档结构」'); return; }
+  const missing = fields.filter(f => !new RegExp('\\b' + f + '\\b').test(sec));
+  if (missing.length) {
+    err(`GDD §11 没写这些存档字段：${missing.join(' / ')} —— blank() 加了字段就必须同步 GDD §11` +
+        '（迁移逻辑是照着文档写的，漏一处老档就会静默丢字段）');
+    return;
+  }
+  ok(`GDD §11 覆盖了 blank() 的全部 ${fields.length} 个顶层字段`);
+})();
+
 console.log('\n[35] 主循环守则：失焦不渲染 / 锁 60fps / 浏览面板只停手动钓');
 let loopBad = 0;
 (function () {

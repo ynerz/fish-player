@@ -1660,6 +1660,109 @@ G.Panels = (function () {
           setTimeout(function () { G.Platform.sys.reload(); }, 700);
         });
       });
+      /* 账号 / 档案（N1）：设置页只放入口，交互在独立的 VIEWS.profile 里 */
+      var pf = (G.Profile && G.Profile.current) ? G.Profile.current() : null;
+      row('档案', pf ? (pf.name + '　' + (pf.hash ? '有密码' : '无密码') + '　uid ' + pf.uid.slice(0, 8))
+                     : '本机单档（档案模块未启用）',
+        '<button class="btn-ghost" id="setProfile">管理</button>', function (c) {
+        U.on(c.querySelector('#setProfile'), 'click', function () { G.Audio.click(); open('profile'); });
+      });
+    },
+  };
+
+  /* =========================================================
+     档案 / 账号（N1）
+     =========================================================
+     ⚠️ 界面必须**照实说**：本地账号只用于「区分档案 + 防误改」，
+        不是安全凭证（清掉浏览器数据就重置）。不许写成「账号已受保护」。 */
+  VIEWS.profile = {
+    title: '档案与账号',
+    render: function (root) {
+      var P = G.Profile;
+      if (!P) { root.appendChild(U.el('div', 'empty-tip', '本机档案功能未启用')); return; }
+      /* 走平台封装（平台红线：不许直连 window.prompt） */
+      function ask(title) { return G.Platform.sys.prompt(title, ''); }
+
+      var tip = U.el('div', 'hint-text');
+      tip.style.margin = '0 0 10px';
+      tip.innerHTML = '账号只存在**本机浏览器**里：uid 与密码用来区分档案、防止误改，' +
+        '**不是安全凭证**（清掉浏览器数据就会重置）。' +
+        (P.isSecure() ? '' : ' ⚠️ 当前环境没有 crypto.subtle，密码走降级弱哈希。') +
+        (P.note() ? '　·　' + P.note() : '');
+      root.appendChild(tip);
+
+      var list = U.el('div', 'pick-list');
+      P.list().forEach(function (a) {
+        var row = U.el('div', 'pick-row' + (a.cur ? ' on' : ''));
+        row.innerHTML = '<div class="pr-main"><div class="pr-name">' + a.name +
+          (a.locked ? '　🔒' : '') + '</div>' +
+          '<div class="pr-desc">uid ' + a.uid.slice(0, 8) + '　' +
+          (a.locked ? '有密码' : '无密码') + (a.cur ? '　·　当前档案' : '') + '</div></div>';
+        var ops = U.el('div', 'net-ops');
+        function btn(label, cls, fn) {
+          var b = U.el('button', 'mini-btn' + (cls ? ' ' + cls : ''), label);
+          U.on(b, 'click', fn); ops.appendChild(b);
+        }
+        if (!a.cur) btn('进入', '', function () {
+          if (!a.locked) { P.switchTo(a.uid); G.Audio.click(); G.Platform.sys.reload(); return; }
+          var pw = ask('「' + a.name + '」的密码');
+          if (pw === null) return;
+          P.login(a.uid, pw).then(function (r) {
+            if (!r.ok) { G.Audio.deny(); G.State.emit('toast', { text: r.msg, kind: 'bad' }); return; }
+            G.Audio.click(); G.Platform.sys.reload();
+          });
+        });
+        btn('改名', 'ghost', function () {
+          var v = ask('新昵称（最多 ' + P.NAME_MAX + ' 字）');
+          if (v === null) return;
+          if (P.rename(a.uid, v)) { G.Audio.click(); refresh(); }
+          else { G.Audio.deny(); G.State.emit('toast', { text: '昵称不合法', kind: 'bad' }); }
+        });
+        btn(a.locked ? '改密码' : '设密码', 'ghost', function () {
+          var oldPw = a.locked ? ask('原密码') : '';
+          if (oldPw === null) return;
+          var np = ask('新密码（留空 = 取消密码）');
+          if (np === null) return;
+          P.setPassword(a.uid, oldPw, np).then(function (r) {
+            G.State.emit('toast', { text: r.msg, kind: r.ok ? 'good' : 'bad' });
+            if (r.ok) G.Audio.click(); else G.Audio.deny();
+            refresh();
+          });
+        });
+        if (P.list().length > 1) btn('移除', 'ghost', function () {
+          var r = P.remove(a.uid);
+          G.State.emit('toast', { text: r.msg, kind: r.ok ? 'warn' : 'bad' });
+          refresh();
+        });
+        row.appendChild(ops);
+        list.appendChild(row);
+      });
+      root.appendChild(list);
+
+      var h = U.el('div', 'section-title', '新建档案');
+      h.style.marginTop = '16px';
+      root.appendChild(h);
+      var f = U.el('div', 'set-row');
+      f.innerHTML = '<div><div class="set-name">昵称与密码</div>' +
+        '<div class="set-desc">密码留空 = 免密档案；每个档案各有独立存档</div></div>';
+      var ctl = U.el('div', 'set-ctl',
+        '<input type="text" id="pfName" placeholder="昵称" style="width:104px;margin-right:6px">' +
+        '<input type="password" id="pfPw" placeholder="密码≥' + P.PW_MIN + '位" style="width:104px;margin-right:6px">' +
+        '<button class="btn-ghost" id="pfMake">创建</button>');
+      f.appendChild(ctl);
+      root.appendChild(f);
+      U.on(ctl.querySelector('#pfMake'), 'click', function () {
+        P.register(ctl.querySelector('#pfName').value, ctl.querySelector('#pfPw').value)
+          .then(function (r) {
+            if (!r.ok) { G.Audio.deny(); G.State.emit('toast', { text: r.msg, kind: 'bad' }); return; }
+            G.Audio.coin(); G.Platform.sys.reload();
+          });
+      });
+
+      var note = U.el('div', 'hint-text');
+      note.style.marginTop = '10px';
+      note.textContent = '进入另一个档案后会重新载入游戏 —— 每个档案的存档完全独立。';
+      root.appendChild(note);
     },
   };
 

@@ -29,7 +29,7 @@ global.localStorage = {
 };
 ['src/data/config.js', 'src/data/fields.js', 'src/data/fish.js', 'src/data/items.js',
  'src/data/goals.js',
- 'src/core/util.js', 'src/core/platform.js', 'src/core/assets.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js',
+ 'src/core/util.js', 'src/core/platform.js', 'src/core/profile.js', 'src/core/assets.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js',
  'src/core/goals.js', 'src/core/weather.js', 'src/core/fishing.js', 'src/core/track.js',
  'src/render/fishpaint.js',
  'src/ui/tutorial.js']
@@ -338,6 +338,48 @@ ok(seenOpts && seenOpts.bait && seenOpts.bait.id === paid.id,
 /* =========================================================
    5a-2. 提前收杆不消耗鱼饵（用户口径，v0.5.7）
    ========================================================= */
+G_('Profile · 本机档案（uid / 存档键 / 老档迁移）');
+(function () {
+  const P = G.Profile;
+  ok(!!P, 'profile.js 已加载且导出 G.Profile');
+  if (!P) return;
+
+  /* 干净起步：清空所有存储 */
+  Object.keys(store).forEach(k => delete store[k]);
+
+  const uid1 = P.init();
+  ok(!!uid1 && P.current() && P.current().uid === uid1, '首次启动自动建出默认档案');
+  ok(P.key() === CFG.saveKey + '.' + uid1,
+     '存档键按 uid 分档（' + P.key() + '）—— 每个档案一份档');
+  ok(P.list().length === 1 && P.list()[0].locked === false, '默认档案是免密档');
+  ok(P.keyBak() === P.key() + '.bak' && P.keyRescue() === P.key() + '.rescue',
+     '备份键 / 救援键都跟着当前档案走（不再指向老的单档键）');
+
+  /* 老档迁移：账号表没了但老键有内容 ⇒ 进度必须被搬进新档案键 */
+  delete store['fishplayer.accounts.v1'];
+  store[CFG.saveKey] = '{"v":5,"coin":1234}';
+  const uid2 = P.init();
+  ok(uid2 !== uid1, '重新 init 会建一个新档案（uid 不重复）');
+  ok(store[P.keyFor(uid2)] === '{"v":5,"coin":1234}',
+     '🔴 老档被搬到新档案键下 —— 升级不丢进度',
+     '实际：' + store[P.keyFor(uid2)]);
+  ok(store[CFG.saveKey] === '{"v":5,"coin":1234}',
+     '老键原样保留（迁移是复制不是剪切，出问题还能捞回来）');
+
+  /* 最后一个档案不许删 */
+  const r = P.remove(uid2);
+  ok(r.ok === false, '只剩一个档案时拒绝移除（否则玩家会把自己锁在门外）');
+
+  /* 能力探测要如实回报 */
+  ok(typeof P.isSecure() === 'boolean', 'isSecure() 如实回报「有没有 crypto.subtle」');
+  ok(typeof P.NAME_MAX === 'number' && typeof P.PW_MIN === 'number',
+     '昵称 / 密码的长度约束从这里出（界面文案与它同源）');
+
+  /* 收尾：留一个干净档，别影响后面的用例 */
+  Object.keys(store).forEach(k => delete store[k]);
+  P.init();
+})();
+
 G_('Fishing · 提前收杆不消耗鱼饵');
 const sceneStub = {
   cast() {}, beginWait() {}, bite() {}, endFight() {}, beginFight() {},

@@ -95,13 +95,19 @@ G.State = (function () {
   var loadNote = '';
   function loadNoteText() { return loadNote; }
 
+  /* 存档键**动态取**（每个账号一份档）：有 profile 就用它的键，
+     没有（或 profile 挂了）退回 config 里的单档键 —— 行为与以前完全一致。 */
+  function saveKey()       { return (G.Profile && G.Profile.key)       ? G.Profile.key()       : CFG.saveKey; }
+  function saveKeyBak()    { return (G.Profile && G.Profile.keyBak)    ? G.Profile.keyBak()    : CFG.saveKeyBak; }
+  function saveKeyRescue() { return (G.Profile && G.Profile.keyRescue) ? G.Profile.keyRescue() : CFG.saveKeyRescue; }
+
   function load() {
     var PS = G.Platform.storage;
     loadNote = '';
     var sawAny = false;
     /* 主存档 → 备份存档，逐个试。
        ⚠️ 「JSON 解析失败」和「迁移抛异常」都要退到下一级，别直接白屏 / 清档。 */
-    var keys = [CFG.saveKey, CFG.saveKeyBak];
+    var keys = [saveKey(), saveKeyBak()];
     for (var i = 0; i < keys.length; i++) {
       var raw = null;
       try { raw = PS.get(keys[i]); } catch (e) { raw = null; }
@@ -134,10 +140,10 @@ G.State = (function () {
        再开新档并告诉玩家一声 —— 静默清零比白屏更让人抓狂。 */
     if (sawAny) {
       try {
-        var r0 = PS.get(CFG.saveKey), r1 = PS.get(CFG.saveKeyBak);
-        PS.set(CFG.saveKeyRescue, [r0, r1].filter(function (x) { return !!x; }).join('\n---bak---\n'));
+        var r0 = PS.get(saveKey()), r1 = PS.get(saveKeyBak());
+        PS.set(saveKeyRescue(), [r0, r1].filter(function (x) { return !!x; }).join('\n---bak---\n'));
       } catch (e) { /* 存不进去也不能在这里再抛一次 */ }
-      loadNote = '存档读取失败，已重置为新档（原始内容已留存在 ' + CFG.saveKeyRescue + '）';
+      loadNote = '存档读取失败，已重置为新档（原始内容已留存在 ' + saveKeyRescue() + '）';
     }
     S = blank();
     return S;
@@ -348,8 +354,8 @@ G.State = (function () {
     S.lastSeen = Date.now();
     var txt = JSON.stringify(S);
     var PS = G.Platform.storage;
-    PS.set(CFG.saveKey, txt);
-    if (now !== false) PS.set(CFG.saveKeyBak, txt);
+    PS.set(saveKey(), txt);
+    if (now !== false) PS.set(saveKeyBak(), txt);
   }
 
   function scheduleSave() {

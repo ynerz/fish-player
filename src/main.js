@@ -33,6 +33,9 @@
     if (G.Track) G.Track.init();
 
     /* ---------- 存档 ---------- */
+    /* 账号/档案必须先就绪：它决定存档键（每个账号一份档），
+       老档会在 Profile.init() 里被搬到默认档案下，进度不丢。 */
+    if (G.Profile && G.Profile.init) G.Profile.init();
     St.load();
     var s = St.get();
 

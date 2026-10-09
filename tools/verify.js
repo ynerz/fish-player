@@ -616,7 +616,7 @@ listed.forEach(rel => {
 /* 11-e 加载完，模块表必须是齐的 */
 const WANT = ['CONFIG', 'FIELDS', 'FIELD_MAP', 'FISH', 'FISH_ID', 'FISH_BY_FIELD', 'FISH_BY_FIELD_RARITY',
   'TOTAL_FISH', 'BAITS', 'RODS', 'LINES', 'DECORS', 'ACHIEVEMENTS',
-  'U', 'Platform', 'Audio', 'Loot', 'State', 'Goals', 'FishArt', 'Scene', 'Fight', 'Weather', 'Track',
+  'U', 'Platform', 'Audio', 'Loot', 'State', 'Goals', 'FishArt', 'CardArt', 'Scene', 'Fight', 'Weather', 'Track',
   'Fishing', 'Panels', 'Hud', 'Tutorial'];
 const gone = WANT.filter(k => !sandbox.G || sandbox.G[k] == null);
 if (gone.length) { err('按序加载后缺这些全局模块：' + gone.join('、')); entryBad++; }
@@ -1771,13 +1771,9 @@ let deadExportBad = 0;
       'dumpTrack', 'trackCount', 'mount'],
     /* G.Track 的「将来接外部服务」接入点：文档 §16.4 明确说上线时才实现 flush。 */
     'src/core/track.js': ['flush', 'onFlush', 'dumpJson'],
-    /* 图片链的**业务入口**：图鉴 / 鱼护 / 水族箱现在还是程序化绘制（`fishart.js`），
-       改用 AI 贴图是队列 **Q8 → Q9**（卡面后处理 spec → 接进三处 UI + 回退链）的事，
-       在那之前它确实零调用 —— 它的兄弟 `load` 也只是被它自己调（本节按「同模块内调用」放行）。
-       ⚠️ **Q9 落地时必须删掉本条白名单**（`docs/改进待办.md` 里已记下这个约定）：
-          「将来会用」当豁免理由，只有在**有明确接盘条目**时才成立。
-       ⚠️ 它此前是靠 `docs/*.html` 里 CSS 的 `.card{...}` 类选择器混过本节的（Q3 实证）。 */
-    'src/core/assets.js': ['card'],
+    /* ⚠️ 2026-10-09（N3-1）**本条白名单已按约定删除** —— `Assets.card` 现在被
+       `src/render/cardart.js` 真调用（图鉴的回退链），不再是零消费导出。
+       历史：它此前是靠 `docs/*.html` 里 CSS 的 `.card{...}` 类选择器混过本节的（Q3 实证）。 */
     /* 定点调试用（按 key 强制天气 / 时段，复现某个环境下的数值），文档 §11 已列。 */
     'src/core/weather.js': ['set'],
   };
@@ -4894,6 +4890,131 @@ console.log('\n[46] 反作弊只许 L1 标记（不碰游戏数据、没有处�
     ok('反作弊层只做 L1 标记：不碰游戏数据（无 State/Cheat 引用）、导出面恰为 '
       + L1.length + ' 个动作（无 ban/lock）、阈值全部落在可达区间'
       + '（oddsFloor ' + GI.oddsFloor + ' / gapMargin ' + GI.gapMargin + '）');
+  }
+})();
+
+/* ---------------- 47. 图鉴卡面的回退链（N3-1） ----------------
+   本轮第一次把**异步**素材接进**同步**绘制路径。回退链本身只有一句话：
+   **有 AI 卡面就用图，拿不到就程序化绘制**。它最容易在三个地方静默失效：
+     ① 只有 AI 分支、没有兜底  ⇒ 缺图的鱼在外网就是一块空白（而缺图是常态）；
+     ② 只有兜底、没有 AI 分支  ⇒ 接了等于没接（图鉴永远是程序化的，没人会发现）；
+     ③ 兜底散落在每个调用点  ⇒ 口径分家（网格用 0.6 的 t、详情用 0.8，谁漏了一处都不知道）。
+   ⇒ 判据：**回退链只许有一个入口**（`paintFish()`），两个分支必须在**同一个函数体**里，
+      图鉴的两条绘制路径不许绕开它直接调 `G.FishArt.draw`。
+   ⚠️ 另有一条「母版禁令」：游戏侧只吃**透明抠图**（`<id>-<档位>.png`），
+      `<id>.png` 是灰底母版，只供人工评审。它的**行为**在 test.js 里钉（空档位必须被拒），
+      这里盯的是它的**口径来源**：档位名只许来自 `config.colorMorphs`，
+      `cardart.js` 里出现任何档位名字面量就报红（写第二份档位表必然分家）。 */
+console.log('\n[47] 图鉴卡面回退链：AI 图优先 + 程序化兜底，且只有一处入口');
+let fallbackBad = 0;
+(function () {
+  const stripC = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[ \t])\/\/[^\n]*/gm, '$1');
+  const P = 'src/ui/panels.js', C = 'src/render/cardart.js';
+  const jsP = stripC(fs.readFileSync(path.join(ROOT, P), 'utf8'));
+  const jsC = stripC(fs.readFileSync(path.join(ROOT, C), 'utf8'));
+  const count = (t, n) => String(t).split(n).length - 1;
+
+  /* ① 回退链的唯一入口：两个分支必须在同一个函数体里 */
+  const entry = bodyOf(jsP, 'function paintFish(');
+  if (!entry) {
+    err(P + ' 里找不到 `function paintFish(` —— 回退链的入口改名 / 挪走了，'
+      + '本节判据必须跟着改，不许当成「没有回退链要检查」');
+    fallbackBad++;
+  } else {
+    if (!has(entry, 'G.CardArt.held(')) {
+      err(P + ' 的 paintFish() 里没有 `G.CardArt.held(` —— 只有程序化绘制 = 接了等于没接'
+        + '（图鉴永远看不到 AI 卡面）');
+      fallbackBad++;
+    }
+    if (!has(entry, 'G.FishArt.draw(')) {
+      err(P + ' 的 paintFish() 里没有 `G.FishArt.draw(` —— 没有兜底：'
+        + '缺图 / 坏图 / file:// 下玩家看到的就是一块空白');
+      fallbackBad++;
+    }
+    /* 判据自检：`bodyOf` 必须只切出这一个函数（切宽了会把别人的分支算进来） */
+    const synth = 'function paintFish(a) {\n  G.CardArt.held(a);\n}\nfunction other() {\n  G.FishArt.draw(a);\n}';
+    const sb = bodyOf(synth, 'function paintFish(');
+    if (has(sb, 'G.FishArt.draw(') || !has(sb, 'G.CardArt.held(')) {
+      err('第 47 节判据自检不成立：bodyOf() 把 paintFish 之外的函数也算进来了'); fallbackBad++;
+    }
+  }
+
+  /* ② 图鉴的两条绘制路径不许绕开入口（直接调 FishArt.draw = 那条路没有 AI 卡面）
+     ⚠️ marker 一律写成完整字面量（第 ㊷ 节 ⑧ 盯这个）：拼出来的 marker 它会看不见。 */
+  const pathBook = bodyOf(jsP, 'function paintBookItem(');
+  const pathDetail = bodyOf(jsP, 'function renderFishDetail(');
+  [[pathBook, 'paintBookItem', '图鉴网格'], [pathDetail, 'renderFishDetail', '图鉴详情页']]
+    .forEach(([b, fn, cn]) => {
+      if (!b) {
+        err(P + ' 里找不到 `function ' + fn + '(`（' + cn + '）—— 改名了就来更新本节');
+        fallbackBad++;
+        return;
+      }
+      if (has(b, 'G.FishArt.draw(')) {
+        err(P + ' 的 ' + fn + '()（' + cn + '）里直接调了 `G.FishArt.draw(` —— '
+          + '必须经 paintFish()：绕开入口的那条路没有 AI 卡面，而且两处口径会分家');
+        fallbackBad++;
+      }
+      if (!has(b, 'paintFish(')) {
+        err(P + ' 的 ' + fn + '()（' + cn + '）里没有调 paintFish() —— 这条路上没有任何鱼被画出来');
+        fallbackBad++;
+      }
+    });
+
+  /* ③ 取用口只许出现在入口里（别处要画鱼必须走入口，否则又会冒出一处「没有兜底的取图」） */
+  ['G.CardArt.held(', 'G.CardArt.want('].forEach(call => {
+    const all = count(jsP, call);
+    const inside = entry ? count(entry, call) : 0;
+    if (all !== inside) {
+      err(P + ' 里有 ' + all + ' 处 `' + call + '`，其中只有 ' + inside + ' 处在 paintFish() 里 —— '
+        + '取图口只许留在入口那一处（散出去就会出现「取了图但没兜底」的路径）');
+      fallbackBad++;
+    }
+    if (all === 0) {
+      err(P + ' 里一处 `' + call + '` 都没有 —— 回退链没接上（或写法变了，来更新本节）');
+      fallbackBad++;
+    }
+  });
+  /* 自检：计数口径必须认得出「多出来的那一处」 */
+  if (count('a G.CardArt.want( b G.CardArt.want(', 'G.CardArt.want(') !== 2) {
+    err('第 47 节判据自检不成立：调用点计数认不出重复出现'); fallbackBad++;
+  }
+
+  /* ④ 档位名只许来自 config.colorMorphs（母版禁令的口径来源） */
+  if (!jsC) {
+    err(C + ' 读不到内容 —— 文件被删 / 改名了？'); fallbackBad++;
+  } else {
+    const lit = CFG.colorMorphs.filter(cm => new RegExp('\\b' + cm.key + '\\b').test(jsC)).map(cm => cm.key);
+    if (lit.length) {
+      err(C + ' 里出现了档位名 ' + lit.join('、') + ' —— 档位表只许来自 '
+        + 'config.colorMorphs（写第二份必然分家；本节同样拦「顺手放行某个档位」）。'
+        + '⚠️ 判据按**词边界**扫，不是只扫引号形式 —— 写成对象键 `{ golden: 1 }` 也算违规');
+      fallbackBad++;
+    }
+    /* 判据自检：两种写法（带引号 / 当对象键）都必须被认出来，正常写法不许误报 */
+    const probeKey = CFG.colorMorphs[CFG.colorMorphs.length - 1].key;
+    if (!new RegExp('\\b' + probeKey + '\\b').test("var a = '" + probeKey + "';")
+        || !new RegExp('\\b' + probeKey + '\\b').test('var m = { ' + probeKey + ': 1 };')
+        || new RegExp('\\b' + probeKey + '\\b').test('var ' + probeKey + 'ish = 1;')) {
+      err('第 47 节判据自检不成立：档位名词边界扫描分不出「引号形式 / 对象键形式」与「同前缀的别的标识符」');
+      fallbackBad++;
+    }
+    if (!has(jsC, 'colorMorphs')) {
+      err(C + ' 里没有 `colorMorphs` —— 档位校验收哪去了？空档位（灰底母版）会溜进游戏');
+      fallbackBad++;
+    }
+    /* 空档位必须被显式拒绝：这是「母版不进游戏」那句注释的**代码证据** */
+    const km = bodyOf(jsC, 'function knownMorph(');
+    if (!km || !/if\s*\(!\s*morph\s*\)\s*return\s+null/.test(km)) {
+      err(C + ' 的 knownMorph() 里没有「空档位直接返回 null」—— 空档位会拼出 `<id>.png`'
+        + '（灰底母版），贴进图鉴的浅蓝底上会糊一块灰方块');
+      fallbackBad++;
+    }
+  }
+
+  if (!fallbackBad) {
+    ok('回退链只有一处入口（paintFish 里 AI 图 + 程序化兜底同处一体），'
+      + '图鉴网格 / 详情页都不绕开它，取图口没有散出去，档位名只来自 config');
   }
 })();
 

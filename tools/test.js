@@ -2884,6 +2884,109 @@ G_('Assets —— 键 → 地址（纯逻辑）');
 })();
 
 /* =========================================================
+   CardArt —— 图鉴卡面的回退链（队列 N3-1）
+   =========================================================
+   本项目第一次把**异步**的东西接进**同步**绘制路径（画布是同步画的，图是异步来的）。
+   最容易出的两种静默失效：
+     ① 图没到 → 画布上一片空白（所以「拿不到图时先画程序化那张」必须有断言）；
+     ② 图到了没人重画（所以「到了要回调」必须有断言）。
+   ⚠️ 真正的网络行为（真的去 fetch 一张 PNG）在浏览器里实跑验证；
+      这里用**可替换的加载器**把两个宿主形态都覆盖掉：同步桩 + 手搓 thenable。
+   ========================================================= */
+G_('CardArt —— 回退链（AI 卡面优先、程序化兜底）');
+(function () {
+  /* 按需加载：本文件顶部那份清单里没有它（它是渲染层模块，运行时才用画布） */
+  new Function(fs.readFileSync(path.join(ROOT, 'src/render/cardart.js'), 'utf8')).call(global);
+  const CA = G.CardArt;
+  const img = (w, h) => ({ width: w, height: h });   // 画布只认 width / height
+  let asks = [];
+  const syncLoader = () => { asks.push(1); return img(1152, 768); };
+
+  CA.reset();
+  CA.setLoader(syncLoader);
+
+  /* ---- 母版禁令：游戏侧只吃透明抠图，空 / 未知档位必须直接拒绝 ---- */
+  let badCb = 0;
+  ok(CA.held('A01') === null && CA.held('A01', '') === null && CA.held('A01', 'nope') === null,
+     'held()：空档位与未知档位一律 null（`<id>.png` 是灰底母版，不许进游戏）');
+  asks = [];
+  ok(CA.want('A01', null, () => badCb++) === false &&
+     CA.want('A01', 'noSuchMorph', () => badCb++) === false &&
+     CA.want('', 'golden', () => badCb++) === false &&
+     CA.want('../etc/passwd', 'golden', () => badCb++) === false,
+     'want()：空档位 / 未知档位 / 空 id / 带路径字符的 id → 全部 false');
+  ok(asks.length === 0 && badCb === 0,
+     'want()：被拒的请求**连加载器都不碰**（不许拼出一个可能 404 的路径）');
+
+  /* ---- 正常路径（同步宿主）---- */
+  asks = [];
+  let got = 0, gotImg = null;
+  const first = CA.want('A01', 'golden', im => { got++; gotImg = im; });
+  ok(first === true && got === 1 && !!gotImg,
+     'want()：同步宿主下当场就把图交出来（返回 true ⇒ 调用方不必先画程序化的那张）');
+  ok(asks.length === 1, 'want()：加载器只被叫了一次');
+  ok(CA.held('A01', 'golden') === gotImg, 'held()：want() 之后拿到的是同一张图对象');
+
+  /* ---- 已经有了：不再发请求，但仍要回调（消费方等着重画）---- */
+  asks = []; got = 0;
+  ok(CA.want('A01', 'golden', () => got++) === true && asks.length === 0 && got === 1,
+     'want()：已有图时不再发请求，但仍回调一次（消费方据此重画）');
+
+  /* ---- 异步宿主：同一张图并发只发一次请求，两个消费方都收到 ---- */
+  CA.reset();
+  asks = []; const resolveLater = [];
+  CA.setLoader(() => { asks.push(1); return { then(res) { resolveLater.push(res); } }; });
+  let a = 0, b = 0;
+  ok(CA.want('B07', 'shiny', () => a++) === false, 'want()：异步宿主下返回 false（现在还没图）');
+  ok(CA.want('B07', 'shiny', () => b++) === false, 'want()：同一张图第二次要 → 仍返回 false');
+  ok(asks.length === 1, 'want()：同一张图并发只发一次请求（不许两张图各查一遍）');
+  ok(a === 0 && b === 0 && CA.held('B07', 'shiny') === null,
+     'want()：图还没到时回调不响、held() 仍是 null（画布上留着程序化那张）');
+  const late = img(1152, 768);
+  resolveLater[0](late);
+  ok(a === 1 && b === 1 && CA.held('B07', 'shiny') === late,
+     'want()：图到了 → 两个消费方各回调一次，held() 拿到图（这一步就是「重画」的触发点）');
+
+  /* ---- 缺图 / 坏图：**一个回调都不发**，让程序化的那张留在画布上 ---- */
+  CA.reset();
+  CA.setLoader(() => null);
+  let missCb = 0;
+  const m0 = CA.used();
+  ok(CA.want('ZZZ', 'normal', () => missCb++) === false && missCb === 0 &&
+     CA.held('ZZZ', 'normal') === null,
+     'want()：加载器给 null（缺图 / 坏图）→ 不回调、held() 仍 null ⇒ 回退程序化绘制');
+  ok(CA.used().miss === m0.miss + 1,
+     'used()：没拿到图要记进 miss（开发者面板靠它分「贴了卡面 / 回退了程序化」各多少张）');
+  CA.setLoader(() => { throw new Error('boom'); });
+  ok(CA.want('ZZZ', 'normal', () => missCb++) === false && missCb === 0,
+     'want()：加载器自己抛了也不许把异常漏给调用方（绘制路径上抛 = 整个图鉴白屏）');
+
+  /* ---- blit：等比放进框、居中、不裁切 ---- */
+  CA.reset();
+  const drawn = [];
+  const ctx = { drawImage: (im, x, y, w, h) => drawn.push({ x, y, w, h }) };
+  /* 卡面是固定 1152×768（3:2），两个调用点的框都比它扁 ⇒ 实际总是「高度贴合」 */
+  const d1 = CA.blit(ctx, img(1152, 768), 130, 56, 260, 112);
+  ok(Math.abs(d1.w - 168) < 0.01 && Math.abs(d1.h - 112) < 0.01,
+     `blit()：图鉴网格 260×112 的框 → 168×112（高度贴合，实得 ${d1.w}×${d1.h}）`);
+  ok(Math.abs(drawn[0].x - (130 - 168 / 2)) < 0.01 && Math.abs(drawn[0].y - (56 - 112 / 2)) < 0.01,
+     'blit()：以 (cx, cy) 为中心画（x/y 是左上角，不是中心）');
+  const d2 = CA.blit(ctx, img(1152, 768), 190, 90, 380, 190);
+  ok(Math.abs(d2.w - 285) < 0.01 && Math.abs(d2.h - 190) < 0.01,
+     `blit()：详情页 380×190 的框 → 285×190（实得 ${d2.w}×${d2.h}）`);
+  const d3 = CA.blit(ctx, img(100, 100), 50, 50, 200, 120);   // 方形图：宽度先贴合
+  ok(Math.abs(d3.w - 120) < 0.01 && Math.abs(d3.h - 120) < 0.01,
+     'blit()：方图放进扁框时宽度贴合（contain 口径：两边都不许超框）');
+  ok(d3.w <= 200 && d3.h <= 120 && d1.w <= 260 && d1.h <= 112,
+     'blit()：任何情况下都不超框（超框 = 贴到隔壁条目上）');
+
+  const u = CA.used();
+  ok(typeof u.hit === 'number' && typeof u.miss === 'number' && typeof u.ask === 'number',
+     'used()：返回 { hit, miss, ask }（开发者面板「素材家底」读它分 AI 图 / 回退各多少张）');
+  CA.setLoader(null);   // 还原成默认（Assets.card）——别把桩留给别的用例
+})();
+
+/* =========================================================
    Audio —— 采样回退层没有改动公开 API
    =========================================================
    采样音效是「在 API 上包一层」而不是「换一套 API」，所以这里钉的是

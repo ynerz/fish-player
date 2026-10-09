@@ -308,6 +308,30 @@ G.Panels = (function () {
     '</div>';
   }
 
+  /* ------------------------------------------------------------------
+     画「一条**已收集**的鱼」—— **回退链的唯一一处真相**（队列 N3-1）
+     ------------------------------------------------------------------
+     优先级：AI 卡面（`G.CardArt` 拿到的透明抠图）→ 拿不到就 `G.FishArt` 程序化绘制。
+     为什么必须抽成一个函数：图鉴网格与详情页两处口径必须完全一致
+     （取哪一档的图、图放多大、什么时候兜底、什么时候重画），各写一份必然分家。
+
+     `box` = { cx, cy, len, w, h }：cx/cy 中心点、len 程序化绘制的鱼长、w/h 可用的框。
+     `onReady`：图**后来**才到时要做的重画（**只重画这一张画布**，
+     不 `refresh()` 整个面板 —— 图鉴一屏 362 项，整面板重渲染会闪，而且搜索框会失焦）。
+     返回这次到底画的是哪一种（自测与排查用）。
+     ⚠️ `cm` 传 null 表示「这条鱼一种颜色都没收集到」→ 只走程序化（不带色）。
+        没收集到颜色时**不取图**：AI 卡面是「某一种颜色」的实物图，没有收集就没有这一档。*/
+  function paintFish(ctx, f, cm, box, t, onReady) {
+    if (cm) {
+      var img = G.CardArt.held(f.id, cm.key);
+      if (img) { G.CardArt.blit(ctx, img, box.cx, box.cy, box.w, box.h); return 'card'; }
+    }
+    var amt = cm && cm.tint ? 0.75 : 0;
+    G.FishArt.draw(ctx, f, box.cx, box.cy, box.len, { tint: cm && cm.tint, tintAmt: amt, t: t });
+    if (cm) G.CardArt.want(f.id, cm.key, onReady);   // 图到了再重画这一张；拿不到就不动
+    return 'art';
+  }
+
   /* 画图鉴网格里的一条鱼（拆出来是为了能按需懒绘制） */
   function paintBookItem(cv, f, e) {
     cv.setAttribute('data-drawn', '1');   // 供自测脚本确认懒绘制是否触发
@@ -316,16 +340,8 @@ G.Panels = (function () {
     cv.width = 260 * dpr; cv.height = 112 * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (e) {
-      /* 显示「最稀有已收集颜色」：colorMorphs 按常见→稀有排列，取下标最大的 */
-      var best = null;
-      CFG.colorMorphs.forEach(function (cm) {
-        if (!(e.colors && e.colors[cm.key])) return;
-        if (!best || CFG.colorMorphs.indexOf(cm) > CFG.colorMorphs.indexOf(best)) best = cm;
-      });
-      var amt = best && best.tint ? 0.75 : 0;
-      G.FishArt.draw(ctx, f, 130, 56, 168, {
-        tint: best && best.tint, tintAmt: amt, t: 0.6,
-      });
+      paintFish(ctx, f, rarestColor(e), { cx: 130, cy: 56, len: 168, w: 260, h: 112 }, 0.6,
+        function () { paintBookItem(cv, f, e); });
     } else {
       G.FishArt.drawSilhouette(ctx, f, 130, 56, 168);
       ctx.globalAlpha = 1;
@@ -334,6 +350,18 @@ G.Panels = (function () {
       ctx.textAlign = 'center';
       ctx.fillText('?', 130, 64);
     }
+  }
+
+  /* 一条鱼**已收集到的最稀有颜色**（colorMorphs 按「常见 → 稀有」排列 ⇒ 取下标最大的）。
+     图鉴网格与详情页都要问这个问题，收成一处 —— 两处各写一遍时口径必然漂。 */
+  function rarestColor(e) {
+    var best = null;
+    if (!e || !e.colors) return null;
+    CFG.colorMorphs.forEach(function (cm) {
+      if (!e.colors[cm.key]) return;
+      if (!best || CFG.colorMorphs.indexOf(cm) > CFG.colorMorphs.indexOf(best)) best = cm;
+    });
+    return best;
   }
 
   /* ---------------- 鱼种详情页：看这一条鱼各种颜色的收集情况 ---------------- */
@@ -368,14 +396,9 @@ G.Panels = (function () {
     card.appendChild(cv);
 
     /* 展示「已收集到的最稀有颜色」，没收集过就画剪影 */
-    var best = null;
-    CFG.colorMorphs.forEach(function (cm) {
-      if (!(e && e.colors && e.colors[cm.key])) return;
-      /* colorMorphs 按「常见 → 稀有」排列，下标越大越稀有，所以取下标最大的那个 */
-      if (!best || CFG.colorMorphs.indexOf(cm) > CFG.colorMorphs.indexOf(best)) best = cm;
-    });
+    var best = rarestColor(e);
 
-    (function () {
+    function paintDetail() {
       var dpr = G.Platform.sys.dpr();
       cv.width = 380 * dpr; cv.height = 190 * dpr;
       cv.style.width = '380px'; cv.style.height = '190px';
@@ -394,8 +417,8 @@ G.Panels = (function () {
         ctx.stroke();
       }
       if (e) {
-        var amt = best && best.tint ? 0.75 : 0;
-        G.FishArt.draw(ctx, f, 190, 90, 240, { tint: best && best.tint, tintAmt: amt, t: 0.8 });
+        /* 与图鉴网格走**同一个**回退链入口（图到了就重跑这一张） */
+        paintFish(ctx, f, best, { cx: 190, cy: 90, len: 240, w: 380, h: 190 }, 0.8, paintDetail);
       } else {
         G.FishArt.drawSilhouette(ctx, f, 190, 90, 240);
         ctx.fillStyle = 'rgba(91,116,136,.75)';
@@ -403,7 +426,8 @@ G.Panels = (function () {
         ctx.textAlign = 'center';
         ctx.fillText('?', 190, 100);
       }
-    })();
+    }
+    paintDetail();
 
     var info = U.el('div', 'fd-info');
     info.innerHTML =

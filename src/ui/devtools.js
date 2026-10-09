@@ -181,8 +181,15 @@ G.Cheat = (function () {
     ['素材家底', function () {
       if (!G.Assets) return '未加载 G.Assets';
       var u = G.Assets.used();
-      return '模式 ' + G.Assets.mode() + '｜已加载 ' + u.ok + '｜失败 ' + u.fail +
-             '｜缓存 ' + u.cached + '｜目录 assets/cards/';
+      var tip = '模式 ' + G.Assets.mode() + '｜已加载 ' + u.ok + '｜失败 ' + u.fail +
+                '｜缓存 ' + u.cached + '｜目录 assets/cards/';
+      /* 卡面回退链的家底（N3-1）：命中 = 画了 AI 图，缺图 = 留在程序化绘制上。
+         没有这一行就分不清「图鉴用的是 AI 图」还是「一张都没加载上」。 */
+      if (G.CardArt) {
+        var c = G.CardArt.used();
+        tip += '｜卡面 命中 ' + c.hit + ' / 缺图 ' + c.miss + ' / 请求 ' + c.ask;
+      }
+      return tip;
     }],
     ['导出日志', function () { return copyTrack(); }],
     ['清空日志', function () { G.Track && G.Track.clear(); return '已清空（含磁盘）'; }],

@@ -402,6 +402,7 @@ src/core/fishing.js           钓鱼主循环状态机 + 离线补算
 src/core/goals.js             每日任务 / 成就 / 称号的判定与结算
 src/core/track.js             错误采集（空壳：环形缓冲 + 可导出文本，不接外部服务）
 src/render/fishart.js         参数化鱼类绘制器（12 种体型 × 6 套候选画风，默认 flat）
+src/render/cardart.js         AI 卡面的取用与回退链（G.CardArt：有图贴图、拿不到就程序化绘制）
 src/render/scene.js           Canvas 场景渲染（渐变缓存 + 装饰绘制）
 src/ui/hud.js                 顶栏、底栏、按钮、提示、拉扯 UI、渔获播报
 src/ui/panels.js              钓场/图鉴/商店/鱼护/目标/统计/设置/结算卡
@@ -413,7 +414,7 @@ tools/gen-fish.py             鱼种生成器（鱼名/体重/价格，改完要
 tools/solve-drop.js           掉率求解器：反推掉率以命中节奏表
 tools/fix-rarity-price.js     稀有度定价归一化（**幂等**：跑第二遍必须 0 改动）
 tools/balance.js              数值仿真：胜率 / 节奏 / 收益 / 图鉴耗时（固定种子）
-tools/verify.js               数据自检 46 节（0 警告才算过；节数以 verify.js 自己的输出为准）
+tools/verify.js               数据自检 47 节（0 警告才算过；节数以 verify.js 自己的输出为准）
 tools/test.js                 单元测试（条数以它自己的输出为准）
 tools/gen-collect-time.js     生成 docs/收集耗时表.html
 tools/build.js                单文件打包（可选，发布用）
@@ -429,7 +430,7 @@ python tools/gen-fish.py         # 1. 参与生成的鱼名/体重/价格有变 
 node tools/solve-drop.js         # 2. 反推掉率并写回 fields.js / fish.js
 node tools/fix-rarity-price.js   # 3. 稀有度定价归一化（幂等，第二遍应 0 改动）
 node tools/balance.js            # 4. 复核：胜率 / 每小时收益 / 图鉴收集耗时
-node tools/verify.js             # 5. 自检 46 节
+node tools/verify.js             # 5. 自检 47 节
 node tools/gen-collect-time.js   # 6. 出收集耗时表
 ```
 
@@ -445,7 +446,7 @@ node tools/build.js --release  # 剔除 devtools，断言产物里搜不到 G.Ch
 node tools/build.js --check    # 只跑断言不写盘
 ```
 
-产物 ≈ **590 KB / 1 个网络请求**（原本 27 个），可以 `file://` 双击直接跑。
+产物 ≈ **601 KB / 1 个网络请求**（原本 29 个），可以 `file://` 双击直接跑。
 
 ---
 
@@ -767,7 +768,7 @@ node tools/build.js --check    # 只跑断言不写盘
 ```
 
 - 把 `index.html` + 样式表 + `src/` 下全部脚本**内联成一个 HTML**
-- 产物 ≈ **590 KB / 1 个网络请求**（原本 27 个），可以 `file://` 双击直接跑 ——
+- 产物 ≈ **601 KB / 1 个网络请求**（原本 29 个），可以 `file://` 双击直接跑 ——
   这也是「零外部依赖」最硬的证据
 - ⚠️ 它只是**可选的发布步骤**，不在开发流程里（改完刷新浏览器即可）；`dist/` 不入库
 - `<script src>` 必须连续挨成一块，`config.js` 第一（建 `window.G`）、`main.js` 最后（boot）——

@@ -18,6 +18,11 @@
      ③ **语音不走 `G.Audio`**（系统 TTS 是浏览器另一套子系统，没有增益节点）
         ⇒ 总音量必须在**这里**乘进 `volume`。否则「音量拉到 0 语音还在念」，
         而那条滑块的文案是「所有声音的总闸门」——文案与实现分家是最难查的一类。
+     ④ **优先级 = 传说 > 图鉴新增 > 纪录**（一次只出一句）。这个顺序不是拍脑袋：
+        `recordCatch()` 里新鱼的 `maxKg` 是 0 ⇒ **`isNew` 必然同时 `isRecord`**，
+        把「图鉴新增」排在「纪录」后面 = 那句台词**永远没人听见**（不报错的那种坏法）。
+        同一条事实在结算卡上也是这么处理的（`panels.js`：`info.isRecord && !info.isNew`
+        才印「新纪录」）—— 两处同源，改顺序时两边一起看。
    ========================================================= */
 
 window.G = window.G || {};
@@ -25,13 +30,18 @@ window.G = window.G || {};
 G.Assistant = (function () {
 
   /* 语气表：场景键 → 语调。**「哪些场景出声」在 config**（`CFG.assistant.speakKeys`），
-     这里只管「这件事该用什么语气说」—— 那是判定，不是数值。 */
+     这里只管「这件事该用什么语气说」—— 那是判定，不是数值。
+     ⚠️ 纯文字档的键（`firstSee` / `blank`）**不需要进这张表**：语调只在 `speakLine`
+        里被读，不入 `speakKeys` 的键根本走不到那儿（写进来就是没人读的死条目）。 */
   var UP = 'up', DOWN = 'down';
   var TONE = { legendary: UP, record: UP, snap: DOWN };
 
   var cb = { toast: null };
   var lastAt = {};   /* 场景键 → 上次播报的时刻（`sys.now()`），动态键 */
   var cursor = {};   /* 场景键 → 下一句台词的下标（轮换，不用随机） */
+  /* 「长时空军」的记账（同为内存态，不进存档）：连续失败竿数 + 这一轮空手**从哪一刻开始**。
+     挂机（自动钓鱼）整段**不记账**，见 `onMiss`。 */
+  var failStreak = 0, failSince = 0;
 
   function cfg() { return (G.CONFIG && G.CONFIG.assistant) || {}; }
   function now() {
@@ -56,6 +66,21 @@ G.Assistant = (function () {
      念稿只会与挂机批量提示抢注意力。判定走 `G.Fishing` 的公开口径，不另读存档。 */
   function muted() {
     return !!(G.Fishing && typeof G.Fishing.isIdleMode === 'function' && G.Fishing.isIdleMode());
+  }
+  /* 空手那一轮的清零。**两处调**：上鱼（含挂机的上鱼 —— 那时确实钓到了东西）、
+     以及「空军那句话已经说出口」。 */
+  function clearBlank() { failStreak = 0; failSince = 0; }
+  /* 「长时空军」判据 = **两道门同时满足**（口径与两条反例写在 `CFG.assistant` 的注释里）：
+       ① 连续失败竿数 ≥ `blankStreak`
+       ② 这一轮空手已经持续 ≥ `blankMinMs`（从本轮第一次失败那一刻算起）
+     ⚠️ 只数竿数会在常见钓场误伤（连丢 5 竿可能只过了 90 秒）；
+        只看时长会在高阶钓场误伤（耐心等一条大物也会超过 5 分钟，而那条鱼还在钩上）。 */
+  function blankDue() {
+    var c = cfg();
+    var n = c.blankStreak, ms = c.blankMinMs;
+    if (typeof n !== 'number' || n <= 0 || typeof ms !== 'number' || ms <= 0) return false;
+    if (failStreak < n || !failSince) return false;
+    return (now() - failSince) >= ms;
   }
   /* 语音开不开 + 这一句该不该出声。**只看 `settings.speech`**：
      「音效」那条开关的文案是「开关全部**程序化音效**」，而语音是系统 TTS、
@@ -116,20 +141,40 @@ G.Assistant = (function () {
     init: function (opts) {
       cb.toast = (opts && typeof opts.toast === 'function') ? opts.toast : null;
     },
-    /* 一条鱼上岸。优先级：传说档 > 个人纪录 > 不出声（普通鱼不接话 ——
-       每竿一句 = 挂机时每分钟好几条，那是刷屏不是陪伴）。 */
+    /* 一条鱼上岸。优先级（一次只出一句）：**传说档 > 图鉴新增 > 个人纪录**，
+       普通鱼不接话（每竿一句 = 挂机时每分钟好几条，那是刷屏不是陪伴）。
+       🔴 「图鉴新增」必须排在「纪录」**前面** —— 新鱼的 `maxKg` 是 0 ⇒ `isNew` 必然
+          `isRecord`，顺序反了那句话就永远说不出来（见文件头口径 ④）。 */
     onCatch: function (info) {
+      /* 上鱼就清零**空手那一轮**，而且要在挂机判定**之前**做：
+         挂机时钓到的鱼也是鱼，人回来之后不该还背着「你连着空军」的账。 */
+      clearBlank();
       if (muted()) return null;
       var rar = info ? info.rar : null;
       if (typeof rar === 'number' && rar >= legendIdx()) return say('legendary');
+      if (info && info.isNew) return say('firstSee');
       if (info && info.isRecord) return say('record');
       return null;
     },
     /* 这一竿丢了。只有**断线**值得搭一句话；脱钩 / 错过咬口游戏自己已经说清楚了，
-       助手再补一句就是「同一件事两处说」（而两处迟早会分家）。 */
+       助手再补一句就是「同一件事两处说」（而两处迟早会分家）。
+       —— 但**它们都算「没上鱼」**，要进空手记账（主动收杆不算：那走 `giveUp()`，
+       根本不经过这里，也没有第二个人会来替玩家惋惜）。 */
     onMiss: function (result) {
-      if (muted()) return null;
-      return result === 'snap' ? say('snap') : null;
+      if (muted()) return null;      // 挂机整段不记账（那段的成败跟屏幕前的人无关）
+      if (failStreak === 0) failSince = now();
+      failStreak++;
+      if (result === 'snap') return say('snap');
+      /* 长时空军那句话只在**非断线**的失败上补：断线那一竿已经有更具体的一句了，
+         而「更具体的先说」是本项目的一贯口径（一个时刻只出一句，先出信息量大的）。
+         ⚠️ 说出口之后才清零那一轮 —— 没说出来（比如被节流挡住）就留着，
+            下一竿继续够条件，不会白白损失一次机会。 */
+      if (blankDue()) {
+        var line = say('blank');
+        if (line) clearBlank();
+        return line;
+      }
+      return null;
     },
     /* 设置面板的「试听」：**不受节流 / 不受语音开关约束**（玩家刚按下按钮就是要听），
        但受总音量约束（音量 0 时点了没声音 —— 那正是他要的）。
@@ -139,7 +184,7 @@ G.Assistant = (function () {
       return !!(line && line.spoken);
     },
     /* 清空节流与轮换游标（测试用；也留给将来的「重置存档」入口）——
-       ⚠️ 它**不碰存档、不碰平台能力**，只是把模块内部的两张表清空。 */
-    reset: function () { lastAt = {}; cursor = {}; },
+       ⚠️ 它**不碰存档、不碰平台能力**，只是把模块内部的几张表清空（含空手记账）。 */
+    reset: function () { lastAt = {}; cursor = {}; clearBlank(); },
   };
 })();

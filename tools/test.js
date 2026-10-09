@@ -2179,6 +2179,42 @@ G_('Panels · 设置键必须能从界面改（真渲染 + 真触发注册的回
      '逐个触发设置面板的控件都不抛错（含重置 / 导出 / 导入三个危险按钮，它们的对话框已被换成无害桩）',
      threw.join(' / '));
 
+  /* ---- ② 语音音色下拉：存档里的音色**不在这台设备上**时要如实说（队列 Q41）----
+     背景：`settings.voice` 存的是**这台机器**的 `voiceURI`，换台电脑就匹配不到。
+     原来的表现是**界面与数据分家**：没有任何 option 带 `selected` ⇒ 下拉显示成第一项
+     「系统默认」，而存档里那个 id 还留着 —— 玩家看到的是一个、存档里是另一个，谁也不报错。
+     三条边界：① 不在列表里 ⇒ 有 selected 的占位项 + 警示文案；
+              ② 在列表里 ⇒ 那个选项 selected、**没有**警示文案；
+              ③ 列表还没拿到（`getVoices()` 第一次返回空）⇒ **不**警示（那是异步加载中，
+                 不是「这台设备没有」—— 报错了玩家会去删一个其实还能用的音色）。 */
+  const realSpeech = G.Platform.speech;
+  const fetchVoiceRow = (voiceId, list) => {
+    G.Platform.speech = {
+      available: () => true, list: () => list, onVoices() {},
+      speak: () => true, stop() {},
+    };
+    St.get().settings.voice = voiceId;
+    els['#modalBody'].children.length = 0;      // 桩不清 innerHTML，得手动清一遍再重画
+    Panels.open('settings');
+    const r = els['#modalBody'].children.filter(x =>
+      x.children[0] && String(x.children[0].innerHTML).indexOf('id="setVoice"') >= 0)[0];
+    return r ? { desc: String(r.innerHTML || ''), ctl: String(r.children[0].innerHTML) } : null;
+  };
+  const HERELIST = [{ id: 'voice-here', name: '本机音色', lang: 'zh-CN' }];
+  const gone = fetchVoiceRow('gone-machine-id', HERELIST);
+  ok(!!gone, '设置面板里画出了语音音色下拉（能找到带 id="setVoice" 的那一行）');
+  ok(gone && gone.ctl.indexOf('value="gone-machine-id" selected') >= 0,
+     '存档里的音色不在这台设备上 ⇒ 下拉里插一条 **selected** 的占位项（不再假装成「系统默认」）');
+  ok(gone && gone.desc.indexOf('这台设备上没有') >= 0,
+     '……并且那一行的说明文字如实写出「上次选的音色在这台设备上没有」');
+  const here = fetchVoiceRow('voice-here', HERELIST);
+  ok(here && here.ctl.indexOf('value="voice-here" selected') >= 0 && here.desc.indexOf('这台设备上没有') < 0,
+     '音色就在这台设备上 ⇒ 正常选中那一项，不出现任何警示文案');
+  const pending = fetchVoiceRow('gone-machine-id', []);
+  ok(pending && pending.desc.indexOf('这台设备上没有') < 0,
+     '声音列表还没拿到（`getVoices()` 第一次返回空）⇒ **不**警示：那是异步加载中，不是「没有」');
+  G.Platform.speech = realSpeech;
+
   /* 还原成触发前的值 —— 后面还有一大堆断言在用同一份存档 */
   keys.forEach(k => { St.get().settings[k] = before[k]; });
   Panels.close();
@@ -3469,6 +3505,125 @@ G_('陪伴助手 · 播报判定与语音降级');
     St.setIdle(false);
     ok(r7 === null, '挂机（自动钓鱼）时助手完全不开口 —— 人不在屏幕前');
 
+    /* ---------- ⑨ 图鉴新增：纯文字档 + 优先级（**必须排在「纪录」前面**） ---------- */
+    A.reset(); said.length = 0; calls.length = 0;
+    var n1 = A.onCatch({ rar: 0, isNew: true, isRecord: true });
+    ok(n1 && n1.key === 'firstSee', '图鉴新增（`isNew`）走 firstSee 那句话，且**排在「纪录」前面**');
+    ok(n1.spoken === false && calls.length === 0,
+       '……而且它是**纯文字档**：只出气泡、不念（每来一条新鱼都开口念 = 播报，不是陪伴）');
+    ok(said.length === 1 && said[0].text === n1.text, '……但气泡照常有（与「关掉语音后文字照常」同一条口径）');
+    A.reset();
+    ok(A.onCatch({ rar: 0, isNew: false, isRecord: true }).key === 'record',
+       '普通破纪录仍然走 record（新加的优先级没把老场景挤掉）');
+    A.reset();
+    ok(A.onCatch({ rar: 3, isNew: true, isRecord: true }).key === 'legendary',
+       '传说 + 图鉴新增同时成立 ⇒ 仍然只出传说那句（一次只出一句，信息量大的先）');
+
+    /* ---------- ⑩ 真身数据：为什么「图鉴新增」必须排在「纪录」前面 ----------
+       新鱼的 `book` 条目是 `maxKg: 0` ⇒ `kg > 0` 恒成立 ⇒ **isNew 必然 isRecord**。
+       拿真的 `State` 跑一次（挑一条没钓到过的鱼），跑完把那条条目删掉还原 ——
+       ⚠️ 这条不是「顺便验一下」，它正是 ⑨ 里那个顺序的**唯一理由**：
+          顺序写反了不会报任何错，只是那句话永远没人听见。 */
+    var probeFish = G.FISH.filter(function (f) { return !St.isCaught(f.id); })[0];
+    var probeRec = probeFish ? St.recordCatch(probeFish, 0.1, 'normal') : null;
+    ok(!!probeRec && probeRec.isNew === true && probeRec.isRecord === true,
+       '真身数据：第一次钓到的鱼**必然同时**是「图鉴新增」和「个人纪录」'
+       + '（所以 firstSee 排在 record 后面 = 那句台词永远没人听见）');
+    if (probeFish) delete St.get().book[probeFish.id];
+
+    /* ---------- ⑪ 长时空军（blank）：**两道门都要过** ----------
+       假时钟从「现在之后」起：`say()` 的节流拿 `now()` 与上次播报比，
+       把时钟往回拨会让所有断言被节流挡成「没说话」（假绿）。 */
+    var realNowFn = PL.sys.now;
+    var clock = 0;
+    PL.sys.now = function () { return clock; };
+    try {
+      var NSTK = CFG.assistant.blankStreak, WMS = CFG.assistant.blankMinMs;
+      var k2;
+      /* 连丢 n 竿，返回**这一段里任何一次真说出口的那句**（null = 全程没开口）。
+         🔴 不能只看「最后一次」的返回值：同一个假时刻下第一节说出口之后，
+            后面的调用全被节流挡成 null ⇒「最后一次」永远是 null，断言恒真（假绿）。
+            这条是反向验证当场逮出来的：不清零的坏代码照样过 —— 就是因为只看最后一次。 */
+      function missRun(n, kind) {
+        var spoke = null;
+        for (var i = 0; i < n; i++) {
+          var r = A.onMiss(kind || 'escape');
+          if (r) spoke = r;
+        }
+        return spoke;
+      }
+
+      /* ① 竿数不够：时间早就过门，仍不开口 */
+      A.reset();
+      clock = realNowFn() + 3600000;
+      A.onMiss('escape');                                   // 第 1 竿：这一轮空手从此刻起算
+      clock += WMS * 2;                                     // 时长远远过门
+      ok(missRun(NSTK - 2) === null,
+         `只丢 ${NSTK - 1} 竿、时长早就过门 ⇒ 也不开口（竿数那道门在起作用）`);
+
+      /* ② 时长不够：竿数丢满，也没开口（常见钓场一竿才十几秒 ⇒ 那不叫「长时」） */
+      A.reset();
+      clock = realNowFn() + 7200000;
+      ok(missRun(NSTK) === null,
+         `丢满 ${NSTK} 竿但这一轮空手几乎没有时长 ⇒ 不开口（时长那道门在起作用）`);
+
+      /* ③ 两道门都过 ⇒ 开口（纯文字档） */
+      clock += WMS;
+      var l3 = A.onMiss('escape');
+      ok(l3 && l3.key === 'blank' && l3.spoken === false,
+         `竿数与空手时长都过门 ⇒ 说「长时空军」那句，且同样**只出文字**`);
+
+      /* ④ 说出口就重新起算，不会每隔 minGapMs 复读一遍 */
+      clock += WMS;
+      ok(missRun(NSTK - 1) === null,
+         `说完之后重新起算：再丢 ${NSTK - 1} 竿（时长早已过门）也不开口 —— 不会复读`);
+
+      /* ⑤ 上鱼清零（普通鱼不出话，但账要清） */
+      A.reset();
+      clock = realNowFn() + 10800000;
+      A.onMiss('escape');
+      missRun(NSTK - 2);
+      clock += WMS * 2;
+      A.onCatch({ rar: 0 });
+      ok(missRun(1) === null, '中间上过鱼 ⇒ 空手那一轮从零起算（不满竿数就不开口）');
+
+      /* ⑥ 断线抢走那一竿的发言权，但**不吃掉**空手记账 */
+      A.reset();
+      clock = realNowFn() + 14400000;
+      A.onMiss('escape');
+      clock += WMS * 2;
+      missRun(NSTK - 2);
+      var sn = A.onMiss('snap');                            // 第 N 竿恰好是断线
+      ok(sn && sn.key === 'snap', `第 ${NSTK} 竿恰好断线 ⇒ 出断线那句（更具体的先），不是「空军」那句`);
+      var af = missRun(1);
+      ok(af && af.key === 'blank', '……而且断线不吃掉空手记账：紧接着下一竿就补上了空军那句');
+
+      /* ⑦ 挂机整段不记账 */
+      A.reset();
+      clock = realNowFn() + 18000000;
+      St.setIdle(true);
+      var idleSpoke = missRun(NSTK + 5);
+      St.setIdle(false);
+      ok(idleSpoke === null && missRun(1) === null,
+         '挂机整段不记空手的账：人回来之后不会一上来就被告知「你空军了」');
+
+      /* ⑧ 挂机时钓到的鱼也算「钓到了」⇒ 照样清账 */
+      A.reset();
+      clock = realNowFn() + 21600000;
+      A.onMiss('escape');
+      missRun(NSTK - 2);
+      clock += WMS * 2;
+      St.setIdle(true);
+      A.onCatch({ rar: 3 });
+      St.setIdle(false);
+      ok(missRun(1) === null,
+         '挂机时钓到的鱼也算「钓到了」：清掉空手记账（不然人回来还背着挂机那一轮的账）');
+      A.reset();
+    } finally {
+      PL.sys.now = realNowFn;
+      if (St.get().settings.idle) St.setIdle(false);
+    }
+
     /* ---------- ⑧ 台词表本身 ---------- */
     var keys = Object.keys(G.ASSISTANT_LINES);
     var empty = keys.filter(function (k) {
@@ -3480,6 +3635,10 @@ G_('陪伴助手 · 播报判定与语音降级');
     ok(noLine.length === 0, 'config 里点名的出声场景都有台词（' + CFG.assistant.speakKeys.join(' / ') + '）');
     ok(keys.indexOf('preview') >= 0 && CFG.assistant.speakKeys.indexOf('preview') < 0,
        '试听有自己的台词，但**不在**「剧情出声」名单里（否则它会跟着节流走）');
+    ['firstSee', 'blank'].forEach(function (k) {
+      ok(keys.indexOf(k) >= 0 && CFG.assistant.speakKeys.indexOf(k) < 0,
+         `纯文字档场景 ${k} 有台词、且**不在**出声名单里（它比传说鱼常见得多，念出来就成了播报）`);
+    });
     A.reset();
   } finally {
     PL.speech = real;

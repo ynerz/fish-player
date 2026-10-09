@@ -2431,12 +2431,15 @@ console.log('\n[32-h] 存档键必须有消费方（设置子键还必须有界�
      ② **数组是空的 / 有空白条目** —— 表现是「触发了，但什么都没说」，同样不报错。
    判据（三条，抓不到就报错）：
      ① 键集**现算**（从真实加载进沙箱的 `G.ASSISTANT_LINES` 取），空集 ⇒ 报红；
-     ② 每个键必须在 `src/core/assistant.js` 里被引用一次（`say('<键>')` / 语气表等），
-        且**是整词**（`legendaryX` 不算 `legendary`）—— 正则自检见下；
+     ② 每个键必须**真的出现在 `say('<键>')` 的实参位置**（整词，`legendaryX` 不算）；
      ③ 每个键的值必须是「非空数组 + 每项都是非空字符串」；
      ④ `CFG.assistant.speakKeys` 必须是键集的**子集**（点名了不存在或写错的场景键 ⇒ 报红）。
+   🔴 判据 ② 在 2026-10-09（N6 二期）**收紧过一次**：上一版只要求「键这个词在 core 里
+   出现过一次」，于是**语气表**（`TONE`）成了合法掩体 —— 一个键只要被写进 `TONE`，
+   哪怕从来没人 `say()` 它，判据照样绿，而那正是「台词写了但永远没人说」的坏法。
+   ⇒ 现在只认 `say('键')` 这个形态（`TONE` 之类的「提过一嘴」不再算数）。
    为什么不用 32-g 代劳：两网的判据方向不同 —— 32-g 问「这个键有没有人提过」，
-   本节点问「**核心到底取不取它**」，后者才是「台词能不能被听见」的充要条件。 */
+   本节点问「**核心到底说不说它**」，后者才是「台词能不能被听见」的充要条件。 */
 console.log('\n[32-i] 陪伴助手的台词表：场景键必须被核心取用、数组不许空');
 (function () {
   const AP = sandbox.G && sandbox.G.ASSISTANT_LINES;
@@ -2455,17 +2458,28 @@ console.log('\n[32-i] 陪伴助手的台词表：场景键必须被核心取用�
     err('台词表里一个场景键都没有（空集会让下面所有判据恒真）—— 台词被搬走 / 改名了？');
     return;
   }
-  /* 判据自检：认得出整词，且**拒收**「名字只多带一截」的伪形态。 */
-  const hit = k => new RegExp('(^|[^A-Za-z0-9_$])' + k.replace(/\$/g, '\\$') + "(?![A-Za-z0-9_$])");
-  if (!hit('zzz').test("say('zzz')") || hit('zzz').test('say(zzzMore)')) {
-    err('32-i 的取值正则自检失败：它认不出整词，或把 `zzzMore` 也算成了 `zzz`');
-    return;
-  }
+  /* 判据：`say('<键>')`（单双引号都认）。**不看 `say(变量)`** —— 那是分析不了的形态，
+     真出现时本节会报红，逼着人把键写实（本项目的门禁一贯宁可报红也不放过）。
+     ⚠️ 这里必须拆成「**先造正则**（`callRe(k)`）→ 再 `test(文本)`」两步：
+        上一版写成 `called(k)` 直接把 `core` 焊死在闭包里，自检里就变成
+        「拿样本当键去匹配 core」—— 自检永远报红（当场就栽了一次，别退回去）。 */
+  const callRe = k => new RegExp("(^|[^A-Za-z0-9_$])say\\s*\\(\\s*(['\"])" + k.replace(/\$/g, '\\$') + '\\2');
   const core = fs.readFileSync(path.join(ROOT, CORE), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-  const unbound = keys.filter(k => !hit(k).test(core));
+  /* 判据自检：**认得出真调用**，且**拒收**三种「提过一嘴但没调用」的伪形态
+     （只多带一截的名字 / 变量 / 别的表里的同名键）—— 少了后半截，
+     收紧判据就只是换了句报错文案（第 6 条硬规矩：守卫必须能被样本证明它在起作用）。 */
+  const SELF_OK = ["  return say('zzz');", 'say("zzz", true);', "if (x) return say(\n  'zzz');"];
+  const SELF_BAD = ['var zzz = 1;', "return say('zzzMore');", 'var TONE = { zzz: 1 };', 'return say(zzz);'];
+  const selfRe = callRe('zzz');
+  if (!SELF_OK.every(s => selfRe.test(s)) || SELF_BAD.some(s => selfRe.test(s))) {
+    err('32-i 的取值判据自检失败：它认不出 `say("键")`，或把「只在别处提过一次」当成了取用');
+    return;
+  }
+  const unbound = keys.filter(k => !callRe(k).test(core));
   if (unbound.length) {
-    err('这些场景键在 ' + CORE + ' 里没有人取用（台词写了但没人会说）：' + unbound.join('、'));
+    err('这些场景键在 ' + CORE + ' 里没有出现在 `say(\'键\')` 调用里（台词写了但没人会说，'
+      + '或者只被写进语气表 / 注释：那不等于会被念到）：' + unbound.join('、'));
   }
   const badShape = keys.filter(k => {
     const t = AP[k];
@@ -2481,7 +2495,7 @@ console.log('\n[32-i] 陪伴助手的台词表：场景键必须被核心取用�
       + '（拼错 / 删了台词忘了改名单 ⇒ 那个场景永远不出声，而且不报任何错）');
   }
   if (!unbound.length && !badShape.length && !stray.length) {
-    ok(`台词表 ${keys.length} 个场景键都被 ${CORE} 取用、台词都非空；`
+    ok(`台词表 ${keys.length} 个场景键都出现在 ${CORE} 的 say() 调用里、台词都非空；`
       + `出声名单 ${ACCFG.speakKeys.length} 个键全部命中（键集与名单都是现算的）`);
   }
 })();

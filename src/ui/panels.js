@@ -1651,13 +1651,32 @@ G.Panels = (function () {
         voiceWired = true;
         spApi.onVoices(function () { if (currentView() === 'settings') refresh(); });
       }
-      var voiceOpts = '<option value="">系统默认</option>' + voices.map(function (v) {
-        return '<option value="' + esc(v.id) + '"' + (s.settings.voice === v.id ? ' selected' : '') + '>'
-          + esc(v.name || v.id) + (v.lang ? '（' + esc(v.lang) + '）' : '') + '</option>';
-      }).join('');
-      row('语音音色', spOk
-        ? '用哪种声音（列表来自这台设备，不同机器差别很大）'
-        : '这台设备没有可用的合成语音',
+      /* 🔎 「上次选的音色在这台设备上没有」（队列 Q41）：`settings.voice` 存的是
+         **这台机器**的声音标识（`Microsoft Huihui - Chinese …` 这类 `voiceURI`），
+         换台电脑 / 重装系统就匹配不到。原来的表现是**界面与数据分家**：
+         没有任何 option 带 `selected` ⇒ 下拉显示成第一项「系统默认」，
+         而存档里那个 id 还原封不动地留着 —— 看的是「系统默认」、念的也是系统默认，
+         但下次换回原机器会「自己变回去」，玩家根本不知道中间发生过什么。
+         现在往列表头上插一条 `selected` 的占位项（**值仍是那个 id** ——
+         ⚠️ 不许改成「存索引」：声音顺序会变，索引比 id 更不稳）。
+         ⚠️ 列表为空时**不提示**：`getVoices()` 第一次常常返回空（异步加载中），
+            那不是「这台设备上没有」，等 `onVoices` 重画就正常了。 */
+      var voiceMissing = !!s.settings.voice && voices.length > 0 && !voices.some(function (v) {
+        return v.id === s.settings.voice;
+      });
+      var voiceOpts = '<option value="">系统默认</option>'
+        + (voiceMissing
+          ? '<option value="' + esc(s.settings.voice) + '" selected>（上次选的音色 · 这台设备上没有）</option>'
+          : '')
+        + voices.map(function (v) {
+          return '<option value="' + esc(v.id) + '"' + (!voiceMissing && s.settings.voice === v.id ? ' selected' : '') + '>'
+            + esc(v.name || v.id) + (v.lang ? '（' + esc(v.lang) + '）' : '') + '</option>';
+        }).join('');
+      row('语音音色', !spOk
+        ? '这台设备没有可用的合成语音'
+        : (voiceMissing
+          ? '⚠️ 上次选的音色在这台设备上没有 —— 现在按「系统默认」念，重新选一个就会覆盖它'
+          : '用哪种声音（列表来自这台设备，不同机器差别很大）'),
         '<select class="set-sel" id="setVoice"' + (spOk ? '' : ' disabled') + '>' + voiceOpts + '</select>',
         function (c) {
           U.on(c.querySelector('#setVoice'), 'change', function (e) {

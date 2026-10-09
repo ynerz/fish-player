@@ -65,9 +65,21 @@ if (probeFile && !fs.existsSync(probeFile)) {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function main() {
-  const profile = path.join(os.tmpdir(), 'wb-probe-profile-' + port);
+  /* profile 改成一次性目录（时间戳 + 随机后缀），跑完在 finally 里删掉：
+     ① 同一端口连跑时不再共用 user-data-dir —— 上一次运行留下的登录态 /
+        IndexedDB / Service Worker 之类的残留不会串到下一次；
+     ② 临时目录不会越堆越多（以前 `wb-probe-profile-<port>` 是常驻的）。
+     ⚠️ **但这不是为了绕 HTTP 缓存** —— 2026-10-09 实测（同端口连跑、
+        中间改 JS、探针读全局标记）证明：`--headless=new` 下页面拿到的**就是新文件**，
+        「profile 复用 ⇒ 吃到缓存里的旧 JS」这个说法**不成立**。
+        那次性能数据异常的真因是 `git stash` 在**已提交**的工作区上无效
+        （无改动可 stash，命令静默什么也没做），代码压根没被回退，
+        于是「before」跑的也是新版本。教训：A/B 对拍前先**断言**两份代码确实不同。 */
+  const profile = path.join(os.tmpdir(),
+    'wb-probe-profile-' + port + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8));
   const child = spawn(EXE, [
     '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+    '--disk-cache-size=1', '--media-cache-size=1',   // 无害的保险，与上面那条结论无关
     '--user-data-dir=' + profile, '--remote-debugging-port=' + port, 'about:blank',
   ], { stdio: 'ignore' });
 
@@ -152,6 +164,12 @@ async function main() {
     return out;
   } finally {
     child.kill();
+    /* 一次性 profile 用完整删掉，别在临时目录里越堆越多。
+       删不掉也无所谓（下一轮本来就用新目录），所以整段吞掉异常。 */
+    try {
+      await sleep(300);
+      fs.rmSync(profile, { recursive: true, force: true });
+    } catch (e) { /* 忽略 */ }
   }
 }
 

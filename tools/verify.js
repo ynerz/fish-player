@@ -2491,7 +2491,7 @@ let shapeBad = 0;
   }
 
   /* ③ 🔴 2026-10-09 加：**还有两份「体型清单」会跟着漂，而且都不报错** ——
-     ① `docs/画风与颜色标准.md` §7.3 的「N 种体型句」表：加一个体型就得加一行，
+     ① `docs/画风与颜色标准.md` §7.3「十二种体型句」表：加一个体型就得加一行，
         原先只有 prose 里的数字被现算比对，**表格行本身没人管**；
      ② `docs/图鉴文案.md` 每条鱼的标题里带 `（稀有度 · shape）` —— 改 `fish.js` 的 shape
         而不重跑 `tools/gen-captions.py`，那张表就静默留着旧键
@@ -2506,7 +2506,7 @@ let shapeBad = 0;
   if (!stdKeys.length) {
     err('读不到「画风与颜色标准 §7.3 体型句表」的键列 —— 表被改名/改格式了？'); shapeBad++;
   } else if (missStd.length) {
-    err(`docs/画风与颜色标准.md §7.3 的体型句表漏了 ${missStd.length} 种体型：${missStd.join(' / ')}`
+    err(`docs/画风与颜色标准.md §7.3「十二种体型句」表漏了 ${missStd.length} 种体型：${missStd.join(' / ')}`
       + ' —— 它是对外说「这 12 种体型长什么样」的表，缺行 = 标准参考图会漏做');
     shapeBad++;
   }
@@ -3078,7 +3078,7 @@ if (!secBad) ok(`文档里的节数与 verify.js 实际节数一致（如实写 
      · GDD 变更记录里「当时的 `test.js` 398 项」**不算** —— 没有「全」字，是历史留档。
    ⚠️ **故意不做的**：不去校验文档里的数字「对不对」—— verify 算不出 test.js 的项数
      （它不能跑外部命令：本机 `spawnSync(node, …)` 返回 EBUSY）。所以改判「不许写死」，
-     让**唯一的现行基线**留在 `docs/优化队列.md` §1「门禁基线」（每轮收工都要更新）。
+     让**唯一的现行基线**留在 `docs/优化队列.md` §1「当前状态」的「门禁基线」行（每轮收工都要更新）。
    ⚠️ 扫描面**不含** `docs/优化队列.md` 与 `docs/改进待办.md`：它们按规矩是「只追加」的
      台账 / 日志，历史行里的旧数字必须留得住。 */
 console.log('\n[34-b] 文档里不许写死 test.js 的总项数（改说「以实跑输出为准」）');
@@ -3096,13 +3096,13 @@ let gateNumBad = 0;
       const m = line.match(/(\d{2,4})\s*项\s*全/);
       if (!m) return;
       err(`${rel}:${i + 1} 写死了 test.js 的总项数（「${m[1]} 项全…」）—— ` +
-          `改成「以实跑输出为准」，现行基线只留 docs/优化队列.md §1`);
+          `改成「以实跑输出为准」，现行基线只留 docs/优化队列.md §1「当前状态」`);
       gateNumBad++;
     });
   });
   if (!scanned) { err('34-b 要扫的文档一个都不存在（改了文件名就来更新这条断言）'); gateNumBad++; }
 })();
-if (!gateNumBad) ok('7 份现行口径文档都没写死 test.js 的总项数（现行基线只留在 docs/优化队列.md §1）');
+if (!gateNumBad) ok('7 份现行口径文档都没写死 test.js 的总项数（现行基线只留在 docs/优化队列.md §1「当前状态」）');
 
 
 /* ---------------- 35. 主循环的三条守则（三条都是踩过的坑） ----------------
@@ -3245,7 +3245,7 @@ let platBad = 0;
     ['new Image（直接建图片）', /(^|[^\w$.])new\s+Image\s*\(/],
     /* 帧调度也是平台能力：Web 与微信小游戏有全局 `requestAnimationFrame`，
        **小程序（非小游戏）页面里没有**，要换成 `canvas.requestAnimationFrame`。
-       ⚠️ 边界（2026-10-08 明确，见 `docs/每小时优化轮次规范.md` §9）：
+       ⚠️ 边界（2026-10-08 明确，见 `docs/每小时优化轮次规范.md` §9「自主决策：质量优先」）：
           `requestAnimationFrame` / `cancelAnimationFrame` **算**平台能力；
           `setTimeout` / `setInterval` **不算**（任何宿主都有，连 Node 都有），
           所以在业务代码里直接写定时器是**合法**的 —— 这条边界由用户提问触发、
@@ -4745,7 +4745,7 @@ console.log('\n[44] 档位槽的口径必须同源（档位键集 / 按文件枚
 
 
 /* ---------------- 45. 素材路线的硬约束要有机制（文档的「必留 / 已删」两张清单 == 磁盘现状） ----------------
-   `docs/AI素材方案.md` §8.4 写着两张清单 —— 一张是「⛔ 两个绝对不能删」（`fishpaint.js` /
+   `docs/AI素材方案.md` §8.4「清理清单」写着两张清单 —— 一张是「⛔ 两个绝对不能删」（`fishpaint.js` /
    `fishart.js`），一张是「3D 撤销时已清理」的产物清单 —— §8.5 还写着「改结论时要连门禁一起改」。
    但 2026-10-08 写下这些时**没有任何东西盯着它们**：规矩写在文档里、没有机制 ⇒ 这条规矩不成立
    （同型已栽多次：2026-10-07 那句「项数不再写进文档」就是这么漂回来的，后来才补了 34-b）。
@@ -4773,7 +4773,7 @@ console.log('\n[45] 素材路线的硬约束要有机制（文档的「必留 / 
   const ex = rel => fs.existsSync(path.join(ROOT, rel));
   let bad45 = 0;
 
-  /* ---------- 从 docs/AI素材方案.md §8.4 现算两张清单 ---------- */
+  /* ---------- 从 docs/AI素材方案.md §8.4「清理清单」现算两张清单 ---------- */
   const docSrc = fs.readFileSync(path.join(ROOT, 'docs/AI素材方案.md'), 'utf8');
   const sec = (docSrc.match(/### 8\.4[\s\S]*?(?=\n### )/) || [''])[0];
   const parse = txt => {
@@ -4829,7 +4829,7 @@ console.log('\n[45] 素材路线的硬约束要有机制（文档的「必留 / 
   MUST_BE_GONE.forEach(rel => {
     if (ex(rel)) {
       err(rel + ' 又出现了 —— 3D 路线已撤销（§8.4 清单）：要复活它就得连 '
-        + 'docs/AI素材方案.md §8.4 / §8.5 与本节清单一起改，不能悄悄加回来');
+        + 'docs/AI素材方案.md §8.4「清理清单」/ §8.5 与本节清单一起改，不能悄悄加回来');
       bad45++;
     }
   });
@@ -5048,33 +5048,47 @@ let fallbackBad = 0;
 })();
 
 
-/* ---------------- 48. src/ 里的文档节号引用必须连标题一起写 ----------------
+/* ---------------- 48. 源码里的文档节号引用必须连标题一起写 ----------------
    🔎 由来（2026-10-09，自动化轮）：`src/core/assets.js` 的「规格：」行指着
    开发者文档的第 7 节 —— 而第 7 节是「存档与兼容」，素材表其实在 17.13。
    **照这行注释去翻文档的人一定先翻错一节**，而且错了不报任何错：
    引用不是代码，没有编译器管它（同一个错还在 `tools/test.js` 的 Assets 段头抄了一遍）。
 
-   判据：`src/` 下每个 `.js` 里，凡出现「文档文件名 + 节号」形态的引用，
+   判据：扫描面里每个文件，凡出现「文档文件名 + 节号」形态的引用，
    **必须紧跟该节标题**（写在「」里），且标题必须真能在那份文档的**该节号**下找到。
    ⇒ 节号写错 / 标题抄错 / 文档改了标题忘同步，三种都当场报红。
 
-   ⚠️ 扫描面**只含 `src/`**（实测 6 处引用，全部已改成带标题）。
-      `tools/` 有意不进来：那边节号大量指**本文件自己的节**（`verify.js` 里 54 处，
-      如它自己的 §33 / §8.4），套同一条规则会大面积误伤 —— 要扩过去得先把
-      「指文档的节号」与「指本文件节号的」分开。这条边界已记进 `docs/改进待办.md`。
-   ⚠️ 自指防线：本节说明里**不写**完整形态的样例（那会被自己扫到）；
-      示例一律用不含数字的占位写法。 */
-console.log('\n[48] src/ 里的文档节号引用必须连标题一起写（节号 / 标题对不上就报红）');
-let refBad = 0, refFound = 0;
+   ⚠️ 扫描面 = `src/` 下的 `.js` + `tools/` 下的 `.js` / `.py`（2026-10-09 扩面）。
+      分界线就是**「引用前面带不带 `docs/` 全路径」**：带 ⇒ 指文档；
+      不带 ⇒ 指本文件自己的节（`verify.js` 里实测 65 处，天生不匹配）。
+      扩面前担心「套同一条规则会大面积误伤」，实测下来**误报 0**（带路径的引用共 15 处）。
+      已知网眼：写成「裸文件名 + 节号」（不像现在这样带 `docs/`）会溜过去 ——
+      实测当前 **0** 处，等真出现再加网（那时才有样本可验「网真的抓得住」）。
+   ⚠️ 豁免清单只许放「**暂时不能改**」的文件（生图在跑时的 `gen-art.py` 就是这么一例），
+      且必须写明**还账条件**；豁免条目**必须仍然命中至少一处**，否则报红 ——
+      不许让豁免活过它要遮的那个问题。
+   ⚠️ 自指防线：本节说明与错误文案里**不写**完整形态的样例（那会被自己扫到）；
+      示例一律用不含真文档名 / 不含数字节号的占位写法。 */
+console.log('\n[48] 源码里的文档节号引用必须连标题一起写（节号 / 标题对不上就报红）');
+let refBad = 0, refFound = 0, refExempt = 0;
 (function () {
   const files = [];
-  (function walk(dir) {
-    fs.readdirSync(path.join(ROOT, dir)).forEach(name => {
-      const rel = dir + '/' + name;
-      if (fs.statSync(path.join(ROOT, rel)).isDirectory()) walk(rel);
-      else if (/\.js$/.test(name)) files.push(rel);
-    });
-  })('src');
+  [['src', /\.js$/], ['tools', /\.(js|py)$/]].forEach(function (scan) {
+    (function walk(dir) {
+      fs.readdirSync(path.join(ROOT, dir)).forEach(name => {
+        const rel = dir + '/' + name;
+        if (fs.statSync(path.join(ROOT, rel)).isDirectory()) walk(rel);
+        else if (scan[1].test(name)) files.push(rel);
+      });
+    })(scan[0]);
+  });
+
+  /* 豁免（文件 → 原因，原因里必须写还账条件）。只许放「暂时不能改」的文件。 */
+  const EXEMPT = {
+    'tools/gen-art.py': '生图批次在跑时它是禁区，改它要等批次停；'
+      + '批次停后把画风与颜色标准 §7.4 那处补上标题「生成参数（v8/v9 实测值）」，然后删掉本条豁免',
+  };
+  const hit = {};
 
   /* 归一化：两边的写法本来就允许不同（行内代码 / 粗体 / 空白都不算差异） */
   const norm = s => String(s).replace(/[`*]/g, '').replace(/\s+/g, '');
@@ -5089,14 +5103,16 @@ let refBad = 0, refFound = 0;
     + num.replace(/\./g, '\\.') + '\\.?[^\\S\\n]+(.*)$', 'gm');
 
   files.forEach(rel => {
-    /* 反引号一并剥掉：`` `docs/x.md` §3 `` 与 `docs/x.md §3` 是同一个引用 */
+    /* 反引号一并剥掉：文档名包在反引号里与不包，是同一个引用（占位写法，不写真文档名/节号） */
     const txt = fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/`/g, '');
     REF.lastIndex = 0;
     let m;
     while ((m = REF.exec(txt))) {
       refFound++;
+      hit[rel] = (hit[rel] || 0) + 1;
       const docRel = 'docs/' + m[1], num = m[2], rawTitle = m[3];
       if (rawTitle === undefined) {
+        if (EXEMPT[rel]) { refExempt++; continue; }   /* 暂时不能改的文件：只放过「没写标题」这一项 */
         err(`${rel} 引用了 ${docRel} 的第 ${num} 节，但**没写该节标题** —— `
           + '`docs/<文件名>.md` + 节号 + 「标题」三件套缺一不可（节号会漂，标题不会）');
         refBad++;
@@ -5125,14 +5141,22 @@ let refBad = 0, refFound = 0;
       }
     }
   });
+  /* 抓不到就报错：豁免条目必须仍然命中，否则它已经没用了（问题修完了 / 文件被改了） */
+  Object.keys(EXEMPT).forEach(f => {
+    if (!hit[f]) {
+      err(`第 ㊽ 节的豁免「${f}」现在一处引用都命中不到 —— 它要遮的问题已经没了，请删掉这条豁免`);
+      refBad++;
+    }
+  });
   if (!refFound) {
-    err('src/ 下一处「文档文件名 + 节号」形态的引用都找不到 —— 要么全删了、'
+    err('源码下一处「文档文件名 + 节号」形态的引用都找不到 —— 要么全删了、'
       + '要么写法变了（改了措辞就来更新第 ㊽ 节）');
     refBad++;
   }
 })();
 if (!refBad) {
-  ok(`src/ 里 ${refFound} 处文档节号引用都连标题写，且标题与文档里该节的实际标题相符`);
+  ok(`源码里 ${refFound} 处文档节号引用都连标题写，且标题与文档里该节的实际标题相符`
+    + `（含 tools/；另有 ${refExempt} 处按豁免待还账）`);
 }
 
 

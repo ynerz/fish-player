@@ -5591,12 +5591,25 @@ let deepBad = 0;
       第 32-g 眼里的一个「消费方」，真消费方被删掉都不报红（㉓ / 33-f 同款坑）。
       只有四个「元字段」（id / name / tag / x 这类通用名）例外，它们在别处本来就有消费方。
    ⚠️ 阈值 / 冷却这些数字**不在这里断言**（它们逐条写在内容表与 config 里，
-      写死一份就成了第二份真相）；这里只断言「它们是正数 / 在区间里」这种结构性质。 */
+      写死一份就成了第二份真相）；这里只断言「它们是正数 / 在区间里」这种结构性质。
+
+   2026-10-10（N7 三期）**加的三组**（有分支的互动）——
+     · ③-b `choices` / `need` 的**结构**：选项至少 2 个、每项有 label 与非空台词；
+       `need` 必须指向**真实存在**的那条事件、下标必须落在那条事件的选项范围里。
+       ⚠️ 写错 id / 下标**不报错**，只会让那条事件**永远不出现** —— 与本节其余各条同一类静默失效。
+     · ⑦ 新增两条接线（`Story.choose` / `d.choices` / `onPick`）：缺一条就是「点了没反应」。
+     · ⑦-d 分支的**链路同源**：`tryFire()` 必须问过 `needOk()`、`needOk()` 必须读存档里的
+       选择计数、`choose()` 必须把选择写进存档 —— 三段断任何一段，`need` 就退化成一个
+       没人读的字段（门恒开 / 恒关，都不报错）。 */
 console.log('\n[50] 隔壁钓鱼佬：事件可复现、奖励只许纯外观、NPC / 台词 / 接线都有消费方');
 let storyBad = 0;
 (function () {
   const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   const coreSrc = fs.readFileSync(path.join(ROOT, 'src/core/story.js'), 'utf8');
+  /* ⚠️ 判据一律吃**剥过注释**的这一份（硬规矩 第 1 条：只扫代码不扫注释）——
+     `core/story.js` 的文件头注释里逐条写着 `needOk()` / `st.pick` 这类词，
+     拿原文当判据等于让注释喂饱自己（注释里写同样的词必须仍能报红）。 */
+  const coreCode = strip(coreSrc);
   const stateSrc = fs.readFileSync(path.join(ROOT, 'src/core/state.js'), 'utf8');
   const panelSrc = strip(fs.readFileSync(path.join(ROOT, 'src/ui/panels.js'), 'utf8'));
   const sceneSrc = strip(fs.readFileSync(path.join(ROOT, 'src/render/scene.js'), 'utf8'));
@@ -5646,6 +5659,51 @@ let storyBad = 0;
   });
   if (evBad.length) { err('事件表这些地方不对：' + evBad.join('；')); storyBad++; }
 
+  /* ③-b 🔴 有分支的互动（N7 三期）：`choices` / `need` 的**结构**必须能撑起「点一下继续」。
+     两种坏法都是静默的：
+       · 选项缺 `label` ⇒ 界面上一个没有字的按钮（玩家不知道那是什么）；
+         选项缺 `lines` ⇒ 点了之后他不会说话（面板要么空白要么直接关掉）；
+       · `need.pick` / `need.opt` 写错 ⇒ 那条事件**永远不出现**（不报错、也不会有人发现）。
+     判据拿内容表**现算**（不写死任何 id / 下标），且与本节其余各条一样只断言结构性质。 */
+  const evById = {};
+  EVS.forEach(ev => { evById[ev.id] = ev; });
+  const brBad = [];
+  let withChoices = 0, withNeed = 0;
+  EVS.forEach(ev => {
+    if (ev.choices !== undefined) {
+      withChoices++;
+      if (!Array.isArray(ev.choices) || ev.choices.length < 2) {
+        brBad.push(ev.id + ' 的 choices 不是「至少 2 项」的数组（只有一个选项就不叫分支）');
+      } else {
+        ev.choices.forEach((c, i) => {
+          const at1 = ev.id + ' 的第 ' + (i + 1) + ' 个选项';
+          if (!c || typeof c !== 'object' || Array.isArray(c)) { brBad.push(at1 + '不是对象'); return; }
+          if (typeof c.label !== 'string' || !c.label.trim()) brBad.push(at1 + '没有 label（按钮上没字）');
+          if (!Array.isArray(c.lines) || !c.lines.length
+            || c.lines.some(s => typeof s !== 'string' || !s.trim())) {
+            brBad.push(at1 + '没有台词 —— 点了之后他不会说话');
+          }
+        });
+      }
+    }
+    if (ev.need !== undefined) {
+      withNeed++;
+      const n = ev.need;
+      if (!n || typeof n !== 'object' || Array.isArray(n)) { brBad.push(ev.id + ' 的 need 不是对象'); return; }
+      if (typeof n.opt !== 'number' || n.opt < 0 || n.opt % 1 !== 0) {
+        brBad.push(ev.id + ' 的 need.opt 不是非负整数（它是选项下标）');
+      }
+      const src = evById[n.pick];
+      if (!src) {
+        brBad.push(ev.id + ' 的 need.pick 指向不存在的事件「' + n.pick + '」—— 这条事件永远不会出现');
+      } else if (!Array.isArray(src.choices) || !(n.opt >= 0 && n.opt < src.choices.length)) {
+        brBad.push(ev.id + ' 的 need 指向「' + n.pick + '」的第 ' + n.opt
+          + ' 项，而那条事件没有这一项 —— 门永远打不开（他会一直等一个不存在的选择）');
+      }
+    }
+  });
+  if (brBad.length) { err('分支互动配得不对：' + brBad.join('；')); storyBad++; }
+
   /* ④ 🔴 奖励硬约束：**键只许在纯外观白名单里**，绝不许给金币 / 鱼饵 / 装备 / 掉率。
      白名单现在**是空的** —— 本轮两条事件都是「纯剧情、零奖励」，那是**有意**的。
      要给东西的那一轮必须同时改这里并写明是纯外观（这是有意留的一道闸门）。 */
@@ -5678,14 +5736,14 @@ let storyBad = 0;
        不能只认「画面层读没读」） */
   const unread = [];
   EVS.forEach(ev => Object.keys(ev).forEach(k => {
-    if (!has(coreSrc, 'ev.' + k) && !has(mainSrc, 'ev.' + k)) unread.push('事件 ' + ev.id + '.' + k);
+    if (!has(coreCode, 'ev.' + k) && !has(mainSrc, 'ev.' + k)) unread.push('事件 ' + ev.id + '.' + k);
   }));
   npcIds.forEach(id => Object.keys(NPCS[id]).forEach(k => {
     /* 场景层用 `nb.` 接这份数据（`var nb = S.neighbor`）；UI 层用 `npc.` 显示名字 / 身份 */
     const inScene = new RegExp('nb\\.' + k + '(?![A-Za-z0-9_$])').test(sceneSrc);
     const inUi = new RegExp('npc\\.' + k + '(?![A-Za-z0-9_$])').test(panelSrc)
       || new RegExp('npc\\.' + k + '(?![A-Za-z0-9_$])').test(mainSrc)
-      || new RegExp('npc\\.' + k + '(?![A-Za-z0-9_$])').test(strip(coreSrc));
+      || new RegExp('npc\\.' + k + '(?![A-Za-z0-9_$])').test(coreCode);
     if (!inScene && !inUi) unread.push('NPC ' + id + '.' + k);
   }));
   if (unread.length) { err('内容表里这些字段没人读：' + unread.join('、')); storyBad++; }
@@ -5704,6 +5762,11 @@ let storyBad = 0;
     [mainSrc, 'S.hitNeighbor(', 'main.js 没问过「点在不在他身上」—— 点他会变成抛竿'],
     [mainSrc, 'G.Story.talk(', 'main.js 没调 talk() —— 点中了也不说话'],
     [coreSrc, 'o.lines =', 'core/story.js 的 talk() 没给出对话内容（面板会弹一张空卡）'],
+    /* ⬇ N7 三期：有分支的互动 —— 这四环缺任何一环，玩法就是「点了没反应」（且不报错） */
+    [coreSrc, 'function choose(', 'core/story.js 没有 choose() —— 玩家选了也没人把下一段交回来'],
+    [mainSrc, 'G.Story.choose(', 'main.js 没把玩家的选择交回引擎 —— 分支不落存档、后续事件永远不出现'],
+    [panelSrc, 'd.choices', 'panels.js 的对话面板不渲染选项 —— 分支在界面上根本不存在'],
+    [panelSrc, 'onPick', 'panels.js 没把点击交出去 —— 点了选项没有任何反应'],
   ];
   const miss = wires.filter(w => !has(w[0], w[1]));
   if (miss.length) { err('隔壁钓鱼佬的接线缺了 ' + miss.length + ' 处：\n     ' + miss.map(w => w[2]).join('\n     ')); storyBad++; }
@@ -5724,8 +5787,7 @@ let storyBad = 0;
   }
 
   /* ⑦-c 闲聊池（`talk`）：结构必须能撑起「点一下搭一句」。
-     ⚠️ 只断言**结构**，不写死句子数 —— 池子长度是内容，随时会加。 */
-  const talkBad = [];
+     ⚠️ 只断言**结构**，不写死句子数 —— 池子长度是内容，随时会加。 */  const talkBad = [];
   let withPool = 0;
   npcIds.forEach(id => {
     const t = NPCS[id].talk;
@@ -5740,6 +5802,34 @@ let storyBad = 0;
   /* ⚠️ 空集自检：判据取自内容表，抓不到内容表时**必须报错**而不是空过 */
   if (!npcIds.length) talkBad.push('NPC 表是空的（判据抓不到任何东西，先修本节判据本身）');
   if (talkBad.length) { err('闲聊池不对：' + talkBad.join('；')); storyBad++; }
+
+  /* ⑦-d 🔴 分支互动的**三段链路**必须都在（与 ⑦-b「命中框同源」同一类判据）：
+     · `tryFire()` 要问过 `needOk()` —— 不然 `need` 只是个没人读的字段（门恒开）；
+     · `needOk()` 要读存档里的选择计数（`.pick` / `.opt` 至少各一处）—— 不然门恒关；
+     · `choose()` 要把选择写进存档（`st.pick`）—— 不然「他借到过线」留不住，
+       后续那条 `need` 门永远打不开（选完就忘，玩家会以为选项是装饰）。
+     三段断任何一段都**不报错**，只是那条机制静默失灵。 */
+  const brChain = [];
+  const fireBody = bodyOf(coreCode, 'function tryFire(');
+  const needBody = bodyOf(coreCode, 'function needOk(');
+  const chooseBody = bodyOf(coreCode, 'function choose(');
+  /* ⚠️ 判「某个字段真的被读了」必须**认标识符边界**：`has(body,'st.pick')` 这种子串比对
+     会被一次改名喂饱 —— 反向验证 V10 当场抓到（把 `st.pick[…]` 改成 `st.picks[…]` 之后，
+     断言照样是绿的，而选择其实没写进存档）。与 ⑥ 里 `nb\.x(?![A-Za-z0-9_$])` 同一套写法：
+     前缀排除 `.`/`$`/词字符、后缀不许再跟词字符 —— 于是 `st.picks` / `an.opt` 都不算命中。 */
+  const readsField = (src, expr) => new RegExp('(?:^|[^\\w$.])' + expr + '(?![\\w$])').test(src);
+  if (!has(fireBody, 'needOk(')) brChain.push('tryFire() 没问过 needOk()（事件上的 need 没人读 ⇒ 门恒开）');
+  if (!readsField(needBody, 'n\\.pick') || !readsField(needBody, 'n\\.opt')) {
+    brChain.push('needOk() 没读存档里的选择计数（.pick / .opt 少了哪个就判不出「选过没」）');
+  }
+  if (!readsField(chooseBody, 'st\\.pick')) brChain.push('choose() 没读存档里的选择（s.story.pick）');
+  /* ⚠️ 「写进存档」必须认**赋值**本身，不能只认「提到过 st.pick」—— `choose()` 里本来
+     就有一次**读**（`var arr = st.pick[ev.id]`），只比对子串的话把赋值那句改名照样绿
+     （反向验证 V10 抓到）。 */
+  if (!/st\.pick\s*\[[^\]]*\]\s*=(?!=)/.test(chooseBody)) {
+    brChain.push('choose() 没把选择写进存档（只读到、没写：分支的下一次触发就查无此事）');
+  }
+  if (brChain.length) { err('分支互动的链路没接上：' + brChain.join('、')); storyBad++; }
 
   /* ⑧ 存档：字段要在 blank() 里，migrate() 要纠正**每一个**容器类型（脏档兜底）
      ⚠️ 判据必须认**字段声明 / 赋值本身**，不能只认「这段文字里出现过 story 这个词」——
@@ -5795,8 +5885,11 @@ let storyBad = 0;
 
   if (!storyBad) {
     ok('隔壁钓鱼佬在位：' + npcIds.length + ' 个 NPC / ' + EVS.length + ' 条事件，'
-      + '字段全有人读、接线齐全（含点他搭话那条通路）、命中框与画法同源、'
-      + withPool + ' 个闲聊池结构合法、存档 story 的 ' + contKeys.length + ' 个容器两边对得上且有迁移纠正、'
+      + '字段全有人读、接线齐全（含点他搭话与分支选项两条通路）、命中框与画法同源、'
+      + withPool + ' 个闲聊池结构合法、'
+      + (withChoices ? withChoices + ' 条事件带分支（其中 ' + withNeed + ' 条按先前的选择开门）'
+        : '没有带分支的事件') + '、'
+      + '存档 story 的 ' + contKeys.length + ' 个容器两边对得上且有迁移纠正、'
       + '奖励白名单为空（纯剧情）、引擎不用 Math.random');
   }
 })();

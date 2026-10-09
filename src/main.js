@@ -346,7 +346,29 @@
   /* 隔壁钓鱼佬真的开口了（引擎已经记完账）→ 开对话。
      复用现有 modal：底栏会自动进禁用态、ESC / 点遮罩都能关，不必另写一套。 */
   function onStoryEvent(ev, npc) {
-    P.open('dialog', { title: ev.title, npc: npc, lines: ev.lines });
+    P.open('dialog', dialogPayload(ev, npc));
+  }
+
+  /* 对话面板要的全部载荷。**写成「造一个对象并裸返回」的函数**（与 `core/story.js`
+     的 `payload()` 同一个写法）：`title / npc / lines / choices` 都是喂给 UI 的数据，
+     `onPick` 是 UI 自己的接线（点了选项找谁要下一段）—— 对象整体交给 `panels.js`，
+     不是本模块的内部状态。 */
+  function dialogPayload(ev, npc) {
+    var d = { title: ev.title, npc: npc, lines: ev.lines };
+    if (ev.choices && ev.choices.length) {
+      d.choices = ev.choices;
+      d.onPick = function (i) { pickBranch(ev, i); };
+    }
+    return d;
+  }
+
+  /* 玩家在分支里点了一项（N7 三期）：引擎把那一项的台词作为下一段交回来
+     （同时把选择记进存档）。没有下一段（越界 / 内容表没配）就收起面板 ——
+     与 `tryTalkAt()` 那条同款：「点了没反应」比「弹一张空卡」好排查。 */
+  function pickBranch(ev, i) {
+    var next = G.Story.choose(ev, i);
+    if (next) P.open('dialog', next);
+    else P.close();
   }
 
   /* 点在邻居身上了吗？是 → 他搭一句，返回 true（调用方不要再走 handlePress）。

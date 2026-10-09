@@ -25,13 +25,26 @@
         口径与断言（`verify` 第 50 节盯着 reward 的键）。本轮两条事件 reward 为空。
 
      ④ **存档只记事实**：`s.story.fired`（各事件触发过几次，`once` 就靠它）、
-        `s.story.at`（最近一次触发的时刻）与 `s.story.talk`（跟各 NPC 主动搭话过几次，
-        闲聊池靠它轮流）。重开游戏「这条我见过没」不会变。
+        `s.story.at`（最近一次触发的时刻）、`s.story.talk`（跟各 NPC 主动搭话过几次，
+        闲聊池靠它轮流）与 `s.story.pick`（各事件**每个选项各被选过几次**，
+        `need` 那道门与以后的任何「上次我选了什么」都靠它）。重开游戏这些事实都不会变。
 
      ⑤ **主动搭话（`talk()`）不走概率**：玩家点了画布上那个人，就该有回应 ——
         概率门是给「事件找上门」用的（无端弹窗需要克制），不是给「玩家主动问」用的。
         轮换靠 `s.story.talk` 计数**取模**：同一次点击在同一份存档上永远给同一句，
         而连点不会卡在第一句上。**它同样不许碰 `Math.random()`**（口径 ①）。
+
+     ⑥ **有分支的互动（N7 三期）**：事件可以带 `choices`（≥2 项）—— 面板把他的
+        `lines` 说完就摆出这些按钮，`choose(ev, i)` 把第 i 项的台词作为**下一段**交回去，
+        并把「选了哪一项」记进 `s.story.pick[事件 id]`（**计数数组**，下标 = 选项序号）。
+        · `need: { pick: '<事件 id>', opt: <序号> }` = 「那条事件的那一项被选过至少一次」
+          才可能出现 —— 这是「选择真的改了世界」的**唯一机制**（`repay` 靠它）。
+        · 记的是**计数**不是「最后一次选了啥」：同一条事件可以重复触发
+          （`borrow` 就是 `once: false`），只存最后一次会让先前的选择凭空消失。
+        · 🔴 **没有第二套「好感度」**：`fired` / `talk` / `pick` 就是这个世界的全部事实 ——
+          再添一个 `favor` 数值只会多一份真相，而且**没有任何消费方**（死字段那类问题）。
+        · `choose()` 与 `talk()` 同款：**不走概率门**（玩家已经点了，回应必须来），
+          越界 / 那条事件没有 `choices` ⇒ 给 `null`（调用方据此收起面板，不猜一项）。
    ========================================================= */
 
 window.G = window.G || {};
@@ -67,6 +80,7 @@ G.Story = (function () {
     if (!t.fired || typeof t.fired !== 'object') t.fired = {};
     if (!t.at || typeof t.at !== 'object') t.at = {};
     if (!t.talk || typeof t.talk !== 'object') t.talk = {};
+    if (!t.pick || typeof t.pick !== 'object') t.pick = {};
     if (s) s.story = t;            /* 顺手纠正回去，省得每个调用点各纠正一次 */
     return t;
   }
@@ -98,6 +112,22 @@ G.Story = (function () {
     return true;
   }
 
+  /* 「那条事件的第 i 项被选过几次」—— **纯读、不新建**（`tryFire()` 是纯函数，
+     别在判定里往存档里写东西；写是 `choose()` 的事）。 */
+  function pickTimes(st, id, i) {
+    var a = st.pick && st.pick[id];
+    return (a && typeof a === 'object' && typeof a[i] === 'number') ? a[i] : 0;
+  }
+
+  /* 存档事实门（`need`）：它引用的那次选择必须**真的发生过**。
+     ⚠️ 写错 id / 下标不会报错，只会让这条事件**永远不出现** —— 所以 `verify` 第 50 节
+        拿内容表现算（id 必须存在、下标必须落在那条事件的选项范围里），抓的就是这个。 */
+  function needOk(ev, st) {
+    var n = ev.need;
+    if (!n) return true;
+    return pickTimes(st, n.pick, n.opt) > 0;
+  }
+
   /* 按顺序挑第一个命中且「过门」的事件。`p` = { field, wx, tm, seq, now }。
      🔴 纯函数（只看入参 + 存档里的已触发记录）：同一份存档 + 同一组入参 ⇒ 同一个结果。
         测试就是靠这条钉住「可复现」，别再往里加 `Math.random()` / `Date` 之类。 */
@@ -107,6 +137,7 @@ G.Story = (function () {
     for (var i = 0; i < list.length; i++) {
       var ev = list[i];
       if (!condOk(ev, p)) continue;
+      if (!needOk(ev, st)) continue;
       if (ev.once && (st.fired[ev.id] || 0) > 0) continue;
       var last = st.at[ev.id];
       if (last && (p.now - last) < ev.cooldownMs) continue;
@@ -171,11 +202,14 @@ G.Story = (function () {
   }
 
   /* 对话面板要的那份载荷。**写成函数而不是在 `talk()` 里直接 `return {…}`** ——
-     与 `probeOf()` 同一个理由：返回块里的 `键: 值` 会被 `exportKeys()` 当成导出名。 */
-  function payload(npc, lines) {
+     与 `probeOf()` 同一个理由：返回块里的 `键: 值` 会被 `exportKeys()` 当成导出名。
+     `title` 是面板标题：主动搭话走默认「搭话」，事件带自己的标题（`borrow` / `还线` …）——
+     **分支的下一段也要带上它**，否则面板在半路会从「借线」变成「搭话」。 */
+  function payload(npc, lines, title) {
     var o = {};
     o.npc = npc;
     o.lines = lines;
+    o.title = title || '';
     return o;
   }
 
@@ -200,6 +234,33 @@ G.Story = (function () {
     st.talk[id] = n + 1;
     if (G.State && G.State.save) G.State.save(true);   /* 与 mark() 同样立刻落盘 */
     return payload(npc, [line]);
+  }
+
+  /* 玩家在**分支**里点了一项（N7 三期）→ 返回下一段对话的载荷；
+     没有下一段 / 下标不合法 ⇒ `null`（调用方收起面板，**不猜一项**）。
+     🔴 三条口径：
+       · **不走概率门**（口径 ⑥）：与 `talk()` 同款 —— 玩家已经点了，回应必须来。
+       · **选项下标只认内容表**：越界、那条事件没有 `choices`、那一项没有台词 ⇒ 一律 `null`。
+         「点了没反应」比「弹一张空白卡」好排查得多。
+       · **记的是次数**：`s.story.pick[事件 id][选项下标] += 1`，让「他借到过线」这件事
+         在存档里留得住（`repay` 那条的 `need` 就是读它）。**立刻落盘** ——
+         与 `mark()` / `talk()` 同一条口径：玩家可能在面板看完就关掉页面。
+       · 🔴 那个数组**补成密集的**（每个选项一个 0，不是稀疏数组）：稀疏数组
+         JSON 化会变成 `[null,1]` —— 存档读起来像坏数据，也容易被后来的人当成脏档去修。 */
+  function choose(ev, i) {
+    var cs = (ev && ev.choices) || null;
+    if (!cs || !cs.length) return null;
+    if (!(i >= 0 && i < cs.length)) return null;
+    var c = cs[i];
+    if (!c || !Array.isArray(c.lines) || !c.lines.length) return null;
+
+    var st = rec();
+    var arr = st.pick[ev.id];
+    if (!arr || typeof arr !== 'object' || !Array.isArray(arr)) { arr = []; st.pick[ev.id] = arr; }
+    for (var j = 0; j < cs.length; j++) { if (typeof arr[j] !== 'number') arr[j] = 0; }
+    arr[i] = arr[i] + 1;
+    if (G.State && G.State.save) G.State.save(true);
+    return payload(npcOf(ev.npc), c.lines, ev.title);
   }
 
   /* `init({ onEvent })`：`onEvent(ev, npc, reward)` 由 UI 层实现（现在是开对话面板）。
@@ -246,6 +307,7 @@ G.Story = (function () {
     consider: consider,
     neighbor: neighbor,
     talk: talk,
+    choose: choose,
     tryFire: tryFire,
     rollFor: rollFor,
     reset: reset,

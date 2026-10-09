@@ -3852,6 +3852,118 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
     ok(talkThrow === '', '存档里的 talk 是数字时 talk() 不抛（脏档兜底）'
       + (talkThrow ? ' —— ' + talkThrow : ''));
     clean();
+
+    /* ---------- ⑫ 有分支的互动（N7 三期）：选项记账 + 后续事件按选择开门 ---------- */
+    var brEv = null, gated = null;
+    for (var bi = 0; bi < G.STORY_EVENTS.length; bi++) {
+      var bEv = G.STORY_EVENTS[bi];
+      if (!brEv && bEv.choices && bEv.choices.length) brEv = bEv;
+      if (!gated && bEv.need) gated = bEv;
+    }
+    ok(!!brEv, '内容表里有带 choices 的事件（有分支的互动在位）');
+    ok(!!gated, '内容表里有靠 need 开门的事件（选择真的要能改世界）');
+
+    clean();
+    /* 老档（story 里还没有 pick）走一次判定就会被 `rec()` 补成容器 —— 与 talk 那条同款 */
+    S7.tryFire({ field: 'D', wx: 'clear', tm: 'day', seq: 1, now: 0 });
+    ok(St.get().story && typeof St.get().story.pick === 'object',
+       '缺 pick 的（老）存档会被兜底补成容器（选项计数有处可存）');
+
+    var db = S7.choose(brEv, 0);
+    ok(db && db.npc === G.STORY_NPCS[brEv.npc], 'choose() 给出下一段载荷，说话人就是这条事件的 NPC');
+    ok(db && db.title === brEv.title, '下一段带着这条事件的标题（面板不会半路降级成「搭话」）');
+    ok(db && Array.isArray(db.lines) && db.lines.length
+      && db.lines.join('|') === brEv.choices[0].lines.join('|'),
+       '给的是**被选中那一项**的台词（不是别项的、也不是开场那段）');
+    ok(St.get().story.pick[brEv.id] && St.get().story.pick[brEv.id][0] === 1,
+       '选择写进了存档：pick[事件][选项] 计数 = 1');
+
+    var db2 = S7.choose(brEv, 0);
+    ok(db2.lines.join('|') === db.lines.join('|'), '同一项两次给出同一段台词（选项台词不掷骰子）');
+    ok(St.get().story.pick[brEv.id][0] === 2, '再选一次是**累加**而不是覆盖（先前的选择留得住）');
+
+    /* 计数数组必须是**密集**的：稀疏数组 JSON 化会写成 `[null,1]` —— 存档读起来像坏数据 */
+    clean();
+    S7.choose(brEv, 1);
+    var arrPick = St.get().story.pick[brEv.id];
+    ok(Array.isArray(arrPick) && arrPick.length === brEv.choices.length
+      && arrPick.every(function (n) { return typeof n === 'number'; }),
+       '选项计数数组是密集的（长度 = 选项数、每项都是数字，不会 JSON 成 [null,1]）');
+
+    ok(S7.choose(brEv, brEv.choices.length) === null, '越界的选项下标给 null（调用方收起面板，不猜一项）');
+    ok(S7.choose(brEv, -1) === null, '负数下标也给 null');
+    var noCh = { id: 'zzz-no-choices', npc: brEv.npc, title: 'x', once: false,
+                 cooldownMs: 1, chance: 1, cond: {}, reward: {}, lines: ['探测用'] };
+    G.STORY_EVENTS.push(noCh);
+    var rNo = '';
+    try { rNo = S7.choose(noCh, 0); } catch (e) { rNo = 'throw:' + e.message; }
+    G.STORY_EVENTS.pop();
+    ok(rNo === null, '没有 choices 的事件调 choose() 给 null（不抛）');
+    var emptyOpt = { id: 'zzz-empty-opt', npc: brEv.npc, title: 'x', once: false, cooldownMs: 1,
+                     chance: 1, cond: {}, reward: {}, lines: ['探测用'],
+                     choices: [{ label: '甲', lines: [] }, { label: '乙', lines: ['探测用'] }] };
+    G.STORY_EVENTS.push(emptyOpt);
+    var rEmpty = '';
+    try { rEmpty = S7.choose(emptyOpt, 0); } catch (e) { rEmpty = 'throw:' + e.message; }
+    G.STORY_EVENTS.pop();
+    ok(rEmpty === null, '选项没台词时给 null（不弹一张空白对话卡）');
+
+    /* 🔴 「选择真的改了世界」：把分支与它打开的那条事件**双向**验一遍 ——
+       只验「选了之后会出现」会让「门恒开」也通过（那样选项就成了装饰）。 */
+    var brBase = { field: 'D', wx: 'clear', tm: (gated.cond.tm && gated.cond.tm[0]) || 'day' };
+    function seqHit(ev, base) {
+      for (var s = 1; s <= 600; s++) {
+        var pp = { field: base.field, wx: base.wx, tm: base.tm, seq: s, now: 0 };
+        var got2 = S7.tryFire(pp);
+        if (got2 && got2.id === ev.id) return s;
+      }
+      return 0;
+    }
+    clean();
+    ok(seqHit(gated, brBase) === 0, '还没做过那次选择 ⇒ 靠 need 开门的事件一次都不出现');
+    S7.choose(brEv, 0);
+    ok(seqHit(gated, brBase) > 0, '选了它要的那一项之后 ⇒ 它真的会来（选择改了世界）');
+    clean();
+    S7.choose(brEv, 1);
+    ok(seqHit(gated, brBase) === 0,
+       '选了另一项 ⇒ 那条事件仍然不出现（门认的是**哪一项**，不是「选过就算」）');
+
+    /* 立刻落盘：**读盘**验（与 talk 那条同款 —— 只验 save(true)+load() 无论如何都是绿的） */
+    function diskPick() {
+      var k2 = (G.Profile && G.Profile.key) ? G.Profile.key() : CFG.saveKey;
+      var raw = localStorage.getItem(k2);
+      if (!raw) return -1;
+      try {
+        var o = JSON.parse(raw);
+        var a = o.story && o.story.pick && o.story.pick[brEv.id];
+        return (a && a[0]) || 0;
+      } catch (e) { return -2; }
+    }
+    clean();
+    St.save(true);
+    var pickBefore = diskPick();
+    S7.choose(brEv, 0);
+    ok(pickBefore === 0 && diskPick() === 1,
+       '选择**立刻落盘**（不等自动保存的节流窗口）—— 盘上 before=' + pickBefore + ' after=' + diskPick());
+
+    St.save(true);
+    St.load();
+    ok(St.get().story.pick[brEv.id] && St.get().story.pick[brEv.id][0] >= 1,
+       '存档往返之后选项计数还在');
+
+    var cash3 = { coin: St.get().coin, medals: St.get().medals, eco: St.get().eco };
+    S7.choose(brEv, 0);
+    ok(St.get().coin === cash3.coin && St.get().medals === cash3.medals && St.get().eco === cash3.eco,
+       '分支选择不动金币 / 纪念币 / 生态值（选项不是第二个经济系统）');
+
+    St.get().story.pick = 7;
+    var pickThrow = '';
+    try { S7.choose(brEv, 0); } catch (e) { pickThrow = e.message; }
+    ok(pickThrow === '', '存档里的 pick 是数字时 choose() 不抛（脏档兜底）'
+      + (pickThrow ? ' —— ' + pickThrow : ''));
+    ok(Array.isArray(St.get().story.pick[brEv.id]),
+       '脏档被纠正成数组（否则选项计数写不进去）');
+    clean();
   } finally {
     /* 恢复现场：引擎内存态、天气桩、面板层、存档里的触发记录、idle 开关 */
     G.Weather.snapshot = realSnap;

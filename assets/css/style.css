@@ -981,4 +981,6 @@ input[type=range]{ width:130px; accent-color:var(--c-primary); }
   background:var(--c-panel-2); border-left:3px solid var(--c-primary);
   border-radius:8px; padding:10px 12px;
 }
-.dlg-foot{ display:flex; justify-content:flex-end; margin-top:16px; }
+/* ⚠️ 有分支时这里会并排放**两个以上**按钮（`choices`），所以必须有 gap ——
+   没 gap 两个选项会贴在一起，看着像一个按钮；`flex-wrap` 兜住长标签（窄屏 / 大字号）。 */
+.dlg-foot{ display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap; margin-top:16px; }

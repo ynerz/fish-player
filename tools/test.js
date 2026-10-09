@@ -1311,6 +1311,22 @@ const ocCap = Fish.offlineCatchUp(999999, 30);
 ok(ocCap.seconds === CFG.idle.maxCatchUp, '离线补算按 idle.maxCatchUp 封顶', '实际 ' + (ocCap && ocCap.seconds));
 ok(ocCap.recent.length <= 5, '离线再久，代表渔获也不超过 5 条（播报栏不会刷屏）');
 
+/* ---- 非数的秒数必须被拒之门外 ----
+   lastSeen 是从存档里读出来的：脏档兜底扫不到的键可能不是数字，
+   `(Date.now() - lastSeen) / 1000` 就是 NaN —— 原实现里 NaN 会一路
+   溜进抽样与累加，`stats.catches += NaN` 把统计永久污染（且不报错）。 */
+(function () {
+  St.reset(); Fish.init({});
+  const casts0 = St.get().stats.catches, coin0 = St.get().coin;
+  const bad = [NaN, Infinity, -Infinity, -3600];
+  const allNull = bad.every((v) => Fish.offlineCatchUp(v, 30) === null);
+  ok(allNull, 'NaN / ±Infinity / 负数的离线秒数一律不补算（返回 null）');
+  ok(St.get().stats.catches === casts0, '拒绝后不写 stats.catches（NaN 不许进统计）');
+  ok(St.get().coin === coin0, '拒绝后不动金币');
+  ok(Fish.offlineCatchUp(3600, NaN) !== null && isFinite(Fish.offlineCatchUp(3600, NaN).count),
+     '单竿耗时为非数时退回默认 35 秒，照常补算');
+})();
+
 G_('Fishing · 离线补算的分维计数');
 St.reset();
 const baitId = St.curBait().id;
@@ -2632,6 +2648,35 @@ G_('Weather · 游戏内时钟的偏移读自 config');
 
   /* 复位：把时段放回原样（`set` 会把 tClock 对齐到该时段的起点，天气本身不变） */
   G.Weather.set(prev.wx.key, prev.tm.key);
+})();
+
+/* =========================================================
+   Weather —— 同一帧里的「换天 + 跨时段」只播报一次
+   天气到期（left ≤ 0）与游戏内时钟跨过时段边界可能落在同一个 update(dt) 里；
+   原来各自 emit，订阅方一帧连收两次快照：顶栏芯片重写两遍、
+   BGM 参数也连换两遍（第二次才是最终态）。用固定随机种子把
+   「天气时长」钉在最小值上，就能确定性造出同帧双变。
+   ========================================================= */
+G_('Weather · 同帧双变只播报一次');
+(function () {
+  const rnd = Math.random;
+  Math.random = () => 0;                       // rollWeather 挑第一个 / U.range 取下界 → left = minDur
+  const prevSnap = G.Weather.snapshot();
+  let n = 0;
+  const fn = () => { n++; };
+  G.Weather.on(fn);
+  try {
+    G.Weather.init(0);                         // tClock = 0 → 第 0 段（晨）
+    n = 0;
+    G.Weather.update(119);                     // left: 180 → 61（还不换）
+    ok(n === 0, '未到期且未跨时段时不播报', '实际播报 ' + n + ' 次');
+    G.Weather.update(181);                     // tClock 恰好跨过 300s 边界，left 同时到期
+    ok(n === 1, '同一帧里「换天 + 跨时段」合并成一次播报', '实际播报 ' + n + ' 次');
+  } finally {
+    Math.random = rnd;
+    /* 复位条件（监听函数是纯计数、留着无害；on 没有退订接口） */
+    G.Weather.set(prevSnap.wx.key, prevSnap.tm.key);
+  }
 })();
 
 /* =========================================================

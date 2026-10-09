@@ -374,10 +374,14 @@ G.Fishing = (function () {
   /* ---------------- 离线补算 ----------------
      页面关闭期间如果开着挂机，回来时按保守速率补一部分收益 */
   function offlineCatchUp(seconds, onlineCycle) {
+    /* ⚠️ 不做数就退：NaN / 负数 / 无穷会一路溜进下面的抽样与累加
+       （`s.stats.catches += n` 直接把 NaN 写进统计，而且不报错）。
+       lastSeen 是从存档里读出来的，脏档兜底扫不到的键可能不是数字。 */
+    if (!isFinite(seconds) || seconds < 60) return null;
     seconds = Math.min(seconds, CFG.idle.maxCatchUp);
-    if (seconds < 60) return null;
     var s = St.get();
     var cycle = onlineCycle || 35;
+    if (!isFinite(cycle) || cycle <= 0) cycle = 35;
     var n = Math.floor(seconds / cycle);
     if (n <= 0) return null;
 

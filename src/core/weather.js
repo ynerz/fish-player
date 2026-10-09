@@ -58,14 +58,19 @@ G.Weather = (function () {
   function update(dt) {
     if (!cur) return;
     left -= dt;
+    /* ⚠️ 同一帧里「天气到期」和「跨时段」可能同时发生 —— 合并成一次 emit。
+       原来各自 emit：订阅方（main.js）一帧内连收两次快照，
+       顶栏芯片重写两遍、BGM 参数也连换两遍（第二次才是最终态）。 */
+    var changed = false;
     if (left <= 0) {
       cur = rollWeather(cur.key);
       left = U.range(W.minDur, W.maxDur);
-      emit();
+      changed = true;
     }
     tClock = (tClock + dt) % W.dayLen;
     var idx = Math.floor(tClock / (W.dayLen / W.times.length)) % W.times.length;
-    if (idx !== tIdx) { tIdx = idx; emit(); }
+    if (idx !== tIdx) { tIdx = idx; changed = true; }
+    if (changed) emit();
   }
 
   /* 给抽卡用的环境描述；工具不传就是全 1 的中性环境 */

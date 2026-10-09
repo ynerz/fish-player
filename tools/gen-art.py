@@ -691,6 +691,53 @@ RARITY = [
 ]
 SPINE_SHAPES = ("fish", "eel", "dragon", "shark", "oarfish")
 
+# ────────────────────────────────────────────────────────────────────────────
+# 🔴 **传说级（rar == 3）的「点题奇幻元素」**（2026-10-09，用户口径：
+#    「传说级别的鱼的提示词仔细检查，根据其名字可以加一些奇幻元素」）
+#
+# 为什么只挂传说档：传说鱼售价 ×100、概率 4~5%，是**展示品**，一条才被看到几次。
+#   档位本身只有 `RARITY[3] = long layered overlapping {fin}` 这一条结构递进，
+#   于是 27 条传说鱼彼此之间除了体型与配色**没有任何区别** —— 而它们的名字
+#   （星陨 / 虚空 / 混沌 / 时之 / 终焉 / 创世）本来就写着奇幻设定，提示词里一个字都没兑现。
+#
+# ⚠️ 三条硬约束（都是本项目栽过的坑）：
+#   ① 只用**结构 / 材质**词 —— `elaborate` / `ornate` / `decorative` 一出现就画成精细插画（坑 3）；
+#   ② 不许引入**新物件或新场景** —— `BG` 要求 `completely empty`，
+#      写「星星 / 光环 / 云雾」就是让背景漂移；所以一律写成**体表自身或剪影**的性质；
+#   ③ 表序即优先级、**命中即止、一条鱼最多加一句** —— 叠两句就成词沙拉，模型只会全部忽略。
+#      关键词按长度从长到短排（「星陨终焉」要让「星陨」先命中，「海沟之主」不要被「主」截胡）。
+#
+# 覆盖自查（27 条传说全部命中恰好一条，改表时请重跑 `--dry` 逐条目视）：
+#   星陨族 4 · 时之/终焉族 6 · 虚空族 2 · 混沌/创世族 4 · 幽灵族 3 · 王者族 7 · 灵 1
+# ────────────────────────────────────────────────────────────────────────────
+FANTASY_MOTIFS = [
+    (("星陨", "噬星", "星尘"),
+     "a faint drifting scatter of tiny pale luminous stardust specks across the body"),
+    (("时之", "尘时", "逆时", "残时", "时光", "纪元", "终焉", "终末", "终章", "忘川"),
+     "thin concentric ring bands cut into the surface"),
+    (("虚空", "无相", "空之", "裂空", "无光", "永夜"),
+     "the outer surface deepening into a soft matte void-dark core along the back"),
+    (("混沌", "初源", "最初", "原始", "创世"),
+     "a few irregular broken facets interrupting the otherwise regular surface"),
+    (("幽灵", "幽魂", "鬼", "幽蓝"),
+     "the front section partly translucent, fading into the shadow"),
+    (("塘主", "之神", "之王", "之主", "月神", "王座", "皇", "神", "王", "巨"),
+     "an exceptionally heavy massive build, noticeably bulkier than an ordinary individual"),
+    (("灵",),
+     "a soft pale luminous sheen running along the flanks"),
+]
+
+
+def fantasy_motif(name):
+    """按名字里的意象词取一句奇幻点题句（`rar == 3` 专用）。命中即止，没有就返回空串。
+
+    ⚠️ **只有传说档调用它**（`build_prompt` 里那道 `f.get("rar") == 3` 是唯一的门）。
+       给普通鱼加奇幻句 = 362 条卡的口径全变，而且「稀有度递进」这个卖点当场作废。
+    """
+    for keys, sentence in FANTASY_MOTIFS:
+        if any(k in (name or "") for k in keys):
+            return sentence
+    return ""
 
 
 def color_name(hexstr):
@@ -1282,8 +1329,15 @@ def build_prompt(f, morph=None):
     #    （用户口径：「按身体特征对每条鱼先写一个描述」，让鱼更好分辨）
     bits.append(form_profile(f))
 
-
+    # ③b 传说级点题 —— **只有 rar == 3**，按名字里的意象词补一句奇幻描述（见 FANTASY_MOTIFS）。
+    #     位置紧贴形态档案：它是「这条鱼身上长什么样」的一部分，
+    #     排在花纹 / 特征位之前、颜色句之前，才不会把颜色与 LIGHT 收尾冲淡。
+    #     ⚠️ `rar_i` 在这里就要定下来（后面 ④⑤ 与收尾句都还要用），别在下面再赋值一次。
     rar_i = min(3, f.get("rar", 0))
+    if rar_i == 3:
+        motif = fantasy_motif(f.get("name", ""))
+        if motif:
+            bits.append(motif)
 
     # ④ 体表花纹 —— 查证过的逐条特征最优先，其次按科属字给**真实倾向**，
     #    两者都没有就**不写**（⛔ 不许随机抽，见 MARK_BY_FAMILY 的注释）
@@ -1631,6 +1685,14 @@ def write_prompts(fish):
         ))
     L.append("")
 
+    L.append("\n### 传说级点题（`FANTASY_MOTIFS`，只有 `rar == 3`）\n")
+    L.append("按名字里的意象词给传说鱼补**一句**结构化的奇幻描述（体表 / 剪影层面，不引入场景）。"
+             "表序即优先级、命中即止。\n")
+    L.append("| 意象词 | 追加的句子 |")
+    L.append("|---|---|")
+    for keys, sentence in FANTASY_MOTIFS:
+        L.append("| %s | %s |" % (" / ".join(keys), sentence))
+    L.append("")
     L.append("## 二、母版（原色）提示词 —— 每条鱼独有的部分\n")
     L.append("下表列出**每条鱼独有的部分**（体型 + 形态 + 特征 + 颜色 + 构图）。\n")
     L.append("| id | 名字 | 档 | 体型 | 提示词（已剥掉固定段 LIGHT/GEOM/BG） |")

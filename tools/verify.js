@@ -2577,6 +2577,16 @@ console.log('\n[33-c] 五档提示词必须复用母版骨架，只换颜色句'
     err('check_shape_words() 没定义或**没在模块加载时被调用** —— '
       + '占位符打错 / 不存在的体型名 / 没人替换的 `{xxx}` 会静默写进提示词'); return;
   }
+  /* ⑤d 传说级点题只许挂在 `rar == 3` 上，且只许有一处调用 */
+  const motHits = (src.match(/fantasy_motif/g) || []).length;
+  const bpBody = bodyOf(src, 'def build_prompt(');
+  const iGuard = idx(bpBody, 'if rar_i == 3:');
+  const iCall = idx(bpBody, 'fantasy_motif(');
+  if (motHits !== 2 || iGuard < 0 || iCall < 0 || iGuard > iCall) {
+    err(`传说点题的接线不对（fantasy_motif 出现 ${motHits} 次，只许 2 次＝定义 + build_prompt 里那一处调用；`
+      + '且必须在 `if rar_i == 3:` 之后）—— 给普通鱼加奇幻句 = 362 条卡口径全变、稀有度递进当场作废');
+    return;
+  }
   ok(`体型措辞按体型分流（${declared.join('/')} 有覆写、其余 ${realShapes.filter(s => declared.indexOf(s) < 0).length} `
     + '个体型走默认值）＋ 默认占位符＝原句 ＋ 自检加载即跑 ＋ 传说点题只挂 rar3');
 })();

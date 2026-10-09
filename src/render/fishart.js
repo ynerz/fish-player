@@ -974,7 +974,7 @@ G.FishArt = (function () {
      再调 draw()（它们各自的背景不一样），这个函数全项目零调用。 */
 
   /* ⚠️ `paintTo()` / `palette()` / `getStyle()` / `listStyles()` 已删（顺手清死接口那一轮）：
-     · `paintTo(canvas, fish, opt)` 开发者文档 §5.2 说它「用于图鉴 / 结算卡」，
+     · `paintTo(canvas, fish, opt)` docs/开发者文档.md §5.2「fishart.js 绘制器」说它「用于图鉴 / 结算卡」，
        但两处实际都自己建 ctx 再调 `draw()`（图鉴要画水波背景、结算卡要画渐变），
        `paintTo` 全项目零调用 —— 是「文档里有、代码里没人调」的死接口。
      · `palette()` 只在 `draw()` 内部用（`var p = palette(fish, opt)`），

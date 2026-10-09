@@ -2823,7 +2823,7 @@ G_('Weather · 背景音乐随条件换参数（修饰量单一来源）');
 
 /* =========================================================
    Assets —— 素材表（外部素材的唯一取用口径）
-   规格：docs/开发者文档.md §7
+   规格：docs/开发者文档.md §17.13「素材接入：G.Assets 素材表」
    ⚠️ 这里**只测「键 → 地址」这一段纯逻辑**。真正的图片加载是异步的，
       本文件是同步测试器（跑不了 promise），那一段在浏览器里实跑验证。
       但**风险最大的恰恰是这一段** —— 路径拼错 / 档位名打错 / 键认不出来，
@@ -2869,7 +2869,37 @@ G_('Assets —— 键 → 地址（纯逻辑）');
   const u = A.used();
   ok(typeof u.ok === 'number' && typeof u.fail === 'number' && typeof u.cached === 'number',
      'used()：返回 { ok, fail, cached } 三个数（开发者面板读它显示家底）');
+  ok(!!u.image && !!u.sfx &&
+     u.ok === u.image.ok + u.sfx.ok && u.fail === u.image.fail + u.sfx.fail,
+     'used()：图片与音效**分组记账**，总量由两组现算（不另存一份）');
   ok(A.reset() === undefined && A.used().ok === 0, 'reset()：清空统计（自测之间不许互相污染）');
+
+  /* 分组家底的**行为**验证：手搓 thenable 把两组各落定一次。
+     为什么必须有这一条 —— `file://` 形态下音效**必然**失败（fetch 被拦），
+     两类共用一个 ok/fail 时，开发者面板那行永远显示「失败 1」，
+     真正的卡面加载失败会被淹掉（做 N3-1 时当场误读成「卡面没加载上」）。 */
+  (function () {
+    const realImg = G.Platform.image, realAud = G.Platform.audio;
+    const pend = [];
+    G.Platform.image = { load: () => ({ then(res) { pend.push(res); } }) };
+    G.Platform.audio = { load: () => ({ then(res) { pend.push(res); } }) };
+    A.reset();
+    A.card('A01', 'golden');   // 图片：稍后成功
+    A.sfx('cast');             // 音效：稍后失败（file:// 下的常态）
+    const z = A.used();
+    ok(pend.length === 2 && z.ok === 0 && z.fail === 0,
+       'used()：两组都还没落定时计数仍是 0（失败要在真拿到 null 时才记）');
+    pend[0]({ width: 1 });
+    pend[1](null);
+    const g = A.used();
+    ok(g.image.ok === 1 && g.image.fail === 0 && g.sfx.ok === 0 && g.sfx.fail === 1,
+       `used()：图片成功 / 音效失败各记各的（实得 图片 ${g.image.ok}/${g.image.fail}`
+       + ` · 音效 ${g.sfx.ok}/${g.sfx.fail}）`);
+    ok(g.ok === 1 && g.fail === 1,
+       'used()：总量是两组之和（1 ok + 1 fail），不是「某一类」的数');
+    A.reset();
+    G.Platform.image = realImg; G.Platform.audio = realAud;
+  })();
 
   /* 音效键（2026-10-08 加）：与图片共用同一套 resolve，但音效名只许小写字母数字 */
   ok(A.resolve('sfx:cast') === 'assets/audio/cast.mp3',

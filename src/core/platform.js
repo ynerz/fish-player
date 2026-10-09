@@ -113,7 +113,7 @@ G.Platform = (function () {
     /* 帧调度：**它是平台能力，不是「标准计时器」** ——
        Web 与微信小游戏有全局 `requestAnimationFrame`，而**小程序（非小游戏）页面里没有**，
        要换成 `canvas.requestAnimationFrame`。所以业务代码一律走这两个入口。
-     ⚠️ **边界**（2026-10-08 明确，见 `docs/每小时优化轮次规范.md` §9）：
+     ⚠️ **边界**（2026-10-08 明确，见 `docs/每小时优化轮次规范.md` §9「自主决策：质量优先」）：
         `requestAnimationFrame` / `cancelAnimationFrame` **算**平台能力（渲染宿主的调度器）；
         而 `setTimeout` / `setInterval` **不算**（任何宿主都有，Node 里也有）——
         给它们包一层只是多一层无意义的间接，反而掩盖了「真正要换的只有帧调度」这件事。

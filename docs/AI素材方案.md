@@ -131,7 +131,7 @@
 
 ```
 G.Assets.resolve(key) -> url        // 走统一表，不许硬拼路径
-G.Assets.used()                     // 统计已用体积 / 张数（体积不是约束了，但要知道家底）
+G.Assets.used()                     // 家底：图片 / 音效分组记 ok+fail（体积不再是约束，但要知道家底）
 G.Assets.mode()                     // 'inline'（file:// 开发期）| 'external'（发布 / 上云）
 ```
 

@@ -267,7 +267,7 @@ G.Scene = (function () {
   /* 水下鱼影 —— 「有东西在水下游过来」。
      ⚠️ 本函数原来全项目零调用：`S.fishShadow` 永远是 null，
         于是 updateShadow() 与 drawUnderwater() 里那两段鱼影代码**从来没跑过**，
-        而开发者文档 §5.1 却把它列成「供 fishing.js 调用」的接口。
+        而 docs/开发者文档.md §5.1「scene.js 分层」却把它列成「供 fishing.js 调用」的接口。
         现在由 fishing.js 在「抛竿动画结束 → 进入等待」时调一次
         （见 fishing.js 的 case 'flying'），收杆 / 上岸 / 失败时
         统一由 endFight() 清掉 —— 所以这里只说「显示」，不管生命周期。

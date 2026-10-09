@@ -678,11 +678,40 @@ let sizeClaimCount = 0;
 });
 if (!sizeClaimCount) { err('文档里再找不到「单文件产物 ≈ N KB」这句对外说法（被删了？）'); entryBad++; }
 
+/* 11-i 文档里的「原本 N 个网络请求」必须能现算出来
+   同一句里还写着「产物 ≈ 601 KB / 1 个网络请求（原本 29 个）」——
+   而「29」= index.html 自身 + `<script src>` 数 + `<link stylesheet>` 数，
+   **每加一个模块就多一个请求**。⑪-h 只盯了 KB，这个数字一直没人管：
+   N3-1 加了 cardart.js 就从 27 漂成 29，是靠人肉发现才改的。
+   判据同样只认「原本 N 个」这种写法，且**抓不到就报错**（口径删了要显式改这里）。 */
+const realReq = 1 + listed.length + cssListed.length;   // 1 = index.html 自身
+let reqClaimCount = 0;
+['docs/GDD.md', 'docs/开发者文档.md', 'README.md'].forEach(function (file) {
+  /* ⚠️ 判据必须**同行**同时出现「网络请求」与「原本 N 个」——
+     第一版只认「原本 N 个」，反向验证当场发现：文档里写一句「本节原本 3 个分组」
+     也会被它当成对外承诺而报红（匹配条件写宽了 = 假报）。
+     口径与 34-b 一致（那条也是「同一行里既有 A 又有 B」）。 */
+  fs.readFileSync(path.join(ROOT, file), 'utf8').split('\n').forEach(function (line) {
+    if (!/网络请求/.test(line)) return;
+    const m = line.match(/原本\s*(\d+)\s*个/);
+    if (!m) return;
+    reqClaimCount++;
+    const claimed = +m[1];
+    if (claimed !== realReq) {
+      err(`${file} 里写着「原本 ${claimed} 个」网络请求，而 index.html 现在有 `
+        + `${listed.length} 个脚本 + ${cssListed.length} 个样式表 + 自身 = ${realReq} 个请求`);
+      entryBad++;
+    }
+  });
+});
+if (!reqClaimCount) { err('三份对外文档里都找不到「原本 N 个网络请求」（改了措辞就来更新这条断言）'); entryBad++; }
+
 if (!entryBad) {
   ok(`入口 ${listed.length} 个脚本 == src/ 下 ${onDisk.length} 个模块，顺序正确`);
   ok(`按 index.html 顺序加载：${ranCount} 个模块在 Node 里跑通` +
      (deferred.length ? `（${deferred.length} 个需要 DOM，跳过执行：${deferred.join('、')}）` : ''));
   ok(`${WANT.length} 个全局模块齐全（G.CONFIG … G.Tutorial）`);
+  ok(`文档里的请求数现算相符：index.html ${listed.length} 个脚本 + ${cssListed.length} 个样式表 + 自身 = ${realReq} 个`);
   ok(`版本号单一来源：config.js 与 docs/改进待办.md 头部基线都是 v${CFG.version}`);
 }
 
@@ -5017,6 +5046,94 @@ let fallbackBad = 0;
       + '图鉴网格 / 详情页都不绕开它，取图口没有散出去，档位名只来自 config');
   }
 })();
+
+
+/* ---------------- 48. src/ 里的文档节号引用必须连标题一起写 ----------------
+   🔎 由来（2026-10-09，自动化轮）：`src/core/assets.js` 的「规格：」行指着
+   开发者文档的第 7 节 —— 而第 7 节是「存档与兼容」，素材表其实在 17.13。
+   **照这行注释去翻文档的人一定先翻错一节**，而且错了不报任何错：
+   引用不是代码，没有编译器管它（同一个错还在 `tools/test.js` 的 Assets 段头抄了一遍）。
+
+   判据：`src/` 下每个 `.js` 里，凡出现「文档文件名 + 节号」形态的引用，
+   **必须紧跟该节标题**（写在「」里），且标题必须真能在那份文档的**该节号**下找到。
+   ⇒ 节号写错 / 标题抄错 / 文档改了标题忘同步，三种都当场报红。
+
+   ⚠️ 扫描面**只含 `src/`**（实测 6 处引用，全部已改成带标题）。
+      `tools/` 有意不进来：那边节号大量指**本文件自己的节**（`verify.js` 里 54 处，
+      如它自己的 §33 / §8.4），套同一条规则会大面积误伤 —— 要扩过去得先把
+      「指文档的节号」与「指本文件节号的」分开。这条边界已记进 `docs/改进待办.md`。
+   ⚠️ 自指防线：本节说明里**不写**完整形态的样例（那会被自己扫到）；
+      示例一律用不含数字的占位写法。 */
+console.log('\n[48] src/ 里的文档节号引用必须连标题一起写（节号 / 标题对不上就报红）');
+let refBad = 0, refFound = 0;
+(function () {
+  const files = [];
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(name => {
+      const rel = dir + '/' + name;
+      if (fs.statSync(path.join(ROOT, rel)).isDirectory()) walk(rel);
+      else if (/\.js$/.test(name)) files.push(rel);
+    });
+  })('src');
+
+  /* 归一化：两边的写法本来就允许不同（行内代码 / 粗体 / 空白都不算差异） */
+  const norm = s => String(s).replace(/[`*]/g, '').replace(/\s+/g, '');
+  /* 引用形态 = `docs/` + 文件名 + 节号 +（**必须有**）「标题」。
+     ⚠️ 标题那一组是**可选**的 —— 第一版写成必选，反向验证当场发现：
+       把标题删掉之后这处引用**整个匹配不上**，于是「不带标题」反而溜过去（绿）。
+       ⇒ 匹配要能认出「没有标题」这种形态，再单独报「你没带标题」。
+     ⚠️ 节号必须是**数字** —— 占位写法（`§<节号>`）不匹配，写说明时不会自己逮自己。 */
+  const REF = /docs\/([0-9A-Za-z._\-\u4e00-\u9fa5]+\.md)[^\S\n]*§[^\S\n]*([0-9]+(?:\.[0-9]+)*)[^\S\n]*(?:「([^」\n]+)」)?/g;
+  /* 标题行：`## 7. xxx` / `### 17.13 xxx` / （别的文档允许 `## §1 xxx`） */
+  const headRe = num => new RegExp('^#{2,4}[^\\S\\n]*§?[^\\S\\n]*'
+    + num.replace(/\./g, '\\.') + '\\.?[^\\S\\n]+(.*)$', 'gm');
+
+  files.forEach(rel => {
+    /* 反引号一并剥掉：`` `docs/x.md` §3 `` 与 `docs/x.md §3` 是同一个引用 */
+    const txt = fs.readFileSync(path.join(ROOT, rel), 'utf8').replace(/`/g, '');
+    REF.lastIndex = 0;
+    let m;
+    while ((m = REF.exec(txt))) {
+      refFound++;
+      const docRel = 'docs/' + m[1], num = m[2], rawTitle = m[3];
+      if (rawTitle === undefined) {
+        err(`${rel} 引用了 ${docRel} 的第 ${num} 节，但**没写该节标题** —— `
+          + '`docs/<文件名>.md` + 节号 + 「标题」三件套缺一不可（节号会漂，标题不会）');
+        refBad++;
+        continue;
+      }
+      const want = norm(rawTitle);
+      const p = path.join(ROOT, docRel);
+      if (!fs.existsSync(p)) {
+        err(`${rel} 引用了不存在的文档 ${docRel}（第 ㊽ 节）`);
+        refBad++;
+        continue;
+      }
+      const titles = [];
+      const re = headRe(num);
+      let h;
+      while ((h = re.exec(fs.readFileSync(p, 'utf8')))) titles.push(norm(h[1]));
+      if (!titles.length) {
+        err(`${rel} 指向 ${docRel} 的第 ${num} 节，但那份文档里没有这个节号的标题`);
+        refBad++;
+        continue;
+      }
+      if (!titles.some(t => t.indexOf(want) >= 0)) {
+        err(`${rel} 把 ${docRel} 第 ${num} 节写成「${m[3]}」，`
+          + `而文档里那一节叫「${titles[0]}」—— 照它翻文档会翻错一节`);
+        refBad++;
+      }
+    }
+  });
+  if (!refFound) {
+    err('src/ 下一处「文档文件名 + 节号」形态的引用都找不到 —— 要么全删了、'
+      + '要么写法变了（改了措辞就来更新第 ㊽ 节）');
+    refBad++;
+  }
+})();
+if (!refBad) {
+  ok(`src/ 里 ${refFound} 处文档节号引用都连标题写，且标题与文档里该节的实际标题相符`);
+}
 
 
 console.log('\n' + '='.repeat(52));

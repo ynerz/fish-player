@@ -177,12 +177,16 @@ G.Cheat = (function () {
     }],
     /* 素材家底。它是 `G.Assets.mode()` 的**唯一消费方** ——
        项目删过没有消费方的 `isWeb`，所以「加能力必须同时有读它的地方」。
-       用处很具体：客户机 / 双击打开时卡面不出来，先看这一行是 inline 还是 external。 */
+       用处很具体：客户机 / 双击打开时卡面不出来，先看这一行是 inline 还是 external。
+       ⚠️ 图片与音效**分组印**：`file://` 下音效必然失败（fetch 被拦），
+          混成一个「失败 N」会把真正的卡面加载失败淹掉（N3-1 时误读过一次）。 */
     ['素材家底', function () {
       if (!G.Assets) return '未加载 G.Assets';
       var u = G.Assets.used();
-      var tip = '模式 ' + G.Assets.mode() + '｜已加载 ' + u.ok + '｜失败 ' + u.fail +
-                '｜缓存 ' + u.cached + '｜目录 assets/cards/';
+      var tip = '模式 ' + G.Assets.mode() +
+                '｜图片 ok ' + u.image.ok + ' / fail ' + u.image.fail +
+                '｜音效 ok ' + u.sfx.ok + ' / fail ' + u.sfx.fail +
+                '｜缓存 ' + u.cached + '｜assets/cards/ · assets/audio/';
       /* 卡面回退链的家底（N3-1）：命中 = 画了 AI 图，缺图 = 留在程序化绘制上。
          没有这一行就分不清「图鉴用的是 AI 图」还是「一张都没加载上」。 */
       if (G.CardArt) {

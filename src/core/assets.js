@@ -1,7 +1,9 @@
 /* ============================================================================
  * assets.js —— 素材表：**外部素材的唯一取用口径**
  *
- * 规格：docs/开发者文档.md §7 · docs/AI素材方案.md §7
+ * 规格：docs/开发者文档.md §17.13「素材接入：G.Assets 素材表」· docs/AI素材方案.md §7「游戏侧接入：G.Assets 素材表」
+ *       （原来这里指的是开发者文档的第 7 节 —— 那是「存档与兼容」，照它翻文档一定先翻错一节。
+ *         门禁第 ㊽ 节现在要求这类引用**连标题一起写**：节号写错、标题对不上就当场报红。）
  *
  * 职责边界（**不要越界**）：
  *   · 只管「键 → 地址 → 加载好的对象」这一条链，**不认识任何业务概念**
@@ -28,7 +30,20 @@ G.Assets = (function () {
   var base = '';
   var cache = {};      // 键 → Image / AudioBuffer（成功过的不再请求第二次）
   var dead = {};       // 键 → true（**失败备忘**：404 过的键不再反复请求）
-  var stat = { ok: 0, fail: 0 };
+
+  /* 家底计数器**按素材类别分开**（image / sfx）—— 原来两类共用一个 ok/fail，
+     于是开发者面板上的「失败 1」分不清是卡面还是音效：而 `file://` 形态下音效
+     **必然**失败（fetch 被拦），这一行就永远在报警，真正的卡面加载失败反而被淹掉
+     （做 N3-1 时当场把 `fail:1` 误读成「卡面没加载上」）。
+     总量不另存一份，`used()` 里现算 —— 同一个事实写两遍必然分家。 */
+  var KINDS = ['image', 'sfx'];
+  var stat = blankStat();
+  function blankStat() {
+    var s = {};
+    KINDS.forEach(function (k) { s[k] = { ok: 0, fail: 0 }; });
+    return s;
+  }
+  function bump(kind, good) { stat[kind][good ? 'ok' : 'fail']++; }
 
   /* 档位名**从 config 取**，不许在这里另写一份 —— 档位是平衡数值的一部分，
      写两份必然分家（本项目反复踩过的坑型）。 */
@@ -78,8 +93,8 @@ G.Assets = (function () {
     var url = resolve(key);
     if (!url || !G.Platform || !G.Platform.image) return Promise.resolve(null);
     return G.Platform.image.load(url).then(function (im) {
-      if (im) { cache[key] = im; stat.ok++; return im; }
-      dead[key] = true; stat.fail++; return null;
+      if (im) { cache[key] = im; bump('image', true); return im; }
+      dead[key] = true; bump('image', false); return null;
     });
   }
 
@@ -99,20 +114,29 @@ G.Assets = (function () {
     var url = resolve(key);
     if (!url || !G.Platform || !G.Platform.audio || !G.Platform.audio.load) return Promise.resolve(null);
     return G.Platform.audio.load(url).then(function (buf) {
-      if (buf) { cache[key] = buf; stat.ok++; return buf; }
-      dead[key] = true; stat.fail++; return null;
+      if (buf) { cache[key] = buf; bump('sfx', true); return buf; }
+      dead[key] = true; bump('sfx', false); return null;
     });
   }
 
-  /* 家底：成功 / 失败过多少张。开发者面板与自检用。 */
+  /* 家底：成功 / 失败过多少 —— **分图片与音效两组**，总量由两组现算。
+     开发者面板与自检读它；分组的用途很具体：客户机上「卡面不出来」时，
+     先看 `image.fail`，别把 `file://` 下必然失败的音效当罪证。 */
   function used() {
-    return { ok: stat.ok, fail: stat.fail, cached: Object.keys(cache).length };
+    var img = stat.image, sfxStat = stat.sfx;
+    return {
+      ok: img.ok + sfxStat.ok,
+      fail: img.fail + sfxStat.fail,
+      cached: Object.keys(cache).length,
+      image: { ok: img.ok, fail: img.fail },
+      sfx: { ok: sfxStat.ok, fail: sfxStat.fail },
+    };
   }
 
   function setBase(b) { base = b || ''; }
 
   /* 仅供自测：清空缓存与备忘（不然一个测试里失败过的键会影响下一个） */
-  function reset() { cache = {}; dead = {}; stat = { ok: 0, fail: 0 }; }
+  function reset() { cache = {}; dead = {}; stat = blankStat(); }
 
   return {
     mode: mode,

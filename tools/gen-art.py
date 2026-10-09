@@ -722,7 +722,7 @@ FANTASY_MOTIFS = [
     (("幽灵", "幽魂", "鬼", "幽蓝"),
      "the front section partly translucent, fading into the shadow"),
     (("塘主", "之神", "之王", "之主", "月神", "王座", "皇", "神", "王", "巨"),
-     "an exceptionally heavy massive build, noticeably bulkier than an ordinary individual"),
+     "a noticeably heavier individual than an ordinary one, with a stronger sense of mass"),
     (("灵",),
      "a soft pale luminous sheen running along the flanks"),
 ]

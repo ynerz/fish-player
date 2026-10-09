@@ -61,13 +61,65 @@ function idx(t, n) { return flat(t).indexOf(flat(n)); }
 function has(t, n) { return idx(t, n) >= 0; }
 /* 需要**原始偏移**（要拿去 slice）时用 at()：返回位置，词与词之间允许任意空白
    （含换行）。⚠️ 不能拿 idx() 的返回值去 slice —— 那是压平之后的坐标，
-   和原文偏移对不上（栽过一次：第 33-c / 33-f 节当场读歪，报「少了 build_prompt(」）。 */
+   和原文偏移对不上（栽过一次：第 33-c / 33-f 节当场读歪，报「少了 build_prompt(」）。
+   🔴 **不许把 needle 变成正则**（Q39，2026-10-09）：旧实现是
+   `new RegExp(needle 里每个空格换成空白类)` —— 正则源随 needle **无上限增长**：
+   把 tools/review-cards.py 的 25 KB HTML 模板喂进来时当场
+   `SyntaxError: Invalid regular expression: … Stack overflow`。
+   ⚠️ 它的失败态是**整份门禁崩掉**（不是报红一条）：`new RegExp()` 是惰性编译所以不报错，
+   到 `.exec()` 才炸 ⇒ 第一眼极易误判成「写法有问题」。而「拿 at() 反查一大段文本的位置」
+   这个动作以后还会出现（第 ㊴ 节就被它绊过）⇒ 改成**纯扫描**：把 needle 按空白切成
+   「空白要求 + 字面段」，逐段走 indexOf。于是**没有规模上限**，也就不必再立一条
+   「needle 长度上限」的阈值（阈值要拿理由去撑）。第 ㊷ 节 ⑪ 盯住这条（含超长 needle 行为 + 等价表）。
+   ⚠️ 语义与旧实现**逐字等价**（差分对拍过，见 ⑪ 的等价表）：
+     · needle 里连续 n 个空格 ⇒ 原文那里要有 **≥ n 个空白**（n 个空白类正则是「≥ n 个空白」）；
+     · 其余字符一律**字面量**比对（旧实现靠转义达到同样效果）；
+     · 找不到返回 **-1**；空 needle 返回 **0**（旧实现 `new RegExp('')` 命中 0）；
+     · needle 以空白开头时，匹配位置落在**那段空白的起点**（旧实现同）。 */
 function at(t, phrase) {
-  const re = new RegExp(String(phrase)
-    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    .replace(/ /g, '\\s+'));
-  const m = re.exec(String(t));
-  return m ? m.index : -1;
+  const s = String(t), p = String(phrase);
+  const isWs = c => c !== undefined && c !== '' && /\s/.test(c);
+  /* 把 needle 拆成交替的「空白要求 / 字面段」（可能以空白开头 / 结尾） */
+  const parts = [];
+  for (let i = 0; i < p.length;) {
+    const ws = p[i] === ' ';
+    let j = i;
+    while (j < p.length && (p[j] === ' ') === ws) j++;
+    parts.push(ws ? { ws: j - i } : { text: p.slice(i, j) });
+    i = j;
+  }
+  if (!parts.length) return 0;
+  /* 从 q 起能不能**整段**对上：空白段要求「至少 n 个」，字面段必须紧接在空白段之后 */
+  const matchAt = q => {
+    for (let k = 0; k < parts.length; k++) {
+      const pt = parts[k];
+      if (pt.ws !== undefined) {
+        let n = 0;
+        while (q + n < s.length && isWs(s[q + n])) n++;
+        if (n < pt.ws) return false;
+        q += n;
+      } else {
+        if (!s.startsWith(pt.text, q)) return false;
+        q += pt.text.length;
+      }
+    }
+    return true;
+  };
+  if (parts[0].ws !== undefined) {          // needle 以空白开头 ⇒ 位置落在空白段起点
+    for (let i = 0; i < s.length; i++) {
+      if (!isWs(s[i]) || (i > 0 && isWs(s[i - 1]))) continue;   // 只在空白段的**起点**试
+      if (matchAt(i)) return i;
+    }
+    return -1;
+  }
+  let from = 0;                             // 左起第一个字面段的位置逐个试（indexOf 递增 ⇒ 首个命中即最左）
+  while (from <= s.length) {
+    const i = s.indexOf(parts[0].text, from);
+    if (i < 0) return -1;
+    if (matchAt(i)) return i;
+    from = i + 1;
+  }
+  return -1;
 }
 /* 从「某个标记」起切出它的函数 / 方法体：终止于「缩进 ≤ 该标记自身缩进」的第一行。
    ⚠️ 缩进必须**按标记自己所在行的缩进算**，不能写死 4：
@@ -3188,8 +3240,11 @@ console.log('\n[39] 拼装 HTML 的工具：产物脚本必须真解析过（不
   /* ⚠️ 模板的偏移**直接用正则的匹配位置**，不许另拿 `tpl` 反查（Q38）：
      · `indexOf` 找不到时返回 -1，而 `py.slice(0, -1)` **不报错** —— 只是把最后一行算少一行
        ⇒ 报出来的行号整体偏 1（静默）；
-     · `at()` 也不行：它把空格换成 `\s+` 建**正则**，25 KB 的 needle 会当场
-       `Invalid regular expression: Stack overflow`（实测，2026-10-09）。 */
+     · `at()` **当时**也不行：它把空格换成 `\s+` 建**正则**，25 KB 的 needle 会当场
+       `Invalid regular expression: Stack overflow`（实测，2026-10-09）。
+       ⚠️ 这条已经在 Q39 里从根上修掉了（`at()` 改成纯扫描、没有规模上限，见第 ㊷ 节 ⑪），
+       所以现在 `at(py, tpl)` 也能查（第 ⑪ 节 ② 就是这么用的）。这里仍保留
+       「用正则自己的匹配位置」—— 它最直接，且不必多建一次扫描。 */
   const tplBase = py.slice(0, tplM.index).split('\n').length;   // 模板起始行
   const badLines = tpl.split('\n')
     .map((l, i) => [tplBase + i, l.trim()])
@@ -4022,6 +4077,129 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
     }
   }
 
+  /* ⑪ 取位置的助手 `at()` 不许把 needle 变成**正则**（Q39，2026-10-09）。
+     旧实现是「needle 里每个空格换成空白类，再 `new RegExp(...)`」—— 正则源随 needle
+     **无上限增长**：把 `tools/review-cards.py` 的 25 KB HTML 模板喂进来时当场
+     `SyntaxError: Invalid regular expression: … Stack overflow`（2026-10-09 实测）。
+     ⚠️ 它的失败态是**整份门禁崩掉**而不是报红一条：`new RegExp()` 是惰性编译所以不报错，
+     到 `.exec()` 才炸 ⇒ 第一眼极易误判成「写法有问题」（Q38 就被它绊了一次）。
+     而「拿 `at()` 反查一大段文本的位置」这个动作以后还会出现 ⇒ 要做成机制，不能只写进注释。
+     ⇒ 现在改成**纯扫描**（把 needle 按空白切成「空白要求 + 字面段」，逐段走 indexOf）：
+     没有规模上限，也就不必再立一条「needle 长度上限」的阈值（阈值要拿理由去撑）。
+     判据四条（②③④ 都包 try/catch：`at()` 抛了要**报红一条**，不许把整份门禁带崩）：
+       ① 结构：`at()` 的函数体（走 `bodyOf()`）里不许出现建正则的写法 —— 含判据自检
+          （合成的坏样本必被抓、好样本必放过）；
+       ② 现实数据：25 KB 的真实模板必须返回**正确偏移且不抛**（这一条以前会崩）；
+       ③ 构造样本：~36 KB 的「折行」needle 必须命中，且**裸 indexOf 找不到它**
+          （证明它真是靠折行匹配过的，不是「恰好一字不差」）；
+       ④ 等价表：与**旧实现**逐例相等 —— 折行 / 连续空格要求 ≥ n / 元字符当字面量 /
+          空 needle → 0 / 前导空白落在空白段起点 / 找不到 → -1。旧实现只当**参考**照抄在
+          这里，样本全是十几字符的短 needle（不会触发它的栈溢出）。
+     ⚠️ `new RegExp` / `indexOf(` 这些词一律用拼接造 —— 写字面量会招来自指（本项目老坑）。 */
+  let atCases = 0, tplPos = 0;
+  {
+    const atBody = bodyOf(fs.readFileSync(__filename, 'utf8'), 'function at(');
+    const NEWRE = 'new ' + 'RegExp' + String.fromCharCode(40);
+    const stripJs = t => String(t).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+    const hasNewRe = body => stripJs(body).indexOf(NEWRE) >= 0;
+    if (!atBody) {
+      err('第 42 节 ⑪：verify.js 里找不到 at() 的定义（按 `function at(` 切函数体）——'
+        + '改了签名就来更新本断言'); secBad++;
+    } else {
+      /* ① 结构 + 判据自检 */
+      const SYN_BAD = 'function at(t, p) { const r = ' + NEWRE + 'p); return r.index; }';
+      const SYN_OK = 'function at(t, p) { return scanInto(t, p); }';
+      if (!hasNewRe(SYN_BAD) || hasNewRe(SYN_OK)) {
+        err('第 42 节 ⑪ ① 判据自检不成立：分不出「at() 里建正则」（坏）与纯扫描（好）');
+        secBad++;
+      }
+      if (hasNewRe(atBody)) {
+        err('at() 的函数体里又出现了「把 needle 变成正则」的写法 —— 正则源随 needle 无上限增长，'
+          + '一大段文本会 `Invalid regular expression: … Stack overflow`，而失败态是'
+          + '**整份门禁崩掉**（不是报红一条）。取位置一律走扫描（按空白切段 + indexOf）');
+        secBad++;
+      }
+      /* ② 现实数据：review-cards.py 的 25 KB 模板（就是当初崩掉的那一段） */
+      try {
+        const py = read('tools/review-cards.py');
+        const tpl = (/TEMPLATE\s*=\s*u?"""([\s\S]*?)"""/.exec(py) || [])[1] || '';
+        if (tpl.length < 8000) {
+          err(`第 42 节 ⑪ ② 的样本失效：review-cards.py 的模板只剩 ${tpl.length} 字符 ——`
+            + '本判据盯的就是「一大段文本」，模板缩水了请换一个样本');
+          secBad++;
+        } else {
+          tplPos = at(py, tpl);
+          if (tplPos !== py.indexOf(tpl)) {
+            err(`at() 对 ${tpl.length} 字符的真实模板返回 ${tplPos}，原文字面位置是 ${py.indexOf(tpl)}`
+              + ' —— 折行折叠不该改变「原文里本来就有」的匹配位置');
+            secBad++;
+          }
+        }
+      } catch (e) {
+        err(`at() 喂一大段 needle 时抛了（${e.name}）—— at() 不许把 needle 变成正则`
+          + '（needle 一大就栈溢出，整份门禁跟着崩）');
+        secBad++;
+      }
+      /* ③ 构造样本：折行长 needle（原文里一字不差地**找不到**） */
+      try {
+        const CH = 'alpha beta gamma delta epsilon zeta eta theta';
+        const hay = 'PREFIX\n' + Array.from({ length: 800 }, () => CH).join('\n') + '\nSUFFIX';
+        const huge = Array.from({ length: 800 }, () => CH).join(' ');
+        const pos = at(hay, huge);
+        if (pos !== 7) {
+          err(`at() 对 ${huge.length} 字符的折行 needle 返回 ${pos}（期望 7）——`
+            + '长 needle 要么崩、要么匹配错位');
+          secBad++;
+        } else if (hay.indexOf(huge) >= 0) {
+          err('第 42 节 ⑪ ③ 的样本失效：needle 在原文里一字不差地存在 ⇒ 这条证明不了折行能接回来');
+          secBad++;
+        }
+      } catch (e) {
+        err(`at() 喂 ${'~36 KB'} 的折行 needle 时抛了（${e.name}）—— 长 needle 必须能吃下`);
+        secBad++;
+      }
+      /* ④ 等价表：与旧实现逐例相等（`at()` 可以换实现，语义不许变） */
+      const refAt = (t, phrase) => {          // 旧实现照抄，只当参考
+        const re = new RegExp(String(phrase)
+          .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+          .replace(/ /g, '\\s+'));
+        const m = re.exec(String(t));
+        return m ? m.index : -1;
+      };
+      try {
+        const CASES = [
+          ['zz alpha\nbeta zz', 'alpha beta', 3],      // 折行
+          ['zz alpha   beta zz', 'alpha beta', 3],     // 原文多空格也算「一个空白」
+          ['A B', 'A  B', -1],                         // needle 里 n 个空格 ⇒ 要求 ≥ n 个空白
+          ['A  B', 'A  B', 0],
+          ['abc', 'xyz', -1],                          // 找不到 → -1
+          ['axb', 'a.b', -1],                          // 元字符当**字面量**（不是通配）
+          ['a.b', 'a.b', 0],
+          ['x axb y', 'x a.b y', -1],                  // 同上，但元字符在第 2 段之后（走 startsWith 那条路）
+          ['x a.b y', 'x a.b y', 0],
+          ['', '', 0],                                 // 空 needle → 0（沿用旧口径）
+          ['  x', ' x', 0],                            // 前导空白 ⇒ 位置落在空白段起点
+          ['x y', 'y ', -1],                           // 尾随空白要求原文那里真有空白
+          ['src\n  main.js', 'src main.js', 0],
+          ['a\tb', 'a b', 0],                          // 制表符也是空白
+          ['AA', 'aa', -1],                            // 大小写敏感
+        ];
+        const badRows = CASES.filter(r => at(r[0], r[1]) !== r[2] || refAt(r[0], r[1]) !== r[2]);
+        if (badRows.length) {
+          err(`at() 与旧实现的等价表有 ${badRows.length} 条不符（${badRows.map(r => JSON.stringify(r[1])).join(' / ')}）`
+            + ' —— 换实现可以，语义不许变：折行折叠、连续空格要求 ≥ n、元字符当字面量、'
+            + '空 needle → 0、找不到 → -1');
+          secBad++;
+        } else {
+          atCases = CASES.length;
+        }
+      } catch (e) {
+        err(`第 42 节 ⑪ ④ 等价表执行时抛了（${e.name}）—— at() 不许抛，找不到就返回 -1`);
+        secBad++;
+      }
+    }
+  }
+
   if (!hit.length && !secBad && !bad) {
     ok(`接触表复用 check-cards 的判定（${forbidden.length} 项口径 0 处重复）、`
       + `judge() / judge_group() / slot_verdicts() / slot_tally() 各自唯一入口`
@@ -4029,6 +4207,7 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
       + `跨档中位按档投一票、判定按槽位归组（折版规则只在 morph_key() 一处）、`
       + `切函数体只走 bodyOf()、「变量形式的按位置切片」${sliceN} 处全在 ⑨ 白名单内、`
       + `块尾全走结构边界（⑩ 命中 ${blockN} 处，白名单 0 条）、`
+      + `at() 是纯扫描（⑪ 等价表 ${atCases} 条逐例相符、25 KB 模板命中位置 ${tplPos}）、`
       + `且与评审页共用同一套 ${vars.length} 色`);
   }
 })();

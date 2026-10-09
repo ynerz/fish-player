@@ -967,3 +967,18 @@ input[type=range]{ width:130px; accent-color:var(--c-primary); }
 .title-chip.on{ background:var(--c-primary-l); border-color:var(--c-primary); }
 .title-chip.locked{ opacity:.45; cursor:not-allowed; }
 .title-chip.locked b{ color:var(--c-text-3); }
+
+/* ---- 隔壁钓鱼佬的对话（N7）----
+   复用现有面板皮肤：只加四条文案排版规则，不新建弹层体系。
+   说话人一行用底色压住，每句话一块 —— 玩家点一下看一段，不抢主按钮的注意力。 */
+.dlg-who{
+  font-size:12.5px; color:var(--c-text-3); margin-bottom:10px;
+  padding-bottom:8px; border-bottom:1px solid var(--c-line);
+}
+.dlg-lines{ display:flex; flex-direction:column; gap:10px; }
+.dlg-line{
+  font-size:14px; line-height:1.75; color:var(--c-text);
+  background:var(--c-panel-2); border-left:3px solid var(--c-primary);
+  border-radius:8px; padding:10px 12px;
+}
+.dlg-foot{ display:flex; justify-content:flex-end; margin-top:16px; }

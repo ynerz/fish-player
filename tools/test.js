@@ -28,10 +28,10 @@ global.localStorage = {
   removeItem: k => { delete store[k]; },
 };
 ['src/data/config.js', 'src/data/fields.js', 'src/data/fish.js', 'src/data/items.js',
- 'src/data/goals.js', 'src/data/assistant.js',
+ 'src/data/goals.js', 'src/data/assistant.js', 'src/data/story.js',
  'src/core/util.js', 'src/core/platform.js', 'src/core/profile.js', 'src/core/assets.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js',
  'src/core/integrity.js',
- 'src/core/goals.js', 'src/core/weather.js', 'src/core/fishing.js', 'src/core/assistant.js', 'src/core/track.js',
+ 'src/core/goals.js', 'src/core/weather.js', 'src/core/fishing.js', 'src/core/assistant.js', 'src/core/story.js', 'src/core/track.js',
  'src/render/fishpaint.js',
  'src/ui/tutorial.js']
   .forEach(r => (new Function(fs.readFileSync(path.join(ROOT, r), 'utf8'))).call(global));
@@ -1227,7 +1227,7 @@ ok(G.Goals.weekOf(new Date(2026, 9, 12)) !== wk7[0], '下一周（周一）给�
 G_('Goals · 周常存档字段（SAVE_V 5）');
 St.reset();
 ok(St.get().weekly === null, '全新存档的 weekly 是 null，由 Goals.init() 现生成');
-ok(St.SAVE_V === 5, `SAVE_V = ${St.SAVE_V}（v5 新增周常挑战）`);
+ok(St.SAVE_V >= 5, `SAVE_V = ${St.SAVE_V}（v5 起有周常挑战字段；这里只断言「不退回 5 之前」）`);
 St.get().weekly = 'garbage';
 const legacyW = JSON.parse(JSON.stringify(St.get()));
 legacyW.v = 4; legacyW.weekly = 'garbage';
@@ -3647,6 +3647,148 @@ G_('陪伴助手 · 播报判定与语音降级');
     if (se.idle !== keep.idle) St.setIdle(keep.idle);
     A.init({});
     A.reset();
+  }
+})();
+
+/* =========================================================
+   N7 · 隔壁钓鱼佬（事件引擎：可复现 / 冷却 / 四道门 / 奖励不落地）
+   ========================================================= */
+G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
+(function () {
+  var S7 = G.Story, PL = G.Platform, Fish7 = G.Fishing;
+  var realSnap = G.Weather.snapshot, realPanels = G.Panels;
+  /* 三组受控条件：分别命中「借线」（傍晚）/「旧靴子」（有雾）/ 谁都不命中（大晴天正午） */
+  var DUSK = { field: 'D', wx: 'clear', tm: 'dusk' };
+  var FOG  = { field: 'D', wx: 'fog',   tm: 'day'  };
+  var DRY  = { field: 'D', wx: 'clear', tm: 'day'  };
+
+  function clean() { S7.reset(); St.get().story = { fired: {}, at: {} }; }
+  /* 从 seq=1 往下**扫**一个真能命中的序号（不写死数字：改一次台词 / chance 就会失效） */
+  function firstHit(base) {
+    for (var i = 1; i <= 600; i++) {
+      var p = { field: base.field, wx: base.wx, tm: base.tm, seq: i, now: 0 };
+      var ev = S7.tryFire(p);
+      if (ev) return { seq: i, ev: ev, p: p };
+    }
+    return null;
+  }
+
+  try {
+    /* ---------- ① 掷点是纯函数 ---------- */
+    var ev0 = G.STORY_EVENTS[0];
+    var p0 = { field: 'D', wx: 'clear', tm: 'dusk', seq: 7, now: 0 };
+    ok(S7.rollFor(ev0, p0) === S7.rollFor(ev0, p0), 'rollFor() 同一入参两次结果相同（纯函数）');
+    var v0 = S7.rollFor(ev0, p0);
+    ok(v0 >= 0 && v0 < 1, 'rollFor() 落在 [0,1)');
+    var uniq = {}, nUniq = 0;
+    for (var i = 1; i <= 20; i++) {
+      var v = S7.rollFor(ev0, { field: 'D', wx: 'clear', tm: 'dusk', seq: i, now: 0 });
+      if (!uniq[v]) { uniq[v] = 1; nUniq++; }
+    }
+    ok(nUniq === 20, '20 个序号给出 20 个互不相同的掷点（否则事件要么永远触发、要么永远不触发）');
+
+    /* ---------- ② 条件门 ---------- */
+    clean();
+    ok(firstHit(DRY) === null, '条件都不满足时（大晴天正午）一条事件都不触发');
+    clean();
+    var h1 = firstHit(DUSK);
+    ok(h1 && h1.ev.id === 'borrow', '傍晚无雨 ⇒ 命中「借线」（条件门 + 概率门都过）'
+      + (h1 ? '（第 ' + h1.seq + ' 次结算）' : ''));
+    clean();
+    var h2 = firstHit(FOG);
+    ok(h2 && h2.ev.id === 'boot', '有雾 ⇒ 命中「旧靴子」');
+
+    /* ---------- ③ 冷却 ---------- */
+    clean();
+    St.get().story.fired[h1.ev.id] = 1;
+    St.get().story.at[h1.ev.id] = 1000000;
+    var half = 1000000 + Math.round(h1.ev.cooldownMs / 2);
+    ok(S7.tryFire({ field: 'D', wx: 'clear', tm: 'dusk', seq: h1.seq, now: half }) === null,
+       '冷却期内同一条不再触发');
+    var past = 1000000 + h1.ev.cooldownMs + 1;
+    var again = S7.tryFire({ field: 'D', wx: 'clear', tm: 'dusk', seq: h1.seq, now: past });
+    ok(again && again.id === h1.ev.id, '冷却过去之后又能触发（同一序号 ⇒ 同一掷点）');
+
+    /* ---------- ④ once：一辈子一次 ---------- */
+    clean();
+    var once = { id: 'zzz-once-probe', npc: 'chen', title: '一次性', once: true,
+                 cooldownMs: 1, chance: 1, cond: {}, reward: {}, lines: ['探测用'] };
+    G.STORY_EVENTS.push(once);
+    try {
+      var pOnce = { field: 'D', wx: 'clear', tm: 'day', seq: 1, now: 0 };
+      var got = S7.tryFire(pOnce);
+      ok(got && got.id === once.id, 'once 事件第一次会出现（chance=1 必过）');
+      St.get().story.fired[once.id] = 1;
+      ok(S7.tryFire(pOnce) === null, 'once 事件写过一次之后永不再出现');
+    } finally { G.STORY_EVENTS.pop(); }
+
+    /* ---------- ⑤ 存档：字段与往返 ---------- */
+    clean();
+    ok(St.get().story && typeof St.get().story.fired === 'object',
+       'blank() 里有 story 字段（容器齐备）');
+
+    /* ---------- ⑥ consider() 的四道门 ---------- */
+    G.Weather.snapshot = function () { return { wx: { key: 'fog' }, tm: { key: 'dusk' } }; };
+    St.get().field = 'D';
+    Fish7.hardReset();
+    clean();
+    St.setIdle(true);
+    ok(S7.consider() === null, '挂机时不触发（人不在屏幕前，弹对话只会打断他回来后的操作）');
+    St.setIdle(false);
+
+    G.Panels = { isOpen: function () { return true; }, isCatchOpen: function () { return false; } };
+    ok(S7.consider() === null, '面板开着时不触发（两层 modal 叠在一起会打架）');
+    G.Panels = { isOpen: function () { return false; }, isCatchOpen: function () { return true; } };
+    ok(S7.consider() === null, '结算卡还开着时不触发');
+    /* 门都开了：面板层在测试的 DOM 桩下初始是「开着」的（stub 的 modal 元素没有 hidden 类），
+       所以这里显式给一个「都关着」的桩 —— 真身 G.Panels 那套判定另有它自己的测试组。 */
+    G.Panels = { isOpen: function () { return false; }, isCatchOpen: function () { return false; } };
+    Fish7.hardReset();
+
+    /* ---------- ⑦ 真触发：回调 / 记账 / 全局间隔 / 奖励不落地 ---------- */
+    clean();
+    var fired = null, gotNpc = null, gotRw = null;
+    S7.init({ onEvent: function (ev, npc, rw) { fired = ev; gotNpc = npc; gotRw = rw; } });
+    var cash = { coin: St.get().coin, medals: St.get().medals, eco: St.get().eco };
+    for (var k = 0; k < 600 && !fired; k++) S7.consider();
+    ok(!!fired, '条件合适时 consider() 真能触发一条事件');
+    ok(gotNpc && gotNpc.name && gotNpc.tag, 'onEvent 回调收到 NPC 对象（对话面板要用它显示说话人）');
+    ok(gotRw && typeof gotRw === 'object' && Object.keys(gotRw).length === 0,
+       'onEvent 回调拿到的事件奖励是**空对象**（本轮纯剧情、零奖励）');
+    ok(St.get().story.fired[fired.id] >= 1, '触发写进了存档：fired 计数 +1');
+    ok(typeof St.get().story.at[fired.id] === 'number', '触发时刻也写进存档（冷却靠它算）');
+    ok(S7.consider() === null, '全局最小间隔内不会紧接着再碰上一位邻居');
+    ok(St.get().coin === cash.coin && St.get().medals === cash.medals && St.get().eco === cash.eco,
+       '一次事件触发不动金币 / 纪念币 / 生态值（事件不是第二个经济系统）');
+
+    /* ---------- ⑧ 存档往返：「这条我见过没」不该因为重开而忘 ---------- */
+    St.save(true);
+    St.load();
+    ok(St.get().story.fired[fired.id] >= 1, '存档往返之后触发记录还在');
+
+    /* ---------- ⑨ 场景层要的那份 NPC 数据 ---------- */
+    var nb = S7.neighbor();
+    ok(nb && typeof nb.x === 'number' && nb.x > 0 && nb.x < 1 && nb.name && nb.tag,
+       'neighbor() 给出场景层要的站位与身份（x 是画布宽度比例）');
+    ok(S7.neighbor() === nb, 'neighbor() 每次给同一个对象（场景每帧都拿它，不该新建）');
+
+    /* ---------- ⑩ 脏档兜底：story 被写成数字 / 字符串时不崩 ---------- */
+    St.get().story = 5;
+    var noThrow = '';
+    try { S7.tryFire({ field: 'D', wx: 'fog', tm: 'dusk', seq: 3, now: 0 }); }
+    catch (e) { noThrow = e.message; }
+    ok(noThrow === '', '存档里的 story 是数字时 tryFire() 不抛（脏档兜底）'
+      + (noThrow ? ' —— ' + noThrow : ''));
+    clean();
+  } finally {
+    /* 恢复现场：引擎内存态、天气桩、面板层、存档里的触发记录、idle 开关 */
+    G.Weather.snapshot = realSnap;
+    G.Panels = realPanels;
+    S7.init({});
+    S7.reset();
+    St.get().story = { fired: {}, at: {} };
+    if (St.get().settings.idle) St.setIdle(false);
+    Fish7.hardReset();
   }
 })();
 

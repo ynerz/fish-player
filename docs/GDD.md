@@ -416,7 +416,7 @@ tools/gen-fish.py             鱼种生成器（鱼名/体重/价格，改完要
 tools/solve-drop.js           掉率求解器：反推掉率以命中节奏表
 tools/fix-rarity-price.js     稀有度定价归一化（**幂等**：跑第二遍必须 0 改动）
 tools/balance.js              数值仿真：胜率 / 节奏 / 收益 / 图鉴耗时（固定种子）
-tools/verify.js               数据自检 49 节（0 警告才算过；节数以 verify.js 自己的输出为准）
+tools/verify.js               数据自检 50 节（0 警告才算过；节数以 verify.js 自己的输出为准）
 tools/test.js                 单元测试（条数以它自己的输出为准）
 tools/gen-collect-time.js     生成 docs/收集耗时表.html
 tools/build.js                单文件打包（可选，发布用）
@@ -432,7 +432,7 @@ python tools/gen-fish.py         # 1. 参与生成的鱼名/体重/价格有变 
 node tools/solve-drop.js         # 2. 反推掉率并写回 fields.js / fish.js
 node tools/fix-rarity-price.js   # 3. 稀有度定价归一化（幂等，第二遍应 0 改动）
 node tools/balance.js            # 4. 复核：胜率 / 每小时收益 / 图鉴收集耗时
-node tools/verify.js             # 5. 自检 49 节
+node tools/verify.js             # 5. 自检 50 节
 node tools/gen-collect-time.js   # 6. 出收集耗时表
 ```
 
@@ -448,21 +448,21 @@ node tools/build.js --release  # 剔除 devtools，断言产物里搜不到 G.Ch
 node tools/build.js --check    # 只跑断言不写盘
 ```
 
-产物 ≈ **646 KB / 1 个网络请求**（原本 31 个），可以 `file://` 双击直接跑。
+产物 ≈ **669 KB / 1 个网络请求**（原本 33 个），可以 `file://` 双击直接跑。
 
 ---
 
 ## 11. 存档结构
 
 存储在浏览器 `localStorage`（一律经由 `G.Platform.storage`），
-键名 `fishplayer.save.v1`（另有 `...v1.bak` 备份）。当前 **SAVE_V = 5**。
+键名 `fishplayer.save.v1`（另有 `...v1.bak` 备份）。当前 **SAVE_V = 6**。
 
 > ⚠️ 键名里的 `v1` 是**历史遗留，与 `SAVE_V` 无关** —— 不要跟着版本号改它，
 > 否则所有老存档都会读不到。
 
 ```
 {
-  v: 5, coin, playTime, field, unlocked{},
+  v: 6, coin, playTime, field, unlocked{},
   book:   { fishId: { n, maxKg, colors{key:count}, first } },
   baits{}, baitSel, rods[], rodSel, lines[], lineSel, decors[],
 
@@ -483,6 +483,10 @@ node tools/build.js --check    # 只跑断言不写盘
 
   /* 反作弊 · 本地完整性检测（N2；**只做 L1 标记**，不拦不封不改游戏数据） */
   integrity: { flags: [{ code, n, at, detail }], runs },
+
+  /* 隔壁钓鱼佬（v6）—— 事件记录：fired 是各事件触发过几次（`once` 靠它）、
+     at 是最近一次触发的时刻（毫秒，冷却靠它）；键是内容表里的事件 id */
+  story: { fired{}, at{} },
 
   stats: {
     casts, catches, escapes, snaps, idleCatches, maxKg, maxKgFish, totalValue, days,
@@ -771,7 +775,7 @@ node tools/build.js --check    # 只跑断言不写盘
 ```
 
 - 把 `index.html` + 样式表 + `src/` 下全部脚本**内联成一个 HTML**
-- 产物 ≈ **646 KB / 1 个网络请求**（原本 31 个），可以 `file://` 双击直接跑 ——
+- 产物 ≈ **669 KB / 1 个网络请求**（原本 33 个），可以 `file://` 双击直接跑 ——
   这也是「零外部依赖」最硬的证据
 - ⚠️ 它只是**可选的发布步骤**，不在开发流程里（改完刷新浏览器即可）；`dist/` 不入库
 - `<script src>` 必须连续挨成一块，`config.js` 第一（建 `window.G`）、`main.js` 最后（boot）——

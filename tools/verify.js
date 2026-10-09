@@ -617,7 +617,7 @@ listed.forEach(rel => {
 const WANT = ['CONFIG', 'FIELDS', 'FIELD_MAP', 'FISH', 'FISH_ID', 'FISH_BY_FIELD', 'FISH_BY_FIELD_RARITY',
   'TOTAL_FISH', 'BAITS', 'RODS', 'LINES', 'DECORS', 'ACHIEVEMENTS',
   'U', 'Platform', 'Audio', 'Loot', 'State', 'Goals', 'FishArt', 'CardArt', 'Scene', 'Fight', 'Weather', 'Track',
-  'Fishing', 'Assistant', 'Panels', 'Hud', 'Tutorial'];
+  'Fishing', 'Assistant', 'Story', 'Panels', 'Hud', 'Tutorial'];
 const gone = WANT.filter(k => !sandbox.G || sandbox.G[k] == null);
 if (gone.length) { err('按序加载后缺这些全局模块：' + gone.join('、')); entryBad++; }
 
@@ -5500,6 +5500,151 @@ let deepBad = 0;
   if (!deepBad) {
     ok('SS / SSS 分场奇幻点题在位：两张表 ' + sentences + ' 句、模块级加载即校验、'
       + '点题只有一处入口且两道门顺序正确、句子不含形态档案高频词');
+  }
+})();
+
+/* ---------------- 50. 隔壁钓鱼佬：事件可复现 + 奖励硬约束 + 内容与接线都有人消费 ----------------
+   由来（2026-10-10，自动化轮 · N7 骨架）：「1 个 NPC + 2 个事件」这套东西的坏法**全是静默的** ——
+     · 事件配了却没人调 `consider()` ⇒ 永远不触发（界面上看不出少了什么）；
+     · NPC 表里站着、场景却不画他 ⇒ 玩家根本不知道有这么个人；
+     · 台词写在数据里、没人渲染 ⇒ 说了等于没说；
+     · `reward` 悄悄加上数值奖励 ⇒ 绕过了「奖励只许纯外观」这条红线（经济系统多一个入口）。
+   四条都不报错，所以这里逐条钉住。**判据全走 `has()`（折行不敏感）**。
+
+   ⚠️ **自指防线**：本节会把数据表里的字段名**动态**取出来（`Object.keys(...)`），
+      不在本文件里写死 `skin` / `shirt` 这类名字 —— 否则 verify.js 自己就成了
+      第 32-g 眼里的一个「消费方」，真消费方被删掉都不报红（㉓ / 33-f 同款坑）。
+      只有四个「元字段」（id / name / tag / x 这类通用名）例外，它们在别处本来就有消费方。
+   ⚠️ 阈值 / 冷却这些数字**不在这里断言**（它们逐条写在内容表与 config 里，
+      写死一份就成了第二份真相）；这里只断言「它们是正数 / 在区间里」这种结构性质。 */
+console.log('\n[50] 隔壁钓鱼佬：事件可复现、奖励只许纯外观、NPC / 台词 / 接线都有消费方');
+let storyBad = 0;
+(function () {
+  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const coreSrc = fs.readFileSync(path.join(ROOT, 'src/core/story.js'), 'utf8');
+  const stateSrc = fs.readFileSync(path.join(ROOT, 'src/core/state.js'), 'utf8');
+  const panelSrc = strip(fs.readFileSync(path.join(ROOT, 'src/ui/panels.js'), 'utf8'));
+  const sceneSrc = strip(fs.readFileSync(path.join(ROOT, 'src/render/scene.js'), 'utf8'));
+  const mainSrc = strip(fs.readFileSync(path.join(ROOT, 'src/main.js'), 'utf8'));
+
+  /* ① 内容表：取**按序加载过的那一份**（不重新解析，免得同一份内容出现两个真相） */
+  const NPCS = (sandbox.G && sandbox.G.STORY_NPCS) || null;
+  const EVS = (sandbox.G && sandbox.G.STORY_EVENTS) || null;
+  if (!NPCS || !EVS || !Object.keys(NPCS).length || !EVS.length) {
+    err('src/data/story.js 没有给出 STORY_NPCS / STORY_EVENTS（隔壁钓鱼佬的 NPC 与事件表）');
+    storyBad++;
+    return;
+  }
+  const npcIds = Object.keys(NPCS);
+
+  /* ② 字段名必须合法（下面要拿它拼正则） */
+  const badKeys = [];
+  const allKeys = [];
+  npcIds.forEach(id => Object.keys(NPCS[id]).forEach(k => allKeys.push('NPC ' + id + '.' + k)));
+  EVS.forEach(ev => Object.keys(ev).forEach(k => allKeys.push('事件 ' + (ev.id || '?') + '.' + k)));
+  allKeys.forEach(s => {
+    const k = s.replace(/^.*\./, '');
+    if (!/^[A-Za-z_$][\w$]*$/.test(k)) badKeys.push(s);
+  });
+  if (badKeys.length) { err('内容表的字段名不是合法标识符：' + badKeys.join('、')); storyBad++; return; }
+
+  /* ③ 每条事件：id 唯一、能解出 NPC、字段齐全且类型对、台词非空 */
+  const evBad = [], seenEv = {};
+  EVS.forEach(ev => {
+    if (!ev.id || seenEv[ev.id]) evBad.push('事件 id 缺失或重复：' + ev.id);
+    seenEv[ev.id] = 1;
+    if (npcIds.indexOf(ev.npc) < 0) evBad.push(ev.id + ' 指向不存在的 NPC「' + ev.npc + '」');
+    if (typeof ev.title !== 'string' || !ev.title) evBad.push(ev.id + ' 没有 title（对话面板标题会是空的）');
+    if (!(ev.chance > 0 && ev.chance <= 1)) evBad.push(ev.id + ' 的 chance 不在 (0,1]');
+    if (!(ev.cooldownMs > 0)) evBad.push(ev.id + ' 的 cooldownMs 不是正数');
+    if (typeof ev.once !== 'boolean') evBad.push(ev.id + ' 的 once 不是布尔值');
+    if (!ev.cond || typeof ev.cond !== 'object' || Array.isArray(ev.cond)) {
+      evBad.push(ev.id + ' 没有 cond —— 无条件的邻居会每竿都来搭话');
+    }
+    if (!ev.reward || typeof ev.reward !== 'object' || Array.isArray(ev.reward)) {
+      evBad.push(ev.id + ' 的 reward 不是对象');
+    }
+    if (!Array.isArray(ev.lines) || !ev.lines.length
+      || ev.lines.some(s => typeof s !== 'string' || !s.trim())) {
+      evBad.push(ev.id + ' 的 lines 为空、或含非字符串 / 空行');
+    }
+  });
+  if (evBad.length) { err('事件表这些地方不对：' + evBad.join('；')); storyBad++; }
+
+  /* ④ 🔴 奖励硬约束：**键只许在纯外观白名单里**，绝不许给金币 / 鱼饵 / 装备 / 掉率。
+     白名单现在**是空的** —— 本轮两条事件都是「纯剧情、零奖励」，那是**有意**的。
+     要给东西的那一轮必须同时改这里并写明是纯外观（这是有意留的一道闸门）。 */
+  const REWARD_ALLOW = [];
+  const REWARD_FORBID = ['coin', 'bait', 'rod', 'line', 'luck', 'odds', 'rate'];
+  const rwBad = [];
+  EVS.forEach(ev => {
+    Object.keys(ev.reward || {}).forEach(k => {
+      if (REWARD_FORBID.indexOf(k) >= 0) rwBad.push(ev.id + ' 的 reward 里出现了数值奖励「' + k + '」');
+      else if (REWARD_ALLOW.indexOf(k) < 0) rwBad.push(ev.id + ' 的 reward 有个没进白名单的键「' + k + '」');
+    });
+  });
+  if (rwBad.length) {
+    err('事件奖励越了红线：' + rwBad.join('；')
+      + '（奖励只许纯外观 —— 称号 / 限定装饰；数值与经济类一律不许）');
+    storyBad++;
+  }
+
+  /* ⑤ 确定性：引擎里不许出现 `Math.random()` —— 它是「同一份存档两次跑出不同结果」的唯一入口 */
+  if (has(strip(coreSrc), 'Math.random')) {
+    err('src/core/story.js 用了 Math.random() —— 事件触发就不可定点复现了'
+      + '（口径①：同一份存档 + 同一组条件 + 同一个序号必须给同一个结果）');
+    storyBad++;
+  }
+
+  /* ⑥ 消费方：**数据表里的每一个字段都必须有人读**（动态取键，见本节头注的自指防线）
+     · 事件的字段 → 引擎或 UI 层里出现 `ev.<字段>`
+     · NPC 的字段 → 场景层出现 `nb.<字段>`，或 UI 层出现 `npc.<字段>` */
+  const unread = [];
+  EVS.forEach(ev => Object.keys(ev).forEach(k => {
+    if (!has(coreSrc, 'ev.' + k) && !has(mainSrc, 'ev.' + k)) unread.push('事件 ' + ev.id + '.' + k);
+  }));
+  npcIds.forEach(id => Object.keys(NPCS[id]).forEach(k => {
+    /* 场景层用 `nb.` 接这份数据（`var nb = S.neighbor`）；UI 层用 `npc.` 显示名字 / 身份 */
+    const inScene = new RegExp('nb\\.' + k + '(?![A-Za-z0-9_$])').test(sceneSrc);
+    const inUi = new RegExp('npc\\.' + k + '(?![A-Za-z0-9_$])').test(panelSrc)
+      || new RegExp('npc\\.' + k + '(?![A-Za-z0-9_$])').test(mainSrc);
+    if (!inScene && !inUi) unread.push('NPC ' + id + '.' + k);
+  }));
+  if (unread.length) { err('内容表里这些字段没人读：' + unread.join('、')); storyBad++; }
+
+  /* ⑦ 三处接线必须都在（缺一条 = 静默失效） */
+  const wires = [
+    [mainSrc, 'G.Story.init(', 'main.js 没初始化事件引擎 —— 事件表配得再好也永远不触发'],
+    [mainSrc, 'G.Story.consider(', 'main.js 没在「一竿结算完」之后调 consider() —— 事件永远不触发'],
+    [mainSrc, 'G.Story.neighbor()', 'main.js 没把 NPC 交给场景层 —— 隔壁钓鱼佬画不出来'],
+    [panelSrc, 'VIEWS.dialog', 'panels.js 没有对话面板 —— 他的话说不出来'],
+    [sceneSrc, 'function drawNeighbor(', 'scene.js 没有 drawNeighbor() —— NPC 画不出来'],
+    [sceneSrc, 'drawNeighbor(th)', 'scene.js 的渲染流程里没调 drawNeighbor() —— NPC 不会出现'],
+  ];
+  const miss = wires.filter(w => !has(w[0], w[1]));
+  if (miss.length) { err('隔壁钓鱼佬的接线缺了 ' + miss.length + ' 处：\n     ' + miss.map(w => w[2]).join('\n     ')); storyBad++; }
+
+  /* ⑧ 存档：字段要在 blank() 里，migrate() 要纠正它的容器类型（脏档兜底）
+     ⚠️ 判据必须认**字段声明 / 赋值本身**，不能只认「这段文字里出现过 story 这个词」——
+        第一版写成 `has(body, 'story')`，反向验证当场假通过：把 `story:` 那一行删掉之后，
+        `blank()` 里那段**注释**（里面写着 `src/data/story.js`）照样让判据变绿。
+        与 32-h 同款做法：字段按**行首缩进 + 冒号**认，且先证明「解析出的字段数不为零」。 */
+  const blankBody = bodyOf(stateSrc, 'function blank(');
+  const blankFields = [...blankBody.matchAll(/^ {6}([a-zA-Z][a-zA-Z0-9]*)\s*[:,]/gm)].map(m => m[1]);
+  if (blankFields.length < 20) {
+    err(`§50 只从 blank() 里解析出 ${blankFields.length} 个顶层字段 —— 缩进或写法变了，先修这条断言本身`);
+    storyBad++;
+  } else if (blankFields.indexOf('story') < 0) {
+    err('state.js 的 blank() 里没有 story 字段 —— 隔壁钓鱼佬的事件记录无处可存'); storyBad++;
+  }
+  if (!/d\.story\.(fired|at)\s*=/.test(bodyOf(stateSrc, 'function migrate('))) {
+    err('state.js 的 migrate() 没纠正 d.story 的容器类型 —— 脏档（story 是数字 / 字符串）会让引擎读崩');
+    storyBad++;
+  }
+
+  if (!storyBad) {
+    ok('隔壁钓鱼佬在位：' + npcIds.length + ' 个 NPC / ' + EVS.length + ' 条事件，'
+      + '字段全有人读、三处接线齐全、奖励白名单为空（纯剧情）、引擎不用 Math.random');
   }
 })();
 

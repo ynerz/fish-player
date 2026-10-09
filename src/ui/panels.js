@@ -1967,6 +1967,44 @@ G.Panels = (function () {
   };
 
   /* =========================================================
+     隔壁钓鱼佬的对话（N7）
+     ========================================================= */
+  /* 上一次的对话内容。⚠️ 必须有：`refresh()` 走的是**不带参数**的
+     `renderCurrent()`，一次不带 payload 的重绘会让整段对话变成空白的
+     「他没说什么」—— 而玩家看到的会是「刚说到一半就没了」（同 VIEWS.offline 那个坑）。 */
+  var dialogLast = null;
+
+  VIEWS.dialog = {
+    title: function (d) { return (d && d.title) || '搭话'; },
+    render: function (root, d) {
+      d = d || dialogLast;
+      if (!d || !d.lines || !d.lines.length) {
+        /* 真·没有内容（比如被 refresh 撞了一次又没缓存）—— 明确说出来，不渲染一张空卡 */
+        root.appendChild(U.el('div', 'empty-tip', '他没再说什么。'));
+        return;
+      }
+      dialogLast = d;
+      var npc = d.npc || {};
+      var who = U.el('div', 'dlg-who',
+        npc.name ? npc.name + (npc.tag ? '　·　' + npc.tag : '') : '隔壁的钓鱼佬');
+      root.appendChild(who);
+      var box = U.el('div', 'dlg-lines');
+      d.lines.forEach(function (t) { box.appendChild(U.el('div', 'dlg-line', t)); });
+      root.appendChild(box);
+      var foot = U.el('div', 'dlg-foot');
+      var btn = U.el('button', 'btn-ghost', '知道了');
+      U.on(btn, 'click', function () {
+        G.Audio.click();
+        /* 收尾回调（存档记账已经在引擎里做完了，这里只给调用方一个「玩家看过了」的时机） */
+        if (typeof d.onDone === 'function') d.onDone();
+        close();
+      });
+      foot.appendChild(btn);
+      root.appendChild(foot);
+    },
+  };
+
+  /* =========================================================
      离线补算报告
      ========================================================= */
   VIEWS.offline = {

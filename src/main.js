@@ -108,6 +108,16 @@
       toast: function (line) { Hud.toast({ text: line.text }); },
     });
 
+    /* ---------- 隔壁钓鱼佬（N7） ----------
+       事件引擎只决定「什么时候碰上谁、他说什么、触发过几次」；画面（他站在哪）
+       交给场景层，对话交给面板层（复用同一个 modal，不新建弹层体系）。
+       ⚠️ 考虑触发的时机**只有两处**（见 onMiss / onCatchCardClosed）——
+         都在「一竿已经结算完、回到 idle」之后，绝不在 wait / fight 中途插进来。 */
+    if (G.Story) {
+      G.Story.init({ onEvent: onStoryEvent });
+      S.setNeighbor(G.Story.neighbor());
+    }
+
     /* ---------- 钓鱼 ---------- */
     F.init({
       onState: onStateChange,
@@ -325,6 +335,14 @@
   function onCatchCardClosed() {
     syncAction();
     Hud.syncAll();
+    /* 结算刚收尾、回到 idle —— 这是「可以碰上隔壁钓鱼佬」的时机之一 */
+    if (G.Story) G.Story.consider();
+  }
+
+  /* 隔壁钓鱼佬真的开口了（引擎已经记完账）→ 开对话。
+     复用现有 modal：底栏会自动进禁用态、ESC / 点遮罩都能关，不必另写一套。 */
+  function onStoryEvent(ev, npc) {
+    P.open('dialog', { title: ev.title, npc: npc, lines: ev.lines });
   }
 
   /* 结算卡的两个出口：卖出（默认）/ 收进鱼护 */
@@ -364,6 +382,9 @@
     } else {
       Hud.toast({ text: '没抓住咬口，鱼跑了', kind: 'warn' });
     }
+    /* 丢了一竿、回到 idle —— 另一处「可以碰上隔壁钓鱼佬」的时机
+       （挂机那一支上面已经 return 了：人不在屏幕前，弹对话只会打断他回来后的操作） */
+    if (G.Story) G.Story.consider();
   }
 
   function onUnlock(list) {

@@ -16,8 +16,9 @@ G.State = (function () {
              （byRar / byField / byBait / byWx / byTm / streak / maxStreak）
      版本 4：新增新手引导进度 tut（老存档直接视为「已看过」，不刷教学气泡）
      版本 5：新增周常挑战 weekly（与每日任务同一套派生逻辑；
-             老存档留 null，由 G.Goals.init() 按 ISO 周键自动生成，无需迁移数据） */
-  var SAVE_V = 5;
+             老存档留 null，由 G.Goals.init() 按 ISO 周键自动生成，无需迁移数据）
+     版本 6：新增隔壁钓鱼佬的事件记录 story（N7；老存档补成空记录 = 一条都没触发过） */
+  var SAVE_V = 6;
 
   /* 数字兜底：任何来自存档或计算的数值都要过一遍，
      否则 NaN 会被 JSON.stringify 写成 null，静默污染整个存档。 */
@@ -73,6 +74,12 @@ G.State = (function () {
          只做 **L1 标记**：记下可疑，不拦、不封、不改任何游戏数据（见 src/core/integrity.js 头部）。
          `flags` 是**现场重算**的结果（幂等，同一份证据 ⇒ 同一份标记），不是累加日志。 */
       integrity: { flags: [], runs: 0 },
+      /* ---- 隔壁钓鱼佬（N7）----
+         `fired` = 各事件触发过几次（`once` 只发生一次就靠它）；
+         `at` = 各事件最近一次触发的时刻（毫秒，`cooldownMs` 靠它）。
+         键是 `src/data/story.js` 里的事件 id —— **存档只记事实**，
+         重开游戏「这条我见过没」不会变。 */
+      story: { fired: {}, at: {} },
       stats: {
         casts: 0, catches: 0, escapes: 0, snaps: 0, idleCatches: 0,
         maxKg: 0, maxKgFish: '', totalValue: 0, days: 0,
@@ -173,7 +180,7 @@ G.State = (function () {
          · `baits: 5`    → 买鱼饵扣了金币、`S.baits[id] = n` 静默不生效 → 饵没到账。
          · `rods: 5`     → `S.rods.indexOf` 不是函数，换竿 / 买竿直接 TypeError。
        先统一纠正类型，内容再由下面的逐字段兜底处理。 */
-    ['stats', 'settings', 'baits', 'unlocked', 'book', 'medalSeen', 'integrity'].forEach(function (k) {
+    ['stats', 'settings', 'baits', 'unlocked', 'book', 'medalSeen', 'integrity', 'story'].forEach(function (k) {
       if (!d[k] || typeof d[k] !== 'object' || Array.isArray(d[k])) d[k] = {};
     });
     ['net', 'tank', 'rods', 'lines', 'decors', 'achSeen'].forEach(function (k) {
@@ -249,6 +256,13 @@ G.State = (function () {
     if (from < 4) d.tut.done = true;
     if (d.tut.step >= tutStepCount()) d.tut.done = true;
 
+    /* ---- 隔壁钓鱼佬（N7，v6）：只纠正容器类型，不校验键 ----
+       `fired` / `at` 的键是**内容表里的事件 id**；删掉一条事件之后，存档里那条旧记录
+       留着无害（引擎按当前内容表遍历，读到不认识的 id 直接跳过），
+       清掉反而要多存一份「已删 id 名单」。 */
+    if (!d.story.fired || typeof d.story.fired !== 'object' || Array.isArray(d.story.fired)) d.story.fired = {};
+    if (!d.story.at || typeof d.story.at !== 'object' || Array.isArray(d.story.at)) d.story.at = {};
+
     /* ---- 按版本号迁移 ---- */
     if (from < 2) {
       // v1 → v2：新增鱼护 / 水族箱
@@ -270,6 +284,8 @@ G.State = (function () {
       // 由 G.Goals.init() 按当前 ISO 周键生成一份，老档不会缺当周挑战。
       d.weekly = null;
     }
+    /* v5 → v6（隔壁钓鱼佬）：同样没有历史数据要换算 —— 事件从没存在过，
+       `fired` / `at` 上面已经兜成空字典（= 一条都没触发过）。 */
     d.v = SAVE_V;
 
     /* ---- 数值兜底：任何一条脏数据都不该毁掉整个存档 ---- */

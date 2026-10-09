@@ -27,6 +27,7 @@ G.Scene = (function () {
     stars: [],
     clouds: [],
     decor: {},
+    neighbor: null,   // 隔壁钓鱼佬（N7）：{ x, skin, shirt, shirtD, pants, hat } 或 null
     rocks: [],         // 浅滩石头 [{x, y, rx, ry, sub, wy, body, top}]
     rain: [],          // 雨丝 [{x, y, len, v, a}]
     wxKey: null,       // 上一帧的天气 key，用来在变天时重建雨丝
@@ -192,6 +193,9 @@ G.Scene = (function () {
     S.decor = {};
     (list || []).forEach(function (id) { S.decor[id] = true; });
   }
+  /* 隔壁钓鱼佬（N7）。传 null 就不画人 —— 内容表为空 / 以后换「钓场里有没有人」
+     都走这一条口，不要在别处偷偷往 S.decor 里塞标记。 */
+  function setNeighbor(n) { S.neighbor = n || null; }
 
   function cast() {
     S.floatState = 'flying';
@@ -429,6 +433,7 @@ G.Scene = (function () {
     drawUnderwater(th);
     drawRocks(th);
     drawDock(th);
+    drawNeighbor(th);      // 隔壁钓鱼佬（N7）：先画他，玩家照旧画在最上层
     drawFisher(th);
     drawRod(th);
     drawLine(th);
@@ -1171,16 +1176,15 @@ G.Scene = (function () {
     }
   }
 
-  function drawFisher(th) {
-    var dy = dockY();
-    var x = fisherX();
-    var y = dy - 13;
-
-    var Hh = Math.min(H * 0.16, 74);        // 身高
-    var skin = '#eabf98';
-    var shirt = '#356f9e';
-    var shirtD = '#2a5a83';
-    var pants = '#3d4a55';
+  /* ---------------- 钓手（玩家与隔壁共用同一段画法） ----------------
+     抽出来只为一件事：**同一个人形只有一处真相** —— 隔壁不是另画一个人，
+     是同一段身体换一组颜色、换一个站位（配色与站位来自 `src/data/story.js`）。
+     `o` = { x, y, Hh, skin, shirt, shirtD, pants, hat }；返回肩高 shoY（玩家要拿它接手臂）。
+     ⚠️ 手臂 / 鱼竿**只有玩家画**：隔壁这一轮不抛线，免得他的竿与玩家的竿线
+        在画面上打架（这不是省略，是有意的 —— 见 N7 待办里「先 1 个 NPC + 2 个事件」）。 */
+  function drawAnglerBody(th, o) {
+    var x = o.x, y = o.y, Hh = o.Hh;
+    var skin = o.skin, shirt = o.shirt, shirtD = o.shirtD, pants = o.pants;
 
     ctx.save();
 
@@ -1216,16 +1220,6 @@ G.Scene = (function () {
     ctx.ellipse(x, shoY + Hh * 0.012, Hh * 0.062, Hh * 0.045, 0, 0, Math.PI);
     ctx.fill();
 
-    /* 手臂 → 握竿 */
-    var hx = x + Hh * 0.40, hy = y - Hh * 0.63;
-    ctx.strokeStyle = shirt; ctx.lineWidth = Hh * 0.085;
-    ctx.beginPath();
-    ctx.moveTo(x + Hh * 0.09, shoY + Hh * 0.05);
-    ctx.quadraticCurveTo(x + Hh * 0.26, shoY + Hh * 0.02, hx, hy);
-    ctx.stroke();
-    ctx.fillStyle = skin;
-    ctx.beginPath(); ctx.arc(hx, hy, Hh * 0.048, 0, 6.3); ctx.fill();
-
     /* 头 */
     ctx.fillStyle = skin;
     ctx.beginPath(); ctx.arc(x, y - Hh * 0.83, Hh * 0.105, 0, 6.3); ctx.fill();
@@ -1233,8 +1227,8 @@ G.Scene = (function () {
     ctx.fillStyle = 'rgba(0,0,0,.07)';
     ctx.beginPath(); ctx.arc(x + Hh * 0.035, y - Hh * 0.83, Hh * 0.105, -1.5, 1.5); ctx.fill();
 
-    /* 帽子 */
-    if (S.decor.hat) {
+    /* 帽子（戴不戴由调用方决定：玩家看装饰、邻居看内容表） */
+    if (o.hat) {
       ctx.fillStyle = '#c85f4a';
       ctx.beginPath();
       ctx.ellipse(x, y - Hh * 0.885, Hh * 0.185, Hh * 0.042, 0, 0, 6.3);
@@ -1256,6 +1250,64 @@ G.Scene = (function () {
     }
 
     ctx.restore();
+    return shoY;
+  }
+
+  function drawFisher(th) {
+    var dy = dockY();
+    var x = fisherX();
+    var y = dy - 13;
+    var Hh = Math.min(H * 0.16, 74);        // 身高
+    var skin = '#eabf98';
+    var shirt = '#356f9e';
+
+    var shoY = drawAnglerBody(th, {
+      x: x, y: y, Hh: Hh,
+      skin: skin, shirt: shirt, shirtD: '#2a5a83', pants: '#3d4a55',
+      hat: !!S.decor.hat,
+    });
+
+    /* 手臂 → 握竿（只有玩家有：邻居这一轮不抛线，见 drawAnglerBody 的头注） */
+    var hx = x + Hh * 0.40, hy = y - Hh * 0.63;
+    ctx.strokeStyle = shirt; ctx.lineWidth = Hh * 0.085;
+    ctx.beginPath();
+    ctx.moveTo(x + Hh * 0.09, shoY + Hh * 0.05);
+    ctx.quadraticCurveTo(x + Hh * 0.26, shoY + Hh * 0.02, hx, hy);
+    ctx.stroke();
+    ctx.fillStyle = skin;
+    ctx.beginPath(); ctx.arc(hx, hy, Hh * 0.048, 0, 6.3); ctx.fill();
+  }
+
+  /* 隔壁钓鱼佬：站位与配色全部来自内容表（`src/data/story.js`），画法复用上面那段。
+     竿是**靠在身边的一根斜杆**而不是抛出去的手竿 —— 画的目的是「这里还站着一个人」，
+     不是「他也在钓」；他真在钓这件事发生在对话里。 */
+  function drawNeighbor(th) {
+    var nb = S.neighbor;
+    if (!nb) return;
+    var Hh = Math.min(H * 0.155, 72);
+    var x = W * nb.x, y = dockY() - 13;
+
+    ctx.save();
+    /* 靠着的竿先画（在人身后） */
+    ctx.strokeStyle = '#7a5a33';
+    ctx.lineWidth = Math.max(2, H * 0.0045);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x + Hh * 0.30, y - Hh * 0.02);
+    ctx.lineTo(x - Hh * 0.10, y - Hh * 1.05);
+    ctx.stroke();
+    /* 脚边的鱼桶 */
+    ctx.fillStyle = '#4b6b7a';
+    ctx.fillRect(x + Hh * 0.26, y - Hh * 0.24, Hh * 0.20, Hh * 0.24);
+    ctx.fillStyle = '#3b5866';
+    ctx.fillRect(x + Hh * 0.26, y - Hh * 0.265, Hh * 0.20, Hh * 0.05);
+    ctx.restore();
+
+    drawAnglerBody(th, {
+      x: x, y: y, Hh: Hh,
+      skin: nb.skin, shirt: nb.shirt, shirtD: nb.shirtD, pants: nb.pants,
+      hat: !!nb.hat,
+    });
   }
 
   function handPos() {
@@ -1549,7 +1601,7 @@ G.Scene = (function () {
 
   return {
     init: init, render: render,
-    setField: setField, setDecor: setDecor,
+    setField: setField, setDecor: setDecor, setNeighbor: setNeighbor,
     cast: cast, beginWait: beginWait, bite: bite, floatNudge: floatNudge,
     beginFight: beginFight, endFight: endFight,
     splash: splash, sparkle: sparkle, showShadow: showShadow,

@@ -1080,15 +1080,26 @@ G.Panels = (function () {
           if (b.free) right = '<button class="sh-buy' + (s.baitSel === b.id ? ' equipped' : ' equip') + '">' +
                               (s.baitSel === b.id ? '使用中' : '选用') + '</button>' +
                               '<div class="sh-price" style="text-align:center;margin-top:4px">无限</div>';
-          else right = '<button class="sh-buy">买 ' + b.pack + ' 个</button>' +
-                       '<div class="sh-price" style="text-align:center;margin-top:4px">' + U.coin(b.price * b.pack) + ' 金</div>';
+          /* ⚠️ 付费饵要能看出「现在用的就是它」：装备态给按钮上绿色（.equipped），
+             价格行补「使用中」小字；持有但没在用的补一颗「选用」——
+             它在购买按钮之后，shopRow 绑的是第一个按钮（购买），所以这里要自己接。 */
+          else if (s.baitSel === b.id) {
+            right = '<button class="sh-buy equipped">买 ' + b.pack + ' 个</button>' +
+                    '<div class="sh-price" style="text-align:center;margin-top:4px">' +
+                    U.coin(b.price * b.pack) + ' 金 · 使用中</div>';
+          } else {
+            right = '<button class="sh-buy">买 ' + b.pack + ' 个</button>' +
+                    (have > 0 ? '<button class="sh-buy equip sh-equip">选用</button>' : '') +
+                    '<div class="sh-price" style="text-align:center;margin-top:4px">' +
+                    U.coin(b.price * b.pack) + ' 金</div>';
+          }
           /* ⚠️ 叫「咬口时间」不叫「上鱼速度」：speed 乘的是**等待时间**（越小越快），
              写成「速度 ×0.56」方向正好说反（看着像砍了 44% 速度，实际是快了 79%）。 */
           var desc = b.desc + ' ｜ 咬口时间 ×' + b.speed.toFixed(2) +
                      ' ｜ 稀有权重 ×' + b.rareMul.toFixed(2) +
                      (b.legendMul > 1 ? ' ｜ 传说 ×' + b.legendMul.toFixed(2) : '') +
                      ' ｜ 持有 ' + (b.free ? '∞' : have);
-          shopRow('🪱', b.name, desc, right, function () {
+          var row = shopRow('🪱', b.name, desc, right, function () {
             if (b.free) { St.selectBait(b.id); G.Audio.click(); refresh(); G.State.emit('bait'); return; }
             var r = St.buyBait(b.id, 1);
             if (!r.ok) { G.Audio.deny(); G.State.emit('toast', { text: r.msg, kind: 'bad' }); return; }
@@ -1097,6 +1108,11 @@ G.Panels = (function () {
             if (!St.baitCount(s.baitSel) && s.baitSel !== 'worm') St.selectBait(b.id);
             refresh();
           }, s.baitSel === b.id ? 'owned' : '');
+          /* 「选用」是第二个按钮（第一个必须是购买 —— shopRow 只绑第一个），自己接 */
+          var eq = row.querySelector('.sh-equip');
+          if (eq) U.on(eq, 'click', function () {
+            St.selectBait(b.id); G.Audio.click(); refresh(); G.State.emit('bait');
+          });
         });
       }
 

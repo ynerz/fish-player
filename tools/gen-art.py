@@ -516,26 +516,30 @@ MORPHS = [(k, MORPH_CANDIDATES[MORPH_POOL[k][0][0]][1]) for k in MORPH_ORDER]
 #         · `tools/review-cards.py` 的 `SHAPE_CN`（缺 = 评审页裸印内部键）
 #         · `tools/style-preview.html` 的「全形态总览」代表鱼（缺 = 那节少一种形态）
 #         · 文档里的「N 种体型」（`verify §33` 现算比对）
-#    ⚠️ 新体型的 `d` **只描述构造、不许点名动物**（2026-10-08 的教训：写了动物名就是物种指令，
-#       实测把小龙虾画成乌贼）。
+#    ⚠️ **所有** `d` 都只描述构造、**不许点自己的名**（2026-10-08 的教训：写了动物名就是物种指令，
+#       实测把小龙虾画成乌贼）。2026-10-09 把老 9 条也改掉了 —— 它们原先写着
+#       `squid with…` / `jellyfish with…`，只因为 **362 条鱼全都有查证过的 `form`**
+#       （`build_prompt` ⓪ 有 `form` 就整句丢弃）才一句都没输出过：**潜伏坑**，
+#       哪天新增一条没有 `form` 的鱼，它就会拿这句当主语、原样复发。
+#       ⇒ 判据落在 `verify §33-c` 的 ⑤e（含别名表与判据自检）。
 SHAPES = {
-    "fish":    {"d": "streamlined fish with a rounded body and small pectoral fins",
+    "fish":    {"d": "a streamlined body with a rounded oval outline, a tapering caudal peduncle and small paired fins",
                 "fin": "fins", "finSafe": "fins"},
-    "eel":     {"d": "long slender eel with a ribbon-like serpentine body and a continuous fin along the back",
+    "eel":     {"d": "a long slender ribbon-like body with a continuous low fin running from the back to the tail tip",
                 "fin": "dorsal fin", "finSafe": "fins"},
-    "ray":     {"d": "flat wide manta ray with a broad diamond body and wing-like fins",
+    "ray":     {"d": "a broad flat diamond-shaped disc formed by the pectoral fins, with a long thin whip-like tail",
                 "fin": "wings", "finSafe": "wings"},
-    "squid":   {"d": "squid with an elongated mantle, pointed tip, triangular side fins and a cluster of tentacles",
+    "squid":   {"d": "a soft muscular mantle with a pointed tip and a cluster of long trailing arms",
                 "fin": "side fins", "finSafe": "arms"},
-    "jelly":   {"d": "jellyfish with a rounded bell dome and long tentacles hanging below",
+    "jelly":   {"d": "a translucent dome-shaped bell with long thin tentacles hanging below it",
                 "fin": "tentacles", "finSafe": "tentacles"},
     "oarfish": {"d": "ribbon fish with an extremely long thin body and a tall crest fin running the whole back",
                 "fin": "crest fin", "finSafe": "fins"},
-    "shark":   {"d": "shark with a torpedo body, pointed snout and a tall triangular dorsal fin",
+    "shark":   {"d": "a torpedo-shaped body with a pointed snout and a tall triangular dorsal fin",
                 "fin": "fins", "finSafe": "fins"},
-    "whale":   {"d": "whale with a bulky rounded body, a wide horizontal fluke and a small dorsal fin",
+    "whale":   {"d": "a bulky rounded body with a broad horizontal tail fluke and a small set-back dorsal fin",
                 "fin": "fluke", "finSafe": "fluke"},
-    "dragon":  {"d": "serpentine dragon fish with a long sinuous body, spiny dorsal ridge and whisker barbels",
+    "dragon":  {"d": "a long sinuous serpentine body with a spiny dorsal ridge and whisker barbels",
                 "fin": "fins", "finSafe": "fins"},
     # ⚠️ 下面 3 条的 `d` **只写构造、不写动物名**（写了就是给模型下物种指令）
     "crustacean": {"d": "a jointed body under a hard segmented shell, a row of small jointed legs beneath it and a fan-shaped tail",

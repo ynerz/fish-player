@@ -557,8 +557,6 @@
       var cell = document.createElement('div');
       cell.className = 'fcell';
       var cv = document.createElement('canvas');
-      var sp = ['fish','eel','ray','squid','jelly','oarfish','shark','whale','dragon'].indexOf(fish.shape) >= 0
-        ? fish.shape : 'fish';
       cell.innerHTML = '<div class="fn">' + fish.name + '</div>' +
         '<div><span class="fr" style="background:' + RAR_COLOR[fish.rar] + '">' + RAR_NAME[fish.rar] + '</span></div>' +
         '<div class="fw">' + U.kg(fish.minKg) + ' ~ ' + U.kg(fish.maxKg) + '</div>' +

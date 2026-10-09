@@ -2399,7 +2399,20 @@ let shapeBad = 0;
     if (!fs.existsSync(p)) return;
     let txt = fs.readFileSync(p, 'utf8');
     if (/\.html$/.test(rel)) txt = txt.replace(/\/\*[\s\S]*?\*\//g, '');
-    (txt.match(/\d+\s*种?体型/g) || []).forEach(hit => {
+    /* 🔴 2026-10-09：原先的 `/\d+\s*种?体型/` 会把**章节号**读成体型数 ——
+       `### 17.16 体型表补 3 种…` → 「16 体型」、`### 17.14 体型专属措辞` → 「14 体型」，
+       一天里连报两次红。加个负向后顾把 `NN.N` 排掉。
+       ⚠️ 判据自检在下面（坏样本必抓、好样本必放过）——**改这条正则就要连它一起看**。 */
+    const SHAPE_N = /(?<![.\d])\d+\s*种?体型/g;
+    /* 判据自检：坏样本（章节号）必须 0 命中、好样本（真体型数）必须 1 命中。
+       ⚠️ 不要用裸 `indexOf` 判「含不含」—— 第 ㊳ 节会抓（折行会误伤）。 */
+    const SELF_BAD = ['### 17.16 体型表补 3 种', '### 17.14 体型专属措辞'];
+    const SELF_GOOD = 'v0.5.4 的 9 种体型';
+    if (SELF_BAD.some(s => (s.match(SHAPE_N) || []).length) || (SELF_GOOD.match(SHAPE_N) || []).length !== 1) {
+      err('§33 ① 的体型数正则自检不成立：章节号应被排掉、真体型数应命中 —— 改正则必须同步这条');
+      shapeBad++;
+    }
+    (txt.match(SHAPE_N) || []).forEach(hit => {
       const num = parseInt(hit, 10);
       if (num !== n) {
         err(`${rel} 写着「${hit}」，而 src/render/fishart.js 只有 ${n} 种体型（${shapes.join(' / ')}）`);
@@ -2425,6 +2438,44 @@ let shapeBad = 0;
   ids.forEach(id => { if (G.FISH_ID[id]) uniq[G.FISH_ID[id].shape] = 1; });
   if (Object.keys(uniq).length !== ids.length) {
     warn(`style-preview 的代表鱼里有重复体型（${ids.length} 条鱼只覆盖 ${Object.keys(uniq).length} 种）`);
+  }
+
+  /* ③ 🔴 2026-10-09 加：**还有两份「体型清单」会跟着漂，而且都不报错** ——
+     ① `docs/画风与颜色标准.md` §7.3 的「N 种体型句」表：加一个体型就得加一行，
+        原先只有 prose 里的数字被现算比对，**表格行本身没人管**；
+     ② `docs/图鉴文案.md` 每条鱼的标题里带 `（稀有度 · shape）` —— 改 `fish.js` 的 shape
+        而不重跑 `tools/gen-captions.py`，那张表就静默留着旧键
+        （本次实测：D08/S19/S20/S21/S22 五条全留着 `squid/jelly/eel`）。
+     ⚠️ 两份都按**现算**比对，不写死任何键名。 */
+  const stdTxt = fs.readFileSync(path.join(ROOT, 'docs/画风与颜色标准.md'), 'utf8');
+  const stdSec = (stdTxt.match(/### 7\.3[\s\S]*?(?=\n### |\n## )/) || [''])[0];
+  const uq = a => a.filter((x, i) => a.indexOf(x) === i);
+  const stdKeys = uq((stdSec.match(/^\|\s*([a-z_]+)\s*\|/gm) || [])
+    .map(s => s.replace(/[|\s]/g, '')));
+  const missStd = shapes.filter(s => stdKeys.indexOf(s) < 0);
+  if (!stdKeys.length) {
+    err('读不到「画风与颜色标准 §7.3 体型句表」的键列 —— 表被改名/改格式了？'); shapeBad++;
+  } else if (missStd.length) {
+    err(`docs/画风与颜色标准.md §7.3 的体型句表漏了 ${missStd.length} 种体型：${missStd.join(' / ')}`
+      + ' —— 它是对外说「这 12 种体型长什么样」的表，缺行 = 标准参考图会漏做');
+    shapeBad++;
+  }
+  const capTxt = fs.readFileSync(path.join(ROOT, 'docs/图鉴文案.md'), 'utf8');
+  const capRows = capTxt.match(/^##\s+([A-Z]+\d+)\s+[^（]*（[^·]+·\s*([a-z_]+)）/gm) || [];
+  const capBad = [];
+  capRows.forEach(line => {
+    const m = /^##\s+([A-Z]+\d+)\s+[^（]*（[^·]+·\s*([a-z_]+)）/.exec(line);
+    const f = G.FISH_ID[m[1]];
+    if (f && f.shape !== m[2]) capBad.push(`${m[1]} 文案写 ${m[2]} / 数据是 ${f.shape}`);
+  });
+  if (capRows.length < G.FISH.length * 0.95) {
+    err(`docs/图鉴文案.md 只认出 ${capRows.length} 行带体型标签的标题（应有 ${G.FISH.length} 条）`
+      + ' —— 标题格式改了就同步这条正则，别让它恒真');
+    shapeBad++;
+  } else if (capBad.length) {
+    err(`docs/图鉴文案.md 的体型标签与 fish.js 不一致（${capBad.length} 条）：${capBad.slice(0, 8).join('；')}`
+      + ' —— 改 shape 之后忘了重跑 `python tools/gen-captions.py`');
+    shapeBad++;
   }
 })();
 if (!shapeBad) ok(`文档里的体型数量与出图工具的覆盖都等于代码里的 ${Object.keys(G.FISH.reduce((a, f) => (a[f.shape] = 1, a), {})).length} 种`);
@@ -2612,6 +2663,31 @@ console.log('\n[33-c] 五档提示词必须复用母版骨架，只换颜色句'
     err(`传说点题的接线不对（fantasy_motif 出现 ${motHits} 次，只许 2 次＝定义 + build_prompt 里那一处调用；`
       + '且必须在 `if rar_i == 3:` 之后）—— 给普通鱼加奇幻句 = 362 条卡口径全变、稀有度递进当场作废');
     return;
+  }
+  /* ⑤e 🔴 体型的形态句 `d` **不许点自己的名**（2026-10-09 补）。
+     背景：`SHAPES[shape]["d"]` 只在「没有物种名、也没有查证过的 `form`」时才当主语输出
+     （见 `build_prompt` ⓪）。而 362 条**全都有 `form`** ⇒ 现在它一句都不输出，
+     所以旧稿里那些 `squid with…` / `jellyfish with…` **看着一点问题都没有** ——
+     直到哪天新增一条没有 `form` 的鱼：它会拿这句当主语，
+     2026-10-08 那个坑（小龙虾被画成乌贼）**原样复发**。**这就是「潜伏的坑」的定义。**
+     ⚠️ 判据只查「点自己的名」（键名 + 别名表 + 词边界），**不查别的动物名** ——
+        后者该靠数据（`form`）而不是靠正则，硬查会误伤（"ribbon fish" 对 oarfish 是成立的）。
+     ⚠️ 带判据自检：喂一条旧稿式的坏句子必须被抓到。 */
+  const ALIAS = { jelly: ['jellyfish', 'jelly'], star: ['starfish', 'star'],
+                  ray: ['manta ray', 'ray'] };
+  const selfNames = (k, text) => [k].concat(ALIAS[k] || [])
+    .some(w => new RegExp('\\b' + w + '\\b').test(text));
+  if (!selfNames('squid', 'squid with an elongated mantle') || selfNames('squid', 'a soft muscular mantle')) {
+    err('§33-c ⑤e 的判据自检不成立：旧稿式的「squid with…」没被抓到 / 干净句子被误伤'); return;
+  }
+  const dSelf = realShapes.filter(k => {
+    const m = new RegExp('"' + k + '":\\s*\\{"d":\\s*"([^"]*)"').exec(src);
+    return !m || selfNames(k, m[1]);
+  });
+  if (dSelf.length) {
+    err(`这些体型的 \`d\` 点了自己的名：${dSelf.join('、')}`
+      + ' —— 没有 `form` 的鱼会拿它当主语，等于给模型下物种指令'
+      + '（2026-10-08「小龙虾被画成乌贼」就是这条）；改成只描述构造'); return;
   }
   ok(`措辞三层分流（体型层 ${declared.join('/')}、物种层 ${spIds.join('/')}；其余 ${realShapes.filter(s => declared.indexOf(s) < 0).length} `
     + '个体型走默认值）＋ 默认占位符＝原句 ＋ 自检加载即跑 ＋ 传说点题只挂 rar3');

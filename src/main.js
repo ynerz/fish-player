@@ -376,9 +376,13 @@
     frameAcc = 0;
     dt = step;
 
-    /* 只有「结算卡」会打断钓鱼 —— 玩家正在看渔获。
-       浏览图鉴 / 商店 / 统计时挂机继续跑，否则挂机游戏的核心预期就废了。 */
-    var paused = P.isCatchOpen();
+    /* 结算卡必停（玩家正在看渔获）。普通面板只停**手动**钓：
+       面板开着时输入通道是关的（modal-open 时 #deck 是 pointer-events:none，
+       handlePress 也有 P.isOpen() 守卫），逻辑却照跑 —— 咬口 / 逃窜照常倒计时，
+       玩家却一步都操作不了：手动钓必然断线或漏咬口（「看一眼图鉴就断一根线」）。
+       挂机没有这个矛盾（自动驾驶不需要输入），浏览面板继续钓正是挂机的核心预期，
+       所以 `!isIdleMode()` 守着 —— 别把 2026-10-08「挂机时开图鉴鱼就不咬」那个坑放回来。 */
+    var paused = P.isCatchOpen() || (!F.isIdleMode() && P.isOpen());
 
     var focused = G.Platform.sys.isVisible() && !blurred;
     if (focused) {

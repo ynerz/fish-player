@@ -3060,9 +3060,14 @@ if (!gateNumBad) ok('7 份现行口径文档都没写死 test.js 的总项数（
       画面本来就静止；原来无条件 `S.render(dt)`，切到别的应用还在 60fps 重画水面与粒子。
       浏览器只在**标签页不可见**时节流 rAF，「窗口失焦但页面可见」不节流 → 纯烧电。
    ② **帧率上限**：`FRAME_MIN` 锁 60fps（高刷屏原本跑满 144 帧）。
-   ③ **浏览面板不暂停钓鱼**：`paused` 只能由结算卡决定 —— 原来写成
-      `P.isCatchOpen() || P.isOpen()`，挂机时打开图鉴鱼就不咬了（挂机游戏的核心预期）。 */
-console.log('\n[35] 主循环守则：失焦不渲染 / 锁 60fps / 浏览面板不暂停钓鱼');
+   ③ **浏览面板不暂停「挂机」钓**：挂机时打开图鉴鱼就不咬 = 挂机游戏的核心预期被废
+      （2026-10-08 的老坑：`paused` 写成 `P.isCatchOpen() || P.isOpen()`）。
+      ⚠️ 但**手动**钓必须被普通面板暂停（2026-10-09 修）：面板开着时输入通道是关的
+      （`#deck` pointer-events:none + `handlePress` 的 `P.isOpen()` 守卫），逻辑却照跑，
+      咬口 / 逃窜照常倒计时 —— 玩家一步都操作不了，必然断线或漏咬口。
+      ⇒ 判据三条：结算卡必停（`isCatchOpen`）· 手动 / 挂机要分开（`isIdleMode`）·
+      **不许出现无守卫的 `|| P.isOpen()`**（老坑的精确形态）。 */
+console.log('\n[35] 主循环守则：失焦不渲染 / 锁 60fps / 浏览面板只停手动钓');
 let loopBad = 0;
 (function () {
   const main = fs.readFileSync(path.join(ROOT, 'src/main.js'), 'utf8');
@@ -3079,13 +3084,22 @@ let loopBad = 0;
     err('main.js 里没有 60fps 帧率闸门（FRAME_MIN）—— 高刷屏会空转'); loopBad++;
   }
   const pausedLine = (code.match(/var paused\s*=\s*[^;]+;/) || [''])[0];
-  if (!pausedLine || pausedLine.indexOf('isCatchOpen') < 0 || pausedLine.indexOf('P.isOpen()') >= 0) {
-    err(`main.js 的 paused 判定不对：「${pausedLine.trim()}」—— 只有结算卡才能暂停钓鱼` +
-        '（写成 P.isOpen() 会让挂机时一开图鉴就停摆）');
+  if (!pausedLine || pausedLine.indexOf('isCatchOpen') < 0) {
+    err(`main.js 的 paused 判定丢了结算卡：「${pausedLine.trim()}」—— 结算卡待决时钓鱼必须停`);
+    loopBad++;
+  }
+  if (!pausedLine || pausedLine.indexOf('isIdleMode') < 0) {
+    err(`main.js 的 paused 判定没有分手动 / 挂机：「${pausedLine.trim()}」—— ` +
+        '普通面板只许停手动钓（!isIdleMode()），挂机时浏览面板继续钓是核心预期');
+    loopBad++;
+  }
+  if (/\|\|\s*P\.isOpen\(\)/.test(pausedLine)) {
+    err(`main.js 的 paused 判定里有无守卫的「|| P.isOpen()」：「${pausedLine.trim()}」—— ` +
+        '挂机时一开图鉴鱼就不咬（2026-10-08 的老坑）');
     loopBad++;
   }
 })();
-if (!loopBad) ok('失焦不渲染、锁 60fps、只有结算卡会暂停钓鱼（三条守则都还在）');
+if (!loopBad) ok('失焦不渲染、锁 60fps、结算卡必停 / 普通面板只停手动钓（三条守则都还在）');
 
 /* 35-b 每帧路径上的 UI 文案不许无条件重写 innerHTML
    （和 ⑰ 节的「每帧不许新建渐变」同一类：不报错、只是每帧白跑一遍）。

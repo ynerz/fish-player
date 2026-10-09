@@ -413,7 +413,7 @@ tools/gen-fish.py             鱼种生成器（鱼名/体重/价格，改完要
 tools/solve-drop.js           掉率求解器：反推掉率以命中节奏表
 tools/fix-rarity-price.js     稀有度定价归一化（**幂等**：跑第二遍必须 0 改动）
 tools/balance.js              数值仿真：胜率 / 节奏 / 收益 / 图鉴耗时（固定种子）
-tools/verify.js               数据自检 45 节（0 警告才算过；节数以 verify.js 自己的输出为准）
+tools/verify.js               数据自检 46 节（0 警告才算过；节数以 verify.js 自己的输出为准）
 tools/test.js                 单元测试（条数以它自己的输出为准）
 tools/gen-collect-time.js     生成 docs/收集耗时表.html
 tools/build.js                单文件打包（可选，发布用）
@@ -429,7 +429,7 @@ python tools/gen-fish.py         # 1. 参与生成的鱼名/体重/价格有变 
 node tools/solve-drop.js         # 2. 反推掉率并写回 fields.js / fish.js
 node tools/fix-rarity-price.js   # 3. 稀有度定价归一化（幂等，第二遍应 0 改动）
 node tools/balance.js            # 4. 复核：胜率 / 每小时收益 / 图鉴收集耗时
-node tools/verify.js             # 5. 自检 45 节
+node tools/verify.js             # 5. 自检 46 节
 node tools/gen-collect-time.js   # 6. 出收集耗时表
 ```
 
@@ -445,7 +445,7 @@ node tools/build.js --release  # 剔除 devtools，断言产物里搜不到 G.Ch
 node tools/build.js --check    # 只跑断言不写盘
 ```
 
-产物 ≈ **550 KB / 1 个网络请求**（原本 27 个），可以 `file://` 双击直接跑。
+产物 ≈ **590 KB / 1 个网络请求**（原本 27 个），可以 `file://` 双击直接跑。
 
 ---
 
@@ -477,6 +477,9 @@ node tools/build.js --check    # 只跑断言不写盘
 
   /* 新手引导（v4） */
   tut: { step, done },
+
+  /* 反作弊 · 本地完整性检测（N2；**只做 L1 标记**，不拦不封不改游戏数据） */
+  integrity: { flags: [{ code, n, at, detail }], runs },
 
   stats: {
     casts, catches, escapes, snaps, idleCatches, maxKg, maxKgFish, totalValue, days,
@@ -764,7 +767,7 @@ node tools/build.js --check    # 只跑断言不写盘
 ```
 
 - 把 `index.html` + 样式表 + `src/` 下全部脚本**内联成一个 HTML**
-- 产物 ≈ **550 KB / 1 个网络请求**（原本 27 个），可以 `file://` 双击直接跑 ——
+- 产物 ≈ **590 KB / 1 个网络请求**（原本 27 个），可以 `file://` 双击直接跑 ——
   这也是「零外部依赖」最硬的证据
 - ⚠️ 它只是**可选的发布步骤**，不在开发流程里（改完刷新浏览器即可）；`dist/` 不入库
 - `<script src>` 必须连续挨成一块，`config.js` 第一（建 `window.G`）、`main.js` 最后（boot）——
@@ -773,6 +776,29 @@ node tools/build.js --check    # 只跑断言不写盘
   并按顺序真加载一遍，防「加了模块忘挂 → 白屏」
 
 ---
+
+## 20.5 反作弊：本地完整性检测（N2 新增 · **只做 L1 标记**）
+
+> 用户点名的「反作弊（概率异常 → 封禁）」。实现细节见 `docs/开发者文档.md` §16.5。
+
+⚠️ **先认清边界**：本项目是**纯前端单机**（零依赖 / `file://` 双击可跑），
+**没有服务端 = 没有权威数据源**，客户端的一切玩家都能改（清 `localStorage` 即重置）。
+⇒ 这一层**做不出安全边界**，只能挡「无心之失」与「改档速通」。
+所以它只做 **L1 标记**：**只记录，不拦截、不封禁、不改任何游戏数据**。
+
+| 层级 | 动作 | 现状 |
+|---|---|---|
+| **L1 标记** | 记进 `S.integrity.flags`，开发者面板可看 | ✅ 已实现（2026-10-09） |
+| L2 软封禁 | 禁上榜 / 领奖 / 成就冻结 + 申诉入口 | ⏸ 等真实误报率数据 |
+| L3 档案锁定 | 本地「封禁」（**清档即失效**） | ⏸ 需用户拍板 |
+
+🔴 **阈值口径必须换掉**：最初的「概率 < 10⁻⁹ 才算作弊」与游戏实际概率
+（闪光率 普通 1% / 稀有 2% / 史诗 3% / 传说 5%，综合 ≈ 1.9%）**差 5 个数量级**；
+8 小时挂机期望 ≈ 15 个闪光（≈ 35 s/竿），照那个口径封禁 = **把活跃玩家全封了**。
+⇒ 判据只认三类：**物理不可能**（两竿间隔 < 最短咬口）、
+**自相矛盾**（同一函数里一起写的两个计数器出现不可能的方向）、
+**真·极端概率**（传说档里闪光条数的概率**上界**小于 `oddsFloor`）。
+⏸ 「统计极端（对自己比 6σ）」要等观察期基线，暂不做。
 
 ## 21. 仍需你确认的点
 

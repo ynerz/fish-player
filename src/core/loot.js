@@ -118,11 +118,16 @@ G.Loot = (function () {
 
   /* ---------------- 上鱼耗时（秒） ----------------
      咬口时长 = 稀有度基础区间 × 钓场深度倍率 × 鱼饵咬口倍率
-     深度倍率只作用于普通 / 稀有档：史诗 / 传说本来就接近 10 分钟上限。 */
-  function biteTime(rarityIdx, opts) {
+     深度倍率只作用于普通 / 稀有档：史诗 / 传说本来就接近 10 分钟上限。
+
+     `lo = true` 时取区间的**下界**（timeMin）而不是采样值 ——
+     `G.Integrity` 的「物理不可能」判据要的是「两竿最短可能间隔」，那是下界不是采样值。
+     ⚠️ 两条路共用**同一段乘子代码**：以后给 `biteTime` 加新乘子，下界会自动跟上。
+        分开写两份必然分家 —— 判据会静默失效（要么永不报、要么误报正常玩家）。 */
+  function biteSpan(rarityIdx, opts, lo) {
     opts = opts || {};
-    var r = CFG.rarity[rarityIdx];
-    var t = U.range(r.timeMin, r.timeMax);
+    var r = CFG.rarity[rarityIdx] || CFG.rarity[0];
+    var t = lo ? r.timeMin : U.range(r.timeMin, r.timeMax);
     if (rarityIdx <= 1) {
       var mul = 1;
       if (opts.field && opts.field.biteMul) mul = opts.field.biteMul;
@@ -132,6 +137,9 @@ G.Loot = (function () {
     if (opts.bait && opts.bait.speed) t *= opts.bait.speed;
     return t;
   }
+  function biteTime(rarityIdx, opts) { return biteSpan(rarityIdx, opts, false); }
+  /* 咬口时长的下界（秒）：反作弊判据用，别在调用方另写一份公式 */
+  function biteTimeMin(rarityIdx, opts) { return biteSpan(rarityIdx, opts, true); }
 
   /* ---------------- 售价 ----------------
      售价 = 鱼种基础价 × 重量系数 × 颜色系数 ×（首次捕获奖励） */
@@ -168,6 +176,7 @@ G.Loot = (function () {
        与档内抽鱼），不该出现在导出面上 —— 全项目零外部调用。 */
     colorProb: colorProb, colorProbTotal: colorProbTotal,
     rarityWeights: rarityWeights, rollFish: rollFish,
-    biteTime: biteTime, price: price, generate: generate, tankYield: tankYield,
+    biteTime: biteTime, biteTimeMin: biteTimeMin,
+    price: price, generate: generate, tankYield: tankYield,
   };
 })();

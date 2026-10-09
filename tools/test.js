@@ -30,6 +30,7 @@ global.localStorage = {
 ['src/data/config.js', 'src/data/fields.js', 'src/data/fish.js', 'src/data/items.js',
  'src/data/goals.js',
  'src/core/util.js', 'src/core/platform.js', 'src/core/profile.js', 'src/core/assets.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js',
+ 'src/core/integrity.js',
  'src/core/goals.js', 'src/core/weather.js', 'src/core/fishing.js', 'src/core/track.js',
  'src/render/fishpaint.js',
  'src/ui/tutorial.js']
@@ -2947,6 +2948,178 @@ G_('Audio —— 采样回退层保持公开 API 不变');
   ok(typeof G.Assets.sfx === 'function', 'G.Assets.sfx()：音效取用入口存在（采样层的唯一素材来源）');
 
   G.Audio = audioStub;   // 还原成空壳：后面还有 resolve() 的定时器会调它
+})();
+
+/* =========================================================
+   反作弊 · 本地完整性检测（N2 · 只做 L1 标记）
+   =========================================================
+   用户口径「反作弊（概率异常 → 封禁）」的**第一层**：只记录、不处置。
+   这一节要证明三件事（缺一条这个模块就是摆设）：
+     ① 判据**真的会报**：构造数据逐条命中，且「反向（少算）」不报；
+     ② 判据**不误报**：正常档 + 随机仿真一局都不许响 —— 用户最初给的
+        「概率 < 1e-9 才算作弊」与游戏真实概率差 5 个数量级，照那个口径
+        会把活跃玩家全封了（8 小时挂机能自然出 ~15 个闪光）；
+     ③ 它**真的什么都没改**：跑完全量深对拍，除 `integrity` 外逐字节相同。
+   ========================================================= */
+G_('完整性 · 反作弊 L1 标记（N2）');
+(function () {
+  const I = G.Integrity;
+  ok(!!I && typeof I.audit === 'function', 'G.Integrity 已加载（审查用纯函数 audit 在位）');
+
+  /* ---------- ① 下界必须真是下界 ----------
+     `GAP` 判据押在 `Loot.biteTimeMin()` 上：它若**高估**了最短咬口，
+     正常玩家就会被误标。这里用采样对拍证明 `biteTimeMin ≤ biteTime` 恒成立。 */
+  let worst = Infinity;
+  CFG.rarity.forEach((r, ri) => {
+    Object.keys(G.FIELD_MAP).forEach(fid => {
+      G.BAITS.forEach(b => {
+        const lo = L.biteTimeMin(ri, { fieldId: fid, bait: b });
+        for (let i = 0; i < 30; i++) {
+          worst = Math.min(worst, L.biteTime(ri, { fieldId: fid, bait: b }) - lo);
+        }
+      });
+    });
+  });
+  ok(worst >= 0, `biteTimeMin() 恒为采样咬口的下界（最小差 ${worst.toFixed(4)} s ≥ 0；`
+    + '高估下界 = 正常玩家被误标）');
+
+  /* ---------- ② 正常档一个标记都不许有 ----------
+     拿一份**真正的新档**：把存储清空再 load（`blank()` 是存档结构的唯一真相，
+     不在这里手抄一份 schema —— 抄一遍就等于多一个会悄悄漂移的定义）。 */
+  const mem = Object.assign({}, store);
+  Object.keys(store).forEach(k => delete store[k]);
+  St.load();
+  const save = St.get();
+  Object.assign(store, mem);
+  I.init(save);
+  ok(I.count() === 0, `新建默认档审计后零标记（实得 ${I.count()} 条）`);
+  ok(Array.isArray(save.integrity.flags) && save.integrity.runs > 0,
+     '审计次数会在存档里累加（观察期要能看出「跑过没有」）');
+  ok(/L1 标记/.test(I.stats()), `stats() 是给开发者面板看的字符串：${I.stats()}`);
+
+  /* ---------- ③ 物理不可能（GAP） ---------- */
+  const T0 = 1700000000000;
+  const evBad = [{ t: T0, rar: 0, fid: 'D', ck: 'normal' },
+                 { t: T0 + 3000, rar: 3, fid: 'D', ck: 'normal' }];
+  const evOk = [{ t: T0, rar: 0, fid: 'D', ck: 'normal' },
+                { t: T0 + L.biteTimeMin(3, { fieldId: 'D' }) * 1000, rar: 3, fid: 'D', ck: 'normal' }];
+  const stubSave = { stats: { casts: 9, catches: 9, byRar: [9, 0, 0, 0], maxKg: 1 }, book: {} };
+  ok(I.audit(stubSave, evBad).some(f => f.code === 'GAP'),
+     'GAP：传说鱼两竿只隔 3 秒 ⇒ 报（传说档最短咬口 380 s × 鱼饵/钓场倍率，缩不到 3 秒）');
+  ok(!I.audit(stubSave, evOk).some(f => f.code === 'GAP'),
+     'GAP：间隔恰好等于最短咬口 ⇒ 不报（判据不许在边界上乱咬）');
+  ok(!I.audit(stubSave, [{ t: 5, rar: 0, fid: 'D' }, { t: 4, rar: 0, fid: 'D' }]).some(f => f.code === 'GAP'),
+     'GAP：时间倒流（脏时间戳）跳过，不当成「超快两竿」');
+
+  /* ---------- ④ 自相矛盾（SAVE_*）：只判「同一函数里一起写的两个量」 ---------- */
+  const okSave = { stats: { casts: 9, catches: 6, byRar: [5, 1, 0, 0], maxKg: 3 }, book: { A01: { n: 6, maxKg: 3, colors: { normal: 6 } } } };
+  ok(I.audit(okSave, []).length === 0, 'SAVE：完全自洽的存档不报');
+  const withStat = (k, v) => Object.assign({}, okSave, { stats: Object.assign({}, okSave.stats, { [k]: v }) });
+  ok(I.audit(Object.assign({}, okSave, { book: { A01: { n: 99, maxKg: 3, colors: {} } } }), [])
+    .some(f => f.code === 'SAVE_BOOK'), 'SAVE_BOOK：图鉴条目合计 > 分维计数合计 ⇒ 报（两者在 recordCatch 里同步 +1）');
+  ok(I.audit(withStat('maxKg', 1), []).some(f => f.code === 'SAVE_MAXKG'),
+     'SAVE_MAXKG：图鉴里的最大体重 > 全局纪录 ⇒ 报（同一次 kg 一起写的）');
+  /* ⚠️ 反向必须**不报**：少算可能是迁移把不认识的鱼种条目清掉了，
+     把它当证据 = 误报正常玩家（这条是「只判严格不可能」的口径，别改宽）。 */
+  ok(!I.audit(Object.assign({}, okSave, { stats: Object.assign({}, okSave.stats, { byRar: [99, 0, 0, 0] }) }), [])
+    .some(f => f.code === 'SAVE_BOOK'), 'SAVE_BOOK：图鉴**少算**（迁移清理过）不报 —— 只判严格不可能');
+  ok(!I.audit(withStat('maxKg', 99), []).some(f => f.code === 'SAVE_MAXKG'),
+     'SAVE_MAXKG：全局纪录更大（更宽松）不报');
+
+  /* ---------- ④-b 真代码路径：8 小时离线补算**不许**产生任何标记 ----------
+     这条是「先量后改」的产物：最初还写了 `Σ byRar > catches` 与 `catches > casts` 两条
+     看着很自然的判据，实测都被离线补算打破 —— 它按 `max(1, round(g·scale))` **逐鱼种**折算，
+     且**只加 catches 不加 casts**（人不在场）。凡挂过机的正常玩家都会被那两条误标。 */
+  Fish.init({});
+  St.get().stats.casts = 40;                      // 在线抛过的竿（离线期间一次都不抛）
+  /* 挂机 800 条会解锁一堆成就 / 称号 → `Goals.check()` 会去调 `G.Hud.toast()`，
+     而 Node 里没有真 DOM。这里只把这一个方法临时换掉（别的 Hud 行为照旧）。 */
+  const realToast = G.Hud && G.Hud.toast;
+  let oc8 = null, ocFlags = [];
+  try {
+    if (G.Hud) G.Hud.toast = function () {};
+    oc8 = Fish.offlineCatchUp(28800, 35);
+    const ocSave = St.get();
+    ocFlags = I.audit({ book: ocSave.book, stats: ocSave.stats }, []);
+    ok(!!oc8 && ocSave.stats.catches > ocSave.stats.casts,
+       `离线补算后 catches(${ocSave.stats.catches}) > casts(${ocSave.stats.casts}) —— `
+       + '这正是「catches > casts 不能当判据」的实测依据');
+  } finally { if (G.Hud) G.Hud.toast = realToast; }
+  ok(ocFlags.length === 0, `8 小时挂机（${oc8 && oc8.count} 条）走真代码路径后零标记`
+    + (ocFlags.length ? '：' + ocFlags.map(f => f.code).join('、') : ''));
+
+  /* ---------- ⑤ 真·极端概率（ODDS）：先证明「可达」，再证明不误报 ---------- */
+  const legend = G.FISH.filter(f => f.rar === CFG.rarity.length - 1);
+  const lf = legend[0];
+  const oddsSave = (nLegend, kShiny) => ({
+    stats: { casts: nLegend, catches: nLegend, byRar: [0, 0, 0, nLegend], maxKg: 1 },
+    book: (() => { const b = {}; b[lf.id] = { n: nLegend, maxKg: 1, colors: { normal: nLegend - kShiny, [CFG.colorMorphs[CFG.colorMorphs.length - 1].key]: kShiny } }; return b; })(),
+  });
+  /* 阈值可达（现算，不写死判定点）：从 minOddsK 往上扫，必须存在一个 k 命中；
+     否则 `oddsFloor` 定得太低 = 这条判据永远不会响（不报错、无告警）。 */
+  const N_REF = 200;
+  let hitK = -1;
+  for (let k = CFG.integrity.minOddsK; k <= N_REF; k++) {
+    if (I.audit(oddsSave(N_REF, k), []).some(f => f.code === 'ODDS')) { hitK = k; break; }
+  }
+  ok(hitK > 0, `ODDS 阈值可达：${N_REF} 条传说档里闪光从 ${hitK} 条起命中`
+    + `（最低要求 ${CFG.integrity.minOddsK} 条；不可达 = 判据形同不存在）`);
+  ok(!I.audit(oddsSave(N_REF, CFG.integrity.minOddsK - 1), []).some(f => f.code === 'ODDS'),
+     'ODDS：低于 minOddsK 的样本量一律不判（几条运气好的鱼不是证据）');
+  /* 反过来：样本量小的时候，就算「全闪」也不该判（全靠运气，正常档真会碰到）。 */
+  const tiny = CFG.integrity.minOddsK - 1;
+  ok(!I.audit(oddsSave(tiny, tiny), []).some(f => f.code === 'ODDS'),
+     `ODDS：只有 ${tiny} 条传说且恰好全闪光 ⇒ 不判（这就是用户最初口径会误封的场景）`);
+  const od = I.audit(oddsSave(N_REF, hitK), []).find(f => f.code === 'ODDS');
+  ok(!!od && /概率上界/.test(od.detail), `ODDS 的说明带实际概率上界：${od ? od.detail : '(无)'}`);
+
+  /* ---------- ⑥ 判据是纯函数：不读时钟、不读随机数 ---------- */
+  const snapIn = JSON.stringify({ s: okSave, e: evBad });
+  const r1 = JSON.stringify(I.audit(okSave, evBad));
+  const r2 = JSON.stringify(I.audit(okSave, evBad));
+  ok(r1 === r2, '同一份输入两次审计逐字节相同（门禁里验的与运行时跑的是同一段代码）');
+  const realRandom = Math.random, realNow = Date.now;
+  let impure = '';
+  try {
+    Math.random = () => { impure = 'Math.random'; return 0; };
+    Date.now = () => { impure = (impure || 'Date.now'); return 0; };
+    I.audit(okSave, evBad);
+    I.audit(oddsSave(N_REF, hitK), []);
+  } catch (e) { impure = '抛异常：' + e.message; }
+  Math.random = realRandom; Date.now = realNow;
+  ok(impure === '', `审计不读时钟 / 随机数（构造数据可定点复现）${impure ? ' —— ' + impure : ''}`);
+  ok(JSON.stringify({ s: okSave, e: evBad }) === snapIn, '审计不改传入的存档 / 证据（纯函数）');
+
+  /* ---------- ⑦ 用户点名的第一条红线：不许拿「罕见但会发生」当证据 ----------
+     场景 = 5 分钟内 3 个闪光。这是**正常档真的会碰到**的事（8 小时挂机期望 ~15 个），
+     用户最初给的「概率 < 1e-9」口径会把这种玩家封掉 —— 这里钉死它不会被标记。 */
+  const burst = [];
+  for (let i = 0; i < 3; i++) {
+    burst.push({ t: T0 + i * 100000, rar: 0, fid: 'D', ck: CFG.colorMorphs[CFG.colorMorphs.length - 1].key });
+  }
+  ok(I.audit({ stats: { casts: 3, catches: 3, byRar: [3, 0, 0, 0], maxKg: 1 }, book: {} }, burst).length === 0,
+     '红线：5 分钟内 3 个闪光（正常节奏、没违反最短咬口）⇒ **零标记**（不许按稀有事封人）');
+
+  /* ---------- ⑧ 只做 L1：它真的什么都没改 ---------- */
+  const before = JSON.stringify(Object.assign({}, save, { integrity: null }));
+  const again = I.audit(save, []);
+  I.note(lf, 'normal', T0);
+  I.note(lf, 'normal', T0 + 1000);          // 故意造一个 GAP 场景
+  const after = JSON.stringify(Object.assign({}, save, { integrity: null }));
+  ok(before === after, '跑完全量审计 + 记两条证据后，存档里除 `integrity` 外**逐字节相同**'
+    + '（「不处置」的行为级证据，比静态扫代码强一个量级）');
+  ok(I.count() > 0 && again !== null, `标记确实落了盘：${I.stats()}`);
+  /* `flags()` 给的是**副本**：调用方（开发者面板 / 将来的申诉入口）改不动内部状态 */
+  const flagCopy = I.flags();
+  flagCopy.push({ code: '伪造', n: 99, at: 0, detail: '' });
+  ok(I.count() === flagCopy.length - 1 && I.flags().every(f => f.code !== '伪造'),
+     'flags() 返回副本：外面改它动不了模块内部状态');
+  ok(Object.keys(G.Integrity).length === 7,
+     `导出面恰好 7 个、没有多出「封禁 / 锁定」这类处置口（实得 ${Object.keys(G.Integrity).length} 个：`
+     + Object.keys(G.Integrity).join('、') + '）');
+  const had = I.count();
+  ok(I.clear() === had && I.count() === 0, `clear() 清掉全部标记并返回条数（${had} → 0）；`
+    + '它只是「把标记清空」，不是「解除处罚」—— 因为压根没有处罚');
 })();
 
 /* ---------- 汇总 ---------- */

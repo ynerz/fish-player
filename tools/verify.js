@@ -207,6 +207,33 @@ function maskQuoted(t) {
 const DEV_DOCS = ['docs/GDD.md', 'docs/开发者文档.md', 'README.md'];
 const PLAYER_DOCS = ['docs/说明书.html'];
 
+/* 从模块里取出「顶层 return 的导出块」。两种写法都认：
+     `return { ... };`（多数模块）与 `var API = { ... }; return API;`（audio.js）
+   ⚠️ 2026-10-09 提到顶层共用（原来写在第 32 节内部）：第 ㊻ 节也要读导出面
+      （反作弊的 L1 白名单），各抄一份必然分家（规范 §9.1 第 1 条）。 */
+function exportKeys(txt) {
+  let m = [...txt.matchAll(/^  return \{/gm)];
+  let open = -1;
+  if (m.length) open = m[m.length - 1].index + '  return {'.length - 1;
+  else {
+    m = [...txt.matchAll(/^  var API = \{/gm)];
+    if (m.length) open = m[m.length - 1].index + '  var API = {'.length - 1;
+  }
+  if (open < 0) return [];
+  /* 段尾走**括号配平**（Q38）：原来找 `'}' + ';'` 的首次出现 —— 返回的对象里只要写
+     `function () { return {}; }` 之类，里面的 `};` 就会提前命中，导出键清单被截断，
+   「死导出」网于是**少看一段**（静默假通过）。 */
+  const end = closeOf(txt, open);
+  if (end < 0) return [];
+  const block = txt.slice(open + 1, end - 1);
+  const keys = [];
+  (block.match(/(^|[\s{,])([A-Za-z_$][\w$]*)\s*:/g) || []).forEach(s => {
+    const k = s.replace(/^[\s{,]+/, '').replace(/\s*:$/, '');
+    if (keys.indexOf(k) < 0) keys.push(k);
+  });
+  return keys;
+}
+
 /* ---------------- 1. 稀有度权重合计 ---------------- */
 console.log('\n[1] 各钓场稀有度权重合计 = 100%');
 G.FIELDS.forEach(f => {
@@ -1755,30 +1782,8 @@ let deadExportBad = 0;
     'src/core/weather.js': ['set'],
   };
 
-  /* 从模块里取出「顶层 return 的导出块」。两种写法都认：
-       `return { ... };`（多数模块）与 `var API = { ... }; return API;`（audio.js） */
-  function exportKeys(txt) {
-    let m = [...txt.matchAll(/^  return \{/gm)];
-    let open = -1;
-    if (m.length) open = m[m.length - 1].index + '  return {'.length - 1;
-    else {
-      m = [...txt.matchAll(/^  var API = \{/gm)];
-      if (m.length) open = m[m.length - 1].index + '  var API = {'.length - 1;
-    }
-    if (open < 0) return [];
-    /* 段尾走**括号配平**（Q38）：原来找 `'}' + ';'` 的首次出现 —— 返回的对象里只要写
-       `function () { return {}; }` 之类，里面的 `};` 就会提前命中，导出键清单被截断，
-       本节的「死导出」网于是**少看一段**（静默假通过）。 */
-    const end = closeOf(txt, open);
-    if (end < 0) return [];
-    const block = txt.slice(open + 1, end - 1);
-    const keys = [];
-    (block.match(/(^|[\s{,])([A-Za-z_$][\w$]*)\s*:/g) || []).forEach(s => {
-      const k = s.replace(/^[\s{,]+/, '').replace(/\s*:$/, '');
-      if (keys.indexOf(k) < 0) keys.push(k);
-    });
-    return keys;
-  }
+  /* 从模块里取出「顶层 return 的导出块」的 `exportKeys()` 已提到**顶层共用**
+     （第 ㊻ 节也要读导出面），见文件开头 `closeOf` 附近。 */
 
   let checked = 0, modCount = 0, selfOnly = [];
   /* 「本模块内真的调用过」判据。两种形态都要认：
@@ -4806,6 +4811,89 @@ console.log('\n[45] 素材路线的硬约束要有机制（文档的「必留 / 
   if (!bad45) {
     ok('§8.4 的两张清单与磁盘一致：必留 ' + MUST_KEEP.length + ' 颗都在、已删 '
       + MUST_BE_GONE.length + ' 项都没复活');
+  }
+})();
+
+
+/* ---------------- 46. 反作弊只许 L1 标记（不碰游戏数据、没有处置口） ----------------
+   由来（2026-10-09，N2）：`src/core/integrity.js` 是用户点名方向「反作弊」的**第一层**。
+   本项目是**纯前端单机** ⇒ 没有服务端、没有权威数据源 ⇒ 做不出安全边界，
+   所以这一层的定位是 **L1 标记**：记下来，**不拦、不封、不改任何游戏数据**。
+   「只标记」这句话如果不接机制，下一个人加个 `ban()` 就能把它悄悄变成「会处置」——
+   本节把它钉成三条可执行的判据：
+     ① 不碰游戏数据：整个文件（**剥掉注释**）里不出现 `G.State` / `G.Cheat` 这两个挂载点；
+     ② 导出面 = L1 白名单，**恰好**那几个名字（多一个动作就报红）；
+     ③ 阈值必须可达：`oddsFloor` / `gapMargin` 这类取值的合法区间**现算** ——
+        定在区间外 = 判据永不触发（或恒触发），且不报错、无告警（与第 32-f 节同族）。
+   ⚠️ 判据自检：① 的正形态必须被正则认出来、且注释里的同样字样不许算；
+             ② 的白名单比较必须**双向**（少一个 / 多一个都要报红）。 */
+console.log('\n[46] 反作弊只许 L1 标记（不碰游戏数据、没有处置口）');
+(function () {
+  const REL = 'src/core/integrity.js';
+  const stripC = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[ \t])\/\/[^\n]*/gm, '$1');
+  const raw = fs.readFileSync(path.join(ROOT, REL), 'utf8');
+  const js = stripC(raw);
+  let bad46 = 0;
+
+  /* ① 挂载点黑名单：本模块不许碰 G.State / G.Cheat（= 不许改任何游戏数据） */
+  const BANNED = ['G.State', 'G.Cheat'];
+  const reOf = n => new RegExp(n.replace(/\./g, '\\.') + '(?![A-Za-z0-9_$])');
+  BANNED.forEach(n => {
+    if (reOf(n).test(js)) {
+      err(REL + ' 里出现了 ' + n + ' —— 这一层只做 L1 标记（不拦 / 不封 / 不改游戏数据）；'
+        + '要动游戏数据说明它被改成「会处置」了，那是 L2/L3 的事（口径见 docs/改进待办.md N2）');
+      bad46++;
+    }
+  });
+  if (!reOf(BANNED[0]).test('var x = ' + BANNED[0] + '.get();')) {
+    err('第 46 节判据自检不成立：正则认不出 ' + BANNED[0] + ' 的正形态'); bad46++;
+  }
+  if (reOf(BANNED[0]).test(stripC('/* ' + BANNED[0] + ' */'))) {
+    err('第 46 节判据自检不成立：注释没被剥掉（说明注释里的字样会被算成违规）'); bad46++;
+  }
+
+  /* ② 导出面 == L1 白名单（顺序无关） */
+  const L1 = ['audit', 'clear', 'count', 'flags', 'init', 'note', 'stats'];
+  const keys = exportKeys(js).slice().sort();
+  if (!keys.length) {
+    err(REL + ' 里取不到导出块 —— 改名 / 换写法了，本节必须跟着改，不许当成「没有导出要检查」');
+    bad46++;
+  } else {
+    const extra = keys.filter(k => L1.indexOf(k) < 0);
+    const miss = L1.filter(k => keys.indexOf(k) < 0);
+    if (extra.length || miss.length) {
+      err('G.Integrity 的导出面不是 L1 白名单：多出 [' + extra.join('、') + ']、缺 [' + miss.join('、')
+        + '] —— 「只标记不处置」靠导出面保证，多一个 ban / lock / punish 就破了');
+      bad46++;
+    }
+  }
+  (function () {
+    const cmp = (a, b) => [a.filter(k => b.indexOf(k) < 0), b.filter(k => a.indexOf(k) < 0)];
+    if (!cmp(L1.slice(0, -1), L1)[1].length || !cmp(L1.concat(['zzBan']), L1)[0].length) {
+      err('第 46 节判据自检不成立：白名单比较分不出「少一个键 / 多一个键」（双向各测一次）'); bad46++;
+    }
+  })();
+
+  /* ③ 阈值必须可达（区间现算，不写死判定点） */
+  const GI = CFG.integrity || {};
+  const gate = (name, v, lo, hi, hiOpen) => {
+    const bad = !(v > lo) || (hiOpen ? !(v < hi) : !(v <= hi));
+    if (bad) {
+      err('config.integrity.' + name + ' = ' + v + ' 落在合法区间 (' + lo + ', ' + hi
+        + (hiOpen ? ')' : ']') + ' 之外 —— 判据会永不触发或恒触发（不报错、无告警）');
+      bad46++;
+    }
+  };
+  gate('oddsFloor', GI.oddsFloor, 0, 1, true);     // 概率上界 ∈ (0,1)：≥1 永不报、≤0 恒报
+  gate('gapMargin', GI.gapMargin, 0, 1, false);    // 余量 ∈ (0,1]：>1 会把正常节奏判成「不可能」
+  if (!(GI.evCap >= 2)) { err('config.integrity.evCap = ' + GI.evCap + ' —— 物理不可能判据要看「两竿」，至少装得下 2 条'); bad46++; }
+  if (!(GI.flagCap >= 1)) { err('config.integrity.flagCap = ' + GI.flagCap + ' —— 标记一条都不留 = 白审'); bad46++; }
+  if (!(GI.minOddsK >= 2)) { err('config.integrity.minOddsK = ' + GI.minOddsK + ' —— 样本为 1 就判 = 误报源（『罕见但会发生』）'); bad46++; }
+
+  if (!bad46) {
+    ok('反作弊层只做 L1 标记：不碰游戏数据（无 State/Cheat 引用）、导出面恰为 '
+      + L1.length + ' 个动作（无 ban/lock）、阈值全部落在可达区间'
+      + '（oddsFloor ' + GI.oddsFloor + ' / gapMargin ' + GI.gapMargin + '）');
   }
 })();
 

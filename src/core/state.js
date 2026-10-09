@@ -69,6 +69,10 @@ G.State = (function () {
          step = 已经学会的步数（0 = 还没开始，= config.tutorial.steps.length = 全学会）
          done = 是否已完成（完成后永不再弹，设置里可重看） */
       tut: { step: 0, done: false },
+      /* ---- 反作弊 · 本地完整性检测（N2）----
+         只做 **L1 标记**：记下可疑，不拦、不封、不改任何游戏数据（见 src/core/integrity.js 头部）。
+         `flags` 是**现场重算**的结果（幂等，同一份证据 ⇒ 同一份标记），不是累加日志。 */
+      integrity: { flags: [], runs: 0 },
       stats: {
         casts: 0, catches: 0, escapes: 0, snaps: 0, idleCatches: 0,
         maxKg: 0, maxKgFish: '', totalValue: 0, days: 0,
@@ -165,7 +169,7 @@ G.State = (function () {
          · `baits: 5`    → 买鱼饵扣了金币、`S.baits[id] = n` 静默不生效 → 饵没到账。
          · `rods: 5`     → `S.rods.indexOf` 不是函数，换竿 / 买竿直接 TypeError。
        先统一纠正类型，内容再由下面的逐字段兜底处理。 */
-    ['stats', 'settings', 'baits', 'unlocked', 'book', 'medalSeen'].forEach(function (k) {
+    ['stats', 'settings', 'baits', 'unlocked', 'book', 'medalSeen', 'integrity'].forEach(function (k) {
       if (!d[k] || typeof d[k] !== 'object' || Array.isArray(d[k])) d[k] = {};
     });
     ['net', 'tank', 'rods', 'lines', 'decors', 'achSeen'].forEach(function (k) {

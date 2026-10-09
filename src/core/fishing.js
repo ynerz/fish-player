@@ -172,6 +172,11 @@ G.Fishing = (function () {
       var price = Loot.price(fish, kg, color, rec.isNew);
       var s = St.get();
       s.stats.catches++;
+      /* 反作弊（N2）：把这一竿记进完整性证据环。
+         ⚠️ 只在这条**真玩出来**的路径上记 —— 离线补算（下面 `offlineCatchUp`）与
+            devtools 都不走 `resolve()`，它们的渔获不是玩家动作，记进去只会污染判据。
+         本模块只做 L1 标记（不拦 / 不封 / 不改任何游戏数据），判据全是纯函数。 */
+      if (G.Integrity) G.Integrity.note(fish, color.key);
       /* ⚠️ 这里**不**直接加钱。
          手动钓上来的鱼由结算卡决定「卖出 / 收进鱼护」；
          挂机时没有玩家点卡片，统一自动卖出（见 config.storage.idleAutoSell）。 */

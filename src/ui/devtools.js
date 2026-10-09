@@ -162,6 +162,19 @@ G.Cheat = (function () {
     ['+100 生态值', function () { return addEco(100); }],
     ['解锁全部装饰', function () { return allDecors(); }],
     ['日志条数', function () { return trackCount(); }],
+    /* 反作弊（N2）的观察入口。本模块**只做 L1 标记**（不拦 / 不封 / 不改游戏数据），
+       所以这里也只能「看」和「清标记」—— 没有「封禁」这类按钮，是有意的。
+       它同时是 `G.Integrity.stats/clear` 的消费方（项目删过没有消费方的导出）。 */
+    ['完整性标记', function () {
+      if (!G.Integrity) return '未加载 G.Integrity';
+      return G.Integrity.stats();
+    }],
+    ['清空完整性标记', function () {
+      if (!G.Integrity) return '未加载 G.Integrity';
+      var n = G.Integrity.clear();
+      St.save(true);
+      return '已清 ' + n + ' 条标记（游戏数据一条未动）';
+    }],
     /* 素材家底。它是 `G.Assets.mode()` 的**唯一消费方** ——
        项目删过没有消费方的 `isWeb`，所以「加能力必须同时有读它的地方」。
        用处很具体：客户机 / 双击打开时卡面不出来，先看这一行是 inline 还是 external。 */

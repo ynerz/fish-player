@@ -914,97 +914,253 @@ def fantasy_motif(name):
 #    ⇒ 因此 `check_deep_motifs()`（**加载即校验**）要求：**两场各自的每条鱼都必须命中**，
 #      且**表里不许有在该场一次都没命中的死行**（写了没人读 = 本项目最忌的那类数据）。
 # ────────────────────────────────────────────────────────────────────────────
-SS_MOTIFS = [
-    (("星陨之主", "星陨王座", "渊底月神", "永夜之主", "深渊终章", "星陨终焉", "星陨之王"),
-     "its whole body reads as one block of polished star-stone, dark mineral seams running the full length of it and a faint inner light held inside those seams"),
-    (("陨铁", "陨石", "陨核", "陨砾", "陨砂", "陨尘", "陨星"),
-     "raw dark ore is fused over the entire body, whole slabs of iron-stone jutting through the skin so the facets break into hard black chips"),
-    (("星尘", "星屑", "星砂", "星磷", "微光", "微弱"),
-     "the whole surface is strewn with countless tiny pale flakes that carry their own light, spread evenly from the head to the very tip of the tail, as if the body had been rolled in crushed mineral dust"),
-    (("星纹", "陨纹", "星脉"),
-     "bright mineral veins are drawn straight along the whole body, cutting unbroken across every facet from the head to the tail"),
-    (("陨光", "虚光"),
-     "a broad band of raw metallic flake is fused along the flank, burning brighter wherever the facets fold"),
-    (("星陨", "陨落", "碎星", "碎陨", "裂空"),
-     "the rear half is shattered, fractured facets with sharp chipped edges scattered over the entire back"),
-    (("星蚀",),
-     "a wide eclipsed patch eats into one flank, swallowing the colour unevenly as it spreads"),
-    (("暗星", "暗物质", "暗礁", "深星", "深海", "夜穹", "夜辉", "冷光"),
-     "the entire body sinks into a matte near-black core, with a cold slate sheen sliding along the whole back"),
-    (("渊影", "渊眼"),
-     "a deep hollow is set into the body, opening into slow black depth"),
-    (("虚空", "真空"),
-     "the edges of the body dissolve into a colourless void, as if the surface were fading out of the world"),
-    (("星云", "星纱"),
-     "drifts of nebula-like haze are held inside the facets, whole clouds of colour suspended in the body itself"),
-    (("幽蓝", "幽星", "幽暗"),
-     "the flanks sink into a deep matte blue, the colour deepening rather than lightening towards the tail"),
-    (("寂静", "幻影"),
-     "the whole surface is unnaturally still and ghost-pale, the markings barely there at all"),
-    (("霜鳞",),
-     "a cold frost-white film creeps over the entire body, every facet sealed under a layer of rime"),
-    (("星耀", "星核"),
-     "a single cut-stone core sits deep inside the body, its facets meeting at one sharp point"),
-    (("原初", "虚时"),
-     "the whole surface is dulled and ancient, weathered at every corner, the facets worn down into soft bevels"),
-]
+# ────────────────────────────────────────────────────────────────────────────
+# 🔴 **SS / SSS 两场的「逐条奇幻描述」**（2026-10-10 用户口径：
+#    「你对 sss 和 ss 渔场的鱼每一个的生成提示词都重新修改一下，让其非常符合其名称设定，
+#      认真一个一个的对照修改」）
+#
+# 与上一版（16 + 21 行的**共用意象表**）的区别：那张表一行要服务 6~12 条鱼 ⇒ 同族鱼长一个样。
+# 现在**每条鱼各写两句**，意象直接来自**它自己的名字**（星磷 / 陨砾 / 时砂 / 残页 / 千面 …）。
+#
+# 骨架（`build_deep_prompt`）—— 用户 2026-10-09 22:42 定的「简化原则」：
+#   名字 + 身份句 + 体型锚点 + **这条鱼自己的两句** + 风格句 + 颜色句
+#   （≈ 60~90 词；旧版 206 词，奇幻被解剖描述淹没了）
+#
+# 三条硬约束（都有实测）：
+#   ① 不许用「这两场人人都有」的词（glow / luminous / translucent / ring …，见 §17.18）；
+#   ② **闪烁族**（sparkle / glitter / glint）留给闪光档，原色档先用掉就没有递进了；
+#   ③ ⛔ **不许用否定式描述「身体缺什么」**：`with no legs` 实测**反而让龙长出腿** ——
+#      要改形态就换**正面的物种词**（`coiling sea-serpent` 而不是 `dragon`）。
+# ────────────────────────────────────────────────────────────────────────────
+DEEP_LINES = {
+    # ── SS 80 ──────────────────────────────────────────────────────────────
+    'SS01': 'A starlight-phosphor fish, its whole body lit by countless pale flecks. Tiny pale flakes carry their own light, strewn evenly from the head to the very tip of the tail.',
+    'SS02': 'A deep-bodied iron-meteor bream, armoured in crude fallen metal. Raw dark ore is fused over its entire body, breaking the surface into hard black chips.',
+    'SS03': 'A vacuum ray holding an emptiness at the centre of its disk. The middle of its body is bare grey, the colour simply gone from it.',
+    'SS04': 'A deep-sea star-eel, a cold thread drawn out of the dark. Its back cools to near-black with a grey slate sheen along the whole length.',
+    'SS05': 'A cold-light anglerfish carrying a thin sliver of chill in front of its jaws. Its back is matte near-black and a cold slate band lies along its flank.',
+    'SS06': 'A deep blue ghost jelly, drifting without hurry. Its dome sinks to a deep matte blue, darkest at the centre and thinning at the rim.',
+    'SS07': 'A meteoric ash-pomfret dusted with the grit of a burned-out world. Fine grey mineral dust settles over every plate and packs into the creases of its body.',
+    'SS08': 'A dark-star bream with its back sunk into the deep. The upper half is matte near-black and the belly stays pale and clean.',
+    'SS09': 'A star-dust anchovy, the smallest drifting fragment of a dead star. A fine scatter of pale mineral flakes floats just beneath its skin.',
+    'SS10': 'A gravel-meteor trevally built out of broken stone. Loose chips of dark rock are lodged all over its hide, thickest along the back.',
+    'SS11': 'A star-line bream, ruled across the body with bright mineral lines. Thin pale veins run straight from head to tail, cutting across every facet.',
+    'SS12': 'A meteor-bass carrying a fallen star in its chest. One heavy lump of star-stone swells under its ribs and splits the plates around it.',
+    'SS13': 'A dim-light cod holding a thin breath of light under the skin. A single faint line of pale flakes runs the length of its midline.',
+    'SS14': 'A star-fragment goby, rough with the crumbs of a broken sky. Sharp little chips of pale stone are pressed into its hide from head to tail.',
+    'SS15': 'A sand-meteor killifish with ground stone packed into it. Coarse mineral grit runs over its whole body in fine bands.',
+    'SS16': 'A dim-star flounder, cold and flat on the bottom. Its flat body is deep cool blue, deepening rather than lightening toward the tail.',
+    'SS17': 'A star-dust jelly, drifting like a torn fragment of night sky. Pale flakes are suspended in its soft dome, packed thickest in the middle.',
+    'SS18': 'A stony gill-breather plated like a meteorite crust. Its gill covers are thick slabs of stone with dark metal packed into the seams.',
+    'SS19': 'A night-sheen eel, a long polished line of night. Its back runs matte black with a slate sheen and its belly stays pale.',
+    'SS20': 'A broken-star ray whose disk has splintered. Its wing plates are cracked and chipped, several pieces broken clean away.',
+    'SS21': 'A still pomfret, an unnaturally quiet thing. Its surface is ghost-pale and almost entirely unmarked.',
+    'SS22': 'A rime-scaled salmon, cold to the touch. A frost-white film creeps over its whole body, every plate sealed under rime.',
+    'SS23': 'A phantom flounder, more suggestion than body. Its flat body is pale and soft-edged, the pattern barely present at all.',
+    'SS24': 'A star-fragment seahorse, brittle as a dried crumb of light. Its ridged plates are pale and crumbly, flecked with tiny bright chips.',
+    'SS25': 'A falling-light anglerfish that lures with a shard of meteor. A blunt shard of bright metal hangs before its jaws and a pale band runs along its flank.',
+    'SS26': 'A deep blue triggerfish, plated and cold. Its plates are deep matte blue, cooling further along the back.',
+    'SS27': 'A star-sand flounder that has settled into the sea floor. Grit of pale star-sand is packed across its whole flat body.',
+    'SS28': 'A meteor-line tuna striped with the grain of fallen metal. Dark metallic lines are drawn the full length of its torpedo body.',
+    'SS29': 'A night-sky sailfish, its body the colour of the deep. Long pale lines run down its flank, thin as thread.',
+    'SS30': 'A starflare scad with one hard core of light. A cut-stone core sits deep in its chest, its facets meeting at one sharp point.',
+    'SS31': 'A void-eel, thin as a line drawn through nothing. Its body fades out at every edge into bare grey.',
+    'SS32': 'A falling-light sea-serpent, a long ribbon of burning metal. A pale metallic band is fused along the entire length of its body.',
+    'SS33': 'A nebula-ray carrying a cloud inside its wings. Drifts of pale colour are held inside its wing plates and gather near the centre.',
+    'SS34': 'A trench-shadow shark, gliding as a moving dark. Its body is matte black, the only relief a hollow set into one flank.',
+    'SS35': 'A deep-star octopus, patient and heavy. Its mantle is dark layered stone, the outer skin smooth and cold.',
+    'SS36': 'A fallen-lantern fish, dulled and dented by its descent. Dented plates are jammed together along both flanks.',
+    'SS37': 'A star-eclipse bream, the dark where a star used to be. A wide dark patch eats into one flank, swallowing the colour as it spreads.',
+    'SS38': 'A hollow-hour pomfret, old before its own shape was settled. Its whole surface is dulled and ancient, the plates worn down to soft bevels.',
+    'SS39': 'A shattered-meteor oarfish, its ribbon body broken in places. Long cracks cross its papery body with raw dark ore showing along them.',
+    'SS40': 'A star-gauze jelly, a veil of thin colour. Its dome is made of layered pale sheets with colour suspended between them.',
+    'SS41': 'A dim sea-dragon, a long cold thing of the deep. Its body is deep dull blue, darkening along the spine.',
+    'SS42': 'A flat meteor-core flounder with its heavy centre exposed. A dark stone core sits in the middle of its body and the flat plates radiate outward from it.',
+    'SS43': 'A void-light anglerfish carrying a thin splinter of emptiness. A narrow cold band runs down its flank and its skin is grey and empty.',
+    'SS44': 'A dark-matter ray made of what nothing else is made of. Its disk is matte black with a cold grey edge and no pattern at all.',
+    'SS45': 'A fallen-star ray, gliding as if it were still dropping. Its disk is layered dark stone and the edge plates are bent back.',
+    'SS46': 'A void-shark whose body does not quite hold together. Its outline dissolves at the edges into colourless grey.',
+    'SS47': 'An armoured meteor-sturgeon, ridged and plated along the whole back. Ranks of stone scutes run down its spine, each one chipped at the edge.',
+    'SS48': 'A star-fragment octopus wrapped in a mantle of debris. Pale chips of stone are stuck all over its mantle in irregular rows.',
+    'SS49': 'A falling-star sailfish whose bill is a splinter of meteor. The bill is one long shard of dark stone and its body is plated in chips.',
+    'SS50': 'A star-core dragonfish with a stone heart. The core shows through as a bright polygon set deep inside its body.',
+    'SS51': 'A sky-tearing oarfish with a single long split down its back. The split widens toward the tail and its edges are bared as raw stone.',
+    'SS52': 'The trench-eyed giant shark, one eye opening into depth. A deep hollow is set behind the jaws, opening into black.',
+    'SS53': 'A fallen leviathan that landed once and never quite recovered. Its hide is crushed stone, roughly layered with dark ore packed into the creases.',
+    'SS54': 'A first-age sea-serpent, older than the sea it swims in. Its hide is rough weathered stone with the grain running along its length.',
+    'SS55': 'A fallen-star colossal squid. Its mantle is a single dark slab of stone and its arms are layered pale metal.',
+    'SS56': 'The void-jelly sovereign, drifting as a hollow crown. Its dome is bare grey, emptied of colour from the crown to the edge.',
+    'SS57': 'An iron-meteor shark whose jaws are set with slabs of ore. Metal-stone slabs are wedged along its jawline and dark chips break out across its hide.',
+    'SS58': 'The eclipse-ray king, its disk half swallowed by dark. A wide black crescent covers one wing with a soft edge.',
+    'SS59': 'A falling-light sea-dragon, ridged along the whole spine. A pale metal band runs from its snout to its tail over overlapping plates.',
+    'SS60': 'A small iron-meteor scad, dense as a struck anvil. Dark metal inclusions are packed tightly over its entire body.',
+    'SS61': 'A star-veined killifish with a mineral vein under the skin. One pale vein branches through its body and splits into finer threads at the tail.',
+    'SS62': 'A void-flounder lying flat in emptiness. Its flat body is drained of colour with the bare structure showing through.',
+    'SS63': 'A deep blue anchovy, a small cold spark in the dark. Its body is deep cool blue and paler on the belly.',
+    'SS64': 'A star-fragment herring that swims in loose shoals of light. Its scales are pale flecks, gathered thickest along the belly.',
+    'SS65': 'A grit-meteor seabass with sand fused into its scales. Ground mineral grit is welded over its flanks in rough plates.',
+    'SS66': 'A faint-glimmer pomfret barely holding its own light. Only a thin wash of pale flecks remains on its flanks.',
+    'SS67': 'A dark-reef bream, stone-coloured and still. Its hide is rough dark stone with the plates held tight together.',
+    'SS68': 'A fallen-star eel, a thin dark seam of the sky. Broken facet edges run down its whole length.',
+    'SS69': 'A fallen ray, heavy and grounded. Its disk is packed with dark ore and chipped at the rims.',
+    'SS70': 'A void-pomfret, weightless and colourless. Its body thins away at the edges until only bare grey remains.',
+    'SS71': 'A small eclipse-goby, half of it gone dark. One shoulder is swallowed by a black patch that thins toward the belly.',
+    'SS72': 'The iron-meteor shark-king, a single mass of fused metal. Its whole body is one dark ore mass and the outer slabs split into hard chips.',
+    'SS73': 'A star-core oarfish, a long ribbon with a hard centre. A single bright polygon is set deep in its chest and the ribbon body runs past it.',
+    'SS74': 'A colossal deep blue ray, gliding very slowly. Its wings are matte deep blue with the colour thickening outward.',
+    'SS75': 'A fallen-star leviathan carrying the end of the sky inside it. Its hide is polished star-stone and long dark seams of dead metal run its full length.',
+    'SS76': 'The scaled sovereign of the fallen stars, crowned along the spine. Every plate of its hide is a slab of dark sky-stone laid in overlapping ranks.',
+    'SS77': 'A pale moon-deity gliding on wide wings over the trench floor. Its wings are thin silver stone veined with cold mineral seams.',
+    'SS78': 'A crown-serpent of the fallen sky, its ribbon body split by one long crack. The crack runs the whole length of it with the break bared as raw dark ore.',
+    'SS79': 'The last chapter of the abyss, wearing a hide of swallowed stars. Clusters of pale points are packed into its chest plates, fading toward the tail.',
+    'SS80': 'A leviathan that rules the endless night, half its mass given to emptiness. Its skin is matte void-black stone, cooling to a grey edge along the flanks.',
+    # ── SSS 100 ────────────────────────────────────────────────────────────
+    'SSS01': 'A small time-sand fish that keeps the hour. Pale sand-grain drifts over its whole body and gathers in every crease.',
+    'SSS02': 'A back-current salmon swimming against its own time. Thin pale lines run backwards along its body in even rows.',
+    'SSS03': 'A zero-degree butterflyfish, cold past freezing. A pale frost-white film lies across its body with every plate sealed.',
+    'SSS04': 'A yesterday bass, worn by the day that has just ended. Great patches of its hide are rubbed smooth and pale.',
+    'SSS05': 'A relic killifish, small and worn down. Its surface is rubbed pale in patches from nose to tail.',
+    'SSS06': 'An empty-hour pomfret whose body is mostly absence. Its middle never filled in with colour, leaving a body of bare grey plates.',
+    'SSS07': 'A single-instant bitterling, caught mid-motion. Its whole surface is held still, frozen in the middle of a move.',
+    'SSS08': 'A fleeting-moment scad. Its body is frozen mid-turn with the surface held unnaturally still.',
+    'SSS09': 'A blink killifish. Its whole body is caught mid-motion and held perfectly still.',
+    'SSS10': 'A single-quarter-hour scad. Its surface is held still, as if time had stopped inside it.',
+    'SSS11': 'A passing-time flounder. Long slow bands of light lie along its flat body.',
+    'SSS12': 'An amber bream holding something inside it. A deep amber core lies within its plates, thick and slowly deepening.',
+    'SSS13': 'A relic grouper, heavy with age. Whole regions of its hide are worn away to smooth pale stone.',
+    'SSS14': 'A last-echo mullet still carrying a sound that has ended. Widening pale bands ripple back along its flanks.',
+    'SSS15': 'A silent cod with its markings held back. Its surface is still and almost unmarked.',
+    'SSS16': 'A dust-hour scad packed with the fine grit of passing time. Grey sand-grain is packed over its flanks in even layers.',
+    'SSS17': 'A first-snow trout. A pale frost-white film covers its body, cleaner along the back.',
+    'SSS18': 'An hourglass flounder, narrow at the waist. Pale grain runs through its flat body, pinched thinner in the middle.',
+    'SSS19': 'An echo bass answering itself. Pale bands repeat down its body and weaken with every return.',
+    'SSS20': 'An old-day pomfret. Its body is worn smooth and pale in broad patches.',
+    'SSS21': 'A bream carved out of its own years. Deep age-bands are cut straight through its whole body, band after band.',
+    'SSS22': 'An unfinished-hour goby with its last band still forming. The age-bands on its body fade out before they reach the tail.',
+    'SSS23': 'A star-track eel whose body is a line of travel. A long pale line runs its whole length and fades at the tail.',
+    'SSS24': 'A void flounder. Its outline fades at the edges into empty grey.',
+    'SSS25': 'A yesterday scad, already faded though its day has just passed. Pale worn patches cover much of its hide in broad soft shapes.',
+    'SSS26': 'A far-view pomfret, receding while you look at it. Its far plates fade pale, as if the body were receding away.',
+    'SSS27': 'A resounding mullet. Even rows of pale lines double back along its whole length.',
+    'SSS28': 'A first-light mullet, the colour of a first morning. A thin dusty film of light lies over its surface, worn thinner at the tail.',
+    'SSS29': 'A relic ray. Its wings are worn smooth in patches with the pattern rubbed away.',
+    'SSS30': 'A dust-light jelly drifting in thin suspended light. A film of pale light lies on its dome, worn away at the rim.',
+    'SSS31': 'A left-light scad carrying light that was abandoned. A dusty pale film lies over its body, rubbed away in places.',
+    'SSS32': 'A hollow-hour cod, its body a shell of its own hour. The flank has gone colourless and hollow, with the ribs reading through as grey ridges.',
+    'SSS33': 'A reverse-time eel running the years backwards. Thin echo lines run backwards down its ribbon body.',
+    'SSS34': 'A thousand-year fish with every year cut into it. Countless fine bands are stacked through its whole body.',
+    'SSS35': 'A void sailfish. Its body fades out at the edges and its bill thins into nothing.',
+    'SSS36': 'An era-sturgeon plated with centuries. Deep bands run through its scutes, one for each age.',
+    'SSS37': 'A dusk ray gliding at the end of the light. Its whole disk deepens to a flat dusk-dark tone.',
+    'SSS38': 'A dark-matter jelly. Dark ore is suspended in thick layers inside its dome.',
+    'SSS39': 'A resounding bream. Pale bands repeat across its flank in even steps.',
+    'SSS40': 'A living fold in space-time, folded through its own body. Layered plates of its hide stack in deep folds that never line up.',
+    'SSS41': 'A counter-current sea-dragon. Long pale lines run the wrong way down its body.',
+    'SSS42': 'A last-time oarfish, the end of a long ribbon of years. Its papery body is scored with pale backward lines.',
+    'SSS43': 'An empty-hour anglerfish whose bright lure went out long ago. The rod above its eyes hangs slack with a pinched grey thread at the end.',
+    'SSS44': 'A thousand-faced octopus with no two parts alike. Every plate on its mantle holds a different tone from its neighbours.',
+    'SSS45': 'A reverse-void shark. Pale lines reverse along its flanks into flat grey.',
+    'SSS46': 'A light-tracing scad following light back to its source. Pale lines run back along its body and thin out at the tail.',
+    'SSS47': 'An old-day jelly. Its dome is worn thin and pale, fraying along one side.',
+    'SSS48': 'A shadow-hour flounder. A soft shadow band drifts slowly along its flat body.',
+    'SSS49': 'A loop-time cod whose years close into a circle. A thick pale loop is wound round the middle of its body and the two ends meet in a seam.',
+    'SSS50': 'A mute giant-mouth eel. Its long body is still and unpatterned, dark over pale.',
+    'SSS51': 'A star-track ray. A pale line is cut across its wings from front to back.',
+    'SSS52': 'An hour-marked pomfret. A single deep band cuts across the middle of its body.',
+    'SSS53': 'A time-dragon whose length is ruled by years. Deep bands run the whole length of its body, even and close.',
+    'SSS54': 'The shark at the very end. Its plates narrow and converge toward a dark point at the tail.',
+    'SSS55': 'An eternal whale, one unbroken mass. Its whole body is sealed under a continuous dark stone skin.',
+    'SSS56': 'A first-source plesiosaur that has not yet formed. Its surface is pale and almost colourless, a shape without a pattern.',
+    'SSS57': 'A colossal star-dust ray. Pale dust is held in thick layers inside its wing plates.',
+    'SSS58': 'A time-folded leviathan with centuries creased into it. Its hide is stacked in hundreds of thin plates, one for every age.',
+    'SSS59': 'An era-folded abyssal whale, its whole bulk layered. Hundreds of thin plates pile along its flanks, each one pressed under the last.',
+    'SSS60': 'A colossal reverse-entropy squid. Its mantle is layered pale stone and the layers reverse direction midway.',
+    'SSS61': 'A last-echo sea-dragon, still carrying the sound of something finished. Pale wave-lines run back along its long body and weaken toward the tail.',
+    'SSS62': 'A void-winged ray. Its wings are bare grey with the colour gone from them.',
+    'SSS63': 'A passing-time giant-mouth shark. Slow bands of light run down its flanks in order.',
+    'SSS64': 'A time-scarred flounder, marked where the years crossed it. Thin pale grit-lines cross its flat body in long scored bands.',
+    'SSS65': 'A reverse-light cod with its light running the wrong way. Thin light-lines travel backwards along its flanks from tail to head.',
+    'SSS66': 'A year-reckoning scad. Fine even bands are cut across its flanks from head to tail.',
+    'SSS67': 'A time-tracing mullet following the years upstream. Pale back-running lines are cut into its sides.',
+    'SSS68': 'A torn-page bream with its history half rubbed away. Its flat flanks are worn smooth in large pale patches.',
+    'SSS69': 'A blank-page bass with everything erased from it. Its whole hide is rubbed down to bare pale stone.',
+    'SSS70': 'A forgotten pomfret, worn where nobody has looked at it. Patches of pale worn stone cover its sides in uneven shapes.',
+    'SSS71': 'A dust-of-the-past killifish. Fine pale grit lies over its body in drifts.',
+    'SSS72': 'A late-hour goby. Its surface is worn pale behind the head and darkens toward the tail.',
+    'SSS73': 'A light-gathering scad hoarding what others left behind. Thin pale light is caught on its flanks, thickest along the midline.',
+    'SSS74': 'A reverse-journey flounder travelling back the way it came. Pale lines run backwards across its flat body in even rows.',
+    'SSS75': 'A flowing-year mullet. Pale bands flow along its body one after another.',
+    'SSS76': 'A hollow-bone cod. Its sides are bare grey stone, worn through in places to show what lies under.',
+    'SSS77': 'A hush-hour scad. Almost no marking crosses its body, only a still grey surface.',
+    'SSS78': 'A time-sturgeon. Long deep bands run the length of its plated body.',
+    'SSS79': 'A back-current oarfish, the longest ribbon of returning water. Back-running pale lines score its whole ribbon body.',
+    'SSS80': 'A reverse-entropy ray whose own order is running down. Pale lines reverse outward across its wings and fade at the tips.',
+    'SSS81': 'A hollow-hour shark. Its flanks are colourless grey with the structure exposed.',
+    'SSS82': 'A thousand-year ray whose disk is a record of ages. Deep age-bands are cut across the whole disk, one inside the next.',
+    'SSS83': 'A time-gauze jelly, a thin drifting veil. Fine pale grain is suspended in its dome like cloth.',
+    'SSS84': 'An empty-year octopus. Its mantle fades at the edges and its arms thin away into grey.',
+    'SSS85': 'A reverse-journey anglerfish. Pale back-running lines cross its body and its lure is a dull stone knob.',
+    'SSS86': 'An era-giant shark. Deep bands run along its flanks with dark metal packed between them.',
+    'SSS87': 'A passing-time great dragon. Slow light-bands run the whole length of its body and thin at the tail.',
+    'SSS88': 'A thousand-year whale grown older than its sea. Deep bands run the whole length of its body, band after band.',
+    'SSS89': 'A counter-current oarfish. Long pale lines run backwards the full length of its body.',
+    'SSS90': 'A whale folded out of empty time. Its skin is layered pale grey stone and the folds widen toward the tail.',
+    'SSS91': 'An era-dragon. Bands of advancing years are cut down its long body.',
+    'SSS92': 'The final point of time, vast and shapeless. Its mass is one unbroken slab of dark stone, blank from end to end.',
+    'SSS93': 'The shadow of the first source, a serpent of raw chaos. Its hide is broken into irregular plates that do not fit together.',
+    'SSS94': 'An era of endings, swimming in the river of forgetting. Its hide is layered grey stone worn pale in long bands.',
+    'SSS95': 'The end of time, drifting alone as a vast shapeless mass. Its body is one mass of stacked pale plates with light held between them.',
+    'SSS96': 'The first scale of creation, still hardening. Its hide is hardening out of colourless primordial stone with faint light moving inside it.',
+    'SSS97': 'The shadow of the last fisherman, still holding its line. Its body is pale layered stone thinned into a long shadow.',
+    'SSS98': 'The whale at the end of all eras. Its plates are layered grey stone and the hollow of its body shows through.',
+    'SSS99': 'The first scale born out of chaos. Its plates never settle into a pattern, each one a different shape.',
+    'SSS100': 'The shadow of the end crossing the river of forgetting. Its hide is worn grey stone faded to pale bands along the back.',
+}
 
-SSS_MOTIFS = [
-    (("时之尽头", "时之终点", "纪元终焉", "终焉纪元", "初源之影", "最初之鳞", "创世之鳞",
-      "终末渔者", "终焉之影", "纪元褶皱", "时光褶皱", "时空褶皱", "时之褶皱", "无相巨鲲", "无相鲲"),
-     "the whole body is built of stacked crystal plates, hundreds of thin layers piled one upon another with light caught deep between them"),
-    (("时砂", "沙漏", "时纱", "尘时", "时痕"),
-     "a fine film of pale sand-grain drifts over the whole body, gathering in every crease between the facets"),
-    (("尘光", "遗光", "初光", "拾光"),
-     "a thin dusty film of light lies over the whole surface, worn away in places"),
-    (("溯流", "溯光", "溯时", "逆时", "逆流", "逆熵", "逆光", "逆旅", "逆空",
-      "回环", "回响", "回音", "残响", "残时"),
-     "thin echo lines run backwards along the whole body, doubling over one another in even rows"),
-    (("年轮", "纪年", "纪元", "时刻", "未时", "时间", "千年"),
-     "deep age-bands are cut straight through the entire body, band after band laid down by long age"),
-    (("时光", "流年"),
-     "long slow bands of passing light lie along the body, one after another down its whole length"),
-    (("遗迹", "旧日", "昨日", "遗忘", "前尘", "后时", "残页", "空页"),
-     "the surface is worn smooth and pale in great patches, whole regions simply rubbed away by time"),
-    (("静默", "沉默", "寂时"),
-     "the entire surface is unnaturally still, the markings almost absent"),
-    (("空洞", "空之", "空时", "无相", "忘川"),
-     "the body reads hollow, drained of colour, the bare structure showing through"),
-    (("刹那", "须臾", "瞬息", "一刻"),
-     "the whole surface is held unnaturally still, frozen mid-motion, as if time had stopped inside it"),
-    (("永恒",),
-     "the entire body is sealed under one continuous glossy crystal skin, unbroken from the head to the tail"),
-    (("终焉", "终末"),
-     "the facets converge and narrow towards a single dark point at the very end of the body"),
-    (("琥珀",),
-     "a deep amber core is held inside the facets, the colour thick and slowly deepening"),
-    (("零度", "初雪"),
-     "a pale frost-white film lies across the entire body, every facet sealed under clear rime"),
-    (("初源", "创世", "最初", "原初"),
-     "the whole surface is pale and almost colourless, like a form that has not yet taken its shape"),
-    (("黄昏",),
-     "the entire body deepens to a flat dusk-dark tone"),
-    (("千面",),
-     "no two neighbouring facets are alike, the tone shifting unevenly over the whole body"),
-    (("虚空", "虚时", "虚年"),
-     "the edges dissolve into a colourless void, as if the surface were fading out of the world"),
-    (("影时",),
-     "a soft shadow band drifts slowly along the whole length of the body"),
-    (("远景",),
-     "the far facets fade pale, as if the body recedes away into distance"),
-    (("星尘", "星轨", "暗物质"),
-     "pale dust and dark ore are suspended in thick layers inside the body itself"),
-]
 
-# 🔴 **两场的「身份句」**（2026-10-09 22:42 用户口径：「奇幻的表述要多一点，宏大一点」，
-#    原话给的例子：「这是个奇幻生物，它的皮肤不同于普通的鱼」）。
-#    位置：紧跟物种名之后、形态档案之前 —— 先让模型知道**它不是一条普通的鱼**，
-#    再看形态与材质句，出来的东西才不会被「鱼类解剖」拉回现实。
-#    ⚠️ 与三条硬约束不冲突：它说的是**这条生物的身份**，不引入任何新物件 / 背景。
+# 🔴 **两场的「身份句」**（2026-10-09 22:42 用户口径：「奇幻的表述要多一点，宏大一点」）。
+#    位置紧跟物种名：先让模型知道**它不是一条普通的鱼**，再看材质句。
 DEEP_LEAD = {
     "SS": "a mythic creature of the abyss, unmistakably not an ordinary fish",
     "SSS": "an elder being from a forgotten age, unmistakably not an ordinary fish",
 }
+
+# 哪些钓场走「逐条」骨架（前面五个钓场的口径**一个字都不动**）
+DEEP_FIELDS = ("SS", "SSS")
+
+# 两场的颜色句抬头（替掉前面钓场的 `natural realistic colouring`）——
+# SS 是深渊异界矿物生物、SSS 是走过漫长岁月的老东西，同一个抬头会把两场糊成一层。
+DEEP_COLOR_HEAD = {"SS": "unearthly colouring", "SSS": "primeval colouring"}
+
+# 体型锚点：**奇幻词，不是解剖词**（实测：不点体型时「无相巨鲲」被画成一条普通大鱼）。
+DEEP_ANCHOR = {
+    "fish": "a fish-like creature of the deep",
+    "eel": "a long eel-bodied serpent",
+    "shark": "a heavy shark-bodied beast",
+    "whale": "a colossal leviathan",
+    "dragon": "a colossal coiling sea-serpent",
+    "squid": "a many-armed creature of the deep",
+    "ray": "a broad winged ray-like being",
+    "jelly": "a drifting jelly-mass",
+    "oarfish": "a ribbon-like serpent of the open water",
+    "crustacean": "an armoured crawling beast",
+    "star": "a five-armed star-being",
+    "worm": "a soft long-bodied creature",
+}
+
+# 🔴 用词纪律（机器强制，判据在 `check_deep_motifs()` 与 `verify` 第 ㊾ 节，按词边界扫）
+DEEP_MOTIF_BANNED = ("glow", "glowing", "luminous", "translucent", "crystalline",
+                     "concentric", "ring", "rings",
+                     "sparkle", "sparkling", "glitter", "glittering", "glint", "scintillating")
+
+# ⛔ 「否定式描述身体缺什么」的判据只认「否定词 + 身体部位」，避免误伤 without hurry 这类正常说法
+DEEP_BANNED_NEG = ("legs", "limbs", "arms", "fins", "eye", "eyes", "mouth",
+                   "tail", "head", "jaw", "scales")
+
+# 判据用的三个正则（**只写一处**，`verify` 第 ㊾ 节按同样的口径做静态扫描）
+BAN_RE = lambda w: r"\b" + w + r"\b"
+NEG_RE = r"\b(with no|without|legless)\b"
+BODY_RE = r"\b(" + "|".join(DEEP_BANNED_NEG) + r")\b"
 
 
 def deep_lead(f):
@@ -1012,95 +1168,63 @@ def deep_lead(f):
     return DEEP_LEAD.get(f.get("field"), "")
 
 
-DEEP_MOTIFS = {"SS": SS_MOTIFS, "SSS": SSS_MOTIFS}
-
-# 两场的**颜色句抬头**（替掉前面钓场用的 `natural realistic colouring`）。
-# 为什么两场还要分开写：SS 是「深渊里的异界矿物生物」、SSS 是「走过漫长岁月的老东西」，
-# 同一个抬头会让两场又糊成一层（「更高级」正是靠这种一层层的差别堆出来的）。
-DEEP_COLOR_HEAD = {"SS": "unearthly colouring", "SSS": "primeval colouring"}
-
-# 🔴 **奇幻句的用词纪律（机器强制，不靠自觉）**
-# 改动前实测：SS/SSS 180 条里有 **140 条**的形态档案本来就写着
-# `a soft glowing edge along the outer silhouette` —— 也就是说「会发光」这两场**人人都有**，
-# 拿它当奇幻卖点等于什么都没说。另有 47/180 条出现「奇幻句与形态档案撞同一个词」
-# （luminous 10 / glow 15 / glowing 7 / ring 13 / crystalline 1 / translucent 1）。
-# ⇒ 奇幻句**一律不许用下面这些词**，改用**材质与结构**词（flake / seam / vein / slab /
-#   terrace / age-band / cut-stone / sheen / rime …）：它们是**新增的信息**，
-#   不是把已经说过一遍的东西再说一遍。
-# 🔴 **再加上「闪烁族」**（sparkle / glitter / glint / star-shaped）：那是**闪光档的卖点**
-#   （`shiny` 的候选句就是星点 / 金属亮片）—— 原色档要是先「全身闪耀」了，
-#   闪光档就没有差异化可言，五档的递进当场作废。
-# ⚠️ 判据在 `check_deep_motifs()` 与 `verify` 第 ㊾ 节里**按词边界**扫
-#   （`ring` 不许命中 `during` / `spring`，也不许命中 `neighbouring`）。
-DEEP_MOTIF_BANNED = ("glow", "glowing", "luminous", "translucent", "crystalline",
-                     "concentric", "ring", "rings",
-                     "sparkle", "sparkling", "glitter", "glittering", "glint", "scintillating")
+def deep_lines(f):
+    """**这条鱼自己的两句**描述（逐条写，不再按意象族共用）。"""
+    return DEEP_LINES.get(f.get("id"), "")
 
 
+def build_deep_prompt(f, morph=None):
+    """SS / SSS 的骨架：名字 + 身份句 + 体型锚点 + 逐条两句 + 风格句 + 颜色句。
 
-def deep_motif(f):
-    """SS / SSS 两场的奇幻点题句。命中即止、没有就返回空串（表序 = 优先级）。
-
-    与 `fantasy_motif()` 的分工：那条只管**前面钓场的传说鱼**（rar == 3），
-    这条只管**两场的全部稀有度** —— 两场各 80 / 100 条的名字都是奇幻设定，
-    没有理由让其中的普通鱼画成现实里的鱼。
+    ⚠️ **颜色句必须是 `palette_color(f)` 原样** —— 五档靠 `build_morph_prompt()` 替换那半句
+       （`p.replace(pc, …)`），少一个字就替换不上、会直接抛 RuntimeError。
+    ⚠️ 稀有度递进（`RARITY[rar_i]` 的鳍部措辞）**保留**在风格句里 ——
+       它管「档位越高鳍越复杂」，删掉会让 SS/SSS 场内的递进一起没了。
     """
-    table = DEEP_MOTIFS.get(f.get("field"))
-    if not table:
-        return ""
-    name = f.get("name") or ""
-    for keys, sentence in table:
-        if any(k in name for k in keys):
-            return sentence
-    return ""
+    shape = f.get("shape", "fish")
+    spec = SHAPES.get(shape, SHAPES["fish"])
+    verified = trait_of(f["id"], "form") or ""
+    fin_word = spec.get("finSafe", spec["fin"]) if verified else spec["fin"]
+    rar_i = min(3, f.get("rar", 0))
+    rar = RARITY[rar_i].format(fin=fin_word, extra=extra_for(morph, f))
+    frame_head = shape_word(f, "frame", "full side view, whole body visible, facing left")
+
+    parts = [
+        "low poly 3D fantasy creature named %s, %s, %s." % (
+            f["name"], deep_lead(f) or "a creature of the deep",
+            DEEP_ANCHOR.get(shape, DEEP_ANCHOR["fish"])),
+        deep_lines(f),
+        "Faceted low-poly stylisation, %s, flat shading, %s, centered with generous margin, "
+        "empty dark background." % (rar, frame_head),
+        palette_color(f) + ", " + shade_for(morph, f) + ".",
+    ]
+    return " ".join(p for p in parts if p)
 
 
+# 🔴 **加载即校验**：逐条表必须**恰好覆盖**两场 180 条（漏一条 / 多一条都报错），
+#    且不许踩用词纪律与「否定式描述缺失」。
+#    （与 `check_pools()` / `check_shape_words()` 同一套路：不合格直接抛，不静默放行。）
 def check_deep_motifs():
-    """加载即校验：**两场每条鱼都要命中，且表里不许有死行**（写了没人读 = 死数据）。
-
-    为什么要「加载即校验」而不是靠人目视：这两张表有 39 行、180 条鱼要覆盖，
-    而表格是**手写**的 —— 漏一条鱼（少一个词）或留着一条没人命中的死行，
-    表现都是「图出来才知道」，那时已经烧掉几十分钟出图时间。
-    ⚠️ 与 `check_pools()` / `check_shape_words()` 同一套路：不合格**直接抛**，不静默放行。
-    （它自己读一次 fish —— `load_fish()` 要起 node，为省这一次调用而给它加缓存不值得。）
-    """
     fish = load_fish()
-    for field, table in sorted(DEEP_MOTIFS.items()):
-        rows = [(keys, s) for keys, s in table]
-        hit_rows, missing, used = set(), [], [0] * len(rows)
-        for f in fish:
-            if f.get("field") != field:
-                continue
-            name = f.get("name") or ""
-            got = -1
-            for i, (keys, _s) in enumerate(rows):
-                if any(k in name for k in keys):
-                    got = i
-                    break
-            if got < 0:
-                missing.append("%s %s" % (f["id"], name))
-            else:
-                hit_rows.add(got)
-                used[got] += 1
-        if missing:
+    deep = {f["id"]: f for f in fish if f.get("field") in DEEP_FIELDS}
+    missing = sorted(set(deep) - set(DEEP_LINES))
+    extra = sorted(set(DEEP_LINES) - set(deep))
+    if missing or extra:
+        raise SystemExit(
+            "❌ SS / SSS 逐条表与鱼表对不上：缺 %d 条 %s / 多 %d 条 %s"
+            % (len(missing), missing[:12], len(extra), extra[:12]))
+    for fid, txt in DEEP_LINES.items():
+        low = txt.lower()
+        hit = [w for w in DEEP_MOTIF_BANNED if re.search(BAN_RE(w), low)]
+        if hit:
+            raise SystemExit("❌ %s 的描述用了禁用词 %s：%s" % (fid, "、".join(hit), txt[:110]))
+        if re.search(NEG_RE, low) and re.search(BODY_RE, low):
             raise SystemExit(
-                "❌ %s 场有 %d 条鱼没命中奇幻表（名字里的意象词没进表）：\n   %s"
-                % (field, len(missing), "、".join(missing[:20])))
-        dead = [(i, rows[i][0][0]) for i in range(len(rows)) if used[i] == 0]
-        if dead:
-            raise SystemExit(
-                "❌ %s 场奇幻表里有 %d 条死行（该场一次都没命中，写了没人读）：\n   %s"
-                % (field, len(dead), "、".join("第%d行(首键 %s)" % (i + 1, k) for i, k in dead)))
-        # 用词纪律：不许用形态档案里已经高频出现的「发光 / 透明」词（见 DEEP_MOTIF_BANNED）
-        for i, (_keys, sent) in enumerate(rows):
-            hitw = [w for w in DEEP_MOTIF_BANNED
-                    if re.search(r"\b" + w + r"\b", sent)]
-            if hitw:
-                raise SystemExit(
-                    "❌ %s 场奇幻表第 %d 行用了禁用词 %s：\n   %s\n"
-                    "   （这 %s 词在形态档案里已经大量出现，其中 glowing 覆盖 140/180 条）"
-                    % (field, i + 1, "、".join(hitw), sent, "、".join(hitw)))
-
+                "❌ %s 用**否定式**描述身体缺什么（实测 with no legs 反而画出腿）：%s"
+                % (fid, txt[:110]))
+        if len(txt.split()) < 12:
+            raise SystemExit("❌ %s 的描述太短（<12 词），起不到定形作用：%s" % (fid, txt))
+    print("  · SS/SSS 逐条描述 %d 条，覆盖与用词纪律全部通过" % len(DEEP_LINES))
 
 
 def color_name(hexstr):
@@ -1649,6 +1773,11 @@ def build_prompt(f, morph=None):
        3. 形态句里**不写「精细词」**（elaborate / ornate / decorative）——
           一出现模型立刻画成精细插画（v10 首批 10 张全废在这条）
     """
+    # 🔴 SS / SSS 走**逐条骨架**（`build_deep_prompt`，2026-10-10 用户口径：简化 + 逐条对着名字写）。
+    #    前面五个钓场一路不动 —— 它们仍是「解剖档案 + 稀有度递进」的原口径。
+    if f.get("field") in DEEP_FIELDS:
+        return build_deep_prompt(f, morph)
+
     shape = f.get("shape", "fish")
     spec = SHAPES.get(shape, SHAPES["fish"])
     verified = trait_of(f["id"], "form") or ""
@@ -1714,23 +1843,22 @@ def build_prompt(f, morph=None):
     bits.append(form_profile(f))
 
     # ③b 点题 —— 两道门，**互斥**，一条鱼最多一句：
-    #     ① **SS / SSS 两场**（任何稀有度）→ `deep_motif()`（分场语汇，见 SS_MOTIFS / SSS_MOTIFS）。
-    #        这两场 180 条名字全是奇幻设定，不能只有其中的传说鱼兑现（改动前实测：165/180 一条都没有）；
+    #     ① **SS / SSS 两场**（任何稀有度）→ **函数开头就 return 了**（`build_deep_prompt`，
+    #        逐条对着名字写的两句，见 `DEEP_LINES`）。这两场 180 条名字全是奇幻设定，
+    #        不能只有其中的传说鱼兑现（改动前实测：165/180 一条都没有）；
     #     ② **前面钓场的传说鱼**（rar == 3）→ 原来的 `fantasy_motif()`。
+    #     ⚠️ 顺序不许反：① 必须**在** ② 之前（它是提前 return 的）——
+    #        反了 SS/SSS 那 15 条传说鱼会掉进旧表，逐条描述静默少 15 条（能跑，所以更危险）。
     #        ⛔ 前面钓场的普通 / 稀有 / 史诗鱼**一个字都不加** —— 那是「稀有度递进」的卖点，也是
     #           「SS/SSS 看起来比前面高级」这句话的另一半（只有两场变强，对比才成立）。
     #     位置紧贴形态档案：它是「这条鱼身上长什么样」的一部分，
     #     排在花纹 / 特征位之前、颜色句之前，才不会把颜色与 LIGHT 收尾冲淡。
     #     ⚠️ `rar_i` 在这里就要定下来（后面 ④⑤ 与收尾句都还要用），别在下面再赋值一次。
     rar_i = min(3, f.get("rar", 0))
-    if f.get("field") in DEEP_MOTIFS:
-        motif = deep_motif(f)
-    elif rar_i == 3:
+    if rar_i == 3:
         motif = fantasy_motif(f.get("name", ""))
-    else:
-        motif = ""
-    if motif:
-        bits.append(motif)
+        if motif:
+            bits.append(motif)
 
     # ④ 体表花纹 —— 查证过的逐条特征最优先，其次按科属字给**真实倾向**，
     #    两者都没有就**不写**（⛔ 不许随机抽，见 MARK_BY_FAMILY 的注释）

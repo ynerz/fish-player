@@ -15,6 +15,15 @@
     python tools/check-prompt-drift.py HEAD~1     # 与上上个提交比
     python tools/check-prompt-drift.py <rev> --want shiny        # 断言「只有 shiny 变」
     python tools/check-prompt-drift.py <rev> --want shiny,golden # 断言「只允许 shiny/golden 变」
+    python tools/check-prompt-drift.py <rev> --fields SS,SSS     # 断言「只有这两场的鱼变」
+
+⚠️ 两个断言解决的是**不同的**风险面，别只用一个：
+    · `--want <slot>` 管**档位**面 —— 公共段（BASE/构图/LIGHT/GEOM/颜色句前半句）被顺手动到，
+      会同时改掉母版与其它档，而它**不报任何错**；
+    · `--fields <钓场>` 管**钓场**面 —— 改某一个钓场的口径时，最容易顺手带到隔壁钓场
+      （同名同体型的鱼很多，「只改 SS/SSS」这句话要靠它来兑现）。
+    ⚠️ 2026-10-10 逐条改写 SS/SSS 时实测：5 个档各变 180 条、且**全部落在 SS/SSS**
+      —— 那一次就是靠 `--fields SS,SSS` 把「前面五个钓场一个字都没动」这句话变成可验证的。
 
 退出码：0 = 符合预期（或只打印报告）；1 = 出现了预期外的变化 / 认不出构件。
 
@@ -64,6 +73,9 @@ def main():
     ap.add_argument("--want", default="",
                     help="允许变化的 slot（逗号分隔：master/bright/albino/golden/shiny）；"
                          "给了就当成断言，出现别的变化即退出码 1")
+    ap.add_argument("--fields", default="",
+                    help="允许变化的钓场（逗号分隔，如 SS,SSS）；给了就当成断言，"
+                         "**这两个钓场之外**的鱼只要有一条变了即退出码 1（见文件头的说明）")
     args = ap.parse_args()
 
     # 🔴 2026-10-09 修：副本必须放在 **`tools/` 下**（与它要替换的 `gen-art.py` 同级）。
@@ -105,8 +117,25 @@ def main():
                 ids = changed[slot]
                 print("  %-7s 变了 %3d 条   %s%s"
                       % (slot, len(ids), " ".join(ids[:8]), "…" if len(ids) > 8 else ""))
+        # 🔴 钓场面断言：变了的那 180 条**必须全在**允许的钓场里。
+        #    ⚠️ 判据按 `field` 逐条查（不是「id 前缀」）—— 前缀是显示层的约定，
+        #       `field` 才是数据里的那一栏，两者将来可能分家。
+        if args.fields:
+            ok_fields = set(x.strip() for x in args.fields.split(",") if x.strip())
+            field_of = {f["id"]: f.get("field") for f in fish}
+            stray = sorted(set(i for slot in changed for i in changed[slot]
+                               if field_of.get(i) not in ok_fields))
+            if stray:
+                print("\n✘ 出现了**预期外**的变化：%d 条鱼落在允许的钓场（%s）之外 —— %s"
+                      % (len(stray), "、".join(sorted(ok_fields)), " ".join(stray[:12])))
+                print("  改一个钓场的口径时最常犯的就是这个：同名 / 同体型的鱼很多，"
+                      "公共段被改到隔壁钓场去了。")
+                return 1
+            print("\n✔ 变化的 %d 条全部落在预期钓场内（%s）"
+                  % (len(set(i for slot in changed for i in changed[slot])),
+                     "、".join(sorted(ok_fields))))
         if not args.want:
-            print("\n（未给 --want：只报告，不判定）")
+            print("（未给 --want：档位面只报告，不判定）")
             return 0
         want = set(x.strip() for x in args.want.split(",") if x.strip())
         unexpected = [s for s in changed if s not in want]

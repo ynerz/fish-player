@@ -5336,26 +5336,36 @@ if (!refBad) {
 
 
 
-/* ---------------- 49. SS / SSS 两场的奇幻点题（分场语汇 + 三张网） ----------------
+/* ---------------- 49. SS / SSS 两场的奇幻点题（逐条描述 + 四张网） ----------------
    由来（2026-10-09 晚，用户口径）：「SS 鱼场和 SSS 渔场的鱼的名字基本都不是现实中的鱼了，
    都有一定的奇幻元素，看看现有的提示词是不是还是不够奇幻，一定要符合它的名称，
    使生成的图看起来就比前面渔场的要高级」。
 
-   🔎 改动前的实测（不是感觉）：SS(80) + SSS(100) = 180 条，稀有度 普通 84 / 稀有 50 / 史诗 31 / 传说 15；
-   名字能命中旧 `FANTASY_MOTIFS` 的 59 条，但旧表唯一的门是 `rar == 3`
-   ⇒ **只有 15 条真的加了句子，另外 165 条一个字奇幻元素都没有**。
-   ⇒ 病根不是「句子不够奇幻」，是「门开得太小 + 语汇没覆盖这两场的名字」。
+   第一版（分场语汇 `SS_MOTIFS` / `SSS_MOTIFS` + `deep_motif()`）**已作废**，原因是实测数字：
+   病根不在「句子不够奇幻」，在**门开得太小 + 语汇没覆盖名字** ——
+   旧表唯一的门是 `rar == 3`，180 条里只有 15 条真拿到句子，另外 165 条一个字都没有。
 
-   本节钉住四件事（都在 `tools/gen-art.py` 里，**不依赖 python** —— `verify` 跑不了外部命令）：
-     ① **结构**：两张分场表 + `DEEP_MOTIFS` + 用词纪律表都在；`check_deep_motifs()` 是**模块级**调用
+   第二版（2026-10-10，用户口径「你写几版提示词分别生图让我看一下」→ 选定 E 版 →
+   「就按这个方向，每一条都对着名字重写」）：改成**逐条**写 ——
+   `DEEP_LINES` 一鱼一条、每条两句，句子由那条鱼**自己的名字**推出。
+   实测代价：180 条 × 2 句全部手写，但换来「名字里说什么，图上就画什么」。
+
+   本节钉住五件事（都在 `tools/gen-art.py` 里，**不依赖 python** —— `verify` 跑不了外部命令）：
+     ① **结构**：七张表都在；`check_deep_motifs()` 是**模块级**调用且**恰好一处**
         （定义了没人调 = 和没有一样）；
-     ② **三张网真的在函数体里**：覆盖网（`missing`）、死行网（`dead`）、用词纪律（`DEEP_MOTIF_BANNED`）；
-     ③ **唯一入口 + 两道门共存**：`deep_motif(` / `fantasy_motif(` 各只许**一处**调用点（定义行不算），
-        且 `build_prompt` 里「先按钓场、再按稀有度」的顺序不许反（反了 SS/SSS 那 15 条传说鱼会走旧表）；
-     ④ **用词纪律的静态版**：表里**每一句**都不许含形态档案里的高频词
-        （实测 glowing 覆盖 140/180 条 —— 拿「会发光」当奇幻卖点等于什么都没说）。
-        ⚠️ 这条在本节里做静态扫描，比 `check_deep_motifs()` 更早生效（`git commit` 时就拦得住）。 */
-console.log('\n[49] SS / SSS 奇幻点题：分场语汇、唯一入口、用词纪律');
+     ② **四张网真的在函数体里**：覆盖网（`missing`）、多行网（`extra`）、用词纪律
+        （`DEEP_MOTIF_BANNED`）、太短网（`< 12` 词）、否定式网（`NEG_RE` + `BODY_RE`）；
+     ③ **唯一入口 + 提前 return**：`build_deep_prompt(` / `deep_lines(` 各只许**一处**调用点
+        （定义行不算），且 `build_prompt` 里那道 `in DEEP_FIELDS` 必须在 `rar_i == 3` **之前**
+        ——它提前 return，写在后面这 180 条会掉进旧表；
+     ④ **用词纪律的静态版**：`DEEP_LINES` 里**每一句**都不许含形态档案里的高频词
+        （实测 glowing 覆盖 140/180 条 —— 拿「会发光」当奇幻卖点等于什么都没说），
+        也不许用**否定式**描述身体缺什么（实测 `with no legs` 反而让龙长出四条腿）。
+        ⚠️ 这条在本节里做静态扫描，比 `check_deep_motifs()` 更早生效（`git commit` 时就拦得住）。
+     ⑤ **五档锚点**：颜色句必须是 `palette_color(f)` **原样**接 `shade_for(morph, f)`
+        —— `build_morph_prompt()` 靠 `p.replace(pc, …)` 换那半句，少一个字就整批抛
+        `RuntimeError`（或更糟：换不上却没报错，五档与母版分家）。 */
+console.log('\n[49] SS / SSS 奇幻点题：逐条描述、唯一入口、用词纪律');
 let deepBad = 0;
 (function () {
   const REL = 'tools/gen-art.py';
@@ -5364,114 +5374,161 @@ let deepBad = 0;
      ⚠️ 结构性判据用剥过的；④ 抽句子用**原文**（句子本身就该被读到）。 */
   const code = raw.replace(/^[ \t]*#[^\n]*$/gm, '');
 
-  /* ① 结构 */
-  ['SS_MOTIFS', 'SSS_MOTIFS', 'DEEP_MOTIFS', 'DEEP_LEAD', 'DEEP_COLOR_HEAD',
-   'DEEP_MOTIF_BANNED'].forEach(n => {
+  /* ① 结构：七张表 + 模块级调用恰一处 */
+  ['DEEP_LINES', 'DEEP_LEAD', 'DEEP_FIELDS', 'DEEP_COLOR_HEAD', 'DEEP_ANCHOR',
+   'DEEP_MOTIF_BANNED', 'DEEP_BANNED_NEG'].forEach(n => {
     if (!new RegExp('^' + n + ' = ', 'm').test(code)) {
-      err(REL + ' 里找不到 `' + n + ' = ` —— 分场奇幻语汇的表没了/改名了，本节要来更新');
+      err(REL + ' 里找不到 `' + n + ' = ` —— 逐条骨架的表没了/改名了，本节要来更新');
       deepBad++;
     }
   });
   const calls = (code.match(/^check_deep_motifs\(\)$/gm) || []).length;
   if (calls !== 1) {
     err(REL + ' 的 `check_deep_motifs()` 不是**恰好一处**顶格调用（实得 ' + calls + ' 处）—— '
-      + '定义了没人调 = 漏词 / 死行照样能出图，这张网等于没有');
+      + '定义了没人调 = 漏词 / 缺行照样能出图，这张网等于没有');
     deepBad++;
   }
 
-  /* ② 三张网真的写在函数体里 */
+  /* ② 四张网真的写在函数体里 */
   const ck = bodyOf(code, 'def check_deep_motifs(');
   if (!ck) {
     err(REL + ' 里找不到 `def check_deep_motifs(` —— 改名了就来更新本节（不许当成「没有网要检查」）');
     deepBad++;
   } else {
-    [['missing', '覆盖网（有鱼没命中）'], ['dead', '死行网（表里有没人读的行）'],
-     ['DEEP_MOTIF_BANNED', '用词纪律（句子里用了禁用词）']].forEach(([n, what]) => {
-      if (!has(ck, n)) { err(REL + ' 的 check_deep_motifs() 里没有 ' + what + ' —— 三张网缺一张'); deepBad++; }
-    });
+    [['missing', '覆盖网（有鱼没命中）'], ['extra', '多行网（表里有鱼表里没有的行）'],
+     ['DEEP_MOTIF_BANNED', '用词纪律（句子里用了禁用词）'],
+     ['NEG_RE', '否定式网（否定词 + 身体部位）'], ['BODY_RE', '否定式网的身体部位词表']]
+      .forEach(([n, what]) => {
+        if (!has(ck, n)) { err(REL + ' 的 check_deep_motifs() 里没有 ' + what + ' —— 网格缺一张'); deepBad++; }
+      });
+    /* 太短网：`len(txt.split()) < 12` —— 少于 12 词的句子定不住形，等于没写 */
+    if (!/< 12\b/.test(ck) || !has(ck, 'txt.split()')) {
+      err(REL + ' 的 check_deep_motifs() 里没有「太短网」（找不到 `len(txt.split()) < 12`）—— '
+        + '一句 6 个词的描述定不住形，实测等于没写');
+      deepBad++;
+    }
   }
 
-  /* ③ 唯一入口 + 两道门共存且顺序正确 */
+  /* ③ 唯一入口 + 提前 return + 顺序 */
   const cnt = (t, n) => (t.match(new RegExp('(^|[^\\w.])' + n + '\\(', 'g')) || []).length;
-  const entryDeep = bodyOf(code, 'def deep_motif(');
-  const entryOld = bodyOf(code, 'def fantasy_motif(');
+  const entryDeep = bodyOf(code, 'def build_deep_prompt(');
+  const entryLines = bodyOf(code, 'def deep_lines(');
   const bp = bodyOf(code, 'def build_prompt(');
-  if (!entryDeep || !entryOld || !bp) {
-    err(REL + ' 里找不到 `def deep_motif(` / `def fantasy_motif(` / `def build_prompt(` 之一 —— 改名了就来更新本节');
+  if (!entryDeep || !entryLines || !bp) {
+    err(REL + ' 里找不到 `def build_deep_prompt(` / `def deep_lines(` / `def build_prompt(` 之一 '
+      + '—— 改名了就来更新本节');
     deepBad++;
   } else {
     /* 调用点 = 全文件里的调用数 − 定义行自己那一次。
-       ⚠️ 必须**先剥掉文档字符串**：`deep_motif()` 的说明里写着 `fantasy_motif()`，
-          不剥就会把它当成一处调用点（本节第一次跑就栽在这里）。 */
+       ⚠️ 必须**先剥掉文档字符串**：说明里常提到别的函数名，不剥就会多数一处（本节第一次跑就栽在这里）。 */
     const noDoc = code.replace(/"""[\s\S]*?"""/g, '""');
-    const deepCalls = cnt(noDoc, 'deep_motif') - 1;
-    const oldCalls = cnt(noDoc, 'fantasy_motif') - 1;
-    if (deepCalls !== 1 || oldCalls !== 1) {
-      err('奇幻点题的调用点不是各一处（deep_motif ' + deepCalls + ' / fantasy_motif ' + oldCalls + '）—— '
-        + '点题要**只能从 build_prompt 里出一道门**，散出去就会出现「同一句被加两遍」或「某条鱼两条路都走」');
+    const deepCalls = cnt(noDoc, 'build_deep_prompt') - 1;
+    const lineCalls = cnt(noDoc, 'deep_lines') - 1;
+    if (deepCalls !== 1 || lineCalls !== 1) {
+      err('逐条骨架的调用点不是各一处（build_deep_prompt ' + deepCalls + ' / deep_lines '
+        + lineCalls + '）—— 点题要**只能从 build_prompt 里出一道门**，'
+        + '散出去就会出现「同一句被加两遍」或「某条鱼两条路都走」');
       deepBad++;
     }
-    if (!has(entryDeep, 'DEEP_MOTIFS.get(')) {
-      err('`deep_motif()` 没有按钓场取表（找不到 `DEEP_MOTIFS.get(`）—— 两场会共用一套句子，'
-        + '「SSS 比 SS 高级」当场破功');
+    /* 提前 return：不是 return 就会继续往下拼「解剖档案」，逐条描述被冲淡 */
+    if (!has(bp, 'return build_deep_prompt(f, morph)')) {
+      err('`build_prompt()` 里 SS / SSS 那道门**不是提前 return**（找不到 `return build_deep_prompt(f, morph)`）'
+        + '—— 不 return 就会接着拼「解剖档案 + 稀有度递进」，逐条描述被冲淡');
       deepBad++;
     }
-    const iField = at(bp, 'in DEEP_MOTIFS');
+    const iDeep = at(bp, 'in DEEP_FIELDS');
     const iRar = at(bp, 'rar_i == 3');
-    if (iField < 0 || iRar < 0) {
-      err('build_prompt() 的两道门不齐（按钓场 ' + (iField >= 0 ? '在' : '缺')
-        + ' / 按稀有度 ' + (iRar >= 0 ? '在' : '缺') + '）—— ');
+    if (iDeep < 0 || iRar < 0) {
+      err('build_prompt() 的两道门不齐（按钓场 ' + (iDeep >= 0 ? '在' : '缺')
+        + ' / 按稀有度 ' + (iRar >= 0 ? '在' : '缺') + '）');
       deepBad++;
-    } else if (iField > iRar) {
+    } else if (iDeep > iRar) {
       err('build_prompt() 里两道门的**顺序反了**（按稀有度写在按钓场之前）—— '
-        + 'SS/SSS 那 15 条传说鱼会走旧表，分场语汇静默少 15 条（能跑，所以更危险）');
+        + 'SS/SSS 那 15 条传说鱼会走旧表，逐条描述静默少 15 条（能跑，所以更危险）');
       deepBad++;
     }
   }
 
-  /* ④ 用词纪律（静态扫表里的每一句） */
-  const blockOf = (name) => {
-    const i = code.indexOf(name + ' = [');
+  /* ④ 用词纪律（静态扫 `DEEP_LINES` 里的每一句） */
+  const dictBlock = (name) => {
+    const i = code.indexOf(name + ' = {');
     if (i < 0) return '';
-    const e = closeOf(code, code.indexOf('[', i));
+    const e = closeOf(code, code.indexOf('{', i));
     return e > 0 ? code.slice(i, e) : '';
   };
-  const BANNED = ['glow', 'glowing', 'luminous', 'translucent', 'crystalline', 'concentric', 'ring', 'rings'];
-  let sentences = 0, badSent = [];
-  ['SS_MOTIFS', 'SSS_MOTIFS'].forEach(name => {
-    const blk = blockOf(name);
-    if (!blk) { err('取不到 ' + name + ' 的表体（改写法了来更新本节）'); deepBad++; return; }
-    const lits = [...blk.matchAll(/"([^"\n]{20,})"/g)].map(m => m[1]);
-    if (lits.length < 10) {
-      err(name + ' 里只认出 ' + lits.length + ' 句（≥20 字符的双引号串）—— 取不到句子 = 本节判据恒真，'
-        + '必须报错而不是放行');
-      deepBad++;
-      return;
+  const BANNED = ['glow', 'glowing', 'luminous', 'translucent', 'crystalline', 'concentric',
+    'ring', 'rings', 'sparkle', 'sparkling', 'glitter', 'glittering', 'glint', 'scintillating'];
+  const NEGW = ['with no', 'without', 'legless'];
+  const BODY = ['legs', 'limbs', 'arms', 'fins', 'eye', 'eyes', 'mouth', 'tail', 'head', 'jaw', 'scales'];
+  const wordRe = (w) => new RegExp('\\b' + w.replace(/ /g, '\\s+') + '\\b', 'i');
+  const scanSentence = (s) => {
+    const bad = [];
+    BANNED.filter(w => new RegExp('\\b' + w + '\\b', 'i').test(s)).forEach(w => bad.push('禁用词 ' + w));
+    if (NEGW.some(w => wordRe(w).test(s)) && BODY.some(w => new RegExp('\\b' + w + '\\b', 'i').test(s))) {
+      bad.push('否定式说身体缺什么');
     }
-    sentences += lits.length;
-    lits.forEach(s => {
-      const hit = BANNED.filter(w => new RegExp('\\b' + w + '\\b').test(s));
-      if (hit.length) badSent.push(name + '：' + hit.join('/') + ' → ' + s.slice(0, 52));
-    });
-  });
-  if (badSent.length) {
-    err('分场奇幻句里有 ' + badSent.length + ' 句用了形态档案的高频词 —— ' +
-      '实测 glowing 覆盖 140/180 条、「会发光」不是这两场的奇幻卖点：\n     ' + badSent.join('\n     '));
+    if (String(s).trim().split(/\s+/).length < 12) bad.push('少于 12 词');
+    return bad;
+  };
+  const dl = dictBlock('DEEP_LINES');
+  const lits = dl ? [...dl.matchAll(/'([^'\n]{20,})'/g)].map(m => m[1]) : [];
+  if (lits.length !== 180) {
+    err('DEEP_LINES 里认出 ' + lits.length + ' 句（应为 180，每条鱼两句里的「句子段」）—— '
+      + '取不到句子 = 本节判据恒真（必须报错而不是放行）；条目数对不上就来更新本节');
     deepBad++;
   }
-  /* 判据自检：两种坏样本必须被认出，好样本必须放过 */
-  const isBad = s => BANNED.filter(w => new RegExp('\\b' + w + '\\b').test(s)).length > 0;
-  if (!isBad('thin luminous veins across the facets') || !isBad('deep concentric growth-ring bands')
-      || isBad('a cold frost-white film creeping across the facets')
-      || isBad('thin embossed veins drawn straight across the facets')) {
-    err('第 49 节判据自检不成立：分不出「含禁用词」与「不含但有近义词」的句子'
-      + '（ring 必须按词边界，不许命中 creeping）');
+  const badSent = [];
+  lits.forEach(s => {
+    const b = scanSentence(s);
+    if (b.length) badSent.push(b.join('/') + ' → ' + s.slice(0, 56));
+  });
+  if (badSent.length) {
+    err('逐条描述里有 ' + badSent.length + ' 句不合格 —— '
+      + '「会发光 / 否定式说缺什么 / 太短」这三类都是实测踩过的坑：\n     ' + badSent.join('\n     '));
+    deepBad++;
+  }
+  /* 判据自检：**期望值表**（句子, 该不该被判为坏）。
+     ⚠️ 夹具自己是踩过的坑的复现：`ring` 只许按词边界（不许命中 creeping / growth 之外的词）、
+        `without hurry` 这类正常说法不许被否定式网误伤、长句不许被太短网误判。 */
+  const SELFCHECK = [
+    ['thin luminous veins running in long straight lines across its flat body', true],
+    ['deep concentric growth-ring bands wrapped around the body from end to end', true],
+    ['a coiled body with no legs at all along the whole length of this creature', true],
+    ['an armoured beast without limbs crawling slowly over the cold dark stone', true],
+    ['a pale stone slab', true],                       /* 太短：定不住形 */
+    ['a cold frost-white film creeping across the facets of a slow stone body', false],
+    ['thin embossed veins drawn straight across the facets of its wide ancient body', false],
+    ['a long serpent that moves without hurry through the deep and silent water', false],
+  ];
+  const wrong = SELFCHECK.filter(([s, want]) => (scanSentence(s).length > 0) !== want)
+    .map(([s, want]) => '「' + s.slice(0, 44) + '…」应为' + (want ? '坏' : '好') + '句，判反了');
+  if (wrong.length) {
+    err('第 49 节判据自检不成立（' + wrong.length + '/' + SELFCHECK.length + ' 条夹具判反）：\n     '
+      + wrong.join('\n     '));
     deepBad++;
   }
 
-  /* ⑤ 两条「口径不许被悄悄放开」的守卫（2026-10-09 晚用户要求加码之后补的）：
-        ① **闪烁族必须在禁用表里** —— 那是闪光档的卖点，原色档先「全身闪耀」就没有递进了；
-        ② **弱化原色的抬头必须真被 `palette_color()` 用上** —— 定义了没人用 = 又一条死配置。 */
+  /* ⑤ 五档锚点 + 三条「口径不许被悄悄放开」的守卫 */
+  if (entryDeep) {
+    /* 颜色句必须原样留着 `palette_color(f)`：五档的替换是 `p.replace(pc, …)`，
+       缺了它 `build_morph_prompt()` 会抛 RuntimeError；而 shape 一变（例如按体型换成
+       `palette_color(f, shape)`）锚点就变了 —— 那时必须回来更新本节，不许静默改口径。 */
+    if (!has(entryDeep, 'palette_color(f)')) {
+      err('`build_deep_prompt()` 里没有 `palette_color(f)` 原样出现 —— '
+        + '五档靠 `p.replace(pc, …)` 换那半句，锚点一变整批五档会抛 RuntimeError 或静默分家');
+      deepBad++;
+    }
+    if (!has(entryDeep, 'shade_for(morph, f)')) {
+      err('`build_deep_prompt()` 里没有 `shade_for(morph, f)` —— '
+        + '背腹明暗是 `paint-card.py` 灰度渐变映射的前提（见 `build_morph_prompt` 的注释），'
+        + '少了它明暗差会直接变成颜色差');
+      deepBad++;
+    }
+    if (!/def build_deep_prompt\(f, morph=None\)/.test(code)) {
+      err('`build_deep_prompt()` 的签名不是 `(f, morph=None)` —— 母版与五档要共用同一个骨架');
+      deepBad++;
+    }
+  }
   const banLine = (code.match(/^DEEP_MOTIF_BANNED = \([\s\S]*?\)$/m) || [''])[0];
   if (!banLine) {
     err(REL + ' 里取不到 `DEEP_MOTIF_BANNED = (…)` 的取值行 —— 改写法了就来更新本节');
@@ -5480,7 +5537,7 @@ let deepBad = 0;
     const need = ['sparkle', 'glitter', 'glint', 'glow', 'luminous', 'ring'];
     const miss = need.filter(w => !has(banLine, '"' + w + '"'));
     if (miss.length) {
-      err('DEEP_MOTIF_BANNED 少了 ' + miss.join('、') + ' —— 禁用表是奇幻句唯一的用词闸门，'
+      err('DEEP_MOTIF_BANNED 少了 ' + miss.join('、') + ' —— 禁用表是逐条描述唯一的用词闸门，'
         + '少一个词就等于那条纪律没有（闪烁族尤其：它是闪光档的卖点，原色档不许先用掉）');
       deepBad++;
     }
@@ -5493,13 +5550,31 @@ let deepBad = 0;
   }
   const leadMap = (code.match(/^DEEP_LEAD = \{[^}]*\}/m) || [''])[0];
   if (!has(leadMap, '"SS"') || !has(leadMap, '"SSS"') || !has(leadMap, 'ordinary fish')) {
-    err('`DEEP_LEAD` 不完整（SS / SSS 两场各要一句，且必须点明「不是普通的鱼」）—— 实得：' + leadMap.slice(0, 80));
+    err('`DEEP_LEAD` 不完整（SS / SSS 两场各要一句，且必须点明「不是普通的鱼」）—— 实得：'
+      + leadMap.slice(0, 80));
+    deepBad++;
+  }
+  /* 体型锚点：12 个体型一个都不能漏（不点体型时「无相巨鲲」会被画成一条普通大鱼），
+     且 `dragon` 的锚点必须是**正面物种词** —— 实测 `dragon` 这个词直接画出四条腿的西方龙，
+     而 `with no legs` 这种否定式反而让它长腿（见 `DEEP_ANCHOR` 的注释）。 */
+  const anchorMap = dictBlock('DEEP_ANCHOR');
+  const SHAPE_KEYS = ['fish', 'eel', 'shark', 'whale', 'dragon', 'squid', 'ray', 'jelly',
+    'oarfish', 'crustacean', 'star', 'worm'];
+  const missShape = SHAPE_KEYS.filter(k => !has(anchorMap, '"' + k + '":'));
+  if (missShape.length) {
+    err('`DEEP_ANCHOR` 少了 ' + missShape.join('、') + ' —— 这几种体型会退回 fish 锚点，'
+      + '于是「无相巨鲲」被画成一条普通大鱼');
+    deepBad++;
+  }
+  if (!has(anchorMap, 'sea-serpent') || has(anchorMap, '"a dragon"')) {
+    err('`DEEP_ANCHOR` 的 dragon 档没走「正面物种词」（应含 `sea-serpent`、不含 `"a dragon"`）—— '
+      + '实测 `dragon` 会画出四条腿的西方龙，而 `with no legs` 反而让它长腿');
     deepBad++;
   }
 
   if (!deepBad) {
-    ok('SS / SSS 分场奇幻点题在位：两张表 ' + sentences + ' 句、模块级加载即校验、'
-      + '点题只有一处入口且两道门顺序正确、句子不含形态档案高频词');
+    ok('SS / SSS 逐条点题在位：' + lits.length + ' 句、12 个体型锚点齐全、模块级加载即校验、'
+      + '提前 return 且只此一处入口、句子满足用词纪律与 ≥12 词');
   }
 })();
 

@@ -3780,6 +3780,78 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
     ok(noThrow === '', '存档里的 story 是数字时 tryFire() 不抛（脏档兜底）'
       + (noThrow ? ' —— ' + noThrow : ''));
     clean();
+
+    /* ---------- ⑪ 主动搭话（N7 二期）：不走概率、轮流说话、计数落盘 ---------- */
+    var npcId = Object.keys(G.STORY_NPCS)[0];
+    var pool = G.STORY_NPCS[npcId].talk;
+    ok(Array.isArray(pool) && pool.length > 1,
+       'NPC 有闲聊池（' + (Array.isArray(pool) ? pool.length : 0) + ' 句）—— 点他才有回应');
+
+    var d1 = S7.talk();
+    ok(d1 && d1.npc === G.STORY_NPCS[npcId], 'talk() 给出对话载荷，NPC 就是内容表里那一位');
+    ok(d1 && Array.isArray(d1.lines) && d1.lines.length === 1
+      && typeof d1.lines[0] === 'string' && d1.lines[0].trim(),
+       'talk() 一次只给一句非空台词（搭话是顺手动作，不弹一大段）');
+    ok(St.get().story && typeof St.get().story.talk === 'object',
+       'blank() 的 story 里有 talk 容器（搭话计数有处可存）');
+    ok(d1.lines[0] === pool[0], '第一次搭话给池子第一句（计数从 0 起、取模）');
+
+    /* 同一次点击在同一份存档上必须给同一句 —— 这是「不用随机数」的可观测证据 */
+    St.get().story.talk[npcId] = 0;
+    ok(S7.talk().lines[0] === d1.lines[0], '同一份存档 + 同一个计数 ⇒ 同一句（搭话不掷骰子）');
+
+    /* 连点会走遍池子，不会卡在第一句 */
+    St.get().story.talk[npcId] = 0;
+    var seen = [];
+    for (var q = 0; q < pool.length; q++) seen.push(S7.talk().lines[0]);
+    ok(seen.join('\u0001') === pool.join('\u0001'),
+       '连点 ' + pool.length + ' 次正好按表顺序走遍闲聊池');
+    ok(St.get().story.talk[npcId] === pool.length, '搭话次数写进了存档（下次接着往下轮）');
+
+    St.save(true);
+    St.load();
+    ok(St.get().story.talk[npcId] === pool.length, '存档往返之后搭话计数还在');
+
+    /* 🔴 「立刻落盘」要**读盘**验，不能只验内存里的 S ——
+       第一版只验了 `save(true) + load()`，反向验证当场抓到：把引擎里那句 save 删掉，
+       这条照样是绿的（`save(true)` 自己会把内存整个写下去）。
+       真正的口径是「玩家在自动保存那 1.2 秒节流窗口内关掉页面，这句也算数」。 */
+    function diskTalk() {
+      var k = (G.Profile && G.Profile.key) ? G.Profile.key() : CFG.saveKey;
+      var raw = localStorage.getItem(k);
+      if (!raw) return -1;
+      try {
+        var o = JSON.parse(raw);
+        return (o.story && o.story.talk && o.story.talk[npcId]) || 0;
+      } catch (e) { return -2; }
+    }
+    St.get().story.talk = {};
+    St.save(true);
+    var before = diskTalk();
+    S7.talk();
+    ok(before === 0 && diskTalk() === 1,
+       '搭话**立刻落盘**（不等自动保存的节流窗口）—— 盘上 before=' + before + ' after=' + diskTalk());
+
+    /* 经济红线：搭话不是第二个经济系统（与事件那条同一个口径） */
+    var cash2 = { coin: St.get().coin, medals: St.get().medals, eco: St.get().eco };
+    S7.talk();
+    ok(St.get().coin === cash2.coin && St.get().medals === cash2.medals && St.get().eco === cash2.eco,
+       '主动搭话不动金币 / 纪念币 / 生态值');
+
+    /* 没有池子 / 脏档：给 null 或至少不抛（调用方据此落回「抛竿」，而不是弹空白对话卡） */
+    var keepPool = G.STORY_NPCS[npcId].talk;
+    delete G.STORY_NPCS[npcId].talk;
+    var noPool = '';
+    try { noPool = S7.talk(); } catch (e) { noPool = 'throw:' + e.message; }
+    ok(noPool === null, 'NPC 没闲聊池时 talk() 给 null（不弹空白对话卡）');
+    G.STORY_NPCS[npcId].talk = keepPool;
+
+    St.get().story.talk = 7;
+    var talkThrow = '';
+    try { S7.talk(); } catch (e) { talkThrow = e.message; }
+    ok(talkThrow === '', '存档里的 talk 是数字时 talk() 不抛（脏档兜底）'
+      + (talkThrow ? ' —— ' + talkThrow : ''));
+    clean();
   } finally {
     /* 恢复现场：引擎内存态、天气桩、面板层、存档里的触发记录、idle 开关 */
     G.Weather.snapshot = realSnap;

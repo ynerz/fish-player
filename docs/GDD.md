@@ -448,7 +448,7 @@ node tools/build.js --release  # 剔除 devtools，断言产物里搜不到 G.Ch
 node tools/build.js --check    # 只跑断言不写盘
 ```
 
-产物 ≈ **669 KB / 1 个网络请求**（原本 33 个），可以 `file://` 双击直接跑。
+产物 ≈ **678 KB / 1 个网络请求**（原本 33 个），可以 `file://` 双击直接跑。
 
 ---
 
@@ -485,8 +485,10 @@ node tools/build.js --check    # 只跑断言不写盘
   integrity: { flags: [{ code, n, at, detail }], runs },
 
   /* 隔壁钓鱼佬（v6）—— 事件记录：fired 是各事件触发过几次（`once` 靠它）、
-     at 是最近一次触发的时刻（毫秒，冷却靠它）；键是内容表里的事件 id */
-  story: { fired{}, at{} },
+     at 是最近一次触发的时刻（毫秒，冷却靠它）；键是内容表里的事件 id。
+     talk 是「点他主动搭话」的次数（键是 NPC id，闲聊池按它轮流）——
+     三者都只记事实，不升存档版本 */
+  story: { fired{}, at{}, talk{} },
 
   stats: {
     casts, catches, escapes, snaps, idleCatches, maxKg, maxKgFish, totalValue, days,
@@ -775,7 +777,7 @@ node tools/build.js --check    # 只跑断言不写盘
 ```
 
 - 把 `index.html` + 样式表 + `src/` 下全部脚本**内联成一个 HTML**
-- 产物 ≈ **669 KB / 1 个网络请求**（原本 33 个），可以 `file://` 双击直接跑 ——
+- 产物 ≈ **678 KB / 1 个网络请求**（原本 33 个），可以 `file://` 双击直接跑 ——
   这也是「零外部依赖」最硬的证据
 - ⚠️ 它只是**可选的发布步骤**，不在开发流程里（改完刷新浏览器即可）；`dist/` 不入库
 - `<script src>` 必须连续挨成一块，`config.js` 第一（建 `window.G`）、`main.js` 最后（boot）——

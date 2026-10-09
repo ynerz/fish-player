@@ -5673,7 +5673,9 @@ let storyBad = 0;
 
   /* ⑥ 消费方：**数据表里的每一个字段都必须有人读**（动态取键，见本节头注的自指防线）
      · 事件的字段 → 引擎或 UI 层里出现 `ev.<字段>`
-     · NPC 的字段 → 场景层出现 `nb.<字段>`，或 UI 层出现 `npc.<字段>` */
+     · NPC 的字段 → 场景层出现 `nb.<字段>`，或引擎 / UI 层出现 `npc.<字段>`
+       （引擎会读 `npc.talk` 那个闲聊池 —— N7 二期起它也是 NPC 内容的消费方，
+       不能只认「画面层读没读」） */
   const unread = [];
   EVS.forEach(ev => Object.keys(ev).forEach(k => {
     if (!has(coreSrc, 'ev.' + k) && !has(mainSrc, 'ev.' + k)) unread.push('事件 ' + ev.id + '.' + k);
@@ -5682,7 +5684,8 @@ let storyBad = 0;
     /* 场景层用 `nb.` 接这份数据（`var nb = S.neighbor`）；UI 层用 `npc.` 显示名字 / 身份 */
     const inScene = new RegExp('nb\\.' + k + '(?![A-Za-z0-9_$])').test(sceneSrc);
     const inUi = new RegExp('npc\\.' + k + '(?![A-Za-z0-9_$])').test(panelSrc)
-      || new RegExp('npc\\.' + k + '(?![A-Za-z0-9_$])').test(mainSrc);
+      || new RegExp('npc\\.' + k + '(?![A-Za-z0-9_$])').test(mainSrc)
+      || new RegExp('npc\\.' + k + '(?![A-Za-z0-9_$])').test(strip(coreSrc));
     if (!inScene && !inUi) unread.push('NPC ' + id + '.' + k);
   }));
   if (unread.length) { err('内容表里这些字段没人读：' + unread.join('、')); storyBad++; }
@@ -5695,11 +5698,50 @@ let storyBad = 0;
     [panelSrc, 'VIEWS.dialog', 'panels.js 没有对话面板 —— 他的话说不出来'],
     [sceneSrc, 'function drawNeighbor(', 'scene.js 没有 drawNeighbor() —— NPC 画不出来'],
     [sceneSrc, 'drawNeighbor(th)', 'scene.js 的渲染流程里没调 drawNeighbor() —— NPC 不会出现'],
+    /* ⬇ N7 二期：点他主动搭话 —— 这四环缺任何一环，功能就是「点了没反应」（且不报错） */
+    [sceneSrc, 'function hitNeighbor(', 'scene.js 没有 hitNeighbor() —— 点不中他'],
+    [sceneSrc, 'function neighborH(', 'scene.js 没有 neighborH() —— 画法与命中框会各算一遍身高'],
+    [mainSrc, 'S.hitNeighbor(', 'main.js 没问过「点在不在他身上」—— 点他会变成抛竿'],
+    [mainSrc, 'G.Story.talk(', 'main.js 没调 talk() —— 点中了也不说话'],
+    [coreSrc, 'o.lines =', 'core/story.js 的 talk() 没给出对话内容（面板会弹一张空卡）'],
   ];
   const miss = wires.filter(w => !has(w[0], w[1]));
   if (miss.length) { err('隔壁钓鱼佬的接线缺了 ' + miss.length + ' 处：\n     ' + miss.map(w => w[2]).join('\n     ')); storyBad++; }
 
-  /* ⑧ 存档：字段要在 blank() 里，migrate() 要纠正它的容器类型（脏档兜底）
+  /* ⑦-b 🔴 命中框与画法**必须同源**：两边都要经过 `neighborH()` 现算身高。
+     抄一份公式（`Math.min(H * 0.155, 72)`）的后果是「画在这儿、点在那儿」，
+     而且**不报任何错** —— 玩家只会觉得这游戏点了没反应。走同一个函数就不可能出现。 */
+  const noSrc = [];
+  const drawBody = bodyOf(sceneSrc, 'function drawNeighbor(');
+  const hitBody = bodyOf(sceneSrc, 'function hitNeighbor(');
+  if (!has(drawBody, 'neighborH()')) noSrc.push('drawNeighbor() 没走 neighborH()');
+  if (!has(hitBody, 'neighborH()')) noSrc.push('hitNeighbor() 没走 neighborH()');
+  if (!has(drawBody, 'nb.x') || !has(hitBody, 'nb.x')) noSrc.push('画法与命中框没共用 `nb.x` 这个站位');
+  if (noSrc.length) {
+    err('邻居的命中框与画法不同源：' + noSrc.join('、')
+      + '（两处各算一遍 ⇒ 点和画的不是同一个位置，且不报错）');
+    storyBad++;
+  }
+
+  /* ⑦-c 闲聊池（`talk`）：结构必须能撑起「点一下搭一句」。
+     ⚠️ 只断言**结构**，不写死句子数 —— 池子长度是内容，随时会加。 */
+  const talkBad = [];
+  let withPool = 0;
+  npcIds.forEach(id => {
+    const t = NPCS[id].talk;
+    if (t === undefined) return;                 /* 允许 NPC 没闲聊池（他就只是站着） */
+    if (!Array.isArray(t) || !t.length) { talkBad.push(id + ' 的 talk 不是非空数组'); return; }
+    if (t.some(s => typeof s !== 'string' || !s.trim())) talkBad.push(id + ' 的 talk 里有非字符串 / 空行');
+    withPool++;
+  });
+  if (!withPool) {
+    talkBad.push('没有任何 NPC 有闲聊池 —— 「点他搭话」这条通路整条是死的');
+  }
+  /* ⚠️ 空集自检：判据取自内容表，抓不到内容表时**必须报错**而不是空过 */
+  if (!npcIds.length) talkBad.push('NPC 表是空的（判据抓不到任何东西，先修本节判据本身）');
+  if (talkBad.length) { err('闲聊池不对：' + talkBad.join('；')); storyBad++; }
+
+  /* ⑧ 存档：字段要在 blank() 里，migrate() 要纠正**每一个**容器类型（脏档兜底）
      ⚠️ 判据必须认**字段声明 / 赋值本身**，不能只认「这段文字里出现过 story 这个词」——
         第一版写成 `has(body, 'story')`，反向验证当场假通过：把 `story:` 那一行删掉之后，
         `blank()` 里那段**注释**（里面写着 `src/data/story.js`）照样让判据变绿。
@@ -5712,14 +5754,50 @@ let storyBad = 0;
   } else if (blankFields.indexOf('story') < 0) {
     err('state.js 的 blank() 里没有 story 字段 —— 隔壁钓鱼佬的事件记录无处可存'); storyBad++;
   }
-  if (!/d\.story\.(fired|at)\s*=/.test(bodyOf(stateSrc, 'function migrate('))) {
-    err('state.js 的 migrate() 没纠正 d.story 的容器类型 —— 脏档（story 是数字 / 字符串）会让引擎读崩');
+  /* 三个容器逐个查（**不是**「至少有一个」）—— 少纠正哪个，那个键是脏档时就会把引擎读崩。
+     🔴 清单**不从任一边写死**：`blank()` 里的 `story: {…}` 是存档结构的真相，
+        `rec()` 里「缺字段就给空壳」的那几行是引擎的真相 ⇒ **两边现算、双向相等**。
+        单看一边会漏：比如新加一个容器时另一处忘了改（这正是本条要防的静默失效），
+        或者把 `if (!t.talk ||` 写成别的形态，解析面就悄悄少一格。 */
+  const storyLit = (() => {
+    /* ⚠️ 不能写 `/story:\s*\{([^}]*)\}/` —— 值本身就是 `{}`，
+       第一版这样写只吃到第一个 `}`，于是 blank() 那边永远只解析出 1 个键，
+       而「两边对不上」这条断言会**一直报红**（反向验证时才发现：⑤-b 判红的原因不是它）。
+       走**括号配平**取整段，再收里面的 `键:`。 */
+    const m = /story:\s*\{/.exec(blankBody);
+    if (!m) return '';
+    const openAt = m.index + m[0].length - 1;
+    const end = closeOf(blankBody, openAt);
+    return end < 0 ? '' : blankBody.slice(openAt + 1, end - 1);
+  })();
+  const blankConts = storyLit
+    ? [...storyLit.matchAll(/([a-zA-Z_$][\w$]*)\s*:/g)].map(m => m[1]) : [];
+  const migBody = bodyOf(stateSrc, 'function migrate(');
+  const recBody = bodyOf(coreSrc, 'function rec(');
+  const conts = [...recBody.matchAll(/if \(!t\.([a-zA-Z_$][\w$]*)\s*\|\|/g)].map(m => m[1]);
+  const contKeys = conts.filter((k, i) => conts.indexOf(k) === i);
+  if (!blankConts.length || !contKeys.length) {
+    err('§50 没能解析出存档 `story` 的容器键（blank() 拿到 ' + blankConts.length
+      + ' 个 / rec() 拿到 ' + contKeys.length + ' 个）—— 抓不到就报错，不许空过');
+    storyBad++;
+  } else if (blankConts.slice().sort().join(',') !== contKeys.slice().sort().join(',')) {
+    err('存档 `story` 的容器键两边对不上：blank() 写着 [' + blankConts.join(' / ')
+      + ']、core/story.js 的 rec() 只兜底 [' + contKeys.join(' / ')
+      + '] —— 少一边就是「某个键是脏档时引擎读崩」或「声明了却没人用」');
+    storyBad++;
+  }
+  const migMiss = contKeys.filter(k => !new RegExp('d\\.story\\.' + k + '\\s*=').test(migBody));
+  if (migMiss.length) {
+    err('state.js 的 migrate() 没纠正 d.story.' + migMiss.join(' / d.story.')
+      + ' 的容器类型 —— 脏档（那几个键是数字 / 字符串）会把引擎读崩');
     storyBad++;
   }
 
   if (!storyBad) {
     ok('隔壁钓鱼佬在位：' + npcIds.length + ' 个 NPC / ' + EVS.length + ' 条事件，'
-      + '字段全有人读、三处接线齐全、奖励白名单为空（纯剧情）、引擎不用 Math.random');
+      + '字段全有人读、接线齐全（含点他搭话那条通路）、命中框与画法同源、'
+      + withPool + ' 个闲聊池结构合法、存档 story 的 ' + contKeys.length + ' 个容器两边对得上且有迁移纠正、'
+      + '奖励白名单为空（纯剧情）、引擎不用 Math.random');
   }
 })();
 

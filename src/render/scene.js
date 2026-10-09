@@ -1284,7 +1284,7 @@ G.Scene = (function () {
   function drawNeighbor(th) {
     var nb = S.neighbor;
     if (!nb) return;
-    var Hh = Math.min(H * 0.155, 72);
+    var Hh = neighborH();
     var x = W * nb.x, y = dockY() - 13;
 
     ctx.save();
@@ -1308,6 +1308,54 @@ G.Scene = (function () {
       skin: nb.skin, shirt: nb.shirt, shirtD: nb.shirtD, pants: nb.pants,
       hat: !!nb.hat,
     });
+
+    /* 「可以搭话」的小提示（一个气泡 + 三个点）—— 现在他能被点了（N7 二期），
+       而**看不出能点的按钮等于没有**：不画这个，玩家永远不会去点那撮像素。
+       位置贴着头顶、随呼吸轻微起伏（幅度按身高缩放，窗口大小变了不会飘开）。
+       ⚠️ 只有他真有闲聊池时才画 —— 没话可说的邻居不该挂个气泡骗玩家点。 */
+    if (nb.talk && nb.talk.length) {
+      var bw = Hh * 0.40, bh = Hh * 0.24;
+      var bx = x, by = y - Hh * 1.22 + Math.sin(time * 2.1) * Hh * 0.03;
+      var dot = Math.max(1, bh * 0.115);
+      ctx.save();
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = 'rgba(255,255,255,.94)';
+      ctx.beginPath();
+      ctx.moveTo(bx - bw / 2 + bh / 2, by - bh / 2);
+      ctx.arcTo(bx + bw / 2, by - bh / 2, bx + bw / 2, by + bh / 2, bh / 2);
+      ctx.arcTo(bx + bw / 2, by + bh / 2, bx - bw / 2, by + bh / 2, bh / 2);
+      ctx.arcTo(bx - bw / 2, by + bh / 2, bx - bw / 2, by - bh / 2, bh / 2);
+      ctx.arcTo(bx - bw / 2, by - bh / 2, bx + bw / 2, by - bh / 2, bh / 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#5a6a78';
+      for (var i = -1; i <= 1; i++) {
+        ctx.beginPath();
+        ctx.arc(bx + i * bh * 0.30, by, dot, 0, 6.3);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+
+  /* 邻居的身高 —— 画他与**判断他站在哪一块**共用这一处（见 hitNeighbor()）。 */
+  function neighborH() { return Math.min(H * 0.155, 72); }
+
+  /* 玩家点在画布上的一点，落没落在那位邻居身上（N7 二期：点他主动搭话）。
+     🔴 口径：命中框与 `drawNeighbor()` **同源** —— 两处都从 `neighborH()` + `nb.x` +
+        `dockY()` 现算，绝不在这里再抄一份「他大概在画面左边」。抄一份的后果是
+        「画在这儿、点在那儿」，而且**不报任何错**（玩家只会觉得这游戏点了没反应）。
+     框比身体略宽一点（手 / 触屏都点得到）：横向覆盖影子与鱼桶、纵向**从头顶的气泡一路到脚边**
+     （点那个气泡也该算数 —— 它就是给玩家看的「点我」）。
+     `px / py` = 相对画布左上角的**逻辑像素**（由调用方从 clientX 减去画布矩形换算）。 */
+  function hitNeighbor(px, py) {
+    var nb = S.neighbor;
+    if (!nb || typeof px !== 'number' || typeof py !== 'number') return false;
+    if (!isFinite(px) || !isFinite(py)) return false;
+    var Hh = neighborH();
+    var x = W * nb.x, y = dockY() - 13;
+    return px >= x - Hh * 0.30 && px <= x + Hh * 0.46
+      && py >= y - Hh * 1.40 && py <= y + Hh * 0.10;
   }
 
   function handPos() {
@@ -1602,6 +1650,7 @@ G.Scene = (function () {
   return {
     init: init, render: render,
     setField: setField, setDecor: setDecor, setNeighbor: setNeighbor,
+    hitNeighbor: hitNeighbor,
     cast: cast, beginWait: beginWait, bite: bite, floatNudge: floatNudge,
     beginFight: beginFight, endFight: endFight,
     splash: splash, sparkle: sparkle, showShadow: showShadow,

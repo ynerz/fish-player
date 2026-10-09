@@ -17,7 +17,10 @@ G.State = (function () {
      版本 4：新增新手引导进度 tut（老存档直接视为「已看过」，不刷教学气泡）
      版本 5：新增周常挑战 weekly（与每日任务同一套派生逻辑；
              老存档留 null，由 G.Goals.init() 按 ISO 周键自动生成，无需迁移数据）
-     版本 6：新增隔壁钓鱼佬的事件记录 story（N7；老存档补成空记录 = 一条都没触发过） */
+     版本 6：新增隔壁钓鱼佬的事件记录 story（N7；老存档补成空记录 = 一条都没触发过）
+             ⚠️ `story.talk`（N7 二期：主动搭话计数）是**同一版容器下的子键**，
+             由 `migrate()` 单独纠正容器类型、`core/story.js` 的 `rec()` 兜底新建，
+             **不另升版本号** —— 升了也不能多做什么（同 `settings.*` 那条约定）。 */
   var SAVE_V = 6;
 
   /* 数字兜底：任何来自存档或计算的数值都要过一遍，
@@ -76,10 +79,10 @@ G.State = (function () {
       integrity: { flags: [], runs: 0 },
       /* ---- 隔壁钓鱼佬（N7）----
          `fired` = 各事件触发过几次（`once` 只发生一次就靠它）；
-         `at` = 各事件最近一次触发的时刻（毫秒，`cooldownMs` 靠它）。
-         键是 `src/data/story.js` 里的事件 id —— **存档只记事实**，
-         重开游戏「这条我见过没」不会变。 */
-      story: { fired: {}, at: {} },
+         `at` = 各事件最近一次触发的时刻（毫秒，`cooldownMs` 靠它）；
+         `talk` = 跟各 NPC **主动搭话**过几次（键是 NPC id，闲聊池靠它轮流）——
+         三者都是「存档只记事实」，重开游戏「这条我见过没 / 上次说到哪」不会变。 */
+      story: { fired: {}, at: {}, talk: {} },
       stats: {
         casts: 0, catches: 0, escapes: 0, snaps: 0, idleCatches: 0,
         maxKg: 0, maxKgFish: '', totalValue: 0, days: 0,
@@ -257,11 +260,13 @@ G.State = (function () {
     if (d.tut.step >= tutStepCount()) d.tut.done = true;
 
     /* ---- 隔壁钓鱼佬（N7，v6）：只纠正容器类型，不校验键 ----
-       `fired` / `at` 的键是**内容表里的事件 id**；删掉一条事件之后，存档里那条旧记录
-       留着无害（引擎按当前内容表遍历，读到不认识的 id 直接跳过），
+       `fired` / `at` 的键是**内容表里的事件 id**、`talk` 的键是 **NPC id**；
+       删掉一条事件 / 一位 NPC 之后，存档里那条旧记录留着无害
+       （引擎按当前内容表遍历，读到不认识的 id 直接跳过），
        清掉反而要多存一份「已删 id 名单」。 */
     if (!d.story.fired || typeof d.story.fired !== 'object' || Array.isArray(d.story.fired)) d.story.fired = {};
     if (!d.story.at || typeof d.story.at !== 'object' || Array.isArray(d.story.at)) d.story.at = {};
+    if (!d.story.talk || typeof d.story.talk !== 'object' || Array.isArray(d.story.talk)) d.story.talk = {};
 
     /* ---- 按版本号迁移 ---- */
     if (from < 2) {

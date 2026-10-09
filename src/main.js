@@ -182,8 +182,12 @@
        idle/bite/waiting、漏了 fight，于是「拉扯中按住画布」收不了线，
        而松手是全局监听（pointerup 绑在 window）→ 左右不对称，鱼必脱钩，
        且不报任何错。handlePress() 自身已经处理了全部状态与面板守卫
-       （flying 状态天然是 no-op），所以直接透传即可。 */
-    G.Platform.input.down(U.$('#scene'), function () {
+       （flying 状态天然是 no-op），所以直接透传即可。
+       ⚠️ 唯一的例外是「点隔壁那位搭话」（N7 二期）：它必须在 handlePress **之前**
+       拦一道，否则点他会变成抛竿。拦截条件写在 tryTalkAt() 里，同样是「先问过
+       钓鱼状态」，绝不在 wait / fight / bite 里抢走收线与提竿。 */
+    G.Platform.input.down(U.$('#scene'), function (ev) {
+      if (tryTalkAt(ev)) return;
       handlePress();
     });
 
@@ -343,6 +347,34 @@
      复用现有 modal：底栏会自动进禁用态、ESC / 点遮罩都能关，不必另写一套。 */
   function onStoryEvent(ev, npc) {
     P.open('dialog', { title: ev.title, npc: npc, lines: ev.lines });
+  }
+
+  /* 点在邻居身上了吗？是 → 他搭一句，返回 true（调用方不要再走 handlePress）。
+     🔴 顺序与守卫（这几条缺一条都会变成「玩家点了没反应」或更糟）：
+       ① **只有 idle 才拦**：wait / bite / fight 里点画布分别是「放弃 / 提竿 / 收线」，
+          被搭话抢走就是这一轮最严重的回归（本项目真发生过左右不对称那种事）；
+       ② **挂机不拦**：人在挂机时点一下多半是想操作，弹对话会挡住；
+       ③ **面板 / 结算卡开着不拦**：handlePress() 本来就要处理「关掉结算卡」这件事；
+       ④ 坐标用**画布矩形**换算成逻辑像素（`Scene` 的命中框走的就是逻辑坐标，
+          高 DPI 下 canvas.width 是 dpr 倍，拿 offsetWidth 那一套会对不上）。
+          ⚠️ 矩形的**取法**必须与 `scene.js` 的 `resize()` 一致：它量的是
+          `cv.parentElement`（画布铺满父级，行内样式由 CSS 给）。这里也量父级，
+          量自己会在父级有内边距 / 边框时整块偏掉（而且偏得不多，最难发现）。 */
+  function tryTalkAt(ev) {
+    if (!G.Story || !ev) return false;
+    if (F.getState() !== 'idle') return false;
+    if (F.isIdleMode && F.isIdleMode()) return false;
+    if (P.isOpen() || P.isCatchOpen()) return false;
+    var el = U.$('#scene');
+    if (!el || !el.getBoundingClientRect) return false;
+    var host = el.parentElement || el;
+    if (!host.getBoundingClientRect) return false;
+    var r = host.getBoundingClientRect();
+    if (!S.hitNeighbor(ev.clientX - r.left, ev.clientY - r.top)) return false;
+    var d = G.Story.talk();
+    if (!d) return false;          /* 他没话可说 ⇒ 落回「抛竿」，不弹空白对话卡 */
+    P.open('dialog', d);
+    return true;
   }
 
   /* 结算卡的两个出口：卖出（默认）/ 收进鱼护 */

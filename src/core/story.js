@@ -24,8 +24,14 @@
         本模块把 `reward` 交出去但**自己不落地任何数值奖励** —— 给东西要走专门的
         口径与断言（`verify` 第 50 节盯着 reward 的键）。本轮两条事件 reward 为空。
 
-     ④ **存档只记事实**：`s.story.fired`（各事件触发过几次，`once` 就靠它）与
-        `s.story.at`（最近一次触发的时刻）。重开游戏「这条我见过没」不会变。
+     ④ **存档只记事实**：`s.story.fired`（各事件触发过几次，`once` 就靠它）、
+        `s.story.at`（最近一次触发的时刻）与 `s.story.talk`（跟各 NPC 主动搭话过几次，
+        闲聊池靠它轮流）。重开游戏「这条我见过没」不会变。
+
+     ⑤ **主动搭话（`talk()`）不走概率**：玩家点了画布上那个人，就该有回应 ——
+        概率门是给「事件找上门」用的（无端弹窗需要克制），不是给「玩家主动问」用的。
+        轮换靠 `s.story.talk` 计数**取模**：同一次点击在同一份存档上永远给同一句，
+        而连点不会卡在第一句上。**它同样不许碰 `Math.random()`**（口径 ①）。
    ========================================================= */
 
 window.G = window.G || {};
@@ -60,6 +66,7 @@ G.Story = (function () {
     if (!t || typeof t !== 'object') t = {};
     if (!t.fired || typeof t.fired !== 'object') t.fired = {};
     if (!t.at || typeof t.at !== 'object') t.at = {};
+    if (!t.talk || typeof t.talk !== 'object') t.talk = {};
     if (s) s.story = t;            /* 顺手纠正回去，省得每个调用点各纠正一次 */
     return t;
   }
@@ -145,14 +152,54 @@ G.Story = (function () {
   function probeOf(c, n, t) { return { field: c.field, wx: c.wx, tm: c.tm, seq: n, now: t }; }
 
   /* ---------------- 对外动作 ---------------- */
-  /* 当前该站在钓场里的那个 NPC（目前只有一个）。场景层直接吃这个对象：
+  /* 「现在该站在钓场里的那一位」是谁 —— **只有这一处**回答这个问题。
+     `neighbor()`（给场景画）与 `talk()`（给玩家点）都走它，免得将来加第 2 个 NPC 时
+     一边改成「按钓场挑人」、另一边还停留在「列表里第一个」。 */
+  function curNpcId() {
+    var all = G.STORY_NPCS;
+    if (!all || typeof all !== 'object') return '';
+    var keys = Object.keys(all);
+    return keys.length ? keys[0] : '';
+  }
+
+  /* 当前该站在钓场里的那个 NPC。场景层直接吃这个对象：
      `x` 是站位比例、其余是绘制参数。表为空时返回 null（场景层据此不画人）。
      ⚠️ 每次返回**同一个对象**（内容表里的那个），场景每帧都会拿它，别在这儿新建。 */
   function neighbor() {
-    var all = G.STORY_NPCS;
-    if (!all || typeof all !== 'object') return null;
-    var keys = Object.keys(all);
-    return keys.length ? all[keys[0]] : null;
+    var id = curNpcId();
+    return id ? (G.STORY_NPCS[id] || null) : null;
+  }
+
+  /* 对话面板要的那份载荷。**写成函数而不是在 `talk()` 里直接 `return {…}`** ——
+     与 `probeOf()` 同一个理由：返回块里的 `键: 值` 会被 `exportKeys()` 当成导出名。 */
+  function payload(npc, lines) {
+    var o = {};
+    o.npc = npc;
+    o.lines = lines;
+    return o;
+  }
+
+  /* 玩家**主动点他**（N7 二期）→ 返回对话面板要的载荷，没有可聊的人 / 没有闲聊池时给 null。
+     🔴 三条设计口径：
+       · **不走概率门**（口径 ⑤）：点了就该有回应；轮到哪句由 `s.story.talk` 计数决定。
+       · **只给一句**：搭话是顺手的动作，弹一大段会挡住钓鱼。
+       · **不返回空台词**：池子里那条不是非空字符串时给 null（调用方据此落回「抛竿」），
+         而不是弹一张空对话卡 —— 「点了没反应」比「弹张空白卡」好排查得多。 */
+  function talk() {
+    var id = curNpcId();
+    if (!id) return null;
+    var npc = npcOf(id);
+    var pool = (npc && npc.talk) || null;
+    if (!pool || !pool.length) return null;
+
+    var st = rec();
+    var n = st.talk[id] || 0;
+    var line = pool[n % pool.length];
+    if (typeof line !== 'string' || !line.trim()) return null;
+
+    st.talk[id] = n + 1;
+    if (G.State && G.State.save) G.State.save(true);   /* 与 mark() 同样立刻落盘 */
+    return payload(npc, [line]);
   }
 
   /* `init({ onEvent })`：`onEvent(ev, npc, reward)` 由 UI 层实现（现在是开对话面板）。
@@ -198,6 +245,7 @@ G.Story = (function () {
     init: init,
     consider: consider,
     neighbor: neighbor,
+    talk: talk,
     tryFire: tryFire,
     rollFor: rollFor,
     reset: reset,

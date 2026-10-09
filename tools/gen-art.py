@@ -161,6 +161,18 @@ LIGHT = ("strong rim light along the back and tail, no ambient fill light, "
          "deep unlit shadow side, high contrast between the lit edge and the shadow, "
          "high-end product render look.")
 
+# ⚠️ **只换开头那个「部件锚点」**，后面 4 句（no ambient fill light / deep unlit shadow side /
+#    high contrast / high-end product render look）逐字不动 —— 它们是「好看」的来源（坑 5），
+#    动一个字都会掉明暗对比。为什么必须换：现在的水母提示词在要求
+#    「边光打在没有的**背和尾**上」，等于把光说给了一个不存在的部位。
+LIGHT_HEAD = "strong rim light along the back and tail"
+
+
+def light_for(shape):
+    """这一段用哪句 `LIGHT`。**唯一入口**（`fish` 等体型原样返回 `LIGHT`）。"""
+    head = shape_word(shape, "light")
+    return (head + LIGHT[len(LIGHT_HEAD):]) if head else LIGHT
+
 # ④ 背景 —— 逐字取自 v9（`gen9.py` 的 BG）。
 #    ⚠️ `completely empty, no scenery, no text, no watermark` 这三句是防**背景漂移**的
 #        （v10 首版简写成 `plain dark charcoal background`，结果 10 张里出现了
@@ -219,36 +231,40 @@ MORPH_CANDIDATES = {
                  "each band one flat pure hue in the order red, orange, yellow, green, cyan, blue, "
                  "violet, bold colour blocking with crisp edges between the bands"),
     "bright/3": ("虹彩油膜",
-                 "thin iridescent rainbow film across the flanks, metallic hues drifting from teal "
+                 "thin iridescent rainbow film across the {sides}, metallic hues drifting from teal "
                  "and green into violet and magenta, high-chroma colourful specular highlights, "
                  "colour that changes across the curved facets"),
     "bright/4": ("霓虹荧光条",
                  "electric neon rainbow colouring, glowing saturated stripes in magenta, cyan and "
-                 "lime running along the flanks, fluorescent high-voltage palette, "
+                 "lime running along the {sides}, fluorescent high-voltage palette, "
                  "luminous coloured edge glow"),
     "bright/5": ("背腹双色域",
                  "the upper body flooded with saturated magenta and red, the lower body with "
-                 "electric cyan and deep blue, a hard hue boundary along the flank, "
-                 "vivid rainbow-tinted fins"),
+                 "electric cyan and deep blue, a hard hue boundary along the {sides}, "
+                 "vivid rainbow-tinted {part}"),
     # ── 白化族 ──
+    #  ⚠️ `{part}` / `{sides}` / `{under}` / `{over}` / `{surface}` 的**取值随体型变**
+    #     （默认值在 `COLOR_TOKEN_DEFAULTS`、覆写在 `SHAPE_WORDS[shape]["tokens"]`）。
+    #     眼睛那句**不是占位符**：它整段由 `EYE_CLAUSE_RE` 在无眼体型上摘掉（水母不长鱼眼睛）。
+    #     默认体型（fish 等）全部逐字不变 —— 这是「301 条鱼族的卡不许被判成过期」的保证。
     "albino/1": ("奶白（基准）",
-                 "albino colouring, pale creamy white body, soft pink translucent fins, "
+                 "albino colouring, pale creamy white body, soft pink translucent {part}, "
                  "pale pink eye"),
     "albino/2": ("冷调冰白",
                  "ice-white albino colouring, snow-pale body, cool desaturated shading deepening "
-                 "to pale slate blue in the shadow, milky translucent fins with a faint cold tint, "
+                 "to pale slate blue in the shadow, milky translucent {part} with a faint cold tint, "
                  "small pink eye"),
     "albino/3": ("暖调象牙",
                  "warm ivory albino colouring, creamy off-white body, soft beige shading in the "
-                 "shadow, pearlescent coating over the facets, translucent fins with a pale rosy "
+                 "shadow, pearlescent coating over the facets, translucent {part} with a pale rosy "
                  "edge, coral pink eye"),
     "albino/4": ("珍珠白+粉鳍缘",
                  "pearl-white albino colouring, lustrous pale body with a faint silvery sheen, "
-                 "translucent fins washed with soft pink, delicate pink rim along the fin edges, "
+                 "translucent {part} washed with soft pink, delicate pink rim along the {partsg} edges, "
                  "deep ruby-pink eye"),
     "albino/5": ("大理石白",
                  "chalky white albino colouring, marble-pale body with faint pale grey markings "
-                 "between the facets, low saturation, translucent rose-tinted fins, pink eye"),
+                 "between the facets, low saturation, translucent rose-tinted {part}, pink eye"),
     # ── 黄金族 ──
     "golden/1": ("亮金（基准）",
                  "bright luminous polished metallic gold body, glowing golden highlights, "
@@ -274,8 +290,8 @@ MORPH_CANDIDATES = {
     "shiny/1":  ("星点（基准）",
                  "iridescent shimmering body covered in sparkling glittering speckles, "
                  "bright specular glints, star-shaped sparkle highlights, prismatic sheen, "
-                 "the same glitter carried right across the belly, "
-                 "belly scales sparkling as brightly as the back"),
+                 "the same glitter carried right across the {under}, "
+                 "{under} {surface} sparkling as brightly as the {over}"),
     "shiny/2":  ("银底亮片",
                  "body densely covered in tiny mirror-bright metallic speckles that catch the "
                  "light like glitter, hundreds of pinpoint specular glints, cool chrome-bright "
@@ -289,7 +305,7 @@ MORPH_CANDIDATES = {
                  "luminous dots, silvery pearlescent base, gentle prismatic sparkle, "
                  "delicate starlit glints"),
     "shiny/5":  ("极光薄膜",
-                 "thin aurora film coating, green and violet shimmer travelling along the flanks, "
+                 "thin aurora film coating, green and violet shimmer travelling along the {sides}, "
                  "sharp bright specular streaks, luminous metallic base, "
                  "iridescent sparkle concentrated on the lit edge"),
     # ── 闪光族：**保留本色**的一组（`{base}` = 这条鱼自己的原色句）──────────────
@@ -515,6 +531,134 @@ SHAPES = {
 #     （见 `build_prompt` ⓪），此时再说 "slightly longer side fins" 就是给章鱼加长鱿鱼的鳍。
 #     ⇒ 一律退回通用词（八腕类给 "arms"、水母给 "tentacles"、其余给 "fins"）。
 
+# ────────────────────────────────────────────────────────────────────────────
+# 🔴 **体型专属的解剖措辞**（2026-10-09 加，用户报障驱动）
+#
+# 病根：提示词有 5 处公共段写成了**鱼的解剖**，却对**所有体型**无条件生效 ——
+#   ① 构图句 `full side view, ... facing left`
+#   ② `palette_color()` 的部件词写死 `fins`
+#   ③ `PALETTE_SHADE` 的 `a clearly lighter belly and a darker back`
+#   ④ `LIGHT` 的 `strong rim light along the back and tail`
+#   ⑤ `MORPH_SCOPE` 的 `over the whole fish including the head and the fins`
+# 于是水母被要求「长鳍、有背腹、侧视朝左、尾上打边光」。
+#
+# 实测（用户报障，原图已逐张肉眼确认）：
+#   `S16 灯塔水母` / `S17 深海水母` 的**五档彩色卡被画成了鱼**
+#   （鱼身 + 眼睛 + 背鳍 + 叉尾鳍，肚子底下还挂着水母触手），而**母版侥幸没跑偏** ——
+#   因为 ⑤ 那句 `over the whole fish including the head and the fins` **只有五档有、母版没有**。
+#   同族先例：`proportion_line()` 2026-10-08 已按 `shape` 分流（非 `fish` 直接返回空串），
+#   这 5 处是漏网的 —— 同一个坑第二次。
+#
+# ⚠️ **只覆盖「措辞确实错了」的 4 个体型**。`fish` / `shark` / `eel` / `oarfish` / `dragon`
+#    一个字节都不许变：它们本来就有鳍、有背腹、有尾，改了等于把 **301 条已出的卡**
+#    全部判成过期（`report_stale()` 是逐字比较的）。
+# ⚠️ 每个键都**可缺省**（不写 = 保留原句）。缺省才是常态 ——
+#    不要为了「统一」把本来成立的地方也换掉（鳐的背腹、鲸的「鳍」都是成立的）。
+# ────────────────────────────────────────────────────────────────────────────
+SHAPE_WORDS = {
+    # 水母：辐射对称，没有鳍 / 背腹 / 头 / 眼，全靠伞盖与触手
+    "jelly": {
+        "tokens": {"part": "tentacles", "partsg": "tentacle", "sides": "bell", "head": "bell",
+                   "under": "lower bell", "over": "bell top", "surface": "facets"},
+        "no_eye": True,
+        "frame": "full frontal view, whole body visible, radially symmetric",
+        "shade": "a clearly lighter lower bell margin and a darker bell top",
+        "light": "strong rim light along the bell top and the tentacles",
+        "scope": "the whole jellyfish including the bell and the tentacles",
+    },
+    # 八腕 / 十腕 / 甲壳类：部件是「腕」。写 `fins` 会把章鱼画成鱿鱼
+    # （实测 `S28 深海章鱼` 的五档卡就是一只鱿鱼：长外套膜 + 三角鳍 + 尾鳍）。
+    "squid": {
+        "tokens": {"part": "arms", "partsg": "arm", "sides": "body",
+                   "under": "underside", "surface": "skin"},
+        "light": "strong rim light along the upper body and the arms",
+        "scope": "the whole creature including the head and the arms",
+    },
+    # 鳐：`fins` 应作 `wings`。侧视朝向与背腹明暗对鳐都成立（鳐本来就是背深腹浅），故只换这两处。
+    "ray": {
+        "tokens": {"part": "wings", "partsg": "wing", "sides": "disc",
+                   "under": "underside", "surface": "skin"},
+        "scope": "the whole ray including the head and the wings",
+    },
+    # 鲸：`fins` 说得通（胸鳍 / 背鳍），错的是 `LIGHT` 的 «tail» 与 `MORPH_SCOPE` 的 «fish»。
+    "whale": {
+        "tokens": {"sides": "body", "surface": "skin"},
+        "light": "strong rim light along the back and the fluke",
+        "scope": "the whole whale including the head and the fluke",
+    },
+}
+
+# 颜色句里的占位符默认值 —— **`fish` / `shark` / `eel` / `oarfish` / `dragon` 全走默认值**，
+# 于是它们的提示词逐字不变（这是「不许把 301 条鱼族的卡判成过期」的实现方式）。
+# ⚠️ 默认值就是**改动前那些字**，别顺手改 —— 改一个词，全项目已出的母版卡都会变成陈旧。
+COLOR_TOKEN_DEFAULTS = {"part": "fins", "partsg": "fin", "sides": "flanks", "head": "head",
+                        "under": "belly", "over": "back", "surface": "scales"}
+
+
+def shape_word(shape, key, default=""):
+    """取某体型在 `SHAPE_WORDS` 里的那一项措辞。**唯一入口** —— 别在别处再读这个表。"""
+    return SHAPE_WORDS.get(shape or "", {}).get(key) or default
+
+
+def color_tokens(shape):
+    """这一体型的颜色句占位符取值（默认值 + 体型覆写）。"""
+    t = dict(COLOR_TOKEN_DEFAULTS)
+    t.update(shape_word(shape, "tokens") or {})
+    return t
+
+
+def fill_color_tokens(shape, text):
+    """把颜色句里的 `{part}` / `{sides}` / `{under}` / `{over}` / `{surface}` 换成本体型的词。
+
+    ⚠️ 对默认体型这必须是**恒等变换** —— `palette_color()` 与母版提示词逐字不变的保证就在这。
+    """
+    for k, v in color_tokens(shape).items():
+        text = text.replace("{" + k + "}", v)
+    return text
+
+
+# 眼睛从句：**只有 `albino/*` 五个候选带**（`pale pink eye` / `small pink eye` / …）。
+# 水母没有可见的眼，带去会让它长出一只鱼眼睛（实测 `S16-albino.png` 就是粉眼睛的鱼）。
+# ⇒ 无眼体型用一个**只做删除**的正则把它整段拿掉，而不是在候选句里插占位符 ——
+#   占位符方案要求「带前导逗号的整段」随候选不同而不同，得给 `build_morph_prompt` 再加一个
+#   `候选键` 参数，调用点（含 `check-prompt-drift.py`）全要跟着改，收益不值这个复杂度。
+EYE_CLAUSE_RE = re.compile(r",\s*(?:pale pink|small pink|coral pink|deep ruby-pink|pink)\s+eye")
+
+
+def check_shape_words():
+    """体型措辞表自检 —— **模块加载时就跑**（和 `check_pools()` 同一个套路）。
+
+    拦的是三类「不报错、只出错结果」的写法：
+      ① 体型名打错（覆写永远读不到，那条鱼照旧收到鱼类措辞）；
+      ② `tokens` 里写了没人消费的占位符键；
+      ③ 候选句里出现**没人替换的 `{xxx}`** —— 它会原样写进提示词，模型照样照办；
+      ④ 候选句里的 `... eye` 不在 `EYE_CLAUSE_RE` 覆盖内 —— 无眼体型会照抄一只鱼眼睛。
+    """
+    for sh, ov in SHAPE_WORDS.items():
+        if sh not in SHAPES:
+            raise RuntimeError("SHAPE_WORDS 里有不存在的体型：%s" % sh)
+        for k in ov:
+            if k not in ("tokens", "no_eye", "frame", "shade", "light", "scope"):
+                raise RuntimeError("SHAPE_WORDS[%s] 有未知的键：%s" % (sh, k))
+        for k in (ov.get("tokens") or {}):
+            if k not in COLOR_TOKEN_DEFAULTS:
+                raise RuntimeError("SHAPE_WORDS[%s]['tokens'] 有未知占位符：%s（只许 %s）"
+                                   % (sh, k, "、".join(sorted(COLOR_TOKEN_DEFAULTS))))
+    allowed = set(COLOR_TOKEN_DEFAULTS) | {"base"}
+    for ck, (_tag, sent) in MORPH_CANDIDATES.items():
+        for ph in re.findall(r"\{([a-z_]+)\}", sent):
+            if ph not in allowed:
+                raise RuntimeError("MORPH_CANDIDATES[%s] 里有没人替换的占位符 {%s} —— "
+                                   "它会原样写进提示词（允许：%s）"
+                                   % (ck, ph, "、".join(sorted(allowed))))
+        if " eye" in EYE_CLAUSE_RE.sub("", sent):
+            raise RuntimeError("MORPH_CANDIDATES[%s] 里有一句 `… eye` 不在 EYE_CLAUSE_RE 覆盖内：%s"
+                               " —— 改句子就要同步改正则，否则水母会照抄这只眼睛" % (ck, sent))
+
+
+check_shape_words()
+
+
 # —— 尾型：**只对有独立尾鳍、且 tail 字段说得通的体型成立** ——
 #    eel 无独立尾鳍 / ray 是鞭尾且已在体型描述里 / squid 是三角鳍 / jelly 没有 /
 #    whale 的 tail 字段给不出 fluke 的正确说法（所以鲸的尾写在形态句里）。
@@ -546,6 +690,7 @@ RARITY = [
     "long layered overlapping {fin}{extra}",
 ]
 SPINE_SHAPES = ("fish", "eel", "dragon", "shark", "oarfish")
+
 
 
 def color_name(hexstr):
@@ -607,13 +752,30 @@ PALETTE_SHADE = "a clearly lighter belly and a darker back"
 #    腹部**比背部更亮**（166 vs 147）却只有**一半的闪度**（9% vs 27%）⇒ 又亮又平 = 不闪。
 #    换成这句后 Δ腹 → **−4.5~−9.0pp**（腹部反而比背更闪）。
 PALETTE_SHADE_BY_MORPH = {
-    "shiny": "a belly only slightly lighter and still covered in the same bright glitter, a darker back",
+    "shiny": "a {under} only slightly lighter and still covered in the same bright glitter, "
+             "a darker {over}",
+}
+
+# 🔴 体型专属的明暗句（2026-10-09）：水母没有 belly / back —— 那句对它是**错的解剖**，
+#    但同时它承担着「上暗下亮」的**灰度梯度**语义（`paint-card.py` 的着色是灰度渐变映射，
+#    颜色 = 灰度的函数），所以只能**换措辞、不能删**。
+#    ⚠️ 目前只有水母需要：鳐 / 鲸 / 章鱼的背腹明暗都成立。
+PALETTE_SHADE_BY_SHAPE = {
+    "jelly": "a clearly lighter {under} margin and a darker {over}",
 }
 
 
-def shade_for(morph):
-    """这一档用哪句「背腹明暗」。**唯一口径**（只有闪光档例外，其余与母版共用 `PALETTE_SHADE`）。"""
-    return PALETTE_SHADE_BY_MORPH.get(morph or "", PALETTE_SHADE)
+def shade_for(morph, shape=None):
+    """这一档、这一体型用哪句「背腹明暗」。**唯一口径**。
+
+    ⚠️ **档位优先于体型**：闪光档那句是用户口径（「闪光的问题在于肚子没那么闪光」），
+       任何体型都不许被它盖掉 —— 否则闪光档的腹部又会亮成一块均匀浅色、闪不起来。
+       ⚠️ 但**句子里的部位词仍按体型填**（水母 → `lower bell` / `bell top`），
+          否则水母的闪光档又会被写回 `belly` / `back`（实测就是这么漏的）。
+    """
+    text = (PALETTE_SHADE_BY_MORPH.get(morph) if morph else None) \
+        or PALETTE_SHADE_BY_SHAPE.get(shape or "", PALETTE_SHADE)
+    return fill_color_tokens(shape, text)
 
 # 🔴 闪光档专用的「收尾句」，插在 `LIGHT` **之后**。
 #    为什么必须排在 LIGHT 后面（后说者赢）：`LIGHT` 写的是「光只在背和尾 + 深阴面」，
@@ -621,14 +783,18 @@ def shade_for(morph):
 #    `MORPH_SCOPE` 虽然写了 `including the head and the fins`，但它**排在 LIGHT 之前**，压不住 ——
 #    实测头部 Δ **+10.6~+15.8pp**（D14/D16/C02）。加上这句之后 Δ头 → **+3.2~+6.3pp**。
 EXTRA_BY_MORPH = {
-    "shiny": "sparkling glints spread evenly across the head and the belly as well, "
+    "shiny": "sparkling glints spread evenly across the {head} and the {under} as well, "
              "every area glittering, no flat dull patches",
 }
 
 
-def extra_for(morph):
-    """插在 LIGHT 之后的那句（大多数档为空字符串）。**唯一口径**。"""
-    return EXTRA_BY_MORPH.get(morph or "", "")
+def extra_for(morph, shape=None):
+    """插在 LIGHT 之后的那句（大多数档为空字符串）。**唯一口径**。
+
+    ⚠️ 同样要按体型填部位词 —— 写死 `head and the belly` 的话，水母的闪光档会收到
+       「头」与「腹」，等于把这句话在做的补偿（给没被边光照到的区域补闪）指到不存在的部位上。
+    """
+    return fill_color_tokens(shape, EXTRA_BY_MORPH.get(morph or "", ""))
 
 
 def palette_desc(f):
@@ -660,20 +826,27 @@ def palette_desc(f):
 
 
 def palette_color(f):
-    """颜色句的**前半句**：主色 + 鳍色。不带末尾句号，也不含背腹明暗。
+    """颜色句的**前半句**：主色 + 部件色。不带末尾句号，也不含背腹明暗。
 
     ⚠️ 拆两半的唯一原因，是五档要**只换这半句**（见 `build_morph_prompt`）。
        这一段的输出**必须与拆分前逐字一致** —— 改了它，已出的**全部母版卡**都会变成陈旧。
+
+    🔴 2026-10-09：部件词不再写死 `fins` —— 走 `COLOR_TOKEN_DEFAULTS` / `SHAPE_WORDS` 的
+       `tokens["part"]`（水母 `tentacles` / 八腕 `arms` / 鳐 `wings` / 其余 `fins`）。
+       为什么：这半句原本对所有体型都说 `... body with <色> fins`，
+       水母的提示词于是直接下令「长鳍」，实测五档彩色卡被画成了鱼。
     """
+    shape = f.get("shape", "fish")
+    part = color_tokens(shape)["part"]
     body_name = color_name(f["body"])
     accent_name = color_name(f["accent"])
     if base_color(body_name) == base_color(accent_name) or \
             abs(luma(f["body"]) - luma(f["accent"])) < 0.04:
         # 撞名 / 明度接近：只说主色 + 明暗关系，否则会拼出「同色的身子和鳍」
         fin = "darker" if luma(f["accent"]) <= luma(f["body"]) else "lighter"
-        fin_desc = fin + " fins"
+        fin_desc = fin + " " + part
     else:
-        fin_desc = accent_name + " fins"
+        fin_desc = accent_name + " " + part
     return "natural realistic colouring, %s body with %s" % (body_name, fin_desc)
 
 
@@ -1109,6 +1282,9 @@ def build_prompt(f, morph=None):
     #    （用户口径：「按身体特征对每条鱼先写一个描述」，让鱼更好分辨）
     bits.append(form_profile(f))
 
+
+    rar_i = min(3, f.get("rar", 0))
+
     # ④ 体表花纹 —— 查证过的逐条特征最优先，其次按科属字给**真实倾向**，
     #    两者都没有就**不写**（⛔ 不许随机抽，见 MARK_BY_FAMILY 的注释）
     if shape == "fish" and not any(f.get(k) for k in MARKING_KEYS):
@@ -1121,7 +1297,6 @@ def build_prompt(f, morph=None):
         if f.get(key) and shape in shapes:
             bits.append(desc)
 
-    rar_i = min(3, f.get("rar", 0))
     extra = ", extra spines and streamers" if (rar_i == 3 and shape in SPINE_SHAPES) else ""
     # 稀有度要「加长某个部件」—— `form` 在场时体型模板已经让位，部件名必须用通用词，
     # 否则会给章鱼加长 "side fins"（见 SHAPES 的 `finSafe` 注释）。
@@ -1129,18 +1304,22 @@ def build_prompt(f, morph=None):
     rar = RARITY[rar_i].format(fin=fin_word, extra=extra)
 
     head = BASE + " of " + subject + ", ".join([b for b in bits if b]) + "."
-    frame = ("full side view, whole body visible, facing left, "
-             "centered with generous margin, " + rar + ".")
+    # 构图句的**朝向词按体型换**（水母是辐射对称，没有「侧视朝左」这回事，见 SHAPE_WORDS）
+    frame_head = shape_word(shape, "frame", "full side view, whole body visible, facing left")
+    frame = frame_head + ", centered with generous margin, " + rar + "."
     # 面片措辞**按档取**（闪光档用 `GEOM_COARSE`，见 `geom_for()`）；母版传 None ⇒ 用 GEOM
-    # 颜色句 = `palette_color` + **按档**的明暗句（闪光档那句是例外，见 PALETTE_SHADE_BY_MORPH）；
-    # 收尾 = LIGHT + **按档**的补句（只有闪光档非空）+ GEOM + BG
+    # 颜色句 = `palette_color` + **按档 + 按体型**的明暗句
+    #          （闪光档例外见 `PALETTE_SHADE_BY_MORPH`，水母见 `PALETTE_SHADE_BY_SHAPE`）；
+    # 收尾 = LIGHT（**按体型**取，见 `light_for()`）+ **按档**的补句（只有闪光档非空）+ GEOM + BG
     # ⚠️ 末尾那个 "." 不能丢：`palette_desc()` 原本返回
     #    `palette_color(f) + ", " + PALETTE_SHADE + "."` —— 少了它**母版与每一档的提示词都会变**
     #    （实测母版第 662 字由 "darker back. strong" 变成 "darker back strong"），
     #    于是全项目所有卡被误判成过期。我第一版就丢过一次，靠"母版与 manifest 逐字相同"这条自检抓回来。
-    parts = [head, frame, palette_color(f) + ", " + shade_for(morph) + ".", LIGHT]
-    if extra_for(morph):
-        parts.append(extra_for(morph))
+    parts = [head, frame,
+             palette_color(f) + ", " + shade_for(morph, shape) + ".",
+             light_for(shape)]
+    if extra_for(morph, shape):
+        parts.append(extra_for(morph, shape))
     parts += [geom_for(morph), BG]
     return " ".join(parts)
 
@@ -1176,7 +1355,16 @@ def build_morph_prompt(f, morph, color_desc):
     #       所以 `pc` 出现在 `desc` 里不会被二次替换掉。
     if "{base}" in desc:
         desc = desc.replace("{base}", pc)
-    return p.replace(pc, desc + ", " + MORPH_SCOPE, 1)
+    # 🔴 颜色句里的部件词 / 部位词**按体型**落地（水母 `tentacles`、八腕 `arms`、鳐 `wings`）；
+    #    对 `fish` 等体型是**恒等变换** ⇒ 鱼族的五档提示词逐字不变。
+    shape = f.get("shape", "fish")
+    desc = fill_color_tokens(shape, desc)
+    # 无眼体型摘掉「… pink eye」那句（连前导逗号一起），否则水母会长出一只鱼眼睛
+    if shape_word(shape, "no_eye"):
+        desc = EYE_CLAUSE_RE.sub("", desc)
+    # ⚠️ 收尾从句按**体型**取（`scope_for`）—— 写死 `MORPH_SCOPE` 会让水母的彩色档
+    #    又收到「the whole fish ... the fins」，正是 2026-10-09 那次报障。
+    return p.replace(pc, desc + ", " + scope_for(shape), 1)
 
 
 # 五档颜色句的**统一作用范围**，追加在每一档后面 —— 与 `GEOM` / `LIGHT` 同一个套路：
@@ -1189,7 +1377,18 @@ def build_morph_prompt(f, morph, color_desc):
 #    头部没有 —— 又因为颜色是灰度的函数，躯干亮度被抬高、头部没有
 #    ⇒ **明暗差直接变成颜色差**，看起来就是「头身不是一个色」。
 #    实测 6/17 条可比样本的闪光卡「身−头 高光占比」比自己的母版失衡 ≥10 个百分点。
-MORPH_SCOPE = "with the same treatment over the whole fish including the head and the fins"
+#
+# 🔴 2026-10-09：`the whole fish ... the fins` 里的两个词也要按体型换
+#    （**这是本次报障的直接元凶**）—— 这一句**只有五档有、母版没有**，
+#    所以同一份骨架下「水母的母版还是水母、四档彩色全变成了鱼」。
+#    ⇒ `MORPH_SCOPE` 只留作默认值，实际一律走 `scope_for()`。
+MORPH_SCOPE_TAIL = "the whole fish including the head and the fins"
+MORPH_SCOPE = "with the same treatment over " + MORPH_SCOPE_TAIL
+
+
+def scope_for(shape):
+    """五档的收尾从句 —— 按体型换掉 `fish` / `fins` 两个词。**唯一入口**。"""
+    return "with the same treatment over " + shape_word(shape, "scope", MORPH_SCOPE_TAIL)
 
 
 def load_fish():
@@ -1402,13 +1601,36 @@ def write_prompts(fish):
     L.append("> 由 `tools/gen-art.py --prompts` 生成，**不要手改**（改口径请改 `build_prompt()`）。")
     L.append("> 每条鱼的提示词由**同一份代码**产出，与实际出图逐字一致。")
     L.append("> 结构：`BASE + 形态句 + 构图句 + 颜色句 + LIGHT + GEOM + BG`，"
-             "其中 `LIGHT` / `GEOM` / `BG` 三段是**固定常量**（见 §一）。\n")
+             "其中 `LIGHT` / `GEOM` / `BG` 三段是**公共常量**（见 §一）。\n")
     L.append("## 一、固定段落（每条鱼都一样）\n")
     L.append("```")
     L.append("LIGHT = " + LIGHT.strip())
     L.append("GEOM  = " + GEOM.strip())
     L.append("BG    = " + BG.strip())
-    L.append("```\n")
+    L.append("```")
+    L.append("⚠️ `GEOM` 在**闪光档**换成更粗的大块面措辞（防小像素块）；`LIGHT` 只对**非鱼体型**"
+             "换掉开头的部件锚点（水母 / 八腕 / 鲸，见下表），后半 4 句逐字不变。\n")
+    L.append("### 体型专属措辞（`SHAPE_WORDS`）\n")
+    L.append("公共段里有 5 处原本写成了「鱼的解剖」，对**所有体型**无条件生效 ——"
+             "2026-10-09 修：水母的彩色档曾被这些词画成鱼。"
+             "下表是**按体型覆盖**的那部分；没列到的体型"
+             "（`fish` / `shark` / `eel` / `oarfish` / `dragon`）一律用默认值"
+             "（`fins` / `flanks` / `belly` / `back` / `scales`，即改动前的原句）。\n")
+    L.append("| 体型 | 颜色句占位符 | 构图句朝向 | 明暗句 | LIGHT 锚点 | 五档收尾从句 |")
+    L.append("|---|---|---|---|---|---|")
+    for sh in sorted(SHAPE_WORDS):
+        w = SHAPE_WORDS[sh]
+        toks = w.get("tokens") or {}
+        L.append("| `%s` | %s | %s | %s | %s | %s |" % (
+            sh,
+            "、".join("`%s`=%s" % (k, v) for k, v in sorted(toks.items())) or "（默认）",
+            w.get("frame") or "默认 侧视朝左",
+            w.get("shade") or "默认 背腹",
+            w.get("light") or "默认 背与尾",
+            w.get("scope") or "默认 the whole fish…",
+        ))
+    L.append("")
+
     L.append("## 二、母版（原色）提示词 —— 每条鱼独有的部分\n")
     L.append("下表列出**每条鱼独有的部分**（体型 + 形态 + 特征 + 颜色 + 构图）。\n")
     L.append("| id | 名字 | 档 | 体型 | 提示词（已剥掉固定段 LIGHT/GEOM/BG） |")
@@ -1417,7 +1639,9 @@ def write_prompts(fish):
         # ⚠️ **必须调 build_prompt() 本体再剥离固定段**，不许在这里复制一份拼装逻辑 ——
         #    之前就是复制了一份，结果「给人看的表」和「实际出图」分家（还漏改过一次随机花纹）。
         var = build_prompt(f)
-        for seg in (LIGHT, GEOM, BG):
+        # ⚠️ `LIGHT` 现在是**按体型**取的（水母 / 八腕 / 鲸 与默认不同），
+        #    这里必须用同一个 `light_for()` 去剥，否则非鱼体型那几行的固定段剥不干净
+        for seg in (light_for(f.get("shape")), geom_for(None), BG):
             var = var.replace(seg, "")
         var = " ".join(var.split())
         L.append("| %s | %s | %s | %s | %s |" % (

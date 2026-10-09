@@ -2526,6 +2526,59 @@ console.log('\n[33-c] 五档提示词必须复用母版骨架，只换颜色句'
     return;
   }
   ok('build_morph_prompt() 复用母版骨架 + 只换颜色半句 + 保住背腹明暗（不许整句替换）');
+
+  /* ⑤ 🔴 体型专属措辞必须**处处按体型分流**（2026-10-09 用户报障：水母的五档彩色卡被画成鱼）。
+     病根是 5 处公共段写成了鱼的解剖、却对所有体型无条件生效：
+       构图句 `facing left` / 颜色句部件词 `fins` / 明暗句 `belly + back` /
+       `LIGHT` 的 `back and tail` / `MORPH_SCOPE` 的 `the whole fish … the fins`（只有五档有 ⇒ 母版侥幸没跑偏）。
+     ⚠️ 这几处**改错了不报错、只是图变样**（一屏水母全变成鱼也没人会看到红字），
+        所以这里逐个盯「消费点真的走了按体型分流的那条路」，而不是只盯常量有没有定义。 */
+  if (!/^SHAPE_WORDS\s*=\s*\{/m.test(src)) {
+    err('gen-art.py 里没有 `SHAPE_WORDS` —— 体型专属措辞表不见了，公共段会退回写死鱼类解剖'); return;
+  }
+  const shapeBlock = (src.match(/^SHAPE_WORDS\s*=\s*\{[\s\S]*?\n\}/m) || [''])[0];
+  const knownShapes = (src.match(/^SHAPES\s*=\s*\{[\s\S]*?\n\}/m) || [''])[0];
+  const realShapes = (knownShapes.match(/^\s{4}"([a-z]+)":\s*\{/gm) || [])
+    .map(x => x.replace(/[\s":{]/g, ''));
+  const declared = (shapeBlock.match(/^\s{4}"([a-z]+)":\s*\{/gm) || [])
+    .map(x => x.replace(/[\s":{]/g, ''));
+  if (!declared.length) { err('读不到 SHAPE_WORDS 的体型键'); return; }
+  const ghost = declared.filter(s => realShapes.indexOf(s) < 0);
+  if (ghost.length) {
+    err(`SHAPE_WORDS 里有不存在的体型：${ghost.join('、')}（真实体型：${realShapes.join('/')}）`
+      + ' —— 体型名打错 = 覆写永远读不到，那条鱼照旧收到鱼类措辞'); return;
+  }
+  /* ⑤a 默认占位符必须还是**改动前那几句话** —— 它们就是「301 条鱼族的卡逐字不变」的保证 */
+  const DEF = (src.match(/^COLOR_TOKEN_DEFAULTS\s*=\s*\{[^}]*\}/m) || [''])[0];
+  const WANT_DEF = { part: 'fins', partsg: 'fin', sides: 'flanks', head: 'head',
+                     under: 'belly', over: 'back', surface: 'scales' };
+  const defBad = Object.keys(WANT_DEF).filter(k => !new RegExp(`"${k}":\\s*"${WANT_DEF[k]}"`).test(DEF));
+  if (defBad.length) {
+    err(`COLOR_TOKEN_DEFAULTS 里 ${defBad.join('、')} 不再是原值 —— 默认体型（fish 等 301 条）的`
+      + '提示词会跟着变，已出的卡会全部被判成过期'); return;
+  }
+  /* ⑤b 四个消费点必须走「按体型」的那条路（写死常量就会在这里被抓住） */
+  const NEED = [
+    ['def palette_color(', 'color_tokens(', '颜色句部件词'],
+    ['def build_prompt(', 'light_for(', 'LIGHT 锚点'],
+    ['def build_prompt(', 'shape_word(shape, "frame"', '构图句朝向'],
+    ['def build_prompt(', 'shade_for(morph, shape', '明暗句'],
+    ['def build_morph_prompt(', 'scope_for(', '五档收尾从句'],
+    ['def build_morph_prompt(', 'fill_color_tokens(', '颜色句占位符'],
+  ];
+  const nt = NEED.filter(([d, w]) => !has(bodyOf(src, d), w))
+    .map(([d, , label]) => `${label}（${d}里缺 ${w}）`);
+  if (nt.length) {
+    err('这些公共段没有走「按体型」的分流：' + nt.join('；')
+      + ' —— 写死常量对非鱼体型就是错的解剖（水母被要求长 fins，实测彩图变鱼）'); return;
+  }
+  /* ⑤c 自检必须真被调用（「记得手动跑一下」在本项目反复栽跟头） */
+  if (!/def check_shape_words\(/.test(src) || !/^check_shape_words\(\)\s*$/m.test(src)) {
+    err('check_shape_words() 没定义或**没在模块加载时被调用** —— '
+      + '占位符打错 / 不存在的体型名 / 没人替换的 `{xxx}` 会静默写进提示词'); return;
+  }
+  ok(`体型措辞按体型分流（${declared.join('/')} 有覆写、其余 ${realShapes.filter(s => declared.indexOf(s) < 0).length} `
+    + '个体型走默认值）＋ 默认占位符＝原句 ＋ 自检加载即跑 ＋ 传说点题只挂 rar3');
 })();
 
 
@@ -2781,10 +2834,13 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
   /* ④ 基准句逐档在册 ——
      比对照走顶部共用的 flat()/has()（第 ㊳ 节盯着这条）：
      否则只要某句被折成两行，这条检查就会误报「被删了」，
-     而它想抓的其实是「句子本身被改了」。折行与内容无关，不该影响判定。 */
+     而它想抓的其实是「句子本身被改了」。折行与内容无关，不该影响判定。
+     ⚠️ 2026-10-09：albino 基准句里的 `fins` 现在是 `{part}` 占位符（水母要它变 `tentacles`），
+        所以这里比的是**带占位符的形式**。占位符的默认值另有断言（§33-c 的 `COLOR_TOKEN_DEFAULTS`
+        ），两边合起来才等价于「默认体型那句没被改」。 */
   const BASE = {
     bright: 'from magenta and orange through yellow and cyan to blue and violet',
-    albino: 'pale creamy white body, soft pink translucent fins, pale pink eye',
+    albino: 'pale creamy white body, soft pink translucent {part}, pale pink eye',
     golden: 'rich brass and gold tones, brilliant golden sheen, high luminance',
     shiny: 'star-shaped sparkle highlights, prismatic sheen',
   };

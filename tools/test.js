@@ -28,10 +28,10 @@ global.localStorage = {
   removeItem: k => { delete store[k]; },
 };
 ['src/data/config.js', 'src/data/fields.js', 'src/data/fish.js', 'src/data/items.js',
- 'src/data/goals.js',
+ 'src/data/goals.js', 'src/data/assistant.js',
  'src/core/util.js', 'src/core/platform.js', 'src/core/profile.js', 'src/core/assets.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js',
  'src/core/integrity.js',
- 'src/core/goals.js', 'src/core/weather.js', 'src/core/fishing.js', 'src/core/track.js',
+ 'src/core/goals.js', 'src/core/weather.js', 'src/core/fishing.js', 'src/core/assistant.js', 'src/core/track.js',
  'src/render/fishpaint.js',
  'src/ui/tutorial.js']
   .forEach(r => (new Function(fs.readFileSync(path.join(ROOT, r), 'utf8'))).call(global));
@@ -3341,6 +3341,154 @@ G_('完整性 · 反作弊 L1 标记（N2）');
   const had = I.count();
   ok(I.clear() === had && I.count() === 0, `clear() 清掉全部标记并返回条数（${had} → 0）；`
     + '它只是「把标记清空」，不是「解除处罚」—— 因为压根没有处罚');
+})();
+
+/* =========================================================
+   陪伴助手（N6）—— 播报判定 / 语音降级 / 音量闸门
+   ---------------------------------------------------------
+   Node 里**没有** speechSynthesis（平台层退回 no-op），正好是
+   「拿不到能力怎么办」那条边界的天然测试环境；要验「真会出声」那半边
+   就把平台层的 speech 换成桩（与 G.Scene / G.Audio 的桩同一个手法）。
+   ========================================================= */
+G_('陪伴助手 · 播报判定与语音降级');
+(function () {
+  var A = G.Assistant, PL = G.Platform;
+  var se = St.get().settings;
+  var keep = {
+    speech: se.speech, volume: se.volume, voice: se.voice,
+    rate: se.speechRate, pitch: se.speechPitch, idle: se.idle, sound: se.sound,
+  };
+  var said = [];
+  A.reset();
+  A.init({ toast: function (line) { said.push(line); } });
+
+  /* ---------- ① 平台层：没有能力时四件事都不许抛 ---------- */
+  var noSpeech = { available: false, list: [], speak: false, stop: true };
+  (function () {
+    var threw = '';
+    try {
+      noSpeech.available = PL.speech.available();
+      noSpeech.list = PL.speech.list();
+      noSpeech.speak = PL.speech.speak('测试');
+      PL.speech.stop();
+      PL.speech.onVoices(function () {});
+    } catch (e) { threw = e.message; }
+    ok(threw === '', '没有 speechSynthesis 时，available/list/speak/stop/onVoices 都不抛'
+      + (threw ? ' —— ' + threw : ''));
+  })();
+  ok(noSpeech.available === false, 'Node / 无该能力的宿主上 available() 返回 false');
+  ok(Array.isArray(noSpeech.list) && noSpeech.list.length === 0, 'list() 兜底返回**空数组**（不是 null）');
+  ok(noSpeech.speak === false, 'speak() 返回 false（调用方据此只留文字），而不是抛异常');
+  ok(JSON.stringify(noSpeech.list) === JSON.stringify(PL.speech.list()), 'list() 两次调用结果一致（无副作用）');
+
+  /* ---------- ② 平台层：有桩能力时的参数装配 ---------- */
+  var real = PL.speech;
+  var calls = [];
+  PL.speech = {
+    available: function () { return true; },
+    list: function () { return [{ id: 'v1', name: '音色一', lang: 'zh-CN' }]; },
+    onVoices: function () {},
+    speak: function (t, o) { calls.push({ t: t, o: o }); return true; },
+    stop: function () { calls.push({ stop: 1 }); },
+  };
+  try {
+    ok(G.Assistant.preview() === true && calls.length === 1,
+       'preview() 走平台层真发了一句，并返回 true');
+    ok(calls[0].t.indexOf('试听') >= 0, 'preview() 念的是**试听专用**那句话（不是剧情台词）');
+    ok(calls[0].o.volume === se.volume, '试听的音量 = 存档里的总音量（语音不走 AudioContext，闸门在这里）');
+    ok(typeof calls[0].o.rate === 'number' && typeof calls[0].o.pitch === 'number',
+       '试听带上了语速 / 音调（都来自 settings）');
+
+    /* ---------- ③ 分档：传说 / 纪录出声，普通鱼与脱钩不接话 ---------- */
+    A.reset(); said.length = 0; calls.length = 0;
+    se.speech = true; se.volume = 0.55;
+    var r1 = A.onCatch({ rar: 3, isRecord: false, isNew: true });
+    ok(r1 && r1.key === 'legendary' && r1.spoken === true, '钓到传说档（rar ≥ 传说下标）⇒ 念一句并出声');
+    ok(calls.length === 1 && calls[0].t === r1.text, '念的正文就是气泡里那一句（同一句话，两个通道）');
+
+    A.reset();
+    var r2 = A.onCatch({ rar: 0, isRecord: true });
+    ok(r2 && r2.key === 'record' && r2.spoken === true, '刷新个人纪录 ⇒ 走「纪录」那条台词');
+    A.reset();
+    var r3 = A.onCatch({ rar: 2, isRecord: true });
+    ok(r3 && r3.key === 'record', '史诗档破纪录也算纪录（只有传说档优先走 legendary）');
+    A.reset();
+    var r4 = A.onCatch({ rar: 3, isRecord: true });
+    ok(r4 && r4.key === 'legendary', '传说档 + 破纪录同时成立 ⇒ 取传说那句（一次只出一句）');
+    ok(A.onCatch({ rar: 0, isRecord: false }) === null, '普通鱼**不接话**（每竿一句 = 刷屏，不是陪伴）');
+    A.reset();
+    ok(A.onMiss('escape') === null, '脱钩不出声也不出气泡（游戏自己的提示已经说清了）');
+    ok(A.onMiss('snap') && A.onMiss('snap') === null, '断线会说一句；同一句在节流窗口内不重复');
+
+    /* ---------- ④ 节流与轮换 ---------- */
+    A.reset(); said.length = 0;
+    var a = A.onCatch({ rar: 3 }), b = A.onCatch({ rar: 3 });
+    ok(a && b === null, `同一场景 ${CFG.assistant.minGapMs} ms 内不重复播报（第二次返回 null）`);
+    /* 把节流窗口调成 0 = 每次都开口：既能证明 `minGapMs` 真的在起作用
+       （上面那条不是「反正都不说」），也能看出台词是**轮换**的。 */
+    var keepGap = CFG.assistant.minGapMs;
+    CFG.assistant.minGapMs = 0;
+    var t1 = A.onCatch({ rar: 3 }), t2 = A.onCatch({ rar: 3 });
+    ok(t1 && t2 && t1.text !== t2.text, '节流窗口设 0 时连说两句 ⇒ 第二句是**下一句**台词（不是随机抽）');
+    var seen = {}, prev = null, adj = 0, j;
+    for (j = 0; j < 12; j++) {
+      var lz = A.onCatch({ rar: 3 });
+      if (prev !== null && lz.text === prev) adj++;
+      prev = lz.text; seen[lz.text] = 1;
+    }
+    CFG.assistant.minGapMs = keepGap;
+    ok(adj === 0, `连说 ${j} 句里没有相邻重复（游标推进，不靠随机数 ⇒ 结果可定点复现）`);
+    ok(Object.keys(seen).length === G.ASSISTANT_LINES.legendary.length,
+       `${j} 句里把传说档 ${G.ASSISTANT_LINES.legendary.length} 句台词全轮到了（游标会绕回开头）`);
+
+    /* ---------- ⑤ 关掉语音：话还在，只是不出声 ---------- */
+    A.reset(); said.length = 0; calls.length = 0;
+    se.speech = false;
+    var r5 = A.onCatch({ rar: 3 });
+    ok(r5 && r5.spoken === false && calls.length === 0, '关掉语音 ⇒ 一声不吭');
+    ok(said.length === 1 && said[0].text === r5.text, '……但**文字气泡照常**（这是「关掉后文字照常」的行为证据）');
+
+    /* ---------- ⑥ 总音量 = 所有声音的总闸门（含语音） ---------- */
+    A.reset(); calls.length = 0;
+    se.speech = true; se.volume = 0;
+    var r6 = A.onCatch({ rar: 3 });
+    ok(calls.length === 0 && r6 && r6.spoken === false,
+       '总音量 0 ⇒ **不调用** TTS（而不是发一句音量 0 的、界面上还显示「说了」）');
+    /* 「音效」那条开关的文案写的是「开关全部**程序化音效**」⇒ 语音有自己的开关，
+       不跟着它走。这条边界必须有一条行为断言钉着，否则下一个人「顺手」让它
+       也守 settings.sound，表现就是「关掉音效后语音莫名其妙也没了」。 */
+    A.reset(); calls.length = 0; se.volume = 0.55; se.sound = false;
+    ok(A.onCatch({ rar: 3 }) && calls.length === 1,
+       '「音效」开关只管程序化音效：关掉它，语音仍按 settings.speech 自己的开关走');
+    se.sound = keep.sound; se.volume = keep.volume;
+
+    /* ---------- ⑦ 挂机不刷屏 ---------- */
+    A.reset();
+    St.setIdle(true);
+    var r7 = A.onCatch({ rar: 3 });
+    St.setIdle(false);
+    ok(r7 === null, '挂机（自动钓鱼）时助手完全不开口 —— 人不在屏幕前');
+
+    /* ---------- ⑧ 台词表本身 ---------- */
+    var keys = Object.keys(G.ASSISTANT_LINES);
+    var empty = keys.filter(function (k) {
+      var t = G.ASSISTANT_LINES[k];
+      return !Array.isArray(t) || !t.length || t.some(function (s) { return !String(s).trim(); });
+    });
+    ok(empty.length === 0, `${keys.length} 组台词都不是空的（${keys.join(' / ')}）`);
+    var noLine = CFG.assistant.speakKeys.filter(function (k) { return keys.indexOf(k) < 0; });
+    ok(noLine.length === 0, 'config 里点名的出声场景都有台词（' + CFG.assistant.speakKeys.join(' / ') + '）');
+    ok(keys.indexOf('preview') >= 0 && CFG.assistant.speakKeys.indexOf('preview') < 0,
+       '试听有自己的台词，但**不在**「剧情出声」名单里（否则它会跟着节流走）');
+    A.reset();
+  } finally {
+    PL.speech = real;
+    se.speech = keep.speech; se.volume = keep.volume; se.voice = keep.voice;
+    se.speechRate = keep.rate; se.speechPitch = keep.pitch; se.sound = keep.sound;
+    if (se.idle !== keep.idle) St.setIdle(keep.idle);
+    A.init({});
+    A.reset();
+  }
 })();
 
 /* ---------- 汇总 ---------- */

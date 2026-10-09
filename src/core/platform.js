@@ -8,7 +8,7 @@
    这样将来上微信小程序时，只需要再写一份 platform.weapp.js
    在 index.html（或 app.json 入口）里替换掉本文件，逻辑层一行不用改。
 
-   接口（8 组）：
+   接口（9 组）：
      storage    get / set / kind
      audio      createContext() / load(url) → Promise<AudioBuffer|null> / playFile（小程序占位）
                 —— 小程序要换成 wx.createInnerAudioContext
@@ -20,6 +20,8 @@
      input      down(el,fn) / up(fn) / cancel / leave / key
      clipboard  write(text) → Promise<boolean>   —— 小程序换成 wx.setClipboardData
      dialog     confirm(msg) / prompt(msg,def)   —— 小程序换成 wx.showModal
+     speech     available() / list() / onVoices(fn) / speak(text,opts) / stop()
+                —— 陪伴助手（N6）的出声能力；小程序要换成云端 TTS 或直接 no-op
 
    ⚠️ 上面只列**现行**接口。这里曾多列过 `storage.remove` 与 `sys.size()` 两个 ——
       2026-10-08 全项目 API 扫描实测它们**零消费**，已删（进了 `verify` 32-b 的 REMOVED 名单；
@@ -279,6 +281,95 @@ G.Platform = (function () {
     },
   };
 
+  /* ---------------- 语音合成（TTS） ----------------
+     陪伴助手（N6）的**出声**能力。Web 端就是浏览器内置的合成人声
+     （系统 TTS 音色）—— **离线可用、不用 Key、零依赖**；
+     小程序端要么换成云端 TTS、要么整组 no-op，所以业务代码一律走这里
+     （`verify` 第 ㊱ 节按字面量拦 `speechSynthesis` / `SpeechSynthesisUtterance`）。
+
+     ⚠️ 四条硬边界（照平台层的老规矩，改之前先读）：
+       ① **拿不到能力就兜底不抛** —— `available()` 返回 false，
+          `speak()` / `stop()` 都是 no-op。调用方**不写**「能力在不在」的守卫，
+          只保留「我自己要不要说」这种判断（与 `sys.raf` 同款约定）。
+       ② **音色可列但不可承诺** —— `list()` 给的是**本机装了哪些声音**：
+          可能是空数组、也可能是十几个语种混在一起。上层必须接受「只有系统默认」。
+       ③ **语音不经过 AudioContext**（它不走 `G.Audio` 那套增益节点）⇒
+          「总音量」这个闸门必须在**调用侧**乘进 `volume`。否则玩家把音量拉到 0，
+          语音照样念 —— 那是「同一个事实两处真相」的**听感版**。
+       ④ `getVoices()` 常常**第一次返回空**（Chrome 异步加载声音列表）⇒ 只调一次
+          `list()` 的界面会永远看不到音色下拉。这就是 `onVoices(fn)` 存在的理由：
+          列表就绪后重画。 */
+  var synth = null;
+  try { synth = window.speechSynthesis || null; } catch (e) { synth = null; }
+
+  /* 「这个可选项是个能用的数字吗」——`null` / `''` / 字符串一律不算。
+     写成独立小函数是为了它在三处调用点只有一份实现（`isFinite(null) === true` 那个坑）。 */
+  function numOpt(v) { return typeof v === 'number' && isFinite(v); }
+
+  var speech = {
+    available: function () {
+      if (!synth || typeof synth.speak !== 'function') return false;
+      /* `SpeechSynthesisUtterance` 少了也没用：能力是**两者一起**才算数。
+         用 `window.` 取而不是裸全局 —— 与文件里其它能力的写法一致。 */
+      return typeof window.SpeechSynthesisUtterance === 'function';
+    },
+    /* 本机可选的声音：`[{ id, name, lang }]`。拿不到就空数组（**不是 null**）——
+       调用方只需要「循环一遍」，不该再写一次空值守卫。 */
+    list: function () {
+      if (!speech.available() || typeof synth.getVoices !== 'function') return [];
+      try {
+        return (synth.getVoices() || []).map(function (v) {
+          return { id: v.voiceURI || v.name || '', name: v.name || '', lang: v.lang || '' };
+        });
+      } catch (e) { return []; }
+    },
+    /* 声音列表就绪的通知（异步加载）。拿不到通知就算了：界面会退回「系统默认」。
+       ⚠️ 注册方要自己防重复注册（本函数不做去重）—— 设置面板每次重绘都注册一遍
+          就会攒下一串回调，是典型的「听着没事、跑久了变慢」的坑。 */
+    onVoices: function (fn) {
+      if (!synth || typeof fn !== 'function') return;
+      try {
+        if (typeof synth.addEventListener === 'function') synth.addEventListener('voiceschanged', fn);
+        else synth.onvoiceschanged = fn;
+      } catch (e) { /* 老实现挂不上：界面继续用「系统默认」，不影响其它功能 */ }
+    },
+    /* 说一句。opts：`{ voice, rate, pitch, volume, onend }`（都是可选的）。
+       返回 true = 这一句**真的送出去了**；false = 本平台没这个能力 / 文本为空。
+       注意 true 只代表「送出去了」，不代表一定听得见（系统可能一个音色都没有）。 */
+    speak: function (text, opts) {
+      if (!speech.available()) return false;
+      var t = String(text == null ? '' : text).trim();
+      if (!t) return false;
+      var o = opts || {};
+      try {
+        /* 同一时刻只允许一句：`speechSynthesis` 是**队列式**的，不 cancel 就会
+           一句接一句排队念下去（玩家连钓两条传说鱼 → 助手念到天黑）。 */
+        synth.cancel();
+        var u = new window.SpeechSynthesisUtterance(t);
+        /* 音色按 `voiceURI`（退回 `name`）匹配 —— **在原始列表里找**，不拿 `list()`
+           的下标去对：那是两处索引对齐的隐含假设，改一处就静默配错声音。 */
+        if (o.voice && typeof synth.getVoices === 'function') {
+          var raw = synth.getVoices() || [];
+          for (var i = 0; i < raw.length; i++) {
+            if ((raw[i].voiceURI || raw[i].name) === o.voice) { u.voice = raw[i]; break; }
+          }
+        }
+        /* ⚠️ 判「是不是数字」要连类型一起看：`isFinite(null)` 是 **true**，
+           等于把 null 写进 utterance 参数（各家浏览器解释不一致）。 */
+        if (numOpt(o.rate)) u.rate = o.rate;
+        if (numOpt(o.pitch)) u.pitch = o.pitch;
+        if (numOpt(o.volume)) u.volume = o.volume;
+        if (typeof o.onend === 'function') u.onend = o.onend;
+        synth.speak(u);
+        return true;
+      } catch (e) { return false; }
+    },
+    stop: function () {
+      if (!speech.available()) return;
+      try { synth.cancel(); } catch (e) { /* 已经停了 / 没在说：忽略 */ }
+    },
+  };
+
   return {
     storage: storage,
     audio: audio,
@@ -288,5 +379,6 @@ G.Platform = (function () {
     clipboard: clipboard,
     dialog: dialog,
     image: image,
+    speech: speech,
   };
 })();

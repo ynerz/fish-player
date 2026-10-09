@@ -87,7 +87,11 @@ G.State = (function () {
         netMax: 0, tankMax: 0,         // 鱼护 / 水族箱的**历史最大占用**（成就用）
         streak: 0, maxStreak: 0,       // 当前 / 历史最长「连续成功」竿数
       },
-      settings: { sound: true, volume: 0.55, ambient: true, music: true, musicVol: 1.0, idle: false },
+      /* `speech` 默认 **关**：合成人声用的是**这台机器**的系统音色（可能是机械音），
+         而且浏览器要求「先有用户手势」才允许出声 —— 默认开口会吓到刚打开游戏的玩家。
+         关着也不损失什么：助手的话照旧以文字气泡出现（见 core/assistant.js 口径 ①）。 */
+      settings: { sound: true, volume: 0.55, ambient: true, music: true, musicVol: 1.0, idle: false,
+                  speech: false, voice: '', speechRate: 1.0, speechPitch: 1.0 },
       lastSeen: Date.now(),
     };
   }

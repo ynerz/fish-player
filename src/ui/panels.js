@@ -10,6 +10,9 @@ G.Panels = (function () {
   var catchCard, catchCanvas;
   var current = null;
   var onCloseCb = null;
+  /* 「声音列表就绪」的回调**只注册一次**（N6）：`speech.onVoices` 不做去重，
+     而设置面板每重绘一次就会跑一遍 render() ⇒ 不拦着就会攒下一串回调。 */
+  var voiceWired = false;
 
   /* 钓场等级配色 —— **只此一份**。
      原先在「钓场选择」「图鉴·各钓场进度」「统计·各钓场进度」三处各写了一遍，
@@ -1604,6 +1607,79 @@ G.Panels = (function () {
           var v = e.target.value / 100;
           s.settings.volume = v;
           G.Audio.setVolume(v);
+          St.scheduleSave();
+        });
+      });
+
+      /* ---- 陪伴助手（N6）：合成人声 ----
+         🔴 位置说明：语音的几行放在**总音量上面**，与「音乐音量」同一个道理 ——
+            `音量` 是所有声音（含语音）的总闸门，它该留在这一组的最下面。
+         ⚠️ 语音**不走 `G.Audio`**（系统 TTS 没有增益节点）⇒ 总音量是
+            `core/assistant.js` 乘进 utterance 的 `volume` 的；这里只负责三个旋钮。 */
+      var spApi = (G.Platform && G.Platform.speech) ? G.Platform.speech : null;
+      var spOk = !!(spApi && spApi.available());
+
+      row('陪伴语音', spOk
+        ? '钓到传说鱼 / 刷新纪录 / 断线时，用合成人声念一句（走这台设备的系统音色）'
+        : '⚠️ 这台设备没有可用的合成语音 —— 助手只会出文字气泡（功能照常，只是不念）',
+        '<span class="set-btns">' +
+        '<button class="btn-ghost" id="setSpeech">' + (s.settings.speech ? '已开启' : '已关闭') + '</button>' +
+        '<button class="btn-ghost" id="setSpeechTest">试 听</button></span>', function (c) {
+        U.on(c.querySelector('#setSpeech'), 'click', function () {
+          s.settings.speech = !s.settings.speech;
+          /* 关掉时**立刻闭嘴**：正在念的那一句不会因为存档里那个键变了就自己停
+             （TTS 不认识这个开关）—— 少了这一句就是「明明关了，还在说」。 */
+          if (!s.settings.speech && spApi) spApi.stop();
+          St.scheduleSave(); refresh();
+        });
+        U.on(c.querySelector('#setSpeechTest'), 'click', function () {
+          var sent = G.Assistant.preview();
+          if (G.Hud) G.Hud.toast({
+            text: sent ? '试听已发出（听不到就看看系统音量，或换一个音色）'
+                       : '这台设备没有可用的合成语音，助手只出文字气泡',
+            kind: sent ? '' : 'warn',
+          });
+        });
+      });
+
+      /* 音色下拉：选项**现算**（`speech.list()` 给的是「这台机器装了哪些声音」）。
+         ⚠️ `getVoices()` 常常第一次返回空（异步加载）⇒ 注册一次 `voiceschanged`，
+            列表就绪后重画。⚠️ **只注册一次**（`voiceWired`）—— 设置面板每次重绘
+            都注册一遍会攒下一串回调（听着没事、跑久了变慢的那类坑）。 */
+      var voices = spOk ? spApi.list() : [];
+      if (!voiceWired && spOk) {
+        voiceWired = true;
+        spApi.onVoices(function () { if (currentView() === 'settings') refresh(); });
+      }
+      var voiceOpts = '<option value="">系统默认</option>' + voices.map(function (v) {
+        return '<option value="' + esc(v.id) + '"' + (s.settings.voice === v.id ? ' selected' : '') + '>'
+          + esc(v.name || v.id) + (v.lang ? '（' + esc(v.lang) + '）' : '') + '</option>';
+      }).join('');
+      row('语音音色', spOk
+        ? '用哪种声音（列表来自这台设备，不同机器差别很大）'
+        : '这台设备没有可用的合成语音',
+        '<select class="set-sel" id="setVoice"' + (spOk ? '' : ' disabled') + '>' + voiceOpts + '</select>',
+        function (c) {
+          U.on(c.querySelector('#setVoice'), 'change', function (e) {
+            s.settings.voice = e.target.value || '';
+            St.scheduleSave();
+          });
+        });
+
+      row('语音语速', '合成人声的快慢（1.00 = 系统默认；兴奋 / 遗憾时助手会自己微调）',
+        '<input type="range" id="setSpeechRate" min="50" max="150" value="' +
+        Math.round(s.settings.speechRate * 100) + '">', function (c) {
+        U.on(c.querySelector('#setSpeechRate'), 'input', function (e) {
+          s.settings.speechRate = e.target.value / 100;
+          St.scheduleSave();
+        });
+      });
+
+      row('语音音调', '合成人声的高低（1.00 = 系统默认）',
+        '<input type="range" id="setSpeechPitch" min="50" max="150" value="' +
+        Math.round(s.settings.speechPitch * 100) + '">', function (c) {
+        U.on(c.querySelector('#setSpeechPitch'), 'input', function (e) {
+          s.settings.speechPitch = e.target.value / 100;
           St.scheduleSave();
         });
       });

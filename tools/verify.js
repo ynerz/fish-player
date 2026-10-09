@@ -617,7 +617,7 @@ listed.forEach(rel => {
 const WANT = ['CONFIG', 'FIELDS', 'FIELD_MAP', 'FISH', 'FISH_ID', 'FISH_BY_FIELD', 'FISH_BY_FIELD_RARITY',
   'TOTAL_FISH', 'BAITS', 'RODS', 'LINES', 'DECORS', 'ACHIEVEMENTS',
   'U', 'Platform', 'Audio', 'Loot', 'State', 'Goals', 'FishArt', 'CardArt', 'Scene', 'Fight', 'Weather', 'Track',
-  'Fishing', 'Panels', 'Hud', 'Tutorial'];
+  'Fishing', 'Assistant', 'Panels', 'Hud', 'Tutorial'];
 const gone = WANT.filter(k => !sandbox.G || sandbox.G[k] == null);
 if (gone.length) { err('按序加载后缺这些全局模块：' + gone.join('、')); entryBad++; }
 
@@ -2422,6 +2422,71 @@ console.log('\n[32-h] 存档键必须有消费方（设置子键还必须有界�
 })();
 
 
+/* ---------------- 32-i. 陪伴助手的台词表：每个场景键都要被核心取用 ----------------
+   由来（2026-10-09，N6）：台词表（`src/data/assistant.js`）是**新长出来的一类数据文件** ——
+   它的键不是「字段」而是「场景」，而场景键有两个独立的失效方向：
+     ① **加了键却没接线** —— 台词写得再漂亮，`core/assistant.js` 里没人 `say('新键')`
+        ⇒ 一句永远没人听见的台词（32-g 拦不住：它只要求「别处出现过一次」，
+        而这个键只要出现在 config 的 `speakKeys` 里就算「有消费方」了）。
+     ② **数组是空的 / 有空白条目** —— 表现是「触发了，但什么都没说」，同样不报错。
+   判据（三条，抓不到就报错）：
+     ① 键集**现算**（从真实加载进沙箱的 `G.ASSISTANT_LINES` 取），空集 ⇒ 报红；
+     ② 每个键必须在 `src/core/assistant.js` 里被引用一次（`say('<键>')` / 语气表等），
+        且**是整词**（`legendaryX` 不算 `legendary`）—— 正则自检见下；
+     ③ 每个键的值必须是「非空数组 + 每项都是非空字符串」；
+     ④ `CFG.assistant.speakKeys` 必须是键集的**子集**（点名了不存在或写错的场景键 ⇒ 报红）。
+   为什么不用 32-g 代劳：两网的判据方向不同 —— 32-g 问「这个键有没有人提过」，
+   本节点问「**核心到底取不取它**」，后者才是「台词能不能被听见」的充要条件。 */
+console.log('\n[32-i] 陪伴助手的台词表：场景键必须被核心取用、数组不许空');
+(function () {
+  const AP = sandbox.G && sandbox.G.ASSISTANT_LINES;
+  const ACCFG = sandbox.G && sandbox.G.CONFIG && sandbox.G.CONFIG.assistant;
+  const CORE = 'src/core/assistant.js';
+  if (!AP || typeof AP !== 'object') {
+    err('沙箱里没有 G.ASSISTANT_LINES —— 台词表没被 index.html 加载，或挂载名改了（本节必须跟着改）');
+    return;
+  }
+  if (!ACCFG || !Array.isArray(ACCFG.speakKeys)) {
+    err('CFG.assistant.speakKeys 不是数组 —— 节目的 ④ 无从判定（不许当成「没有要检查的」而空过）');
+    return;
+  }
+  const keys = Object.keys(AP);
+  if (!keys.length) {
+    err('台词表里一个场景键都没有（空集会让下面所有判据恒真）—— 台词被搬走 / 改名了？');
+    return;
+  }
+  /* 判据自检：认得出整词，且**拒收**「名字只多带一截」的伪形态。 */
+  const hit = k => new RegExp('(^|[^A-Za-z0-9_$])' + k.replace(/\$/g, '\\$') + "(?![A-Za-z0-9_$])");
+  if (!hit('zzz').test("say('zzz')") || hit('zzz').test('say(zzzMore)')) {
+    err('32-i 的取值正则自检失败：它认不出整词，或把 `zzzMore` 也算成了 `zzz`');
+    return;
+  }
+  const core = fs.readFileSync(path.join(ROOT, CORE), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const unbound = keys.filter(k => !hit(k).test(core));
+  if (unbound.length) {
+    err('这些场景键在 ' + CORE + ' 里没有人取用（台词写了但没人会说）：' + unbound.join('、'));
+  }
+  const badShape = keys.filter(k => {
+    const t = AP[k];
+    return !Array.isArray(t) || !t.length
+      || t.some(s => typeof s !== 'string' || !s.trim());
+  });
+  if (badShape.length) {
+    err('这些场景键的台词不是「非空数组 + 每项都是非空字符串」：' + badShape.join('、'));
+  }
+  const stray = ACCFG.speakKeys.filter(k => keys.indexOf(k) < 0);
+  if (stray.length) {
+    err('CFG.assistant.speakKeys 点名了台词表里没有的场景键：' + stray.join('、')
+      + '（拼错 / 删了台词忘了改名单 ⇒ 那个场景永远不出声，而且不报任何错）');
+  }
+  if (!unbound.length && !badShape.length && !stray.length) {
+    ok(`台词表 ${keys.length} 个场景键都被 ${CORE} 取用、台词都非空；`
+      + `出声名单 ${ACCFG.speakKeys.length} 个键全部命中（键集与名单都是现算的）`);
+  }
+})();
+
+
 /* ---------------- 33. 体型数量：文档 / 出图工具必须与代码一致 ----------------
    代码里是 **9 种**（`TPL.fish / eel / ray / squid / jelly / oarfish / shark / whale / dragon`），
    而 GDD 两处 + 开发者文档一处都写着「10 种体型」，开发者文档 §5.2 自己又写着 9 ——
@@ -3252,6 +3317,17 @@ let platBad = 0;
           由「质量优先」拍定为「收口帧调度、不收口通用计时器」，别再反复摇摆。 */
     ['requestAnimationFrame（直接调度帧）', /(^|[^\w$.])requestAnimationFrame\s*\(/],
     ['cancelAnimationFrame（直接调度帧）', /(^|[^\w$.])cancelAnimationFrame\s*\(/],
+    /* 语音合成（N6）也是平台能力（Web 端是系统 TTS，小程序端要换成云端 TTS 或整组 no-op）
+       —— 业务代码一律走 `G.Platform.speech`。
+       ⚠️ 这一条**必须按名枚举**：它既不碰 localStorage 也不碰 document，上面任何一条都拦不住它，
+          与当年 `performance.now` 漏网时一模一样（那次是「按名枚举的规则从没覆盖过它」）。
+       🔴 也**不能**照抄上面那批的 `(^|[^\w$.])` 前缀 ——那个 `.` 是给
+          `G.Platform.dialog.confirm(` 这类**自己的包装器**留的；
+          而 `speechSynthesis` 是 window 的全局属性，真实写法就是 **`window.speechSynthesis`**
+          ⇒ 带 `.` 的否定类会让这一条**恰好漏掉唯一一种真写法**（反向验证当场逮到：
+          注入 `window.speechSynthesis.cancel()` 时 ㊱ 全绿）。这里收紧成 `[^\w$]`。 */
+    ['speechSynthesis（直连语音合成）', /(^|[^\w$])speechSynthesis\b/],
+    ['SpeechSynthesisUtterance（直连语音合成）', /(^|[^\w$])SpeechSynthesisUtterance\b/],
   ];
   const rel = [];
   (function walk(dir) {

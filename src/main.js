@@ -100,6 +100,14 @@
     /* ---------- 新手引导（首次抛竿前就出现，非阻塞气泡） ---------- */
     G.Tutorial.init();
 
+    /* ---------- 陪伴助手（N6） ----------
+       助手只决定「什么时候说哪一句、要不要出声」；气泡与语音能力都从外面给它。
+       ⚠️ 文字气泡**永远有**（语音只是加成）—— 所以关掉语音之后助手仍在说话，
+       只是不出声（`core/assistant.js` 口径 ①）。 */
+    G.Assistant.init({
+      toast: function (line) { Hud.toast({ text: line.text }); },
+    });
+
     /* ---------- 钓鱼 ---------- */
     F.init({
       onState: onStateChange,
@@ -174,6 +182,9 @@
       if (!G.Platform.sys.isVisible()) {
         hiddenAt = Date.now();
         St.save(true);
+        /* 切走就闭嘴：合成人声不属于这个页面，把它留在后台继续念
+           （玩家切到别的标签页还在听钓鱼佬说话）是最没道理的一种「背景音」。 */
+        if (G.Platform.speech) G.Platform.speech.stop();
       } else {
         last = G.Platform.sys.now();
         /* 页面重新可见：先结算水族箱的被动收益（与挂机开关无关） */
@@ -295,6 +306,8 @@
     Hud.syncAll();
     /* 每一竿的收获都进播报栏 —— 挂机时也能看到钓到了什么 */
     Hud.pushCatch(info);
+    /* 陪伴助手：传说鱼 / 破纪录时接一句话（挂机 / 普通鱼由它自己判断，这里不写白名单） */
+    G.Assistant.onCatch(info);
 
     if (G.Fishing.isIdleMode()) {
       // 挂机不打断操作，只在值得看的时候补一条醒目提示
@@ -337,6 +350,8 @@
   }
 
   function onMiss(result, pending, fee) {
+    /* 陪伴助手：只有断线会说一句（脱钩 / 错过咬口在下面已经有提示，不重复说） */
+    G.Assistant.onMiss(result);
     if (G.Fishing.isIdleMode()) return;
     if (result === 'snap') {
       Hud.toast({

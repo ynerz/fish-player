@@ -566,6 +566,16 @@ html,body{
 .btn-ghost:hover{ border-color:var(--c-primary); color:var(--c-primary-d); }
 .btn-ghost.danger:hover{ border-color:var(--c-red); color:var(--c-red); }
 input[type=range]{ width:130px; accent-color:var(--c-primary); }
+/* 设置里并排的两个按钮（陪伴语音那行：开关 + 试听）
+   —— 不给 .set-ctl 直接加 flex：那一行长着单个控件（按钮 / 滑块），
+   改成 flex 容器会让它们的基线对齐跟着变一次，代价大于收益。 */
+.set-btns{ display:inline-flex; align-items:center; gap:8px; }
+.set-sel{
+  padding:7px 10px; border-radius:9px; cursor:pointer; font-family:inherit;
+  border:1px solid var(--c-line-2); background:#fff; color:var(--c-text);
+  font-size:12.5px; font-weight:600; max-width:190px;
+}
+.set-sel:disabled{ cursor:default; opacity:.55; }
 
 /* -------- 选饵弹层 -------- */
 .pick-list{ display:flex; flex-direction:column; gap:8px; }

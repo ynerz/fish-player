@@ -63,6 +63,18 @@
           新开一场只重置窗口字段，**不清战绩**。
         · 🔴 **一次只比一场**：`tryFire()` 里有一道守卫（已有未结算的比试时跳过 `duel` 事件）。
           没有它会让第二场把第一场的窗口整个覆盖掉 —— 第一场就凭空消失了。
+
+     ⑧ **「现在站在这里的是谁」只有一个回答处**（N7 五期）：`curNpcId()` 拿**当前钓场**
+        去查 NPC 表里的 `fields`（站位表）—— 内容表写「他站哪几片」，引擎负责挑。
+        它同时服务三件事：`neighbor()`（画谁）、`talk()`（跟谁说）、`tryFire()`（谁的事会发生）。
+        · 🔴 **事件过一道 NPC 门**：`tryFire()` 跳过 `ev.npc !== p.npc` 的事件。
+          少了它，海边会跳出老陈的「借线」—— 画面上站着阿海、弹窗里却是老陈在说话，
+          **不报任何错**（`verify` 第 50 节从内容表这一侧盯着「事件的人必须在那条事件
+          列出的每个钓场都在场」）。
+        · **没人在的钓场** ⇒ `curNpcId()` 给 `''` ⇒ `neighbor()` 给 `null`（场景不画人）、
+          一条事件都不参与抽签（`p.npc === ''` 谁都对不上）。这不报错，是**有意**的。
+        · ⚠️ 与 `cond.field` 是**两件事**，不重复：`fields` 说「这个人站哪几片」，
+          `cond.field` 说「这件事在哪几片能发生」（同一个人也可以只在其中一片办某一件事）。
    ========================================================= */
 
 window.G = window.G || {};
@@ -154,7 +166,7 @@ G.Story = (function () {
     return pickTimes(st, n.pick, n.opt) > 0;
   }
 
-  /* 按顺序挑第一个命中且「过门」的事件。`p` = { field, wx, tm, seq, now }。
+  /* 按顺序挑第一个命中且「过门」的事件。`p` = { field, wx, tm, npc, seq, now }。
      🔴 纯函数（只看入参 + 存档里的已触发记录）：同一份存档 + 同一组入参 ⇒ 同一个结果。
         测试就是靠这条钉住「可复现」，别再往里加 `Math.random()` / `Date` 之类。 */
   function tryFire(p) {
@@ -162,6 +174,10 @@ G.Story = (function () {
     var list = evs();
     for (var i = 0; i < list.length; i++) {
       var ev = list[i];
+      /* 🔴 NPC 门（口径 ⑧）：只让「当前钓场站着的那一位」的事参与抽签。
+         少了这一条，海边会跳出老陈的「借线」（画面上是阿海、弹窗里是老陈），且不报错。
+         `p.npc` 由 `probeOf()` 从 `curCtx()` 带下来 —— 「谁在场」只有 `curNpcId()` 一处回答。 */
+      if (ev.npc !== p.npc) continue;
       if (!condOk(ev, p)) continue;
       if (!needOk(ev, st)) continue;
       if (ev.once && (st.fired[ev.id] || 0) > 0) continue;
@@ -194,12 +210,15 @@ G.Story = (function () {
      在这条链路上真的被看见，而不是写进内容表就没人管。 */
   function rewardOf(ev) { return (ev && ev.reward) || {}; }
 
-  /* 当前条件（钓场 / 天气 / 时段）。抽成函数是为了让「条件指纹」只有一处拼法，
+  /* 当前条件（钓场 / 天气 / 时段 / 站着的是谁）。抽成函数是为了让「条件指纹」只有一处拼法，
      `consider()` 与测试都走它。
      ⚠️ 顺带一个硬约束：**返回块里不许出现 `键: 值` 形态的对象字面量** ——
         `verify` 的 `exportKeys()` 是把返回块里所有 `x:` 都当导出名收的，
         写成内联字面量会让 `field` / `wx` 这种普通字段被当成「零调用的死导出」报红。
-        （这不是哪个门禁的怪癖：模块的对外面本来就该只有一份清单，字段写在函数体外面更清楚。） */
+        （这不是哪个门禁的怪癖：模块的对外面本来就该只有一份清单，字段写在函数体外面更清楚。）
+     ⚠️ 这里的 `npc` **不是**「条件」而是「谁在场」（口径 ⑧）：`tryFire()` 拿它过 NPC 门。
+        它由 `curNpcId()` 按**当前钓场**现算 ⇒ `seq` 归零那套（条件变了就重掷）不受影响，
+        「换了个钓场」本来就会换指纹。 */
   function curCtx() {
     var s = (G.State && G.State.get) ? G.State.get() : null;
     if (!s) return null;
@@ -208,20 +227,31 @@ G.Story = (function () {
       field: s.field,
       wx: (sn && sn.wx) ? sn.wx.key : '',
       tm: (sn && sn.tm) ? sn.tm.key : '',
+      npc: curNpcId(),
     };
   }
   /* `tryFire()` 要的那份入参（纯数值，不含对象引用）—— 同样是为了把字面量挪出返回块 */
-  function probeOf(c, n, t) { return { field: c.field, wx: c.wx, tm: c.tm, seq: n, now: t }; }
+  function probeOf(c, n, t) { return { field: c.field, wx: c.wx, tm: c.tm, npc: c.npc, seq: n, now: t }; }
 
   /* ---------------- 对外动作 ---------------- */
   /* 「现在该站在钓场里的那一位」是谁 —— **只有这一处**回答这个问题。
-     `neighbor()`（给场景画）与 `talk()`（给玩家点）都走它，免得将来加第 2 个 NPC 时
-     一边改成「按钓场挑人」、另一边还停留在「列表里第一个」。 */
+     `neighbor()`（给场景画）与 `talk()`（给玩家点）都走它，`tryFire()` 也吃它的结果
+     （口径 ⑧）。
+     🔴 判据是**内容表里的 `fields`（站位表）**，不是「取列表里第一个」——
+        写成取第一个的话，加第 2 个 NPC 时那个人**永远不出现**，而且不报错。
+     ⚠️ 没人在的钓场（没被任何 NPC 列进去 / 钓场 id 是脏值）⇒ 给 `''`：
+        场景不画人、一条事件都不参与抽签。这是有意留的空位，不是兜底失败。 */
   function curNpcId() {
     var all = G.STORY_NPCS;
     if (!all || typeof all !== 'object') return '';
+    var s = (G.State && G.State.get) ? G.State.get() : null;
+    var f = (s && s.field) ? s.field : '';
     var keys = Object.keys(all);
-    return keys.length ? keys[0] : '';
+    for (var i = 0; i < keys.length; i++) {
+      var npc = all[keys[i]];
+      if (npc && npc.fields && npc.fields.indexOf(f) >= 0) return keys[i];
+    }
+    return '';
   }
 
   /* 当前该站在钓场里的那个 NPC。场景层直接吃这个对象：

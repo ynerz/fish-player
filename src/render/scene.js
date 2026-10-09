@@ -1207,7 +1207,11 @@ G.Scene = (function () {
     ctx.lineTo(x + Hh * 0.135, shoY);
     ctx.quadraticCurveTo(x + Hh * 0.165, shoY + Hh * 0.06, x + Hh * 0.125, hipY);
     ctx.closePath();
-    var g = grad('shirt' + (x | 0), function () {
+    /* 🔴 缓存键必须覆盖 `make()` 读到的**全部入参**（N7 五期）：这段画法现在有两个消费方
+       （玩家 + 隔壁那位，以后可能更多），只按 `x` 缓存的话，两个人站到同一个整数像素上时
+       **后画的那个会穿前一个的衣服**（拿到的还是缓存里那份旧渐变，颜色与宽度都跟着旧值）——
+       不报错、只是悄悄画错。`clearGradCache()` 只在 resize / 切钓场时清，挡不住同帧撞位。 */
+    var g = grad('shirt' + (x | 0) + '|' + (Hh | 0) + '|' + shirt + shirtD, function () {
       var q = ctx.createLinearGradient(x - Hh * 0.16, 0, x + Hh * 0.16, 0);
       q.addColorStop(0, shirtD); q.addColorStop(0.45, shirt); q.addColorStop(1, shirtD);
       return q;

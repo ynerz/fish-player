@@ -3658,24 +3658,38 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
   var S7 = G.Story, PL = G.Platform, Fish7 = G.Fishing;
   var realSnap = G.Weather.snapshot, realPanels = G.Panels;
   /* 三组受控条件：分别命中「借线」（傍晚）/「旧靴子」（有雾）/ 谁都不命中。
-     ⚠️ 后两组刻意用**隐藏钓场 SS** 当场地（N7 四期加「比试」之后改的）：
-        「比试」的 `cond.field` 只列五个常规钓场 —— SS / SSS 一竿要十几分钟，
-        限时比试在那里只会变成必输，所以内容表里就不办。
-        拿 D 场当场地的话，大晴天正午会命中「比试」、有雾白天则会与「旧靴子」抢掷点
+     ⚠️ 场地必须是**那一位真站得住的钓场**（N7 五期起事件过一道 NPC 门：`ev.npc`
+        跟「当前钓场站着的那位」对不上就整条跳过）。老陈在内陆（D / C / B），
+        阿海在海那四片（A / S / SS / SSS）—— 两个人各管各的事，不会串场。
+        后两组刻意用**隐藏钓场 SS**（阿海的地盘）当场地：他那边两件事在那两组条件下
+        都不满足（`spar` 只在 A / S 办，`swell` 要下雨）⇒「谁都不命中」才站得住。
+        拿 D 场当场地的话：大晴天正午会命中老陈的「比试」、有雾白天则会与「旧靴子」抢掷点
         （谁先过概率门谁赢），这两条断言的**意图**（无人命中 / 命中哪一条）就守不住了。 */
-  var DUSK = { field: 'D',  wx: 'clear', tm: 'dusk' };
-  var FOG  = { field: 'SS', wx: 'fog',   tm: 'day'  };
-  var DRY  = { field: 'SS', wx: 'clear', tm: 'day'  };
+  var DUSK = { field: 'D',  wx: 'clear', tm: 'dusk', npc: 'chen' };
+  var FOG  = { field: 'D',  wx: 'fog',   tm: 'dusk', npc: 'chen' };
+  var DRY  = { field: 'SS', wx: 'clear', tm: 'day',  npc: 'hai'  };
 
   function clean() { S7.reset(); St.get().story = { fired: {}, at: {} }; }
+  /* 把**当前内容表里除某一条之外**的所有事件都推进冷却里（`at` 写一个比 `now=0` 大的数
+     ⇒ `now - last < cooldownMs` 恒真 ⇒ 全被跳过）。用来隔离出「只想验的那一条」——
+     不写死别的 id：改一次概率 / 加一条事件都不会让这组用例失效。 */
+  function coolExcept(keepId) {
+    var at = St.get().story.at;
+    G.STORY_EVENTS.forEach(function (e) { if (e.id !== keepId) at[e.id] = 1; });
+  }
   /* 从 seq=1 往下**扫**一个真能命中的序号（不写死数字：改一次台词 / chance 就会失效） */
   function firstHit(base) {
     for (var i = 1; i <= 600; i++) {
-      var p = { field: base.field, wx: base.wx, tm: base.tm, seq: i, now: 0 };
+      var p = { field: base.field, wx: base.wx, tm: base.tm, npc: base.npc, seq: i, now: 0 };
       var ev = S7.tryFire(p);
       if (ev) return { seq: i, ev: ev, p: p };
     }
     return null;
+  }
+  function npcIdOf(obj) {
+    var ks = Object.keys(G.STORY_NPCS);
+    for (var i = 0; i < ks.length; i++) if (G.STORY_NPCS[ks[i]] === obj) return ks[i];
+    return '';
   }
 
   try {
@@ -3699,28 +3713,34 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
     var h1 = firstHit(DUSK);
     ok(h1 && h1.ev.id === 'borrow', '傍晚无雨 ⇒ 命中「借线」（条件门 + 概率门都过）'
       + (h1 ? '（第 ' + h1.seq + ' 次结算）' : ''));
+    /* 「旧靴子」只认雨天 / 雾天，而这两个时段里「借线」也满足 —— 把其余事件推进冷却里，
+       让候选只剩它一个（否则断言会变成「谁先过概率门谁赢」的运气题）。 */
     clean();
+    coolExcept('boot');
     var h2 = firstHit(FOG);
-    ok(h2 && h2.ev.id === 'boot', '有雾 ⇒ 命中「旧靴子」');
+    ok(h2 && h2.ev.id === 'boot', '有雾 ⇒ 命中「旧靴子」（其余事件都在冷却里，只剩它一个候选）');
 
     /* ---------- ③ 冷却 ---------- */
     clean();
     St.get().story.fired[h1.ev.id] = 1;
     St.get().story.at[h1.ev.id] = 1000000;
     var half = 1000000 + Math.round(h1.ev.cooldownMs / 2);
-    ok(S7.tryFire({ field: 'D', wx: 'clear', tm: 'dusk', seq: h1.seq, now: half }) === null,
+    ok(S7.tryFire({ field: 'D', wx: 'clear', tm: 'dusk', npc: h1.ev.npc, seq: h1.seq, now: half }) === null,
        '冷却期内同一条不再触发');
     var past = 1000000 + h1.ev.cooldownMs + 1;
-    var again = S7.tryFire({ field: 'D', wx: 'clear', tm: 'dusk', seq: h1.seq, now: past });
+    var again = S7.tryFire({ field: 'D', wx: 'clear', tm: 'dusk', npc: h1.ev.npc, seq: h1.seq, now: past });
     ok(again && again.id === h1.ev.id, '冷却过去之后又能触发（同一序号 ⇒ 同一掷点）');
 
     /* ---------- ④ once：一辈子一次 ---------- */
     clean();
-    var once = { id: 'zzz-once-probe', npc: 'chen', title: '一次性', once: true,
+    /* 把真事件全都推进冷却里 ⇒ 探针是唯一候选（否则得赌「比试」那条的掷点先不中，
+       断言会因为一个跟 once 无关的原因时红时绿）。 */
+    coolExcept('');
+    var once = { id: 'zzz-once-probe', npc: DUSK.npc, title: '一次性', once: true,
                  cooldownMs: 1, chance: 1, cond: {}, reward: {}, lines: ['探测用'] };
     G.STORY_EVENTS.push(once);
     try {
-      var pOnce = { field: 'D', wx: 'clear', tm: 'day', seq: 1, now: 0 };
+      var pOnce = { field: DUSK.field, wx: 'clear', tm: 'day', npc: DUSK.npc, seq: 1, now: 0 };
       var got = S7.tryFire(pOnce);
       ok(got && got.id === once.id, 'once 事件第一次会出现（chance=1 必过）');
       St.get().story.fired[once.id] = 1;
@@ -3777,17 +3797,80 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
        'neighbor() 给出场景层要的站位与身份（x 是画布宽度比例）');
     ok(S7.neighbor() === nb, 'neighbor() 每次给同一个对象（场景每帧都拿它，不该新建）');
 
+    /* ---------- ⑨-a 两位邻居与站位表（N7 五期） ----------
+       🔴 「现在站着的是谁」只有一处回答（`curNpcId()`），它读的是内容表里的 `fields`。
+       这里把**每一片钓场**都走一遍、跟站位表现算的人逐个对 —— 两处各判各的等于没判。 */
+    var allIds = Object.keys(G.STORY_NPCS);
+    ok(allIds.length >= 2, '内容表里有不止一位邻居（' + allIds.length + ' 位）—— 钓场不只一片');
+    var byField = {};
+    allIds.forEach(function (id) {
+      (G.STORY_NPCS[id].fields || []).forEach(function (f) { byField[f] = id; });
+    });
+    ok(Object.keys(byField).length > 0, '有 NPC 列了站位表（fields）—— 一条都没有的话「谁在场」无从判起');
+    var unreachable = allIds.filter(function (id) {
+      var fs5 = G.STORY_NPCS[id].fields || [];
+      return !fs5.some(function (f) {
+        return G.FIELDS.some(function (ff) { return ff.id === f; });
+      });
+    });
+    ok(unreachable.length === 0, '每位邻居都至少站得住一片**真钓场**（id 写错会让他凭空消失）'
+      + (unreachable.length ? ' —— 站不住的是：' + unreachable.join('、') : ''));
+    var mism = [];
+    G.FIELDS.forEach(function (f) {
+      St.get().field = f.id;
+      var gotId = npcIdOf(S7.neighbor());
+      var want = byField[f.id] || '';
+      if (gotId !== want) mism.push(f.id + '：站位表说 ' + (want || '没人') + '、neighbor() 给 ' + (gotId || '没人'));
+    });
+    ok(mism.length === 0, '每一片钓场站的都正是站位表上那一位（' + Object.keys(byField).length + ' 片有人）'
+      + (mism.length ? ' —— ' + mism.join('；') : ''));
+    /* 没人站着的钓场（这里用一个不存在的 id 模拟）⇒ 不画人、也不抽签。
+       ⚠️ 走 `consider()` 这条**真路径**（它自己从钓场现算「谁在场」），而不是手搓一个 npc 参数 ——
+          手搓的话「没人时给空串」这条约定就永远验不到。 */
+    clean();
+    G.Weather.snapshot = function () { return { wx: { key: 'fog' }, tm: { key: 'dusk' } }; };
+    St.get().field = 'ZZ-nosuch';
+    var noneHere = null;
+    for (var z1 = 0; z1 < 200 && !noneHere; z1++) noneHere = S7.consider();
+    ok(S7.neighbor() === null, '没人站着的钓场：neighbor() 给 null（场景据此不画人）');
+    ok(noneHere === null, '没人站着的钓场：consider() 一条都不触发（挡住它的是「谁在场」，不是概率）');
+    St.get().field = 'D';
+
+    /* ---------- ⑨-b 🔴 NPC 门：海边不会冒出内陆那位的事 ----------
+       坏法全在**静默**里：画面上站着阿海、弹窗里却是老陈在说「借我一段线」。
+       所以这里**同一组天气 / 时段**跑两遍：站在内陆那片要真的命中老陈的事（对照组），
+       换到海那片则一件都不能有。只验「海边没有」的话，把事件条件写死成永不满足也会通过。 */
+    clean();
+    var hitsByNpc = function (field) {
+      St.get().field = field;
+      var bag = {};
+      for (var i2 = 0; i2 < 300; i2++) {
+        var e5 = S7.consider();
+        if (e5) bag[e5.npc] = (bag[e5.npc] || 0) + 1;
+      }
+      return bag;
+    };
+    var bagD = hitsByNpc('D');
+    clean();
+    var bagA = hitsByNpc('A');
+    ok(bagD[DUSK.npc] > 0, '同样的天气 / 时段，站在内陆那片 ⇒ 老陈的事真的会发生（对照组）');
+    ok(!bagA[DUSK.npc], '换到海那片 ⇒ 老陈的事一件都不发生（NPC 门挡住串场）');
+    St.get().field = 'D';
+    clean();
+
     /* ---------- ⑩ 脏档兜底：story 被写成数字 / 字符串时不崩 ---------- */
     St.get().story = 5;
     var noThrow = '';
-    try { S7.tryFire({ field: 'D', wx: 'fog', tm: 'dusk', seq: 3, now: 0 }); }
+    try { S7.tryFire({ field: 'D', wx: 'fog', tm: 'dusk', npc: DUSK.npc, seq: 3, now: 0 }); }
     catch (e) { noThrow = e.message; }
     ok(noThrow === '', '存档里的 story 是数字时 tryFire() 不抛（脏档兜底）'
       + (noThrow ? ' —— ' + noThrow : ''));
     clean();
 
     /* ---------- ⑪ 主动搭话（N7 二期）：不走概率、轮流说话、计数落盘 ---------- */
-    var npcId = Object.keys(G.STORY_NPCS)[0];
+    St.get().field = 'D';                       /* 老陈站得住的那片（N7 五期起按钓场挑人） */
+    var npcId = npcIdOf(S7.neighbor());
+    ok(npcId === 'chen' || !!npcId, 'neighbor() 给出的那一位能反查出 id（' + npcId + '）');
     var pool = G.STORY_NPCS[npcId].talk;
     ok(Array.isArray(pool) && pool.length > 1,
        'NPC 有闲聊池（' + (Array.isArray(pool) ? pool.length : 0) + ' 句）—— 点他才有回应');
@@ -3800,6 +3883,23 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
     ok(St.get().story && typeof St.get().story.talk === 'object',
        'blank() 的 story 里有 talk 容器（搭话计数有处可存）');
     ok(d1.lines[0] === pool[0], '第一次搭话给池子第一句（计数从 0 起、取模）');
+
+    /* 另一位邻居：talk() 跟的必须是**当前钓场站着的那位**，而且计数按 NPC 分开记
+       （两个人各自的进度互不干扰）—— 这是「按钓场挑人」在搭话这条路上的可观测证据。 */
+    var otherId = '';
+    for (var oi = 0; oi < allIds.length; oi++) if (allIds[oi] !== npcId) otherId = allIds[oi];
+    if (otherId) {
+      var chenCount = St.get().story.talk[npcId];
+      St.get().field = G.STORY_NPCS[otherId].fields[0];
+      var dOther = S7.talk();
+      ok(dOther && dOther.npc === G.STORY_NPCS[otherId],
+         '换到另一个钓场 ⇒ 搭话换成那一位（不是「列表里第一个」）');
+      ok(St.get().story.talk[otherId] === 1,
+         '另一位的搭话次数记在它自己的键上（s.story.talk.' + otherId + '）');
+      ok(St.get().story.talk[npcId] === chenCount,
+         '另一位说话不动前一位的进度（计数按 NPC 分开记）');
+      St.get().field = 'D';
+    }
 
     /* 同一次点击在同一份存档上必须给同一句 —— 这是「不用随机数」的可观测证据 */
     St.get().story.talk[npcId] = 0;
@@ -3870,7 +3970,7 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
 
     clean();
     /* 老档（story 里还没有 pick）走一次判定就会被 `rec()` 补成容器 —— 与 talk 那条同款 */
-    S7.tryFire({ field: 'D', wx: 'clear', tm: 'day', seq: 1, now: 0 });
+    S7.tryFire({ field: 'D', wx: 'clear', tm: 'day', npc: DUSK.npc, seq: 1, now: 0 });
     ok(St.get().story && typeof St.get().story.pick === 'object',
        '缺 pick 的（老）存档会被兜底补成容器（选项计数有处可存）');
 
@@ -3915,10 +4015,10 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
 
     /* 🔴 「选择真的改了世界」：把分支与它打开的那条事件**双向**验一遍 ——
        只验「选了之后会出现」会让「门恒开」也通过（那样选项就成了装饰）。 */
-    var brBase = { field: 'D', wx: 'clear', tm: (gated.cond.tm && gated.cond.tm[0]) || 'day' };
+    var brBase = { field: 'D', wx: 'clear', tm: (gated.cond.tm && gated.cond.tm[0]) || 'day', npc: gated.npc };
     function seqHit(ev, base) {
       for (var s = 1; s <= 600; s++) {
-        var pp = { field: base.field, wx: base.wx, tm: base.tm, seq: s, now: 0 };
+        var pp = { field: base.field, wx: base.wx, tm: base.tm, npc: base.npc, seq: s, now: 0 };
         var got2 = S7.tryFire(pp);
         if (got2 && got2.id === ev.id) return s;
       }
@@ -4057,7 +4157,7 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
        **双向**验（只验一边会让「守卫写成恒真」也通过）—— 门是数据上的，不是注释。 */
     function seqHitDuel() {
       for (var s2 = 1; s2 <= 600; s2++) {
-        var got3 = S7.tryFire({ field: 'D', wx: 'clear', tm: 'day', seq: s2, now: 0 });
+        var got3 = S7.tryFire({ field: 'D', wx: 'clear', tm: 'day', npc: duelEv.npc, seq: s2, now: 0 });
         if (got3 && got3.id === duelEv.id) return s2;
       }
       return 0;

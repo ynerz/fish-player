@@ -143,6 +143,11 @@
        钓场能从钓场列表 / 鱼种面板 / 重置存档好几处切换，
        逐个接线迟早漏一处（而漏了的表现是「音乐还是上一个湖的」，很难被发现）。 */
     St.on('field', function (fid) {
+      /* 邻居是**按钓场**站的人（N7 五期）：切了钓场就可能换一位 —— 少了这一句，
+         画面会一直画着上一个钓场那一位（不报错，像鬼影），而对话里的人已经换了。
+         ⚠️ 放在 `FIELD_MAP` 那道守卫**之前**：钓场 id 不认时也该把人撤掉（`neighbor()` 给 null），
+            而不是把上一位留在画面上。 */
+      if (G.Story && S.setNeighbor) S.setNeighbor(G.Story.neighbor());
       if (!G.FIELD_MAP[fid]) return;
       var se = St.get().settings;
       if (se.sound && se.music) G.Audio.startBgm(bgmOf());

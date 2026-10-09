@@ -74,7 +74,13 @@ async function main() {
         「profile 复用 ⇒ 吃到缓存里的旧 JS」这个说法**不成立**。
         那次性能数据异常的真因是 `git stash` 在**已提交**的工作区上无效
         （无改动可 stash，命令静默什么也没做），代码压根没被回退，
-        于是「before」跑的也是新版本。教训：A/B 对拍前先**断言**两份代码确实不同。 */
+        于是「before」跑的也是新版本。教训：A/B 对拍前先**断言**两份代码确实不同。
+     🔴 **一次性 profile 的代价（2026-10-09 补记，别踩）**：既然每次都是全新 user-data-dir，
+        **`localStorage` 不可能跨次保留** —— 所以「先 `goto` 一个同源页灌存档、再 `goto` 游戏页
+        读存档」那条路线（`MEMORY.md` 里推荐过的手法）**在探针上永远行不通**，
+        第二次读到的必然是空白档（`coin` = 初值，不是注入值）。
+        正确姿势：**在同一次页面求值里**先 `localStorage.setItem(...)` 再调 `G.State.load()`。
+        别去修「`child.kill()` 没给浏览器落盘机会」—— 换了新 profile，落了盘也读不到。） */
   const profile = path.join(os.tmpdir(),
     'wb-probe-profile-' + port + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8));
   const child = spawn(EXE, [

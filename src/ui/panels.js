@@ -113,6 +113,9 @@ G.Panels = (function () {
     if (tankRAF) { G.Platform.sys.cancelRaf(tankRAF); tankRAF = 0; }
     /* 面板关了就把列表的懒绘制观察器也断了（它一直握着已经脱离文档的节点） */
     if (netIO) { netIO.disconnect(); netIO = null; }
+    /* 水族箱精灵跟着面板一起释放：它们只在这一次打开期间有用，
+       而 dpr 换了（窗口拖到另一块屏）之后旧精度的图不能再用 —— close 时清掉最省事。 */
+    tankSprites = {};
     modal.classList.add('hidden');
     if (appEl) appEl.classList.remove('modal-open');
     bodyEl.innerHTML = '';
@@ -660,6 +663,35 @@ G.Panels = (function () {
      ========================================================= */
   var tankRAF = 0;
 
+  /* 水族箱里每条鱼的**离屏精灵**。
+     ⚠️ 为什么能缓存：drawTank 传给 `FishArt.draw` 的 `t` 是常量 0.8 —— 每条鱼的
+        形状完全静态，每帧重画只是在白烧（实测满仓 24 条：单次 0.030ms、
+        每帧 0.71ms、**每秒 42.5ms ≈ 4.3% CPU**，全是同一张图重画 60 遍）。
+        改成首帧画一次、之后每帧 `drawImage`。做法与 `Scene` 的 `lanternGlow()` 同套。
+     ⚠️ 包围盒必须留够：鱼体在 `(0,0)` 两侧并不对称（约 −0.5L ~ +0.86L，尾巴更长），
+        所以半宽取 0.86L；发光鱼（`fish.glow`）还有 `shadowBlur = L*0.55` 的外晕，
+        不留 pad 会在精灵边界切出一道硬边。
+     生命周期跟着面板走：`renderNet` 开头清空（卖出 / 取出会整块重绘）。 */
+  var tankSprites = {};
+  function tankSprite(fish, cm, L) {
+    var key = fish.id + '|' + (cm ? cm.key : 'n') + '|' + Math.round(L);
+    var sp = tankSprites[key];
+    if (sp) return sp;
+    var pad = (fish.glow ? 0.62 : 0.20) * L;
+    var w = Math.max(8, Math.round(2 * (0.86 * L + pad)));
+    var h = Math.max(8, Math.round(2 * (0.45 * L + pad)));
+    var dpr = G.Platform.sys.dpr();
+    var c = G.Platform.canvas.create(Math.round(w * dpr), Math.round(h * dpr));
+    var c2 = c.getContext('2d');
+    c2.setTransform(dpr, 0, 0, dpr, 0, 0);
+    G.FishArt.draw(c2, fish, w / 2, h / 2, L, {
+      tint: cm && cm.tint, tintAmt: cm && cm.tint ? 0.75 : 0, t: 0.8,
+    });
+    sp = { cv: c, w: w, h: h };
+    tankSprites[key] = sp;
+    return sp;
+  }
+
   /* 鱼护 / 水族箱每一行的小图：与图鉴一样走 IntersectionObserver 懒绘制。
      原先是每行一个 `setTimeout(miniFish, 0)` —— 满格时一次建 N 个定时器，
      而且面板已经关掉之后，那些脱离文档的 canvas 还会被画一遍（白跑）。
@@ -944,12 +976,11 @@ G.Panels = (function () {
         var py = Hp * it.y + Math.sin(tt * 1.7 + it.ph) * 7;
         var L = Math.min(74, 26 + Math.log(1 + it.e.kg) * 11);
         var dir = Math.cos(tt * it.sp * 1.1 + it.ph) >= 0 ? 1 : -1;
+        var sp = tankSprite(fish, cm, L);
         ctx.save();
         ctx.translate(px, py);
         if (dir < 0) ctx.scale(-1, 1);
-        G.FishArt.draw(ctx, fish, 0, 0, L, {
-          tint: cm && cm.tint, tintAmt: cm && cm.tint ? 0.75 : 0, t: 0.8,
-        });
+        ctx.drawImage(sp.cv, -sp.w / 2, -sp.h / 2, sp.w, sp.h);
         ctx.restore();
       });
     }

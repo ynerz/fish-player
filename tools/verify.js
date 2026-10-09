@@ -1003,6 +1003,26 @@ else {
   } else {
     ok(`空鱼缸按需重绘（第 ${guardAt + 1} 行早退，早于第 ${drawAt + 1} 行取 ctx）`);
   }
+
+  /* 鱼必须走离屏精灵（tankSprite），不许在每帧循环里直接 FishArt.draw：
+     drawTank 传给它的 `t` 是常量 0.8 ⇒ 每条鱼形状完全静态，
+     逐条重画是同一张图每秒重画 60 遍（实测满仓 24 条 ≈ 42.5ms/秒）。 */
+  const fishDraws = (drawTankBody.match(/G\.FishArt\.draw\s*\(/g) || []).length;
+  if (fishDraws) {
+    err(`drawTank 里直接调了 G.FishArt.draw() ${fishDraws} 处 —— 每帧逐条重画静态的鱼` +
+        '（改成 tankSprite() 的离屏精灵，首帧画一次、之后 drawImage）');
+    tankGradBad++;
+  } else if (!/tankSprite\s*\(/.test(drawTankBody)) {
+    err('drawTank 里既没有 FishArt.draw 也没走 tankSprite() —— 鱼是怎么画出来的？');
+    tankGradBad++;
+  } else if (!/function tankSprite\s*\(/.test(panelsSrcG) ||
+             !/tankSprites\s*=\s*\{\}/.test(panelsSrcG)) {
+    err('找不到 tankSprite() 定义或 tankSprites = {} 的清空语句 —— 精灵缓存不完整' +
+        '（close() 必须清，否则 dpr 换了还在用旧精度的图）');
+    tankGradBad++;
+  } else {
+    ok('水族箱的鱼走 tankSprite() 离屏精灵（每帧 0 次 FishArt.draw），close() 会清缓存');
+  }
 }
 
 

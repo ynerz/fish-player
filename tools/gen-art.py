@@ -136,16 +136,32 @@ GEOM = ("Finely faceted low-poly surface, a dense triangular polygon mesh coveri
         "crisp visible polygon edges, flat shading per facet with subtle tone variation "
         "between neighbouring facets, no texture, no gradients.")
 
-# ⑤ 闪光档专用面片措辞 —— **只用在这一档**（用户口径 2026-10-08：
+# ⑤ 闪光档专用面片措辞 —— 只用在**闪光**这一档（用户口径 2026-10-08：
 #    「闪光档不用是以前很多面的格式，防止有些部分看起来像小像素块」）。
 #    为什么单独给闪光档：它的颜色句本来就要求「布满细碎亮斑」（`sparkling glittering speckles`），
 #    再叠一层**密集三角网格**，局部就会碎成「小像素块」。
 #    ⇒ 保留低模大块面的读法，但明确**不要**密集网格 / 碎小面。
-#    ⚠️ 只改这一档：母版与其它三档仍是 `GEOM`（那是 v9 标定过的、最贴面片密度靶子 3.6 的措辞）。
-GEOM_COARSE = ("Broad faceted low-poly surface, larger clearly separated flat facets, "
-               "crisp straight edges between facets, even flat shading across each facet, "
-               "no dense mesh, no busy micro-facets, no texture, no gradients.")
-GEOM_BY_MORPH = {"shiny": GEOM_COARSE}
+#    ⚠️ 母版与另两档（彩虹 / 白化）仍是 `GEOM`（那是 v9 标定过的、最贴面片密度靶子 3.6 的措辞）。
+#    🔴 2026-10-10 改动（Q29 ②）：这一档原来「掉密度」掉过头了（实测 A44 闪光档 **1.21**，
+#       远低于 2.5 的下限）⇒ 加一句 `with a light even subdivision` 把它**往回收一点**。
+#       实测同一批对拍：1.21 → **1.49**（+23%）。⚠️ **仍在下限之下** —— 因为压制它的主要不是
+#       这句面片措辞，而是颜色句里那层「布满细碎亮斑」；要真到 2.5 就得动颜色句，
+#       而那正是用户 2026-10-08 拍过的口径（方案里的 B 选项）⇒ **本轮不碰**，只做这一档能做的。
+GEOM_COARSE = ("Broad faceted low-poly surface, clearly separated flat facets of moderate size "
+               "with a light even subdivision, crisp straight edges between facets, "
+               "even flat shading across each facet, no busy micro-facets, no texture, no gradients.")
+
+# ⑥ 黄金档专用面片措辞（Q29 ①，2026-10-10 用户拍板「就按 A + A 做」）—— 介于 GEOM 与 GEOM_COARSE 之间。
+#   为什么黄金档要单开：它的颜色句里有 `sharp brilliant specular reflections across the facets`
+#   （在**面片层面**点高光），配上默认那套**密集**三角网 ⇒ 每个面片都被点一块高光，色块被切碎。
+#   实测（A44 黄金档 @35 步，同鱼同种子，只差这一句；`tools/facet-count.py`）：
+#     默认 `GEOM` **5.16**（>5 = 发碎）→ `GEOM_MEDIUM` **3.68**（靶子 3.56，基本正中）。
+GEOM_MEDIUM = ("Moderately faceted low-poly surface, clearly readable flat facets of moderate size, "
+               "crisp visible polygon edges, flat shading per facet with subtle tone variation "
+               "between neighbouring facets, no dense mesh, no busy micro-facets, no texture, no gradients.")
+
+# 挂哪一档用哪一句：**只有 golden 与 shiny 两档例外**，母版与另两档（彩虹 / 白化）继续走 GEOM。
+GEOM_BY_MORPH = {"golden": GEOM_MEDIUM, "shiny": GEOM_COARSE}
 
 
 def geom_for(morph):

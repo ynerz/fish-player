@@ -3097,23 +3097,44 @@ console.log('\n[33-e] 低模精细度：GEOM 要密度不要「大面片」；�
       + ` —— 多出来的那处可能在运行期把「密集」措辞加回闪光档`);
     return;
   }
+  const mediumHits = (src.match(/GEOM_MEDIUM/g) || []).length;
+  if (mediumHits !== 2) {
+    err(`GEOM_MEDIUM 在代码里出现了 ${mediumHits} 次（只许 2 次：定义 + GEOM_BY_MORPH 引用）`
+      + ' —— 多出来的那处可能在运行期把它加到别的档上（那会让「只有黄金档例外」失效）');
+    return;
+  }
   const coarse = toStr(src.match(/^GEOM_COARSE\s*=\s*\(([\s\S]*?)\)\s*$/m));
+  const medium = toStr(src.match(/^GEOM_MEDIUM\s*=\s*\(([\s\S]*?)\)\s*$/m));
   const byMorph = (src.match(/^GEOM_BY_MORPH\s*=\s*(\{[^}]*\})/m) || [])[1] || '';
   if (!coarse) {
     err('闪光档的 `GEOM_COARSE` 不见了 —— 用户口径「闪光档不用很多面的格式」被改掉了');
+    return;
+  }
+  if (!medium) {
+    err('黄金档的 `GEOM_MEDIUM` 不见了 —— Q29 定的「黄金档单开一档中间面片措辞」被改回来了');
     return;
   }
   if (/dense triangular polygon mesh|many small|tessellation/.test(coarse)) {
     err('`GEOM_COARSE` 里又出现了「密集 / 碎小」的措辞 —— 那正是闪光档要避免的东西（尾鳍会碎成小像素块）');
     return;
   }
+  /* 🔴 例外面的口径（2026-10-10 Q29 改）：**只许 golden 与 shiny 两档**，而且两档必须
+     指向**两个不同**的常量 —— 母版与另两档（彩虹 / 白化）继续走 `GEOM`（v9 标定、最贴靶子 3.6）。
+     把 `golden` 指回 `GEOM` ⇒ 色块被面片高光切碎（实测 5.16）；把别的档挂上来 ⇒ 报红。 */
   const keys = (byMorph.match(/"([a-z]+)"\s*:/g) || []).map(x => x.replace(/["\s:]/g, ''));
-  if (keys.length !== 1 || keys[0] !== 'shiny') {
-    err('GEOM_BY_MORPH 的例外只许挂 shiny 一档，现在挂的是 ' + JSON.stringify(keys)
-      + ' —— 其它档（尤其母版与其他三档）必须继续用 GEOM（那是 v9 标定过、最贴靶子 3.6 的措辞）');
+  const want = ['golden', 'shiny'];
+  if (keys.length !== want.length || want.some(k => keys.indexOf(k) < 0)) {
+    err('`GEOM_BY_MORPH` 的例外只许挂 ' + want.join(' 与 ') + ' 两档，现在挂的是 ' + JSON.stringify(keys)
+      + ' —— 母版与另两档（彩虹 / 白化）必须继续用 GEOM（那是 v9 标定过、最贴靶子 3.6 的措辞）');
     return;
   }
-  ok('闪光档的面片例外（GEOM_COARSE）在位、不含「密集」措辞、且只挂在 shiny 一档');
+  if (!/golden"\s*:\s*GEOM_MEDIUM/.test(byMorph) || !/shiny"\s*:\s*GEOM_COARSE/.test(byMorph)) {
+    err('`GEOM_BY_MORPH` 把两档指错了常量：golden 必须指 `GEOM_MEDIUM`（实测 3.68 贴靶子）、'
+      + 'shiny 必须指 `GEOM_COARSE`（用户 2026-10-08 的定向例外）');
+    return;
+  }
+  ok('面片措辞的例外在位：闪光档 `GEOM_COARSE`（不含「密集」措辞）+ 黄金档 `GEOM_MEDIUM`（Q29 实测 3.68 贴靶子），'
+    + '两档各指各的常量、各只出现两次，母版与另两档仍走 `GEOM`');
 
   /* ⑤ **步数按稀有度 + 档位**（用户口径 2026-10-08：「传说级别的鱼使用 35 步，史诗使用 30」）。
      口径只有 `steps_for(f, morph)` 一处：**取 max**（史诗的黄金档 = max(30,35) = 35）。
@@ -6907,6 +6928,82 @@ let skipBad = 0;
   }
 })();
 
+
+/* ---------------- 52. 传说档配色：色相必须铺开（Q5） ----------------
+   病根（先量出来的）：取色一直是 `pal[i % len(pal)]`，而**七个钓场色带的第 0 位都是
+   同一个偏青蓝的灰蓝**，传说档恰好落在每条色带的**头 / 尾** ⇒ 27 条传说里 **23 条（85%）
+   挤在 180°~270°**，而 30°/60°/90°/120°/330° 五个 30° 带**全空**。
+   这不是配色品味问题，是「传说恰好落在色带同一头」的必然结果。
+
+   判据两条（都**从 fish.js 现算**，不写死任何颜色）：
+     ① 数据侧：传说档（rar 3）的 body 色相铺在 12 个 30° 带里 —— **不许有空档**，
+        且**最挤的一带不超过 `MAX_IN_BAND`**（27 条铺 12 带，平均 2.25 ⇒ 6 是「又挤成堆」的线）。
+     ② 源头侧：`gen-fish.py` 里传说那一支**必须真的读那张专用表**（`rar == 3` 分叉里
+        出现 `LEGEND_COLORS[`）—— 改回取模取色时 ① 会报红，这一条是「那张表还活着」的网。
+   ⚠️ 判据只认**色相**，不看明度 / 饱和度：那两样是设计选择，色相挤不挤才是 Q5 的病。 */
+console.log('\n[52] 传说档配色：色相必须铺开（不许再挤在同一头）');
+{
+  const MAX_IN_BAND = 6;              /* 12 带 × 6 = 72 席，27 条铺开绰绰有余 */
+  const BANDS = 12;                   /* 每 30° 一带 */
+  const rgbOf = (s) => {
+    const m = /^#([0-9a-f]{6})$/i.exec(String(s || '').trim());
+    if (!m) return null;
+    const v = parseInt(m[1], 16);
+    return [(v >> 16) & 255, (v >> 8) & 255, v & 255].map(x => x / 255);
+  };
+  const hueOf = (s) => {
+    const c = rgbOf(s);
+    if (!c) return null;
+    const mx = Math.max(...c), mn = Math.min(...c), d = mx - mn;
+    if (d === 0) return 0;            /* 纯灰：色相无意义，归 0 带 */
+    let h;
+    if (mx === c[0]) h = ((c[1] - c[2]) / d) % 6;
+    else if (mx === c[1]) h = (c[2] - c[0]) / d + 2;
+    else h = (c[0] - c[1]) / d + 4;
+    return ((h * 60) % 360 + 360) % 360;
+  };
+  const legend = G.FISH.filter(f => f.rar === 3);
+  const bad = [];
+  const hist = new Array(BANDS).fill(0);
+  const noHue = [];
+  if (!legend.length) {
+    bad.push('抓不到传说档（rar 3）—— 判据抓不到东西，先修本节判据本身');
+  }
+  legend.forEach(f => {
+    const h = hueOf(f.body);
+    if (h === null) { noHue.push(f.id); return; }
+    hist[Math.floor(h / (360 / BANDS)) % BANDS]++;
+  });
+  if (noHue.length) bad.push('这些传说鱼的 body 不是 #rrggbb：' + noHue.join('、'));
+  if (legend.length) {
+    const empty = hist
+      .map((n, i) => (n === 0 ? (i * 30) + '°~' + (i * 30 + 30) + '°' : null))
+      .filter(Boolean);
+    const top = Math.max(...hist);
+    if (empty.length) {
+      bad.push('这些 30° 色相带是空的：' + empty.join('、')
+        + ' —— 传说配色又挤在同一头了（Q5 的病根就是这个）');
+    }
+    if (top > MAX_IN_BAND) {
+      bad.push('最挤的一带里有 ' + top + ' 条（上限 ' + MAX_IN_BAND + '）—— 又挤成堆了');
+    }
+    /* ② 源头侧：那一支必须真的读专用表（`rar == 3` 分叉 → `LEGEND_COLORS[`）。 */
+    const gfRaw = fs.readFileSync(path.join(ROOT, 'tools/gen-fish.py'), 'utf8');
+    if (!/rar\s*==\s*3[\s\S]{0,500}?LEGEND_COLORS\s*\[/.test(gfRaw)) {
+      bad.push('tools/gen-fish.py 里看不到「rar == 3 那一支读 LEGEND_COLORS[...]」'
+        + ' —— 传说档多半又走回取模取色了');
+    }
+    if (bad.length) {
+      err('传说档配色的色相没铺开：' + bad.join('；'));
+    } else {
+      ok('传说档配色：' + legend.length + ' 条铺在 ' + BANDS + ' 个 30° 色相带里（每带 '
+        + Math.min(...hist) + '~' + top + ' 条，**无空档**、最挤的一带 ≤ ' + MAX_IN_BAND
+        + '）、且取色走的是专用表（`gen-fish.py` 的 `rar == 3` 那一支读 `LEGEND_COLORS[...]`）');
+    }
+  } else if (bad.length) {
+    err('传说档配色的色相没铺开：' + bad.join('；'));
+  }
+}
 
 console.log('\n' + '='.repeat(52));
 if (errors) {

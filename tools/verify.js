@@ -3242,9 +3242,17 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
     err('缺少 MORPH_POOL_BY_RAR / MORPH_VERSIONS / MORPH_VERSIONS_BY_RAR —— '
       + '传说档定死与「闪光出 2 版」没了'); return;
   }
-  /* 现算闪光的版数（不写死 2）：口径是「闪光是多版档」，具体几版由 `MORPH_VERSIONS` 说了算 */
-  const mvBlock = (/MORPH_VERSIONS\s*=\s*\{([^}]*)\}/.exec(src) || [, ''])[1];
-  const morphVersions = parseInt((/["']?shiny["']?\s*:\s*(\d+)/.exec(mvBlock) || [, '0'])[1], 10);
+  /* 现算「**传说档**的闪光几版」：口径是「**只有传说档闪光**才需要两档让我选一档」
+     （2026-10-10 用户当场更正；中途那版「所有稀有度都 2 版」已废）。
+     判据按**解析后的值**算，不写死、也不只看某一张表 ——
+     口径写在 `MORPH_VERSIONS_BY_RAR[3]["shiny"]`，通用回退写在 `MORPH_VERSIONS["shiny"]`，
+     **两张表里任意一张被删都该报红**（只查一张会漏掉另一半的回归）。 */
+  const mvDefault = (/MORPH_VERSIONS\s*=\s*\{([^}]*)\}/.exec(src) || [, ''])[1];
+  const mvByRar = (/MORPH_VERSIONS_BY_RAR\s*=\s*\{([\s\S]*?)\n\}/.exec(src) || [, ''])[1];
+  const shinyDefault = parseInt((/["']?shiny["']?\s*:\s*(\d+)/.exec(mvDefault) || [, '1'])[1], 10);
+  const r3Block = (/\b3\s*:\s*\{([^}]*)\}/.exec(mvByRar) || [, ''])[1];
+  const morphVersions = parseInt((/["']?shiny["']?\s*:\s*(\d+)/.exec(r3Block)
+    || [, String(shinyDefault)])[1], 10);
   const peFn = bodyOf(src, 'def pool_entries(');
   if (!/pool_for\(/.test(peFn)) {
     err('pool_entries() 没有走 pool_for() —— 按稀有度的覆盖会被**静默绕过**（传说鱼照旧轮换）');
@@ -3258,8 +3266,9 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
   }
   /* ⑤a 版数走唯一判据；判据本身必须两张表都读 */
   if (morphVersions < 2) {
-    err(`\`MORPH_VERSIONS\` 里闪光只有 ${morphVersions} 版 —— 用户口径是「闪光生成两个版本的」，`
-      + '上面那行改回去就等于悄悄砍掉候选版，而图照样出得来');
+    err(`**传说档**的闪光只有 ${morphVersions} 版 —— 用户口径是`
+      + '「只有传说档闪光才需要两档让我选一档」（`MORPH_VERSIONS_BY_RAR[3]["shiny"]`）。'
+      + '砍掉它 = 悄悄少一个候选版，而图照样出得来、清单照样打勾');
     return;
   }
   const mvcFn = bodyOf(src, 'def morph_version_count(');
@@ -3300,7 +3309,7 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
       + '「可复现」与 report_stale() 从此描述另一张图，而且不报错'); return;
   }
   ok('候选总表 + 权重池 + 按稀有度覆盖 + 一档多版齐备；MORPHS 派生、池内只存键与权重；'
-    + '覆盖必须走 pool_for()；第 1 版落在主文件名；**闪光 ' + morphVersions + ' 版（唯一判据 '
+    + '覆盖必须走 pool_for()；第 1 版落在主文件名；**传说档闪光 ' + morphVersions + ' 版（唯一判据 '
     + 'morph_version_count，出图/清单/AB 三处共用）**；pick-card 文件与台账一起换；'
     + 'check_pools() 加载即校验；morph_pick 走 md5；四档基准句在册');
 })();
@@ -6681,9 +6690,96 @@ let skipBad = 0;
     skipBad++;
   }
 
+  /* ⑥ 🔴 2026-10-10：**互斥锁的判据也只许有一处**（`lock_state()`），
+     且一键启动器必须**去问出图脚本**（`--who`）而不是自己看一眼锁文件就拦住。
+     为什么：启动器自写一份「看到锁就拦」必然**比出图脚本更严** —— 上一轮非正常退出
+     留下的陈旧锁（pid 已死 / 心跳过期）明明可以接管，却白挡一轮；而进程被回收、
+     锁留在盘上在本环境是**常态**。实测就是这么栽的：第一版 preflight 真拦住了一次
+     「其实可以开跑」的启动。 */
+  const lockDefs = (code.match(/^def lock_state\(/gm) || []).length;
+  if (lockDefs !== 1) {
+    err(`\`lock_state()\` 有 ${lockDefs} 处定义（应恰 1 处）—— 互斥锁判据分家 ⇒ `
+      + '启动器与出图脚本会对「能不能开跑」给出不同答案，而且**两边都不报错**');
+    skipBad++;
+  }
+  const lockBody = bodyOf(code, 'def lock_state(') || '';
+  if (!has(lockBody, 'lock_alive(') || !has(lockBody, 'LOCK_STALE_SEC')) {
+    err('`lock_state()` 没有同时用上 pid 存活判据与心跳阈值 —— '
+      + '少了任一条，死进程留下的陈旧锁就会挡住下一轮（本项目最高频的坑型）');
+    skipBad++;
+  }
+  if (!/^LOCK_STALE_SEC\s*=/m.test(code)) {
+    err(REL + ' 里找不到 `LOCK_STALE_SEC =` —— 心跳过期阈值没了');
+    skipBad++;
+  }
+  const mainLock = bodyOf(code, 'def main(') || '';
+  /* ⚠️ 判据要盯**互斥那一段**（`if not args.plan:` 之后紧跟 `st = lock_state()` 与 `st["busy"]`），
+     不能只问「main 里有没有出现过 `lock_state(`」—— `--who` 那一支自己也会调一次，
+     于是「把互斥那段改成 `st = None`」的坏样本照样绿（本轮反向验证第 ③ 组当场逮到，
+     改成「只搜赋值语句」也还是假的 —— `--who` 那一支同样有 `st = lock_state()`）。 */
+  const lockSeg = (/if not args\.plan:[\s\S]{0,400}/.exec(mainLock) || [, ''])[0];
+  if (!/st\s*=\s*lock_state\(\)/.test(lockSeg) || !/st\["busy"\]/.test(lockSeg)
+      || !has(mainLock, 'lock_write()')) {
+    err('`main()` 的互斥段不再由 `lock_state()` 决定（或 `lock_write()` 没了）—— '
+      + '出图时的互斥判据被就地重写/绕开了');
+    skipBad++;
+  }
+  const rr = path.join(ROOT, 'tools/rerender.py');
+  if (!fs.existsSync(rr)) {
+    err('缺 `tools/rerender.py` —— 一键启动器（`tools/gen-art-loop.cmd`）的编排层不见了；'
+      + '`.cmd` 里写不了逻辑（ANSI 码页 + 会话里执行不了 cmd.exe ⇒ 写完等于没验证）');
+    skipBad++;
+  } else {
+    const rrFull = fs.readFileSync(rr, 'utf8');
+    if (!/--who/.test(rrFull)) {
+      err('`tools/rerender.py` 的 preflight 没有走 `gen-art.py --who` —— '
+        + '它自己写了一份锁判据（必然比出图脚本更严：陈旧锁会白挡一轮）');
+      skipBad++;
+    }
+    /* 🔴 「有没有自己去读锁」的判据是**按行**判：锁的文件名**只许出现在给用户看的提示句里**
+       （`say(...)` / `print(...)`，例如「删掉 assets/cards/.gen-art.lock 再重试」——
+       那条提示对用户有用，不该被误判）。
+       ⚠️ 第一版把「剥掉字符串再搜」当判据 ⇒ 假绿：真去读锁的写法 `os.path.exists(".../.gen-art.lock")`
+       里路径**恰好就在字符串里**，剥完就什么都搜不到了（本轮反向验证第 ④ 组当场逮到）。
+       ⚠️ 第二版「搜原文件」又假红：把上面那条提示句也算成「自己判锁」。按行判才对。 */
+    const lockLines = rrFull.split('\n').filter(l => /\.gen-art\.lock/.test(l));
+    const badLockLines = lockLines.filter(l => !/(say\(|print\()/.test(l));
+    if (badLockLines.length) {
+      err(`\`tools/rerender.py\` 里有 ${badLockLines.length} 行在**代码里**碰锁的路径（不是提示句）：`
+        + badLockLines.map(l => '\n       ' + l.trim().slice(0, 90)).join('')
+        + '\n       —— 自己判断锁 = 第二份判据，要问就问 `gen-art.py --who`');
+      skipBad++;
+    }
+  }
+  const loopCmd = path.join(ROOT, 'tools/gen-art-loop.cmd');
+  if (fs.existsSync(loopCmd)) {
+    const cmdSrc = fs.readFileSync(loopCmd, 'utf8');
+    /* ⚠️ 要搜**可执行行**（非 `rem` 注释）—— 文件头那段说明里本来就写着
+       「judgement lives in tools\rerender.py」，搜全文会让「实际调用被换掉」的
+       坏样本照样绿（本轮反向验证第 ⑥ 组当场逮到）。 */
+    const cmdLines = cmdSrc.split('\n').filter(l => !/^\s*rem\b/i.test(l)).join('\n');
+    if (!/rerender\.py/.test(cmdLines)) {
+      err('`tools/gen-art-loop.cmd` 没有调 `rerender.py` —— 逻辑又回到 `.cmd` 里了'
+        + '（`.cmd` 只能纯 ASCII、且本项目的工具执行不了它，等于没验证）');
+      skipBad++;
+    }
+    /* .cmd 必须纯 ASCII：cmd.exe 用系统 ANSI 码页读脚本，中文会被撕碎成乱命令。
+       ⚠️ 只查这几份启动器，不扫全仓（`tools/` 下别的文件不是启动器）。 */
+    const nonAscii = ['gen-art-loop.cmd', 'pick-shiny.cmd', 'review-desk.cmd', '评审台.cmd']
+      .map(n => path.join(ROOT, 'tools', n)).filter(p => fs.existsSync(p))
+      .filter(p => /[^\x00-\x7F]/.test(fs.readFileSync(p, 'utf8')));
+    if (nonAscii.length) {
+      err(`这些 .cmd 里有非 ASCII 字符：${nonAscii.map(p => path.basename(p)).join('、')}`
+        + ' —— cmd.exe 用系统 ANSI 码页读脚本，中文会被撕碎成乱命令');
+      skipBad++;
+    }
+  }
+
   if (!skipBad) {
     ok('生图管线判据同源：`card_state()` 一处定义、`--skip-existing` 与 `--stale` 共用它，'
-      + '覆盖 文件 / 派生 / 提示词 / 步数 四项，清单收尾自动刷新，耗时估计有实测来源');
+      + '覆盖 文件 / 派生 / 提示词 / 步数 四项，清单收尾自动刷新，耗时估计有实测来源；'
+      + '**互斥锁判据也只有 `lock_state()` 一处，启动器（`.cmd` → `rerender.py`）走 `--who` 问它、'
+      + '自己不判锁，且四份启动器都是纯 ASCII**');
   }
 })();
 

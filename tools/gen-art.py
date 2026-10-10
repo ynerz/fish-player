@@ -376,15 +376,16 @@ MORPH_POOL_BY_RAR = {
     },
 }
 
-# 🔴 **一档出几版**（每档默认版数）
+# 🔴 **一档出几版**
 #
-# 2026-10-08 用户口径：「传说级的是生成 2 版」。
-# 🔴 2026-10-10 用户口径（本轮）：「**闪光生成两个版本的，我会选一个最好看的**」
-#    ⇒ 从「只有传说档的闪光 2 版」改成「**所有稀有度的闪光都 2 版**」。
+# 用户口径（2026-10-08 立，2026-10-10 更正后定稿）：
+#   「**只有传说档闪光才需要两档让我选一档**」
 #
-# 为什么可以就这么铺开（一张颜色句都不用多写）：闪光档的池子本来就是 **2 个候选**
-#   （`shiny/1` 与 `shiny/7`，权重 1:1），而多版走的是**池子顺序前 N 项、不抽样** ——
-#   所以「2 版」= 把原先按 id 加权二选一的那两个候选**都出出来**给人挑。
+# 为什么只有传说档：传说是**展示品**（售价 ×100、概率 4~5%，一条鱼玩家才看到几次），
+#   同一档在传说鱼之间出参差反而掉价 ⇒ 传说档的四档本来就都「定死」（见 `MORPH_POOL_BY_RAR`），
+#   闪光再多给一版候选、由人挑出最好的那张。
+#   ⚠️ 2026-10-10 中途试过「**所有稀有度**的闪光都出 2 版」，用户当场更正为**只限传说档** ——
+#      那张 `MORPH_VERSIONS` 覆盖表已清空。**别再加回去**：362 条全出两版 = 白跑 335 张图。
 #
 # ⚠️ 这是全项目唯一「同一条鱼同一档出两张」的地方：
 #   第 2 版文件名加 `-N` 后缀（第 1 版仍是 `<id>-<档>.png`），
@@ -392,13 +393,14 @@ MORPH_POOL_BY_RAR = {
 # ⚠️ 两版都只是**候选**：游戏加载的是主文件名 `<id>-shiny.png`。
 #   挑完要用 `python tools/pick-card.py <id> shiny 2` 把选中的那版**扶正**
 #   （它会把文件与 manifest 里的候选记录一起换 —— **别手工改名**，手工改会让台账与盘上对不上）。
-MORPH_VERSIONS = {"shiny": 2}
+MORPH_VERSIONS = {}
 
-# 按稀有度的覆写（在默认值之上再加）。
-# ⚠️ 2026-10-10 起这张表是**空的**：旧口径的 `{3: {"shiny": 2}}` 已是 `MORPH_VERSIONS`
-#    的子集，留着就是第二份真相。空表保留为「某档在某稀有度上要多于默认版数」的旋钮
-#    （校验见 `check_pools()`：版数必须 ≤ **该稀有度实际会用的那个池子**的长度）。
-MORPH_VERSIONS_BY_RAR = {}
+# 按稀有度的覆写：**传说档的闪光出 2 版**（上面那条用户口径）。
+# ⚠️ 闪光池本来就备了 2 个候选（`shiny/1` 星点 / `shiny/7` 本色+金属亮片，权重 1:1），
+#    而多版走的是**池子顺序前 N 项、不抽样** ⇒ 「2 版」= 把原先按 id 加权二选一的那两个
+#    **都出出来**给人挑，**一句颜色句都不用多写**。
+# 校验见 `check_pools()`：版数必须 ≤ **该稀有度实际会用的那个池子**的长度。
+MORPH_VERSIONS_BY_RAR = {3: {"shiny": 2}}
 
 
 def pool_for(key, rar=None):
@@ -419,6 +421,8 @@ def morph_version_count(rar, key):
        「清单说 6 张、实际出 7 张」这种偏差**不会报错**，只会让工期估计悄悄失真 ——
        而清单是排期与「还剩多少」的唯一依据。
     取法：**按稀有度的覆写 > 每档默认 > 1**。
+    现状：按稀有度的表里**只有**「稀有度 3（传说）的闪光 = 2 版」这一条
+    （用户口径「只有传说档闪光才需要两档让我选一档」），每档默认表为空。
     """
     return MORPH_VERSIONS_BY_RAR.get(rar, {}).get(key, MORPH_VERSIONS.get(key, 1))
 
@@ -528,7 +532,7 @@ def morph_versions(f, key):
     """这条鱼这一档**要出几版** → `[(候选键, 标签, 颜色句, 文件名后缀), …]`。
 
     常规 = 按鱼 id 稳定加权抽 **1** 套（后缀 `""`）；
-    **闪光 = 2 版**（后缀 `""` 与 `"-2"`，所有稀有度），见 `MORPH_VERSIONS`。
+    **传说档的闪光 = 2 版**（后缀 `""` 与 `"-2"`），见 `MORPH_VERSIONS_BY_RAR`。
 
     ⚠️ 多版走的是**池子顺序前 N 项**、**不抽样** —— 用户要的就是「这两版都给我看」，
        抽样会把「都出」变成「随机出其中一个」。
@@ -2328,6 +2332,55 @@ def morph_keys():
 SEC_SAMPLE_MIN = 20     # 实测样本少于此数就退回常数（中位不稳，别拿 3 个样本去排期）
 
 
+# ────────────────────────────────────────────────────────────────────────────
+# 🔴 **生图互斥锁**：两个生图进程同时跑会重复出图 + 并发写 manifest.json。
+#    这不是假想风险：定时任务（每小时一轮）与长跑本来就会撞上。
+#
+# ⚠️ 判据**只许有这一处**：`main()` 决定「要不要接管」、一键启动器（`tools/rerender.py`）
+#    决定「能不能开跑」、`--who` 决定「现在忙不忙」—— 三处共用下面这两个函数。
+#    分成两份的话，启动器必然**比出图脚本更严或更松**：更严 = 明明可以接管却白等一轮；
+#    更松 = 两个进程同时跑、并发写台账。两种都**不报错**。
+# ────────────────────────────────────────────────────────────────────────────
+LOCK_STALE_SEC = 300          # 心跳超过这么久没动静 = 上一个进程已死（配合 pid 判据）
+
+
+def lock_path():
+    return os.path.join(OUT, ".gen-art.lock")
+
+
+def lock_alive(pid):
+    """那个 pid 是否**真的还活着**。
+
+    🔴 为什么必须有这一步：锁如果只靠「心跳时间戳」判过期，那么一个**死掉的进程**
+       会把锁留在磁盘上，最长 STALE 秒内**挡住下一轮生图**。而定时任务**每小时**才触发一次
+       —— 挡一次就是整整一小时白等，而且**不报错**（正是本项目最高频的坑型）。
+    实测：本环境会在轮次结束时回收进程（`DETACHED_PROCESS` 也逃不掉，疑似 Job Object），
+       所以「非正常退出、留下陈旧锁」是**常态而不是例外**。
+    查不到进程表时返回 True（当作还活着），退回时间戳判据 —— 宁可少开一轮，也不重复出图。
+    """
+    try:
+        r = subprocess.run(["tasklist", "/FI", "PID eq %d" % pid, "/NH"],
+                           capture_output=True, text=True, errors="replace", timeout=15)
+        return str(pid) in (r.stdout or "")
+    except Exception:
+        return True
+
+
+def lock_state():
+    """当前锁的状态 → `{"pid", "age", "busy"}`；没有锁 / 读不出来返回 `None`。
+
+    `busy=True` 表示「**确实有活着的进程在出图**」——
+    pid 已经不存在、或心跳超过 `LOCK_STALE_SEC`，都判定为**可以接管**（不算 busy）。
+    """
+    try:
+        d = json.load(open(lock_path(), encoding="utf-8"))
+    except Exception:
+        return None
+    pid = int(d.get("pid", 0) or 0)
+    age = int(time.time() - d.get("ts", 0))
+    if pid and not lock_alive(pid):
+        return {"pid": pid, "age": age, "busy": False}
+    return {"pid": pid, "age": age, "busy": age <= LOCK_STALE_SEC}
 def measured_sec(man=None):
     """manifest 里逐张记的 `sec` 的**中位**数；样本不足返回 `(None, n)`。
 
@@ -2378,7 +2431,7 @@ def write_plan(fish):
         per_fish = SEC_PER_MASTER + (nk - 1) * SEC_PER_MORPH + SEC_PER_CUT
         sec_note = ("常数估计（母版 %ds + %d 档 × %ds + 抠图 %ds；实测样本 %d 张，未达 %d）"
                     % (SEC_PER_MASTER, nk - 1, SEC_PER_MORPH, SEC_PER_CUT, m_n, SEC_SAMPLE_MIN))
-    # 🔴 一档可能出**多版**（闪光 = 2 版，`MORPH_VERSIONS`）——
+    # 🔴 一档可能出**多版**（传说档闪光 = 2 版，`MORPH_VERSIONS_BY_RAR`）——
     #    漏算的话清单会**低估工期**，而清单是排期与「还剩多少」的唯一依据。
     #    ⚠️ 版数走 `morph_version_count()`（唯一判据），别在这里另算一遍。
     cnt_rar, rounds = {}, lambda r: LEGEND_ROUNDS if r == 3 else 1
@@ -2409,8 +2462,8 @@ def write_plan(fish):
     L.append("| 批次数 | **%d** |" % len(bs))
     L.append("| 传说鱼 | %d 条，每条按 %d 轮迭代（评审轮次） |" % (legend, LEGEND_ROUNDS))
     L.append("| 出图张数（含传说迭代） | ≈ **%d**（每条 %d 张：1 母版 + %d 档；"
-             "另**闪光档每条多 %d 张** —— 闪光出 2 版供人挑） |"
-             % (shots, 1 + nk, nk, sum(morph_version_count(0, k) - 1 for k in MORPH_ORDER)))
+             "另**传说档每条多 %d 张** —— 传说的闪光出 2 版供人挑） |"
+             % (shots, 1 + nk, nk, sum(morph_version_count(3, k) - 1 for k in MORPH_ORDER)))
     L.append("| 单条耗时 | ≈ **%.0f s**（%s） |" % (per_fish, sec_note))
     L.append("| 纯机器时间 | ≈ **%.1f 小时** |" % (secs / 3600.0))
     L.append("")
@@ -2573,7 +2626,7 @@ def write_prompts(fish):
              "同一条鱼重跑永远是同一套（可复现），**不同鱼之间才会不一样**。")
     L.append("下表列的就是**实际会被抽中的那一套**（键 = `候选键 中文标签`）。")
     L.append("⚠️ **传说档例外**：彩虹/白化/黄金**定死**一套，闪光**出 2 版** ——")
-    L.append("下表列的是第 1 版；**闪光档还有第 2 版**（`MORPH_VERSIONS`，所有稀有度，供人挑）——"
+    L.append("下表列的是第 1 版；**传说档的闪光还有第 2 版**（`MORPH_VERSIONS_BY_RAR`，供人挑）——"
              "挑完跑 `python tools/pick-card.py <id> shiny 2` 扶正（开发者文档 §17.12.0）。\n")
     L.append("| id | 名字 | %s |" % " | ".join(MORPH_CN[k] for k in MORPH_ORDER))
     L.append("|---|---|%s" % ("---|" * len(MORPH_ORDER)))
@@ -2705,8 +2758,12 @@ def card_state_label(f, morph, vi, man):
     return morph + (morph_versions(f, morph)[vi][3] or ""), st
 
 
-def report_stale(fish):
+def report_stale(fish, brief=False):
     """列出「**已出图、但与当前生成口径不一致**」的卡片，并给出可执行的命令。
+
+    `brief=True` 只打印**摘要三行**（总数 + 原因分布 + 按档分布）——
+    双击的启动器（`tools/gen-art-loop.cmd`）要的是一眼能看懂，而不是把控制台刷满几百行 id。
+
 
     ⚠️ 判据**与 `--skip-existing` 是同一份**（`card_state`）—— 见它的说明。
        两张表分家就是这个报告存在的理由，所以这里绝不许再写第二份判据。
@@ -2736,6 +2793,12 @@ def report_stale(fish):
     print("过期卡片共 %d 张（已出图、但与当前生成口径不一致 ⇒ 需要重出）：" % total)
     print("  原因：%s" % " ／ ".join("%s %d" % (k, v)
                                      for k, v in sorted(reasons.items(), key=lambda x: -x[1])))
+    if brief:
+        print("  按档：%s" % " ／ ".join("%s %d" % (k, len(groups[k]))
+                                        for k in ["母版"] + [x for k2, _ in MORPHS for x in (k2, k2 + "-2")]
+                                        if k in groups))
+        print("\n（--brief：只打摘要。要看逐条 id 就去掉 --brief）")
+        return
     print()
     known = ["母版"]
     for x, _ in MORPHS:
@@ -2774,6 +2837,11 @@ def main():
                          "⚠️ 给了它就**不再出母版** —— 你要的就是那几张单档卡")
     ap.add_argument("--stale", action="store_true",
                     help="只报告「已出图但提示词已过期」的卡片（口径改过之后该重出哪些）")
+    ap.add_argument("--who", action="store_true",
+                    help="只回答「现在能不能开跑」：free 退出码 0 / busy 退出码 3。"
+                         "判据与出图时的互斥锁**同一份**（lock_state）—— 一键启动器读它")
+    ap.add_argument("--brief", action="store_true",
+                    help="配合 --stale：只打摘要（数量 + 按档分布），不打逐条 id —— 启动器用")
     ap.add_argument("--skip-existing", action="store_true", help="已有成品跳过（断点续跑）")
     ap.add_argument("--budget-min", type=float, default=0,
                     help="时间预算（分钟）：到点**在任务边界干净收工**，不等当前这张之外的更多任务。"
@@ -2783,6 +2851,15 @@ def main():
     ap.add_argument("--img-timeout", type=int, default=300,
                     help="**单张图**的等待上限秒数（正常 ≈62s）。卡死时不再白等 txt2img 的默认 3600s。")
     args = ap.parse_args()
+
+    if args.who:
+        st = lock_state()
+        if st is None:
+            print("free ｜ 没有锁文件"); sys.exit(0)
+        if st["busy"]:
+            print("busy ｜ pid %s，%d 秒前还有心跳" % (st["pid"], st["age"])); sys.exit(3)
+        print("free ｜ pid %s 已不再出图（心跳停在 %d 秒前）—— 下一轮接管"
+              % (st["pid"], st["age"])); sys.exit(0)
 
     if args.dry:
         args.list = args.dry
@@ -2820,7 +2897,7 @@ def main():
         return
 
     if args.stale:
-        report_stale(fish)
+        report_stale(fish, brief=args.brief)
         return
 
     os.makedirs(OUT, exist_ok=True)
@@ -2868,7 +2945,7 @@ def main():
             for key, _desc in MORPHS:
                 if only and key not in only:
                     continue
-                # 一档可能出**多版**（闪光 2 版，见 `MORPH_VERSIONS`）
+                # 一档可能出**多版**（传说档闪光 2 版，见 `MORPH_VERSIONS_BY_RAR`）
                 for vi in range(len(morph_versions(f, key))):
                     jobs.append((f, key, vi))
     if not jobs:
@@ -2879,53 +2956,24 @@ def main():
     per = len(jobs) // len(fish) if fish else 0
     print("待生成 %d 张（%d 条鱼 × %d 张）" % (len(jobs), len(fish), per))
 
-    # ── 互斥锁：**两个生图进程同时跑会重复出图 + 并发写 manifest.json** ──
-    #    这不是假想风险：定时任务（每小时一轮）与长跑本来就会撞上。
-    #    判据用「心跳过期」而不是查 pid —— 查进程在本项目沙箱里不可靠（见 MEMORY.md）。
-    #    每张图出完刷新一次心跳；超过 STALE 秒没动静 = 上一个进程已死，可以接管。
-    LOCK = os.path.join(OUT, ".gen-art.lock")
-    STALE = 300
-
+    # ── 互斥锁（判据在模块级 `lock_state()` / `lock_alive()`，**只此一处**）──
     def lock_write():
         try:
             json.dump({"pid": os.getpid(), "ts": time.time(), "budgetMin": args.budget_min},
-                      open(LOCK, "w", encoding="utf-8"))
+                      open(lock_path(), "w", encoding="utf-8"))
         except Exception:
             pass
 
-    def lock_alive(pid):
-        """那个 pid 是否**真的还活着**。
-
-        🔴 为什么必须有这一步：锁如果只靠「心跳时间戳」判过期，那么一个**死掉的进程**
-           会把锁留在磁盘上，最长 STALE 秒内**挡住下一轮生图**。而定时任务**每小时**才触发一次
-           —— 挡一次就是整整一小时白等，而且**不报错**（正是本项目最高频的坑型）。
-           实测：本环境会在轮次结束时回收进程（`DETACHED_PROCESS` 也逃不掉，疑似 Job Object），
-           所以「非正常退出、留下陈旧锁」是**常态而不是例外**。
-        查不到进程表时返回 True（当作还活着），退回时间戳判据 —— 宁可少开一轮，也不重复出图。
-        """
-        try:
-            r = subprocess.run(["tasklist", "/FI", "PID eq %d" % pid, "/NH"],
-                               capture_output=True, text=True, errors="replace", timeout=15)
-            return str(pid) in (r.stdout or "")
-        except Exception:
-            return True
-
     if not args.plan:
-        try:
-            d = json.load(open(LOCK, encoding="utf-8"))
-        except Exception:
-            d = None
-        if d:
-            pid = int(d.get("pid", 0) or 0)
-            age = int(time.time() - d.get("ts", 0))
-            if pid and not lock_alive(pid):
-                print("……上一个生图进程（pid=%s）已不存在（心跳停在 %d 秒前），本轮接管。"
-                      % (pid, age))
-            elif age <= STALE:
-                print("⏸ 已有生图进程在跑（pid=%s，%d 秒前还有心跳）—— 本轮不重复开工。"
-                      % (d.get("pid"), age))
-                print("   避免重复出图、以及两个进程并发写 manifest.json。")
-                return
+        st = lock_state()
+        if st and st["busy"]:
+            print("⏸ 已有生图进程在跑（pid=%s，%d 秒前还有心跳）—— 本轮不重复开工。"
+                  % (st["pid"], st["age"]))
+            print("   避免重复出图、以及两个进程并发写 manifest.json。")
+            return
+        if st:
+            print("……上一个生图进程（pid=%s）已不存在或心跳过期（%d 秒前），本轮接管。"
+                  % (st["pid"], st["age"]))
     lock_write()
 
     # ── manifest 定期落盘 ────────────────────────────────────────────────────
@@ -3070,7 +3118,7 @@ def main():
 
     save_manifest()
     try:
-        os.remove(LOCK)       # 正常收工要主动释放；异常中断则靠心跳过期自愈
+        os.remove(lock_path())   # 正常收工要主动释放；异常中断则靠心跳过期自愈
     except OSError:
         pass
     print("\n" + "=" * 50)

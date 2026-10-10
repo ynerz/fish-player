@@ -32,6 +32,11 @@ TMP = os.path.join(ROOT, "_tmp")
 fails = []
 
 
+# `tools/` 目录（[14] 节要按文件名去读几份启动器与 `gen-art.py`）——
+# ⚠️ 就是上面那个 `HERE`，别另起一份「同一个事实写两遍」。
+TOOLS = HERE
+
+
 def ok(msg):
     print("  \u2714 " + msg)
 
@@ -48,6 +53,15 @@ def load_review():
     """按路径加载 `tools/review-cards.py`（文件名带短横，不能直接 import）。"""
     spec = importlib.util.spec_from_file_location(
         "review_cards", os.path.join(HERE, "review-cards.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def load_genart():
+    """把 `tools/gen-art.py` 当模块载入（文件名带连字符，不能直接 import）。"""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("gen_art", os.path.join(TOOLS, "gen-art.py"))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -590,6 +604,71 @@ def main():
     check(all(R.hue_of(f["body"]) >= 0 for f in _fish),
           "每条鱼的主色都能算出色相（%d 条；算不出的会落进「全部色相」）"
           % sum(1 for f in _fish if R.hue_of(f["body"]) < 0))
+
+    print("\n[14] 闪光两版口径（只传说档）+ 互斥锁判据 + 一键启动器")
+    GA = load_genart()
+    a_fish = {f["id"]: f for f in GA.load_fish()}
+    leg = [f for f in a_fish.values() if f["rar"] == 3]
+    oth = [f for f in a_fish.values() if f["rar"] != 3]
+    check(all(GA.morph_version_count(3, "shiny") == 2 for _ in [0]),
+          "传说档闪光是 2 版（用户口径「只有传说档闪光才需要两档让我选一档」；实得 %d）"
+          % GA.morph_version_count(3, "shiny"))
+    check(GA.morph_version_count(0, "shiny") == 1,
+          "非传说档闪光只有 1 版（实得 %d）—— 全铺开 = 白跑 392 张" % GA.morph_version_count(0, "shiny"))
+    check(leg and all([v[3] for v in GA.morph_versions(f, "shiny")] == ["", "-2"] for f in leg),
+          "传说档闪光的两个后缀是 ['', '-2']（第 1 版必须落在主文件名上）；%d 条传说鱼" % len(leg))
+    check(oth and all([v[3] for v in GA.morph_versions(f, "shiny")] == [""] for f in oth),
+          "非传说档只有第 1 版（%d 条）" % len(oth))
+    check(all([v[3] for v in GA.morph_versions(f, "bright")] == [""] for f in a_fish.values()),
+          "其余档都不出多版（多版是全项目唯一的例外，只给传说闪光）")
+    # 版数判据只此一处：出图与清单排期必须给出同一个数
+    n_plan = sum(GA.morph_version_count(f["rar"], k) for f in a_fish.values()
+                 for k, _d in GA.MORPHS)
+    n_jobs = sum(len(GA.card_jobs_of(f)) for f in a_fish.values())
+    check(n_jobs - len(a_fish) == n_plan,
+          "出图任务数（%d）与「排期口径」一致：每条鱼 1 母版 + 版数之和（实得 %d）"
+          % (n_jobs, len(a_fish) + n_plan))
+
+    # 互斥锁：`lock_state()` 是唯一判据；返回 None（没锁）或带 busy/age 的 dict
+    check(GA.lock_path().endswith(".gen-art.lock"),
+          "`lock_path()` 指向 .gen-art.lock（实得 %s）" % os.path.basename(GA.lock_path()))
+    live = GA.lock_state()
+    check(live is None or (isinstance(live, dict) and isinstance(live.get("busy"), bool)
+                           and isinstance(live.get("age"), int)),
+          "`lock_state()` 要么 None（没锁），要么是带 busy(bool)/age(int) 的 dict（实得 %r）" % (live,))
+    if live is None:
+        print("      · 当前没有锁文件 ⇒ lock_state() = None（free）")
+    else:
+        print("      · 当前有锁：pid=%s / 心跳停在 %d 秒前 / busy=%s"
+              % (live.get("pid"), live.get("age"), live.get("busy")))
+
+    # 启动器：`--who` 是启动器唯一的判断入口，`.cmd` 只是薄壳
+    r = subprocess.run([sys.executable, "-u", os.path.join(TOOLS, "gen-art.py"), "--who"],
+                       cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    last = [x for x in (r.stdout or "").split("\n") if x.strip()][-1:]
+    check(r.returncode in (0, 3) and last and (last[0].startswith("free") or last[0].startswith("busy")),
+          "--who 输出 free / busy 且退出码是 0 / 3（实得 rc=%d，末行 %r）"
+          % (r.returncode, (last or [""])[0][:60]))
+    for name in ("gen-art-loop.cmd", "pick-shiny.cmd", "review-desk.cmd"):
+        p = os.path.join(TOOLS, name)
+        check(os.path.exists(p), "启动器在：%s" % name)
+        if os.path.exists(p):
+            body = io.open(p, encoding="utf-8", errors="replace").read()
+            check(all(ord(c) < 128 for c in body),
+                  "%s 是纯 ASCII（cmd.exe 用系统码页读脚本，中文会被撕碎）" % name)
+    loop = os.path.join(TOOLS, "gen-art-loop.cmd")
+    if os.path.exists(loop):
+        code = "\n".join(l for l in io.open(loop, encoding="utf-8").read().split("\n")
+                          if not l.strip().lower().startswith("rem"))
+        check("rerender.py" in code, "gen-art-loop.cmd 的**可执行行**里调的是 rerender.py")
+    rr = os.path.join(TOOLS, "rerender.py")
+    check(os.path.exists(rr), "编排层在：tools/rerender.py")
+    if os.path.exists(rr):
+        src = io.open(rr, encoding="utf-8").read()
+        check("--who" in src, "rerender.py 的 preflight 走 --who 问主流程（不自备锁判据）")
+        check(".gen-art.lock" not in "\n".join(
+            l for l in src.split("\n") if ("say(" not in l and "print(" not in l)),
+            "rerender.py 的**代码行**里不碰锁路径（提示句里提一下是允许的）")
 
     print("\n" + "=" * 52)
     if fails:

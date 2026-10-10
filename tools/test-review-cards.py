@@ -802,6 +802,67 @@ def main():
     check(callable(getattr(P, "on_disk", None)) and callable(getattr(P, "load_index", None)),
           "索引有两个入口：on_disk()（按现状枚举）/ load_index()（沿用上一份）")
 
+    print("\n[17] 提示词里的物种名（Q17 收口）：口径 / 真数据 / 五档同源 / A-B 开关 / 深层骨架留痕")
+    GA2 = load_genart()
+    _fish = GA2.load_fish()
+    _tags = [GA2.species_tag(x) for x in _fish]
+    # ① 口径：正式默认 cn_latin，且 `NAME_MODE =` 只有一处（A/B 三挡只是开关）
+    check(GA2.NAME_MODE == "cn_latin",
+          "正式默认是 cn_latin（A/B 对拍定稿后的口径）—— 实得 %r" % (GA2.NAME_MODE,))
+    _gasrc = io.open(os.path.join(TOOLS, "gen-art.py"), encoding="utf-8").read()
+    # ⚠️ 先剥**整行注释**再数（硬规矩 ①）：不剥的话，注释里写一句 `NAME_MODE = off …`
+    #    就能把这条计数判据喂饱（反向验证里专有一组负对照证明它现在不会被喂饱）。
+    _gacode = re.sub(r"(?m)^\s*#.*$", "", _gasrc)
+    check(len(re.findall(r"^NAME_MODE = ", _gacode, re.M)) == 1,
+          "`NAME_MODE =` 只有一处定义（另起一份 = 两个默认值）")
+    # ② 真数据：362 条全都带得出名字；有 species 的条必须带拉丁名，没有的不许自己补括号
+    check(_fish and all(t.strip() for t in _tags),
+          "每条鱼都带得出物种名（%d 条；空名会让主语退回类目词）" % len(_fish))
+    _lat = [x for x in _fish if (GA2.trait_of(x["id"], "species") or "").strip()]
+    _nolat = [x for x in _fish if not (GA2.trait_of(x["id"], "species") or "").strip()]
+    check(_lat and _nolat and all("(" in GA2.species_tag(x) and ")" in GA2.species_tag(x)
+                                  for x in _lat),
+          "有拉丁名的 %d 条都写成「中文名 (Latin)」" % len(_lat))
+    check(all("(" not in GA2.species_tag(x) for x in _nolat),
+          "没有拉丁名的 %d 条**不许**自己补一个空括号" % len(_nolat))
+    # ③ 前五场（走 build_prompt）：名字必须当**主语名词**（"a <名字>, "），且 `·` 前缀不许进提示词
+    _前 = [x for x in _fish if x.get("field") not in GA2.DEEP_FIELDS]
+    _miss = [x["id"] for x in _前 if ("a " + GA2.species_tag(x) + ", ") not in GA2.build_prompt(x)]
+    check(_前 and not _miss,
+          "常规五场的 %d 条都把名字放在主语位（缺 %d 条%s）"
+          % (len(_前), len(_miss), ("：" + ", ".join(_miss[:6])) if _miss else ""))
+    _dot = [x for x in _前 if "·" in (x.get("name") or "")]
+    check(_dot and all(x["name"].split("·")[0] not in GA2.build_prompt(x) for x in _dot),
+          "常规场里 %d 条带 `·` 的**游戏造名前缀**没被写进提示词（写进去会被当成画面内容）" % len(_dot))
+    # ④ 五档同源：`build_morph_prompt` 只是换颜色半句，物种名必须还在
+    _d = _前[0]
+    _mp = GA2.build_morph_prompt(_d, "shiny", "bright specular highlights")
+    check(GA2.species_tag(_d) in _mp,
+          "五档提示词里名字还在（母版与五档不许分家）")
+    # ⑤ A/B 开关仍然可用：off 挡一律不加名字（跑完还原，别把模块状态留在 off）
+    #    ⚠️ 判据不能写 `species_tag(...) not in prompt` —— off 挡下 tag 是**空串**，
+    #       而 `"" in 任何字符串` 恒真 ⇒ 那种写法会**永远红**（第一版就是这么栽的）。
+    _keep = GA2.NAME_MODE
+    try:
+        GA2.NAME_MODE = "off"
+        check(GA2.species_tag(_d) == "" and _d["name"].split("·")[-1] not in GA2.build_prompt(_d),
+              "NAME_MODE = off 时一律不加名字（A/B 三挡还能用）")
+    finally:
+        GA2.NAME_MODE = _keep
+    # ⑥ 深层骨架（SS / SSS 180 条）走另一条路：`named <名字>` —— 名字确实在，但形态不同
+    _deep = [x for x in _fish if x.get("field") in GA2.DEEP_FIELDS]
+    _dmiss = [x["id"] for x in _deep if ("named " + x["name"]) not in GA2.build_deep_prompt(x)]
+    check(_deep and not _dmiss,
+          "SS / SSS 的 %d 条走深层骨架、名字写在 `named <名字>` 里（缺 %d 条）"
+          % (len(_deep), len(_dmiss)))
+    # ⚠️ **现状留痕，不是口径认可**：深层场里带 `·` 的那些**用的是全名（含前缀）** ——
+    #    与 `species_tag()` 的「剥离前缀」口径不一致。这 17 条要不要一起剥是**观感取舍**，
+    #    已登记 ⛔（队列 Q17 / 待办「自动化发现」），别拿本判据当「已经对了」。
+    _ddot = [x for x in _deep if "·" in (x.get("name") or "")]
+    check(_ddot and all(x["name"] in GA2.build_deep_prompt(x) for x in _ddot),
+          "留痕：深层场 %d 条带 `·` 的**用全名**（含前缀）—— 与常规场的剥离口径不一致，见 ⛔ 待办"
+          % len(_ddot))
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

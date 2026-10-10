@@ -5446,8 +5446,10 @@ let fallbackBad = 0;
   const pathDetail = bodyOf(jsP, 'function renderFishDetail(');
   const pathMini = bodyOf(jsP, 'function miniFish(');
   const pathTank = bodyOf(jsP, 'function tankSprite(');
+  const pathCatch = bodyOf(jsP, 'function showCatch(');
   [[pathBook, 'paintBookItem', '图鉴网格'], [pathDetail, 'renderFishDetail', '图鉴详情页'],
-   [pathMini, 'miniFish', '鱼护 / 水族箱列表小图'], [pathTank, 'tankSprite', '水族箱精灵']]
+   [pathMini, 'miniFish', '鱼护 / 水族箱列表小图'], [pathTank, 'tankSprite', '水族箱精灵'],
+   [pathCatch, 'showCatch', '结算卡（刚钓上来那条鱼）']]
     .forEach(([b, fn, cn]) => {
       if (!b) {
         err(P + ' 里找不到 `function ' + fn + '(`（' + cn + '）—— 改名了就来更新本节');
@@ -5493,7 +5495,8 @@ let fallbackBad = 0;
   const TIER_OF = [['function paintBookItem(', 'list', '图鉴网格 260×112'],
     ['function renderFishDetail(', 'detail', '图鉴详情 380×190'],
     ['function miniFish(', 'list', '鱼护 / 水族箱列表小图 96×52'],
-    ['function tankSprite(', 'detail', '水族箱精灵（宽 2.2L）']];
+    ['function tankSprite(', 'detail', '水族箱精灵（宽 2.2L）'],
+    ['function showCatch(', 'detail', '结算卡 360×200']];
   TIER_OF.forEach(([mk, want, cn]) => {
     const b = bodyOf(jsP, mk);
     if (b && !has(b, "tier: '" + want + "'")) {
@@ -5627,7 +5630,7 @@ let fallbackBad = 0;
 
   if (!fallbackBad) {
     ok('回退链只有一处入口（paintFish 里 AI 图 + 程序化兜底同处一体），'
-      + '图鉴网格 / 详情页 / 鱼护小图 / 水族箱精灵四条路都不绕开它，取图口没有散出去，'
+      + '图鉴网格 / 详情页 / 鱼护小图 / 水族箱精灵 / 结算卡五条路都不绕开它，取图口没有散出去，'
       + '颜色档只来自 config；**档位（tier）**：' + paintCalls + ' 个绘制点各自声明、'
       + '必须是 list / detail 里对的那一个，且目录与档位集合与 `tools/prep-cards.py` 现算一致');
   }

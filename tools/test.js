@@ -3324,6 +3324,14 @@ G_('Assets —— 键 → 地址（纯逻辑）');
      画面上「看起来还行」，没人会发现卡面根本没接上。 */
   ok(A.resolve('fishcard:big:A01:golden') === null && A.resolve('fishcard::A01:golden') === null,
      'resolve()：不在档位表里的档位 / 空档位 → null');
+  /* ⚠️ 原型链不算「在表里」：写成 `p[1] in TIER_SUB` 时 `constructor` / `toString` /
+     `hasOwnProperty` / `__proto__` 会让 `TIER_SUB[p[1]]` 取到一个**函数**，
+     字符串一拼就是垃圾路径（而不是 null）—— 与本模块「认不出就返回 null」正好相反。 */
+  ok(A.resolve('fishcard:constructor:A01:golden') === null &&
+     A.resolve('fishcard:toString:A01:golden') === null &&
+     A.resolve('fishcard:hasOwnProperty:A01:golden') === null &&
+     A.resolve('fishcard:__proto__:A01:golden') === null,
+     'resolve()：原型链上的名字（constructor / toString / hasOwnProperty / __proto__）不是档位 → null');
 
   /* 档位名必须来自 config.colorMorphs —— 写错要**直接拦掉**，而不是拼出一个不存在的路径。
      这是本模块最容易出的静默失效：拼错了不会报错，只会 404。 */

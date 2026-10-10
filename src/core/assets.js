@@ -76,6 +76,14 @@ G.Assets = (function () {
     return (G.Platform && G.Platform.sys && G.Platform.sys.isFile()) ? 'inline' : 'external';
   }
 
+  /* 档位名是不是这张表**自己**的键。
+     ⚠️ 不许写 `p[1] in TIER_SUB`：`in` 会沿原型链找，`'constructor' in TIER_SUB` 为真，
+        于是 `fishcard:constructor:A01:golden` 拿到的是 `Object.prototype.constructor` 这个**函数**，
+        字符串一拼就变成一个垃圾路径（不是 null）—— 本模块存在的意义就是「认不出就返回 null，
+        绝不拼一个可能错的路径」，这条正好反过来。原型链上的 `toString` / `valueOf` /
+        `hasOwnProperty` / `__proto__` 全是同一个坑。 */
+  function hasTier(t) { return Object.prototype.hasOwnProperty.call(TIER_SUB, t); }
+
   /* 两类键：
        `fishcard:<档位>:<id>:<颜色档>` —— 图鉴卡面（PNG，Q8 的两档派生物）
        `sfx:<名字>`                  —— 音效（MP3）
@@ -90,9 +98,10 @@ G.Assets = (function () {
     var p = String(key == null ? '' : key).split(':');
     if (p[0] === 'fishcard') {
       if (p.length !== 4) return null;
-      /* ⚠️ `in` 判「键在不在」而不是 `p[1] in TIER_SUB ? ... : null` 的三元 ——
-         `TIER_SUB.detail` 的值是**空串**，用真值判断会把 detail 档自己也拦掉。 */
-      if (!(p[1] in TIER_SUB)) return null;                        // 档位写错 = 直接拦
+      /* ⚠️ `hasTier()` 判「键在不在」而不是 `p[1] in TIER_SUB ? ... : null` 的三元 ——
+         `TIER_SUB.detail` 的值是**空串**，用真值判断会把 detail 档自己也拦掉；
+         而 `in` 又会沿原型链（见 `hasTier()` 的注释）。 */
+      if (!hasTier(p[1])) return null;                             // 档位写错 = 直接拦
       var fid = p[2];
       if (!/^[A-Za-z0-9]+$/.test(fid)) return null;
       var morph = p[3];

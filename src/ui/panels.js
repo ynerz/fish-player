@@ -2226,30 +2226,41 @@ G.Panels = (function () {
       keepBtn.textContent = '收进鱼护 ' + netN + '/' + netCap;
     }
 
-    // 绘制
-    var cv = catchCanvas;
-    var dpr = G.Platform.sys.dpr();
-    cv.width = 360 * dpr; cv.height = 200 * dpr;
-    var ctx = cv.getContext('2d');
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    var grad = ctx.createLinearGradient(0, 0, 0, 200);
-    grad.addColorStop(0, '#eaf7ff'); grad.addColorStop(1, '#c6e9fb');
-    ctx.fillStyle = grad; ctx.fillRect(0, 0, 360, 200);
-    // 水波
-    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 2;
-    for (var i = 0; i < 4; i++) {
-      ctx.beginPath();
-      for (var x = 0; x <= 360; x += 10) {
-        var y = 150 + i * 14 + Math.sin(x * 0.05 + i) * 3;
-        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    /* 绘制：与图鉴 / 鱼护 / 水族箱走**同一个**回退链入口。
+       结算卡是所有绘制面里最显眼的那一块（每一竿都要看一眼「刚钓上来的这条鱼」），
+       它此前是**唯一**还在直接调 `G.FishArt.draw` 的地方 —— 于是「图鉴里是 AI 图、
+       结算卡里是程序化图」，同一个事实两条口径。
+       ⚠️ `onReady` **只重画这块画布**：卡片 DOM 一行都不能动 ——
+          重渲染会把「收下 / 卖出」的按钮引用与 `pendingCatch` 待决状态一起搅乱
+          （那是这条链路上最容易出的静默失效）。
+       档位取 detail：这块画布 360×200，是四个绘制面里第二大的（仅次于详情页）。 */
+    function paintCatch() {
+      var cv = catchCanvas;
+      if (!cv) return;
+      var dpr = G.Platform.sys.dpr();
+      cv.width = 360 * dpr; cv.height = 200 * dpr;
+      var ctx = cv.getContext('2d');
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      var grad = ctx.createLinearGradient(0, 0, 0, 200);
+      grad.addColorStop(0, '#eaf7ff'); grad.addColorStop(1, '#c6e9fb');
+      ctx.fillStyle = grad; ctx.fillRect(0, 0, 360, 200);
+      // 水波
+      ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 2;
+      for (var i = 0; i < 4; i++) {
+        ctx.beginPath();
+        for (var x = 0; x <= 360; x += 10) {
+          var y = 150 + i * 14 + Math.sin(x * 0.05 + i) * 3;
+          if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
       }
-      ctx.stroke();
+      var L = U.clamp(Math.min(230, 90 + Math.log(1 + info.kg) * 26), 110, 250);
+      paintFish(ctx, info.fish, info.color,
+        { cx: 180, cy: 96, len: L, w: 360, h: 200, tier: 'detail' }, 0.8, paintCatch);
     }
-    var L = Math.min(230, 90 + Math.log(1 + info.kg) * 26);
-    L = U.clamp(L, 110, 250);
-    G.FishArt.draw(ctx, info.fish, 180, 96, L, {
-      tint: info.color.tint, tintAmt: 0.55, t: 0.8,
-    });
+    /* ⚠️ 颜色档的染色强度这里从 0.55 改成走 `paintFish()` 的 0.75 —— 与图鉴 / 鱼护 /
+       水族箱统一（「同一个观感只写一处」）。卡面路径本来就不染色（AI 图已经是那个颜色）。 */
+    paintCatch();
 
     // 阶段音效交给 fishing.js
   }

@@ -4014,7 +4014,13 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
 
     /* ---------- ② 条件门 ---------- */
     clean();
+    /* ⚠️ **隔离图鉴**（N11 三期新增两条 `cond.have` 事件之后）：那两条与天气 / 钓场**无关** ⇒
+       图鉴里若有它们记的那几条鱼，大晴天正午也会开口，而这条断言的**意图**是
+       「天气 / 钓场 / 时段这三门都不满足 ⇒ 一条都不触发」。
+       清空图鉴 = 把一道与本题无关的门关掉（隔离，不是给内容加限制）。 */
+    St.get().book = {};
     ok(firstHit(DRY) === null, '条件都不满足时（隐藏钓场 + 大晴天正午）一条事件都不触发');
+    St.get().book = realBook;
     /* ⚠️ 傍晚这一组要**先把别的候选推进冷却里**：N7 七期起老陈多了一条**图鉴门**事件
        （只要求「村口那三条里钓到过一条」，而测试跑到这儿图鉴早就有了），它对时段与天气
        都没有要求 ⇒ 不隔离的话就变成「谁先过概率门谁赢」的运气题，
@@ -4240,6 +4246,11 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
     var ferryEv = null;
     G.STORY_EVENTS.forEach(function (e) { if (e.id === 'ferry') ferryEv = e; });
     ok(!!ferryEv, '内容表里有船家那条事件（下面那条断言的前提）');
+    /* ⚠️ **先把图鉴清空**：`cond.have` 那几条（「他记得你」）**与天气无关** ⇒ 图鉴里若恰好有
+       它们记的那几条鱼，它们也会在雾天开口，「只有船家」这条就不成立了。
+       清空 = 把一道**与本题无关**的门关掉 —— 这是**隔离**，不是给内容加限制
+       （与 `coolExcept()` 同一个做法）。 */
+    St.get().book = {};
     var fogBag = {};
     for (var fi = 0; fi < 400; fi++) {
       var fe = S7.consider();
@@ -4249,7 +4260,38 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
     ok(fogWho.length > 0 && fogWho.every(function (x) { return x === ferryEv.npc; }),
        '雾天在共场那片：开口的只有船家（不是「列表里第一个」那位）'
        + ' —— 实际开口的是：' + (fogWho.join(' / ') || '没人'));
+    St.get().book = realBook;
     St.get().field = 'D';
+    clean();
+
+    /* ---------- ⑨-d 「他记得你」：跨水域的记忆门（N11 三期） ----------
+       两位邻居各自提起你在**别处**钓到的东西（`cond.have` 与钓场无关 ⇒ 正好能表达「听说」）。
+       **双向验** —— 只验「有那条就开口」会让「门恒开」也通过。 */
+    var toldEv = null, inlandEv = null;
+    G.STORY_EVENTS.forEach(function (e) {
+      if (e.id === 'told') toldEv = e;
+      if (e.id === 'inland') inlandEv = e;
+    });
+    ok(!!toldEv && !!inlandEv, '内容表里有两条「他记得你」的跨水域事件');
+    ok(toldEv && toldEv.npc === 'chen' && inlandEv && inlandEv.npc === 'hai',
+       '它们分属老陈与阿海两位（不是同一个人念两遍）');
+    function toldHit(ev, base, book) {
+      clean(); coolExcept(ev.id);
+      St.get().book = book;
+      for (var sq = 1; sq <= 600; sq++) {
+        var pq = { field: base.field, wx: base.wx, tm: base.tm, npcs: base.npcs, seq: sq, now: 0 };
+        var gq = S7.tryFire(pq);
+        if (gq && gq.id === ev.id) return sq;
+      }
+      return 0;
+    }
+    ok(toldHit(toldEv, DUSK, {}) === 0,
+       '图鉴里没有那几条 ⇒ 老陈一次都不「听说」（门恒关，不是碰运气）');
+    var withSea = {};
+    withSea[toldEv.cond.have[0]] = { n: 1, maxKg: 1, colors: {}, first: 0 };
+    ok(toldHit(toldEv, DUSK, withSea) > 0,
+       '图鉴里有**任意一条** ⇒ 他真的会开口（跨水域的记忆通路是活的）');
+    St.get().book = realBook;
     clean();
 
     /* ---------- ⑩ 脏档兜底：story 被写成数字 / 字符串时不崩 ---------- */

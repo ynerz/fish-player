@@ -221,6 +221,16 @@ html,body{
   border-radius:5px; background:#fff;
   font-family:inherit; font-size:11px; color:var(--c-text);
 }
+/* 同时提竿（N11 六期）：他也在遛鱼 ⇒ 这一竿的**截止时间**。
+   🔴 这一行不是装饰 —— 引擎里那条「两线缠在一起」是定时的，玩家看不见它就只会觉得
+      「鱼莫名其妙没了」。做成暖橙警示色（与张力危险同一族），与上面那句操作提示分得开：
+      提示是**怎么做**，这一行是**还剩多久**。 */
+.race-hint{
+  margin-top:7px; padding:4px 10px; text-align:center;
+  border-radius:8px; background:rgba(232,160,32,.14);
+  border:1px solid rgba(232,160,32,.45);
+  font-size:12px; font-weight:700; color:#b07407; letter-spacing:.5px;
+}
 
 /* 挂机标 */
 .idle-chip{

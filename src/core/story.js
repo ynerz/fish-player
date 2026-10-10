@@ -116,6 +116,21 @@
         内容仍是事件表里带 `rob: true` 的那几条，但它**不走 `tryFire()`**
         （由 `fishing.js` 的拉扯循环问 `robArm()` / `robFire()`）。
         四条口径与「为什么只抢小杂鱼」写在那两个函数上面（本节末尾），改它之前先读。
+
+     ⑬ **同时提竿（两线缠在一起）**（N11 六期）—— 第二条**在拉扯中途**发生的互动，
+        与 ⑫ 是一对：⑫ 是**早插手**（开赛后一两秒就把鱼抄走），这条是**跟你比谁先抄网** ——
+        他也中鱼了，你的这一竿于是**多了一个截止时间**，超时两线缠死、这条鱼归他。
+        · 内容带 `race: true`、同样**不走 `tryFire()`**（`raceArm()` / `raceFire()`）。
+        · 🔴 **两条通路互斥**：`fishing.js` 的 `startFight()` 先问抢鱼、**抢鱼没预约到**
+          才问同时提竿 ⇒ 一竿只可能发生一件。少了这道互斥，同一竿会先被抢走、
+          紧接着又被缠一次（两句台词前后脚弹出来），而且**不报错**。
+        · 🔴 **窗口必须可见**：一个玩家看不见的截止时间 = 「鱼莫名其妙没了」。
+          引擎只给「还剩多久」（`raceLeft()` 由 `fishing.js` 现算），
+          显示在拉扯 UI 上（`hud.js` 的 `setRace()`）—— 「说得出原因」才算调剂。
+        · 数值（窗口 / 只挑哪一档）在 `CFG.story.race`；四道行为门（只挑普通档 /
+          不挑你没见过的 / 挂机不挑 / 面板开着不缠）在这里。**判定链与 ⑫ 同款**：
+          走 `curCtx()`（谁在场）、`caughtOne()`（图鉴）、`rollFor()` + `hash32()`（可复现）、
+          `st.fired` / `st.at`（与 `tryFire()` 同一份存档事实）。
    ========================================================= */
 
 window.G = window.G || {};
@@ -134,6 +149,10 @@ G.Story = (function () {
      `null` = 这一竿不抢。它是**内存状态**、不落存档 —— 存档只记「发生了没有」
      （`s.story.fired` / `at`），与 `seq` / `lastAt` 同一类东西。 */
   var robEv = null;
+  /* 同时提竿（N11 六期）：**这一竿**被预约的「两线缠在一起」那条内容
+     （`raceArm()` 定下的）。`null` = 这一竿没人跟你抢。与 `robEv` 同款：
+     内存状态、不落存档（存档只记「发生了没有」）。 */
+  var raceEv = null;
 
   function cfg() { return (G.CONFIG && G.CONFIG.story) || {}; }
   function now() {
@@ -256,6 +275,11 @@ G.Story = (function () {
          「他嘴上说抢、鱼还在你手里」，而且会在**任意时刻**冒出来（面板 / 结算卡关闭之后
          那两次 `consider()` 也算）—— 全程**不报错**。 */
       if (ev.rob) continue;
+      /* 🔴 「同时提竿」那几条（`race: true`，N11 六期）**同样不参与抽签**：它们的触发
+         时机是「你正拉扯、他也中鱼了」（`raceArm()` / `raceFire()`），落在 `tryFire()`
+         里就会变成「他嘴上说两条线缠上了、而你手里根本没有鱼」，而且会在**任意时刻**
+         冒出来 —— 全程**不报错**。 */
+      if (ev.race) continue;
       /* 🔴 NPC 门（口径 ⑧）：只让「当前钓场**在场的那些位**」的事参与抽签。
          少了这一条，海边会跳出老陈的「借线」（画面上是阿海、弹窗里是老陈），且不报错。
          `p.npcs` 由 `probeOf()` 从 `curCtx()` 带下来 —— 「谁在场」只有 `curNpcIds()`
@@ -535,6 +559,84 @@ G.Story = (function () {
       || (G.Panels.isCatchOpen && G.Panels.isCatchOpen()))) { robEv = null; return false; }
     var ev = robEv;
     robEv = null;
+    var t = now();
+    lastAt = t;
+    mark(ev, t);
+    if (cb.onEvent) cb.onEvent(payload(npcOf(ev.npc), ev.lines, ev.title));
+    return true;
+  }
+
+  /* ---------------- 同时提竿（N11 六期 / 口径 ⑬） ----------------
+     他也中鱼了 ⇒ 给你的这一竿**加一个截止时间**，超时两线缠死、这条鱼归他。
+     与 ⑫「抢鱼」是一对、**互斥**（`fishing.js` 先问抢鱼，抢鱼没预约到才问这条）。
+     🔴 为什么窗口要落在「普通档的拉扯时长」之内（`CFG.story.race.maxRar = 0`）：
+        它是**一场比赛**而不是一次偷袭 —— 手快能赢、磨蹭必输，这是它唯一的乐趣来源。
+        稀有档要拉 20 秒以上，同一个窗口就是**必输**，那不是调剂而是劝退。
+        窗口值本身是**先量后改**定的（理想操作 ≈ 6.7~7.6 秒，见 `config.js`）。
+     🔴 与 `robArm()` 逐条对齐的四道行为门 + 同一套哈希 + 同一份存档事实。
+        ⚠️ 不共用 `robArm()` 的实现：两条通路的门不同（档位门槛不同、互斥关系不同）、
+           返回值含义也不同（一个是「他下手」、一个是「截止时间」）——
+           合成一个带 `kind` 参数的函数，读代码的人得同时记住两套语义。 */
+  function raceCfg() {
+    var c = cfg().race;
+    return (c && typeof c === 'object') ? c : null;
+  }
+  /* 「他什么时候收网」：与 `robPlan()` 同款，只换前缀盐（`'raceat'`）⇒ 加内容不挪动它。 */
+  function racePlan(ev, p) {
+    var r = raceCfg();
+    var t = hash32(['raceat', p.field, p.wx, p.tm, p.seq, ev.id].join('|')) / 4294967296;
+    var o = {};
+    o.atMs = Math.round(r.atMinMs + (r.atMaxMs - r.atMinMs) * t);
+    return o;
+  }
+  /* 开赛那一刻问一次「这一竿他跟你抢不抢」。返回 `{ atMs }`（自开赛起算毫秒）或 `null`。
+     门按顺序（顺序即优先级）：数值表在 → 在档位门槛内 → 你已经钓到过 → 不是挂机 →
+     这一片水里有人 → 与 `consider()` 同一道全局兜底间隔 → 每条候选自己过一遍
+     （在场 / `cond` / `once` / 冷却 / 掷点）。 */
+  function raceArm(fish) {
+    raceEv = null;
+    var r = raceCfg();
+    if (!r || !fish || typeof fish !== 'object') return null;
+    if (typeof fish.rar !== 'number' || fish.rar > r.maxRar) return null;   /* 口径 ⑬ */
+    if (!caughtOne(fish.id)) return null;                                   /* 不抢新种（同 ⑫ ①） */
+    if (G.Fishing && G.Fishing.isIdleMode && G.Fishing.isIdleMode()) return null;
+    var c = curCtx();
+    if (!c || !c.npcs.length) return null;
+    var t = now();
+    var gap = cfg().minGapMs || 0;
+    if (lastAt && (t - lastAt) < gap) return null;
+    var s = (G.State && G.State.get) ? G.State.get() : null;
+    var n = (s && s.stats && typeof s.stats.casts === 'number') ? s.stats.casts : 0;
+    var p = probeOf(c, n, t, '');
+    var st = rec();
+    var list = evs();
+    for (var i = 0; i < list.length; i++) {
+      var ev = list[i];
+      if (!ev.race) continue;
+      if (c.npcs.indexOf(ev.npc) < 0) continue;
+      if (!condOk(ev, p)) continue;
+      if (ev.once && (st.fired[ev.id] || 0) > 0) continue;
+      var last = st.at[ev.id];
+      if (last && (t - last) < ev.cooldownMs) continue;
+      if (rollFor(ev, p) >= ev.chance) continue;
+      raceEv = ev;
+      return racePlan(ev, p);
+    }
+    return null;
+  }
+  /* 到点了、`fishing.js` 来问「真缠上了吗」。返回 true = 已记账 + 已把对话交出去。
+     与 `robFire()` 同款三条：
+       · 面板 / 结算卡开着 ⇒ **不缠**（不在两层 modal 之上再叠一层），这一竿就这么算了
+         （清掉 `raceEv`），**不是「推迟」**；
+       · **不看概率**：`raceArm()` 那一刻已经掷过了 —— 玩家会看到「鱼没了」，
+         台词就必须来（再掷一次点，坏掉的样子是「鱼凭空消失」）；
+       · ⚠️ 顺序：`fishing.js` 必须**先**调它、**后** `resolve('race')`（否则别的对话会覆盖它）。 */
+  function raceFire() {
+    if (!raceEv) return false;
+    if (G.Panels && ((G.Panels.isOpen && G.Panels.isOpen())
+      || (G.Panels.isCatchOpen && G.Panels.isCatchOpen()))) { raceEv = null; return false; }
+    var ev = raceEv;
+    raceEv = null;
     var t = now();
     lastAt = t;
     mark(ev, t);
@@ -874,7 +976,7 @@ G.Story = (function () {
   /* 清掉**内存里**的推进状态（序号 / 条件指纹 / 全局间隔）——
      ⚠️ 它**不碰存档**：「这条我见过没」是存档的事实，不该被一次重置抹掉。
      测试要清存档请直接改 `St.get().story`。 */
-  function reset() { seq = 0; ctxKey = ''; lastAt = 0; aseq = 0; actxKey = ''; robEv = null; }
+  function reset() { seq = 0; ctxKey = ''; lastAt = 0; aseq = 0; actxKey = ''; robEv = null; raceEv = null; }
 
   return {
     init: init,
@@ -883,6 +985,8 @@ G.Story = (function () {
     arriveSoon: arriveSoon,
     robArm: robArm,
     robFire: robFire,
+    raceArm: raceArm,
+    raceFire: raceFire,
     neighbors: neighbors,
     talk: talk,
     choose: choose,

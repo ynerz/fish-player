@@ -5833,6 +5833,337 @@ G_('隔壁抢鱼 · 引擎的门与真拉扯里的接线（N11 五期）');
 })();
 
 /* =========================================================
+   N11 六期 · 同时提竿（两线缠在一起）—— 给这一竿一个**截止时间**
+   =========================================================
+   它与「隔壁抢鱼」是一对，验的东西也成对，只是多了两块：
+     ① **引擎侧的门**（`raceArm()`）：只挑普通档 / 不挑你没见过的 / 挂机不挑 /
+        没人在场不挑 / 冷却期内不挑 / 同入参同结果（纯函数）；
+     ② **引擎侧的动作**（`raceFire()`）：面板开着不缠、真缠了要记账 + 交台词、作废；
+     ③ **接线**（`fishing.js`）：开赛问一次（**抢鱼没预约到才问**）、到点判一次、
+        **先开对话后收尾**、计数进 `stats.tangled`、`raceLeft()` 报得出还剩多久；
+     ④ **赢了那一场有反馈**（窗口内上岸 ⇒ toast），而且**不影响任何数值**。
+   本节**不走**手写 `st.stats.tangled++` 那条路 —— 计数一定是从真的一竿里出来的。
+   ========================================================= */
+G_('同时提竿 · 引擎的门与真拉扯里的接线（N11 六期）');
+(function () {
+  var S9 = G.Story, Fish9 = G.Fishing;
+  var realSnap9 = G.Weather.snapshot, realPanels9 = G.Panels;
+  var realStory9 = G.Story, realFight9 = G.Fight;
+  var realBook9 = St.get().book;
+  var RACE_CFG = CFG.story.race;
+
+  /* 一条**门槛以内**的鱼与一条**超过门槛**的：两份都从鱼表现算，不写死 id。 */
+  var smallFish9 = ((G.FISH_BY_FIELD_RARITY.D[RACE_CFG.maxRar] || [])[0]) || null;
+  var bigFish9 = ((G.FISH_BY_FIELD_RARITY.D[RACE_CFG.maxRar + 1] || [])[0]) || null;
+
+  function setFieldBook9(field, fish) {
+    St.get().field = field;
+    St.get().book = {};
+    if (fish) St.get().book[fish.id] = { n: 1, maxKg: 1, colors: {}, first: 0 };
+  }
+  /* 扫一个能让 `raceArm()` 命中的抛竿序号（不写死：改一次 `chance` 就失效）。 */
+  function armHit9(fish) {
+    for (var c = 0; c <= 500; c++) {
+      S9.reset();
+      St.get().stats.casts = c;
+      var r = S9.raceArm(fish);
+      if (r) return { casts: c, at: r.atMs };
+    }
+    return null;
+  }
+
+  try {
+    ok(!!smallFish9 && !!bigFish9 && smallFish9.rar <= RACE_CFG.maxRar
+      && bigFish9.rar > RACE_CFG.maxRar,
+      '鱼表里取到了门槛内 / 门槛外两条鱼（' + (smallFish9 && smallFish9.id) + ' rar='
+      + (smallFish9 && smallFish9.rar) + ' / ' + (bigFish9 && bigFish9.id) + ' rar='
+      + (bigFish9 && bigFish9.rar) + '，门槛 maxRar=' + RACE_CFG.maxRar + '）');
+
+    /* ---------- ① 门 ---------- */
+    G.Weather.snapshot = function () { return { wx: { key: 'clear' }, tm: { key: 'day' } }; };
+    G.Panels = { isOpen: function () { return false; }, isCatchOpen: function () { return false; } };
+    if (G.Fishing && G.Fishing.hardReset) G.Fishing.hardReset();
+    St.setIdle(false);
+    setFieldBook9('D', smallFish9);
+
+    var hit9 = armHit9(smallFish9);
+    ok(!!hit9, '条件齐备（普通档 + 已经钓到过 + 老陈在内陆那片 + 白天晴天）时真能预约到一次「同时提竿」');
+    ok(!!hit9 && hit9.at >= RACE_CFG.atMinMs && hit9.at <= RACE_CFG.atMaxMs,
+      '窗口落在 config 给的区间里（' + (hit9 && hit9.at) + 'ms ∈ ['
+      + RACE_CFG.atMinMs + ',' + RACE_CFG.atMaxMs + ']）—— 数值只在 config 一处');
+    ok(!!hit9 && hit9.at >= 1000,
+      '🔴 窗口不是「一开赛就缠」（' + (hit9 && hit9.at) + 'ms）—— 那样它就不是比赛而是偷袭');
+
+    /* 同入参同结果（纯函数：同一份存档 + 同一组条件 + 同一个抛竿序号） */
+    S9.reset(); St.get().stats.casts = hit9.casts;
+    var again1 = S9.raceArm(smallFish9);
+    S9.reset(); St.get().stats.casts = hit9.casts;
+    var again2 = S9.raceArm(smallFish9);
+    ok(again1 && again2 && again1.atMs === hit9.at && again2.atMs === hit9.at,
+      '同一个抛竿序号 ⇒ 同一个时刻（不掷 Math.random，可定点复现）');
+
+    /* 门槛外的鱼：不缠。
+       🔴 先把它**也放进图鉴**：否则拦住它的可能是下面那道「图鉴门」，
+          这条断言就成了假通过（拿掉档位判断照样绿 —— 反向验证 B1 当场逮到）。 */
+    St.get().book[bigFish9.id] = { n: 1, maxKg: 1, colors: {}, first: 0 };
+    S9.reset(); St.get().stats.casts = hit9.casts;
+    ok(S9.raceArm(bigFish9) === null,
+      '🔴 超过门槛的档位不缠（' + bigFish9.id + ' rar=' + bigFish9.rar + '，图鉴里已经有它）—— '
+      + '窗口是按普通档的拉扯时长标的，套到稀有档就是必输');
+    delete St.get().book[bigFish9.id];
+    /* 没见过的鱼：不缠（图鉴里直接少一条） */
+    St.get().book = {};
+    ok(S9.raceArm(smallFish9) === null, '🔴 图鉴里没有的不缠（否则图鉴会凭空少一条）');
+    St.get().book[smallFish9.id] = { n: 1, maxKg: 1, colors: {}, first: 0 };
+    /* 挂机：不缠 */
+    St.setIdle(true);
+    ok(S9.raceArm(smallFish9) === null, '挂机时不缠（人不在屏幕前，弹窗只会挡住回来后的操作）');
+    St.setIdle(false);
+    /* 这一片水里没人：不缠（把老陈的站位表清空 —— 七片钓场当前全有人，
+       所以「没人」只能这么造；不写一个不存在的钓场 id，那验的是脏值而不是这条口径） */
+    var savedSpots9 = JSON.stringify(G.STORY_NPCS.chen.spots);
+    G.STORY_NPCS.chen.spots = {};
+    S9.reset(); St.get().stats.casts = hit9.casts;
+    ok(S9.raceArm(smallFish9) === null, '这一片水里没人时不缠（谁在场只有 curNpcIds() 一处回答）');
+    G.STORY_NPCS.chen.spots = JSON.parse(savedSpots9);
+    /* 冷却：刚发生过就不再缠 */
+    S9.reset(); St.get().stats.casts = hit9.casts;
+    var ev9 = (G.STORY_EVENTS.filter(function (e) { return e.race; })[0]) || null;
+    St.get().story.at[ev9.id] = 1e12;
+    ok(S9.raceArm(smallFish9) === null, '冷却期内不再缠（隔多久由内容表的 cooldownMs 说了算）');
+    St.get().story.at = {};
+    /* 脏入参 */
+    ok(S9.raceArm(null) === null && S9.raceArm({}) === null && S9.raceArm({ rar: 'x', id: smallFish9.id }) === null,
+      '脏入参（null / 空对象 / rar 是字符串）一律不预约 —— 不抛、也不「默认缠」');
+
+    /* ---------- ② 动作 ---------- */
+    ok(S9.raceFire() === false, '没有预约时 raceFire() 给 false（不会凭空缠掉玩家的鱼）');
+    S9.reset(); St.get().stats.casts = hit9.casts;
+    ok(!!S9.raceArm(smallFish9), '（重新预约一次准备验动作）');
+    var evSeen = null;
+    S9.init({ onEvent: function (e) { evSeen = e; } });
+    ok(S9.raceFire() === true, '预约到点 ⇒ raceFire() 真缠（返回 true 让 fishing 收尾这一竿）');
+    ok(!!evSeen && Array.isArray(evSeen.lines) && evSeen.lines.length > 0
+      && evSeen.title === ev9.title && evSeen.npc
+      && evSeen.npc.name === G.STORY_NPCS[ev9.npc].name,
+      '那一刻把台词交了出去（标题「' + ev9.title + '」、说话人 ' + G.STORY_NPCS[ev9.npc].name
+      + '）—— 玩家看得懂发生了什么');
+    ok(St.get().story.fired[ev9.id] === 1, '记了一笔 fired（冷却与 once 都靠它）');
+    ok(S9.raceFire() === false, '同一次预约只兑现一次（不会连着缠两遍）');
+    /* 🔴 重新预约前**必须把刚才那一笔「发生过」清掉**：`raceFire()` 已经写了 `fired` / `at`，
+       而 `raceArm()` 的冷却门（内容表的 cooldownMs）会据此把它挡回来 ⇒ 预约不上、
+       `raceEv` 是 null ⇒ 下面「面板开着不缠」那条断言就**恒真**（本次反向验证当场逮到：
+       把面板守卫整条删掉，用例照样全绿）。做法与「抢鱼」那段一致：清存档事实 + 断言预约真成功。 */
+    S9.reset();
+    St.get().story = { fired: {}, at: {} };
+    St.get().stats.casts = hit9.casts;
+    ok(!!S9.raceArm(smallFish9), '（重新预约一次，准备验「面板开着」那条守卫）');
+    G.Panels = { isOpen: function () { return true; }, isCatchOpen: function () { return false; } };
+    ok(S9.raceFire() === false, '面板开着时不缠（两层 modal 叠在一起会打架）');
+    G.Panels = { isOpen: function () { return false; }, isCatchOpen: function () { return false; } };
+    ok(S9.raceFire() === false, '🔴 而且这一竿就**作废**（不是推迟 —— 那会让玩家先看到「咦鱼还在」）');
+
+    /* ---------- ③ 它**不参与** tryFire() 的抽签 ---------- */
+    S9.reset(); St.get().story = { fired: {}, at: {} };
+    St.get().field = 'D'; St.get().stats.casts = hit9.casts;
+    G.STORY_EVENTS.forEach(function (e) { if (!e.race) St.get().story.at[e.id] = 1e12; });
+    var leaked9 = 0;
+    for (var sq9 = 1; sq9 <= 600; sq9++) {
+      var got9 = S9.tryFire({ field: 'D', wx: 'clear', tm: 'day', npcs: ['chen'], seq: sq9, now: 0 });
+      if (got9 && got9.race) leaked9++;
+    }
+    ok(leaked9 === 0, '600 个序号里，同时提竿那几条一次都没从 tryFire() 漏出来（它们只认「你正拉扯」那个时机）');
+    St.get().story.at = {};
+
+    /* ---------- ④ 接线：真拉扯里被缠 / 赢了那一场 ----------
+       用**桩 Story** 把「引擎怎么决定」与「fishing 怎么接」分开验。 */
+    var log9 = [], armCalls9 = 0, fireCalls9 = 0, fireVal9 = true;
+    /* 桩里的战局：**要能真的结束**（下面要验「窗口内上岸」那条路，而那条路
+       只有 `Fight.update()` 真把 progress 判成满、`over/result` 变了才走得到 ——
+       第一版这个桩是「update 空实现」，于是「上岸」那几条断言全红）。 */
+    var curF9 = null;
+    function mkFight9() {
+      return { begin(o) { curF9 = { progress: 10, over: false, result: '' }; },
+               update() { if (curF9 && curF9.progress >= 100) { curF9.over = true; curF9.result = 'success'; } },
+               end() { curF9 = null; },
+               drainEvents() { return []; },
+               get() { return curF9 || { over: false, result: '', tensionMax: 100, tension: 0,
+                                        struggle: 0, warn: 0, dashing: false, elapsed: 1, progress: 0 }; },
+               snapshot() { return {}; } };
+    }
+    G.Story = {
+      robArm: function () { return null; },
+      robFire: function () { return false; },
+      raceArm: function () { armCalls9++; return { atMs: 100 }; },
+      raceFire: function () { fireCalls9++; log9.push('fire'); return fireVal9; },
+    };
+    G.Fight = mkFight9();
+    G.Scene = sceneStub;
+    var missSeen9 = [], toasts9 = [];
+    G.Fishing.init({ onToast: function (o) { toasts9.push(o.text); },
+                     onMiss: function (r) { missSeen9.push(r); log9.push('miss'); } });
+    St.reset(); G.Goals.init();
+    Fish9.cast();
+    Fish9.update(1.0);
+    Fish9.update(Fish9.getPending().wait + 0.001);
+    Fish9.strike();
+    ok(armCalls9 === 1, '开赛那一刻问了**一次** raceArm()（问两次就会为同一竿掷两次点）');
+    var left9 = Fish9.raceLeft();
+    ok(typeof left9 === 'number' && left9 > 0 && left9 <= 100,
+      '🔴 `raceLeft()` 报得出还剩多久（' + left9 + 'ms）—— 没有它，那条倒计时画不出来');
+    Fish9.update(0.05);
+    ok(Fish9.getState() === 'fight' && fireCalls9 === 0, '没到点之前不缠（不是一开赛就缠）');
+    Fish9.update(0.2);
+    ok(fireCalls9 === 1, '到点了问一次 raceFire()');
+    ok(Fish9.getState() === 'idle', '被缠住的那一竿当场收尾（回到 idle，不是继续拉扯）');
+    ok(missSeen9.length === 1 && missSeen9[0] === 'race',
+      '丢竿回调收到的是「两线缠在一起」这个结局（' + JSON.stringify(missSeen9) + '）');
+    ok(log9.join('>') === 'fire>miss',
+      '🔴 **先开对话、后收尾**（' + log9.join(' > ') + '）：反过来的话 consider() 会先把别的事件开出来，'
+      + '那句台词被覆盖掉，而且不报错');
+    ok(St.get().stats.tangled === 1 && St.get().stats.escapes === 0
+      && St.get().stats.robbed === 0 && St.get().stats.snaps === 0,
+      '计数进自己的键 `stats.tangled`，**没有**混进脱钩 / 被抢 / 断线（tangled='
+      + St.get().stats.tangled + ' / escapes=' + St.get().stats.escapes + '）');
+    ok(Fish9.raceLeft() === null, '收尾之后 raceLeft() 给 null（界面据此把那行摘掉）');
+
+    /* 引擎不给预约 ⇒ 这一竿绝对不缠 */
+    armCalls9 = 0; fireCalls9 = 0; log9 = []; missSeen9 = [];
+    G.Story = {
+      robArm: function () { return null; }, robFire: function () { return false; },
+      raceArm: function () { armCalls9++; return null; },
+      raceFire: function () { fireCalls9++; return true; },
+    };
+    Fish9.hardReset();
+    St.reset(); G.Goals.init();
+    Fish9.cast();
+    Fish9.update(1.0);
+    Fish9.update(Fish9.getPending().wait + 0.001);
+    Fish9.strike();
+    for (var uu9 = 0; uu9 < 40; uu9++) Fish9.update(0.1);
+    ok(armCalls9 === 1 && fireCalls9 === 0,
+      'raceArm() 给 null ⇒ 这一竿拉多久都不会被缠（不是「默认缠」）');
+    ok(Fish9.raceLeft() === null, '没人抢的那一竿 raceLeft() 恒为 null（界面上不该出现倒计时）');
+
+    /* 🔴 赢了那一场：窗口内上岸 ⇒ 有反馈，而且**不影响数值** */
+    /* ⚠️ 上岸那条路会走 `G.Goals.check()`，而它内部会 `Hud.toast()` —— 本用例的 DOM 桩
+       没有 toasts 容器（这里要验的是**这一竿**，不是任务系统的播报）⇒ 把 Goals 换成桩，
+       与「抢鱼」那段「用桩把不相关的模块隔开」是同一条做法。 */
+    var realGoals9 = G.Goals;
+    G.Goals = { init: function () {}, check: function () {}, tick: function () {},
+                medalClaimable: function () { return 0; }, equipped: function () { return null; } };
+    G.Story = {
+      robArm: function () { return null; }, robFire: function () { return false; },
+      raceArm: function () { return { atMs: 999999 }; },   /* 窗口远到不可能到点 */
+      raceFire: function () { return false; },
+    };
+    toasts9 = [];
+    Fish9.hardReset();
+    St.reset(); G.Goals.init();
+    var coinBefore9 = St.get().coin, bookBefore9 = JSON.stringify(St.get().book), st9 = St.get().stats.casts;
+    Fish9.cast();
+    Fish9.update(1.0);
+    Fish9.update(Fish9.getPending().wait + 0.001);
+    Fish9.strike();
+    ok(Fish9.raceLeft() > 0, '（预约在很远的未来 ⇒ 这一竿有倒计时但不是必输）');
+    /* 把进度直接推到满：真上岸（走的是真 resolve('success')，不是手写计数） */
+    for (var p9 = 0; p9 < 200 && Fish9.getState() === 'fight'; p9++) {
+      var f9 = G.Fight.get();
+      if (f9) f9.progress = 100;
+      Fish9.update(0.05);
+    }
+    ok(Fish9.getState() !== 'fight', '窗口内上岸 ⇒ 这一竿正常收尾（他没抄到）');
+    ok(toasts9.join('|').indexOf('先抄上了网') >= 0,
+      '🔴 赢了那一场有反馈（toast：' + JSON.stringify(toasts9) + '）—— 否则「比赛」这件事'
+      + '只有输的时候才看得见');
+    ok(St.get().coin === coinBefore9 && JSON.stringify(St.get().book) !== bookBefore9
+      && St.get().stats.casts === st9 + 1,
+      '🔴 而且它**不影响任何数值**：鱼还是那条鱼（图鉴变了）、钱一分没加（coin 不变）');
+
+    /* ---------- ⑤ 记分键的老档迁移 / 脏值归一化 ---------- */
+    function loadTangle(stats) {
+      var d = { v: 6, coin: 500, playTime: 3600, field: 'D', unlocked: { D: true },
+                book: {}, baits: { worm: -1 }, rods: ['bamboo'], lines: ['n2'], decors: [],
+                net: [], tank: [], netCap: 30, tankCap: 6, netEx: 0, tankEx: 0,
+                stats: stats, settings: { sound: true, volume: 0.5, ambient: true, idle: false } };
+      store[G.Profile.key()] = JSON.stringify(d);
+      St.load();
+      return St.get().stats;
+    }
+    var base9 = { casts: 3, catches: 4, escapes: 9, misses: 1, robbed: 2, snaps: 1, idleCatches: 0,
+                  maxKg: 2, maxKgFish: 'x', totalValue: 100, days: 0 };
+    ok(loadTangle(base9).tangled === 0, '老档（没有 tangled）补齐成 0（而不是 undefined）');
+    ok(loadTangle(base9).robbed === 2 && loadTangle(base9).escapes === 9,
+      '补齐 tangled 不影响已有的 robbed / escapes（历史数据不动）');
+    ok(loadTangle(Object.assign({}, base9, { tangled: -3 })).tangled === 0, '脏值负数被归一化成 0');
+    ok(loadTangle(Object.assign({}, base9, { tangled: 'x' })).tangled === 0, '脏值字符串被归一化成 0');
+    ok(loadTangle(Object.assign({}, base9, { tangled: 2.6 })).tangled === 3, '小数被四舍五入（2.6 → 3）');
+
+    /* ---------- ⑥ 面板上真的看得见 + 倒计时真的画得出来 ---------- */
+    St.reset();
+    St.get().stats.tangled = 43;
+    var statRoot9 = mkEl('div'), statErr9 = null;
+    try { realPanels9.VIEWS.stats.render(statRoot9, undefined); } catch (e) { statErr9 = e; }
+    var stxt9 = panelText(statRoot9);
+    ok(!statErr9, '统计面板真渲染不抛（tangled 那一格接上之后也不会）', statErr9 && statErr9.message);
+    var tgAt9 = stxt9.indexOf('被缠线');
+    ok(tgAt9 >= 0, '统计面板上有「被缠线」这一格（计数不是没人看的死字段）');
+    ok(tgAt9 >= 0 && stxt9.indexOf('43') >= 0,
+      '它显示的是真数（本用例把 tangled 设成 43，面板上有 43）');
+    /* 拉扯 UI 上那行倒计时：真渲染一次（与「比试芯片」同一个 DOM 桩做法）——
+       只断言源码里「有 setRace()」是不够的：那个函数完全可能接上了却算错秒数。 */
+    function mkEl9() {
+      return {
+        classList: { _s: [],
+          add(c) { if (this._s.indexOf(c) < 0) this._s.push(c); },
+          remove(c) { this._s = this._s.filter(x => x !== c); },
+          contains(c) { return this._s.indexOf(c) >= 0; },
+          toggle(c, on) { on ? this.add(c) : this.remove(c); } },
+        style: {}, textContent: '', title: '', checked: false,
+        querySelector() { return mkEl9(); }, querySelectorAll() { return []; },
+        addEventListener() {}, setAttribute() {}, getAttribute() { return ''; },
+      };
+    }
+    var reg9 = { '#raceHint': mkEl9() };
+    var realDoc9 = global.document, realAddEvt9 = global.addEventListener;
+    global.document = { querySelector: function (s) { return reg9[s] || mkEl9(); },
+                        querySelectorAll: function () { return []; },
+                        createElement: function () { return mkEl9(); }, addEventListener: function () {} };
+    global.addEventListener = function () {};
+    G.Panels = realPanels9;                     /* Hud.init() 要真调 Panels.setOnClose */
+    G.Hud.init({});
+    var hint9 = reg9['#raceHint'];
+    G.Hud.setRace(4000);
+    var h1 = String(hint9.textContent || '');
+    ok(h1.indexOf('4 秒') >= 0 && !hint9.classList.contains('hidden'),
+      '真渲染：倒计时写出来是「剩 4 秒」且那行**没有** hidden（实得 ' + JSON.stringify(h1) + '）');
+    ok(String(hint9.title || '').indexOf('缠') >= 0,
+      '完整口径写进 title（那一行要短，玩家正在看张力条）');
+    G.Hud.setRace(3900);
+    ok(String(hint9.textContent) === h1, '同一秒内不重写 DOM（缓存生效 —— 它每帧被问一次）');
+    G.Hud.setRace(2000);
+    ok(String(hint9.textContent).indexOf('2 秒') >= 0, '秒数变了就跟着变（缓存不是「只写一次」）');
+    G.Hud.setRace(null);
+    ok(hint9.classList.contains('hidden'), '离开拉扯 ⇒ 那行收起（挂 / 摘成对）');
+    global.document = realDoc9;
+    global.addEventListener = realAddEvt9;
+  } finally {
+    G.Weather.snapshot = realSnap9;
+    G.Panels = realPanels9;
+    G.Story = realStory9;
+    G.Fight = realFight9;
+    G.Goals = realGoals9;
+    S9.init({});
+    S9.reset();
+    St.get().story = { fired: {}, at: {} };
+    St.get().book = realBook9;
+    St.get().stats.tangled = 0;
+    if (St.get().settings.idle) St.setIdle(false);
+    if (G.Fishing && G.Fishing.hardReset) G.Fishing.hardReset();
+  }
+})();
+
+/* =========================================================
    云存档（N8 ③）：平台层兜底不抛 + 离线静默降级
    =========================================================
    ⚠️ 本文件是**全同步**的（没有 async/await），所以这里只钉**同步**那部分：

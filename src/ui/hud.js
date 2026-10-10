@@ -26,6 +26,7 @@ G.Hud = (function () {
     el.barProg  = U.$('#barProg');
     el.barTen   = U.$('#barTension');
     el.fightTip = U.$('#fightTip');
+    el.raceHint = U.$('#raceHint');
     el.toasts   = U.$('#toasts');
     el.badgeName = U.$('.fb-name');
     el.badgeSub  = U.$('.fb-sub');
@@ -214,6 +215,32 @@ G.Hud = (function () {
       + (idleOn ? '。你现在开着挂机 —— 挂机自动上的鱼不算，要自己提竿的那一竿才算。' : '');
   }
 
+  /* ---------------- 同时提竿（N11 六期） ----------------
+     他也在遛鱼 ⇒ 这一竿有**截止时间**：到点两条线缠死，这条鱼归他。
+     🔴 这一行是那条内容**成立的前提**：引擎里的判定是定时的，玩家看不见它就只能看到
+        「鱼莫名其妙没了」（那时它从「调剂」变成「莫名其妙」）。
+     `leftMs` 为 null / 不在拉扯中 ⇒ 收起。
+     ⚠️ 与 `updateFight()` 那条一样做**文案缓存**：它每帧被问一次，无脑写 DOM 会让
+        浏览器每帧重排（那段注释在 `fightTip` 上面，同一条理由）。 */
+  var raceCache = null;
+  function setRace(leftMs) {
+    if (!el.raceHint) return;
+    var on = (typeof leftMs === 'number' && isFinite(leftMs) && leftMs >= 0);
+    if (!on) {
+      if (raceCache !== null) { raceCache = null; el.raceHint.classList.add('hidden'); }
+      return;
+    }
+    var sec = Math.max(0, Math.ceil(leftMs / 1000));
+    if (sec !== raceCache) {
+      raceCache = sec;
+      el.raceHint.textContent = '⚔ 他也中鱼了 —— 两线缠上前快拉上来！剩 ' + sec + ' 秒';
+      /* 完整口径放 title（这一行要短，拉电脑不在屏幕中央的时候更要紧） */
+      el.raceHint.title = '隔壁那位跟你同时提的竿。两条线缠在一起了 —— '
+        + '在他的鱼上岸之前把这条拉上来；超时两线缠死，这一条就没了。';
+    }
+    el.raceHint.classList.remove('hidden');
+  }
+
   /* ---------------- 天气 / 时段 ---------------- */  function setWeather(sn) {
     if (!sn || !el.wxText) return;
     el.wxIcon.textContent = sn.wx.icon + sn.tm.icon;
@@ -317,6 +344,6 @@ G.Hud = (function () {
     fightTip: fightTip,
     toast: toast, setField: setField, setWeather: setWeather,
     setTitle: setTitle, syncTitle: syncTitle, syncGoalBadge: syncGoalBadge,
-    pushCatch: pushCatch, setDuel: setDuel,
+    pushCatch: pushCatch, setDuel: setDuel, setRace: setRace,
   };
 })();

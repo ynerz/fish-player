@@ -7550,6 +7550,175 @@ let storyBad = 0;
   }
   if (robBad.length) { err('「隔壁抢鱼」这条链路不对：' + robBad.join('；')); storyBad++; }
 
+  /* ⑬ 🔴 同时提竿（两线缠在一起）（N11 六期）：**第二条**在拉扯中途发生的互动。
+     与 ⑫ 是一对，坏法也成对，**全是静默的**：
+       · 内容带了标记、`tryFire()` 没摘出去 ⇒ 它会在**任意时刻**作为普通事件冒出来
+         （他嘴上说「两条线缠上了」、而你手里根本没有鱼）；
+       · `raceArm()` 不看档位门派 ⇒ 稀有档要拉 20 秒以上，9~13 秒的窗口成了**必输**
+         （那不是调剂而是劝退）；不看图鉴 ⇒ 从图鉴里抠掉一条新种；
+       · 🔴 **两条通路不互斥** ⇒ 同一竿先被抢走、紧接着又被缠一次，两句台词前后脚弹出来；
+       · 🔴 **窗口不可见** ⇒ 定时判定变成了「鱼莫名其妙没了」——
+         玩家看不出这是设计，只会当 bug（判据因此钉住 `raceLeft()` 的**消费方**）；
+       · 倒计时**只挂不摘** ⇒ 战斗结束了它还挂在屏幕上；
+       · 计数并进 `escapes` ⇒ 面板那格叫「脱钩次数」，把「比赛输了」也算进去（Q44 同族）。
+     ⚠️ 「同时提竿」那个标记键同样**动态认**：它是 `tryFire()` 里**第二条**跳过语句。
+        认不出（一条 / 三条 / 名字对不上）就报错 —— 抓不到比报错更糟。 */
+  const raceBad = [];
+  const skipKeys = [];
+  const skipRe = /if \(ev\.([A-Za-z_$][\w$]*)\) continue;/g;
+  let skm;
+  while ((skm = skipRe.exec(String(tryFireBody))) !== null) skipKeys.push(skm[1]);
+  const raceArmAnchorBody = bodyOf(coreCode, 'function raceArm(');
+  const raceKey = raceArmAnchorBody
+    ? skipKeys.filter(k => k !== robKey
+      && EVS.some(ev => ev[k] === true)
+      && new RegExp('ev\\.' + k + '(?![A-Za-z0-9_$])').test(raceArmAnchorBody))[0] || ''
+    : '';
+  const raceEvs = raceKey
+    ? EVS.filter(ev => ev[raceKey] === true
+      && new RegExp('ev\\.' + raceKey + '(?![A-Za-z0-9_$])').test(raceArmAnchorBody))
+    : [];
+  if (!raceKey) {
+    raceBad.push('认不出「同时提竿」那个标记键（`tryFire()` 里应当有**第二条**跳过语句，'
+      + '且它对应的字段被 `raceArm()` 按 `ev.<键>` 读过）—— 抓不到就报错，先修本节判据本身');
+  } else if (!raceEvs.length) {
+    raceBad.push('内容表里一条「同时提竿」都没有 —— 引擎里那条通路没有内容喂它（整条是死的）');
+  } else {
+    const rArm = bodyOf(coreCode, 'function raceArm(');
+    const rFire = bodyOf(coreCode, 'function raceFire(');
+    const rPlan = bodyOf(coreCode, 'function racePlan(');
+    const rCfg = bodyOf(coreCode, 'function raceCfg(');
+    if (!rArm || !rFire || !rPlan || !rCfg) {
+      raceBad.push('core/story.js 少了 raceArm() / raceFire() / racePlan() / raceCfg() 里的某一个 —— 链路不完整');
+    } else {
+      const RACE_CFG = (sandbox.G && sandbox.G.CONFIG && sandbox.G.CONFIG.story
+        && sandbox.G.CONFIG.story.race) || null;
+      if (!RACE_CFG || typeof RACE_CFG !== 'object') {
+        raceBad.push('CFG.story.race 不在（窗口与档位门槛是这条内容的调参入口，缺了就没法判「只挑普通档」）');
+      } else {
+        if (!(RACE_CFG.atMinMs > 0) || !(RACE_CFG.atMaxMs >= RACE_CFG.atMinMs)) {
+          raceBad.push('CFG.story.race 的 atMinMs / atMaxMs 不是「正数且上界 ≥ 下界」—— 缠线永远不发生');
+        }
+        if (!(RACE_CFG.maxRar >= 0) || RACE_CFG.maxRar % 1 !== 0) {
+          raceBad.push('CFG.story.race.maxRar 不是非负整数（它是稀有度下标）');
+        }
+      }
+      if (!has(rCfg, 'cfg()')) {
+        raceBad.push('raceCfg() 没从 cfg()（CFG.story）取数值表 —— 数值搬进引擎源码之后 config 就调不动了');
+      }
+      if (!has(rArm, 'caughtOne(')) {
+        raceBad.push('raceArm() 没查图鉴 —— 它会把玩家还没见过的鱼也缠掉（图鉴里直接少一条）');
+      }
+      if (!has(rArm, 'curCtx(')) {
+        raceBad.push('raceArm() 没走 curCtx() —— 「这一片水里有人」可能出现第二份回答');
+      }
+      if (!has(rArm, 'isIdleMode')) {
+        raceBad.push('raceArm() 没排除挂机 —— 挂机一晚上会被缠掉一堆鱼（人不在屏幕前）');
+      }
+      if (!has(rArm, 'rollFor(') || !has(rPlan, 'hash32(')) {
+        raceBad.push('raceArm() / racePlan() 没有复用引擎那套哈希（rollFor / hash32）—— '
+          + '「他什么时候收网」就不可定点复现了（口径 ①）');
+      }
+      if (!has(rArm, 'st.fired') || !has(rArm, 'st.at')) {
+        raceBad.push('raceArm() 没读存档里的触发 / 冷却事实（st.fired / st.at）—— '
+          + '它就有了自己一套计数（同一件事的两份真相）');
+      }
+      if (!new RegExp('if \\(ev\\.' + raceKey + '\\) continue;').test(String(tryFireBody))) {
+        raceBad.push('tryFire() 没把「同时提竿」那几条摘出去 —— 它会在**任意时刻**作为普通事件冒出来');
+      }
+      if (!has(rFire, 'mark(') || !has(rFire, 'cb.onEvent(')) {
+        raceBad.push('raceFire() 没有「记账 + 把台词交出去」—— 玩家会看到鱼凭空消失');
+      }
+      if (!has(rFire, 'isOpen') || !has(rFire, 'isCatchOpen')) {
+        raceBad.push('raceFire() 没排除「面板 / 结算卡开着」—— 两层 modal 会叠在一起');
+      }
+    }
+    raceEvs.forEach(ev => {
+      if (npcIds.indexOf(ev.npc) < 0) raceBad.push(ev.id + ' 的 npc 不存在');
+      else if (!(NPCS[ev.npc].spots && Object.keys(NPCS[ev.npc].spots).length)) {
+        raceBad.push(ev.id + ' 的那位邻居没有站位表 —— 他永远不会出现在任何钓场，这条内容永不发生');
+      }
+    });
+  }
+  /* `fishing.js` 那一侧：互斥 / 到点 / 顺序 / 计时口径 / 那个「还剩多久」的出口。 */
+  const raceArmAt = idx(sfBody, 'G.Story.raceArm(');
+  const robArmAt = idx(sfBody, 'G.Story.robArm(');
+  if (raceArmAt < 0) {
+    raceBad.push('fishing.js 的 startFight() 没在开赛那一刻问 raceArm() —— 这条内容永远不会发生');
+  } else {
+    /* 🔴 互斥：`raceArm()` 必须在**问完抢鱼之后**、且中间有一道提到 `robAt` 的守卫
+       （`!robAt && …` / `robAt === 0 && …` 都认）。
+       判据取**位置**而不是在整段源码里搜一个词：`if (…)` 里塞着 `G.Story.raceArm && …`
+       这种写法会把「拿邻近的 `if (` 去配对」的正则喂饱（本轮第一版就是这么假绿的）。
+       两条通路都预约上 = 「同一竿先被抢、紧接着又被缠」，两句台词前后脚弹出来，而且**不报错**。 */
+    const guardAt = Math.max(idx(sfBody, '!robAt'), idx(sfBody, 'robAt === 0'));
+    if (robArmAt < 0 || guardAt < 0 || guardAt < robArmAt || guardAt > raceArmAt) {
+      raceBad.push('fishing.js 没有「抢鱼没预约到才问同时提竿」这道互斥（问完 robArm() 与问 '
+        + 'raceArm() 之间要有一道 `!robAt` / `robAt === 0` 守卫）—— '
+        + '同一竿会先被抢走、紧接着又被缠一次（两句台词前后脚弹出来）');
+    }
+    if (robArmAt >= 0 && robArmAt > raceArmAt) {
+      raceBad.push('fishing.js 先问「同时提竿」、后问「抢鱼」—— 次序反了：抢鱼更早、更不请自来，应当先问它');
+    }
+  }
+  const raceFireAt = idx(fishRob, 'G.Story.raceFire(');
+  const raceResolve = idx(fishRob, "resolve('race')");
+  if (raceFireAt < 0 || raceResolve < 0) {
+    raceBad.push('fishing.js 里找不到「raceFire() / resolve(\'race\')」这一对 —— 抓不到就报错，先修本节判据本身');
+  } else if (raceFireAt > raceResolve) {
+    raceBad.push('fishing.js 先收尾这一竿、后开「两线缠在一起」的对话 —— '
+      + '那一次 cb.onMiss → consider() 会先把别的事件开出来，那句台词被覆盖掉，且不报错');
+  }
+  if (!has(fishRob, 'raceAt > 0')) {
+    raceBad.push('fishing.js 里没有「截止时刻到了没有」的判据（raceAt）—— 预约了也没人执行');
+  }
+  /* 🔴 窗口必须**可见**：`raceLeft()` 存在的意义就是给 UI 一个「还剩多久」——
+     它零消费的话，这条内容就从「一场比赛」退回「鱼莫名其妙没了」。 */
+  const raceLeftBody = bodyOf(fishRob, 'function raceLeft(');
+  if (!raceLeftBody || !has(raceLeftBody, 'state !== \'fight\'') || !has(raceLeftBody, 'raceAt')) {
+    raceBad.push('fishing.js 没有 raceLeft()（或它不看「在不在拉扯」与 raceAt）—— '
+      + '截止时间就没人报得出来（玩家只能看到鱼莫名其妙没了）');
+  }
+  if (!/raceLeft: raceLeft/.test(String(fishRob))) {
+    raceBad.push('fishing.js 没把 raceLeft() 挂上导出面 —— UI 够不着它');
+  }
+  if (!has(mainSrc, 'F.raceLeft(') && !has(mainSrc, 'G.Fishing.raceLeft(')) {
+    raceBad.push('main.js 没有消费 raceLeft()（没人喂给界面）—— 那个倒计时画不出来');
+  }
+  if (!has(hudSrc, 'function setRace(') || !has(htmlSrc, 'id="raceHint"')) {
+    raceBad.push('hud.js 的 setRace() 或 index.html 的 #raceHint 缺一个 —— 倒计时无处安放');
+  }
+  if (!has(mainSrc, 'Hud.setRace(')) {
+    raceBad.push('main.js 没调 Hud.setRace() —— 那条倒计时不会亮');
+  }
+  if (!has(mainSrc, 'Hud.setRace(null)')) {
+    raceBad.push('main.js 里没有「离开拉扯就把倒计时摘掉」（Hud.setRace(null)）—— 战斗结束它还挂在屏幕上');
+  }
+  if (!has(panelSrc, 'st.tangled')) {
+    raceBad.push('panels.js 的统计面板没消费 `st.tangled` —— 这个计数没有消费方（玩家看不见）');
+  }
+  if (!has(fishRob, 'stats.tangled')) {
+    raceBad.push('fishing.js 的 resolve() 没把「两线缠在一起」记进 stats.tangled');
+  }
+  if (!has(fishRob, "result === 'race'")) {
+    raceBad.push('fishing.js 的 resolve() 里没有「两线缠在一起」这一条独立分支 —— '
+      + '它会被并到别的计数里（面板上「脱钩次数」就会把比赛输的也算进去）');
+  }
+  if (!/tangled\s*:/.test(bodyOf(stateSrc, 'function blank('))) {
+    raceBad.push('state.js 的 blank() 里没有 `tangled` 这个计数键 —— 老档读回来是 undefined');
+  }
+  if (!/'tangled'/.test(bodyOf(stateSrc, 'function migrate('))) {
+    raceBad.push('state.js 的 migrate() 归一化表里没有 `tangled` —— 脏档（NaN / 负数 / 字符串）会被原样带进游戏');
+  }
+  if (raceBad.length) { err('「同时提竿」这条链路不对：' + raceBad.join('；')); storyBad++; }
+  /* 摘要里要报的窗口值（现算，不手抄）—— 放外层作用域让下面那句 ok() 也能读。 */
+  const RACE_MS = (function () {
+    const r = sandbox.G && sandbox.G.CONFIG && sandbox.G.CONFIG.story
+      && sandbox.G.CONFIG.story.race;
+    return r ? ((r.atMinMs / 1000) + '~' + (r.atMaxMs / 1000) + ' 秒 / ≤' + r.maxRar + ' 档')
+      : '（缺 CFG.story.race）';
+  })();
+
   if (!storyBad) {
     ok('隔壁钓鱼佬在位：' + npcIds.length + ' 个 NPC / ' + EVS.length + ' 条事件，'
       + '字段全有人读、接线齐全（含点他搭话、分支选项与限时比试三条通路）、命中框与画法同源、'
@@ -7570,6 +7739,11 @@ let storyBad = 0;
         + '：只抢小杂鱼 / 不抢新种 / 挂机与面板开着都不抢、掷点复用同一套哈希、'
         + '开赛定死时机、先开对话后收尾，计数进 stats.robbed 且面板读它）'
         : '没有抢鱼的内容') + '、'
+      + (raceEvs.length ? raceEvs.length + ' 条内容会**跟你同时提竿**（' + raceKey
+        + '：只挑普通档 / 不挑新种 / 挂机与面板开着都不缠、与抢鱼互斥、掷点复用同一套哈希、'
+        + '窗口从 CFG.story.race 现算 ' + RACE_MS + '、先开对话后收尾、'
+        + '倒计时真喂给界面（挂 / 摘成对），计数进 stats.tangled 且面板读它）'
+        : '没有同时提竿的内容') + '、'
       + '存档 story 的 ' + contKeys.length + ' 个容器两边对得上且有迁移纠正、'
       + '奖励白名单为空（纯剧情）、引擎不用 Math.random');
   }

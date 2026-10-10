@@ -301,7 +301,10 @@
     syncAction();
     Hud.showBite(st === 'bite');
     Hud.showFight(st === 'fight');
-    if (st !== 'fight') Hud.updateFight(null);
+    /* 离开拉扯 ⇒ 把那条倒计时**摘掉**（与 showFight 成对）：不摘的话它会一直挂在屏幕上
+       —— 主循环只在 `fight` 状态下每帧喂它，战斗一结束就再没人告诉它「该收了」。
+       （`verify` 的第 50 节 ⑬ 组盯着这一对「挂 / 摘」。） */
+    if (st !== 'fight') { Hud.updateFight(null); Hud.setRace(null); }
   }
 
   function syncAction() {
@@ -467,6 +470,9 @@
       /* 🔴 被隔壁抢走（N11 五期）：**这里不播报** —— 那句台词就是这一竿的反馈
          （`G.Story.robFire()` 已经在收尾**之前**把对话开出来了）。
          再叠一条 toast 就是「同一件事两处说」，两句迟早分家。 */
+    } else if (result === 'race') {
+      /* 🔴 两线缠在一起（N11 六期）：同样**不播报** —— 理由与上面那条一字不差
+         （`G.Story.raceFire()` 也是先开对话、后收尾）。 */
     } else {
       Hud.toast({ text: '没抓住咬口，鱼跑了', kind: 'warn' });
     }
@@ -559,7 +565,12 @@
        回来时 focus 事件把 blurred 置回 false，下一帧照常渲染。 */
     if (focused) S.render(dt);
 
-    if (focused && F.getState() === 'fight') Hud.updateFight(G.Fight.snapshot());
+    if (focused && F.getState() === 'fight') {
+      Hud.updateFight(G.Fight.snapshot());
+      /* 同时提竿（N11 六期）：那一竿的截止时间**每帧**报一次（秒级文案内部有缓存）——
+         它是一个倒计时，0.4 秒那一档太粗，而这是玩家用来决定「还松不松手」的唯一依据。 */
+      Hud.setRace(F.raceLeft());
+    }
 
     hudTimer += dt;
     if (focused && hudTimer > 0.4) {

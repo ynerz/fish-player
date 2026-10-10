@@ -29,6 +29,7 @@ G.Fishing = (function () {
   var reelAcc = 0;         // 「收线咔哒」自上次发声以来累计收进的进度（见 fight 分支）
   var reelLast = null;     // 上一帧的进度（用来算增量；null = 本局还没起算）
   var robAt = 0;           // 本竿「被隔壁抢走」的时刻（毫秒，自开赛起算）；0 = 这一竿不抢
+  var raceAt = 0;          // 本竿「两线缠在一起」的截止时刻（毫秒，自开赛起算）；0 = 这一竿没人抢
   var cb = {};
 
   function init(callbacks) {
@@ -48,6 +49,7 @@ G.Fishing = (function () {
     waitLeft = 0; biteLeft = 0; holding = false;
     castBait = null; castPrevSel = null; castEnv = null;
     robAt = 0;        // 这一竿作废 ⇒ 预约的「被抢」也一起作废（否则会落到下一竿头上）
+    raceAt = 0;       // 同理：预约的「两线缠在一起」也一起作废
     catchCount = 0;   // 挂机累计播报重新计数，避免跨场/跨状态乱触发
     G.Fight.end();
     G.Scene.endFight();
@@ -56,6 +58,15 @@ G.Fishing = (function () {
   function isIdleMode() { return !!St.get().settings.idle; }
   function getState() { return state; }
   function getPending() { return pending; }
+  /* 距离「两线缠在一起」还剩多少毫秒（N11 六期）。没有预约 / 不在拉扯中 ⇒ `null`。
+     它是**唯一**对外的「这场比赛还剩多久」—— UI 只许走它，别自己去读 `G.Story` 的
+     内部状态（`raceAt` 是模块私有的，而且它按的是**这一竿**的时间轴，不在引擎里）。
+     ⚠️ 时钟口径：用 `timer`（本模块在 fight 状态下累加的那个），与 `robAt` 的比较同源 ——
+        两处各算一套时间只会让倒计时和真正的判定差一拍。 */
+  function raceLeft() {
+    if (state !== 'fight' || !(raceAt > 0)) return null;
+    return Math.max(0, raceAt - timer * 1000);
+  }
   /* 玩家当前是否按住收线 —— 新手引导靠它判断「学会按住 / 刚松手」 */
   function isHolding() { return holding; }
 
@@ -146,6 +157,14 @@ G.Fishing = (function () {
       var rp = G.Story.robArm(pending.fish);
       if (rp && rp.atMs > 0) robAt = rp.atMs;
     }
+    /* 同时提竿（N11 六期）：**抢鱼没预约到**才问它 —— 一竿只发生一件。
+       少了这道互斥，同一竿会先被抢走、紧接着又被缠一次（两句台词前后脚弹出来），
+       而且**不报错**。次序是有意的：抢鱼更早、更「不请自来」，先给它。 */
+    raceAt = 0;
+    if (!robAt && G.Story && G.Story.raceArm && pending) {
+      var cp = G.Story.raceArm(pending.fish);
+      if (cp && cp.atMs > 0) raceAt = cp.atMs;
+    }
     if (cb.onState) cb.onState('fight');
   }
 
@@ -154,11 +173,16 @@ G.Fishing = (function () {
     var fish = pending ? pending.fish : null;
     var kg = pending ? pending.kg : 0;
     var color = pending ? pending.color : null;
+    /* 这一竿有没有人跟你「同时提竿」（N11 六期）—— 要在下面清 `raceAt` **之前**记下来：
+       赢了这一场（在窗口内把鱼拉上来）必须给玩家一个反馈，否则「比赛」这件事
+       从头到尾只有输的时候才看得见（赢家看不出自己险胜）。 */
+    var raced = raceAt > 0;
     G.Scene.endFight();
     G.Fight.end();
     /* 这一竿到此为止 ⇒ 预约的「被抢」作废（`resolve` 的每一条路都要清，
-       否则它会在下一竿的同一个时刻又冒出来一次）。 */
+       否则它会在下一竿的同一个时刻又冒出来一次）。「同时提竿」同理。 */
     robAt = 0;
+    raceAt = 0;
     /* 🔴 「这一竿结束了」必须在**回调之前**成立（N7 六期）。
        回调的接收方会拿这个状态做判断 —— 最典型的一处：`main.js` 在**丢竿回调**里调
        `G.Story.consider()`，而它头一道门就是「必须是 idle」。先回调、后改状态的话，
@@ -236,6 +260,14 @@ G.Fishing = (function () {
       if (unlocks.length && cb.onUnlock) cb.onUnlock(unlocks);
 
       catchCount++;
+      /* 赢了那一场「同时提竿」（他在窗口内没抄上网）：只播一条 toast 就够 ——
+         结算卡紧接着就会弹出来（那是这一竿的主反馈），再叠一段对话就是两层 modal
+         打架（`G.Story` 的 consider() 也有「面板 / 结算卡开着不触发」那道门）。
+         ⚠️ 这一条**不影响任何数值**：鱼还是那条鱼、钱还是那些钱 —— 它只是让玩家知道
+         「刚才有人跟你抢，你先抄上了」。 */
+      if (raced && cb.onToast) {
+        cb.onToast({ text: '⚡ 你比隔壁先抄上了网', kind: 'good' });
+      }
       if (isIdleMode() && catchCount % CFG.idle.batchToast === 0 && cb.onToast) {
         cb.onToast({ text: '挂机已上 ' + catchCount + ' 条鱼', kind: 'good' });
       }
@@ -268,6 +300,12 @@ G.Fishing = (function () {
              面板上写「脱钩次数」会让玩家白自责（与 Q44 把 `misses` 从 `escapes`
              里拆出来是同一条理由：**不许拿「影响低」当理由说一句不成立的话**）。 */
           st.stats.robbed++;
+        } else if (result === 'race') {
+          /* 🔴 **两线缠在一起**（N11 六期）：同样**分开记** —— 这一条更微妙：
+             它既不是玩家的手法问题（没断线、没脱钩），也不是别人硬抢走的
+             （`rob`），而是**比赛输了**。混进 `escapes` 会让「脱钩次数」这个
+             已经叫「脱钩」的数把「比赛输了」也算进去（Q44 同族）。 */
+          st.stats.tangled++;
         } else {
           st.stats.escapes++;
         }
@@ -369,6 +407,19 @@ G.Fishing = (function () {
         if (robAt > 0 && timer * 1000 >= robAt) {
           robAt = 0;
           if (G.Story && G.Story.robFire && G.Story.robFire()) { resolve('rob'); break; }
+        }
+        /* 🔴 同时提竿（N11 六期）：**截止时刻一到就缠线** —— 顺序同样是
+           **先开对话、再收尾这一竿**（与抢鱼那条同一条理由：反过来 `resolve('race')`
+           → `cb.onMiss` → `consider()` 会先把别的事件开出来，把「两线缠在一起」那句
+           覆盖掉，玩家只看到「鱼没了、他在说天气」，且**不报错**）。
+           ⚠️ 与抢鱼不同，这里**没有「没缠成 ⇒ 这一竿照常」的余地吗**？有的：
+           `raceFire()` 在面板开着时给 false —— 那种情况下这一竿照常继续拉扯，
+           **不是推迟**（推迟会让玩家先看到「咦还能拉」，更难理解）。
+           ⚠️ 玩家在这一刻**已经赢不了**（窗口是「他收网」的时刻），所以这里不再看进度：
+           即便这一帧进度刚好满，也按「他先抄上了网」算 —— 判定的顺序就是结果。 */
+        if (raceAt > 0 && timer * 1000 >= raceAt) {
+          raceAt = 0;
+          if (G.Story && G.Story.raceFire && G.Story.raceFire()) { resolve('race'); break; }
         }
 
         if (isIdleMode()) {
@@ -504,7 +555,7 @@ G.Fishing = (function () {
     init: init, update: update, setField: setField,
     cast: cast, giveUp: giveUp, strike: strike,
     press: press, release: release,
-    getState: getState, getPending: getPending,
+    getState: getState, getPending: getPending, raceLeft: raceLeft,
     isIdleMode: isIdleMode, isHolding: isHolding, hardReset: hardReset,
     offlineCatchUp: offlineCatchUp,
   };

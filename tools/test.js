@@ -2455,6 +2455,12 @@ G_('Panels · 设置键必须能从界面改（真渲染 + 真触发注册的回
 })();
 
 /* =========================================================
+   Hud · 比试芯片：挂机时要说清「挂机中的鱼不算」（拍板第 10 条）
+   =========================================================
+   用户 2026-10-10 拍板：「挂机中上的鱼不算比试、但玩家不知道 ⇒ 在顶栏倒计时芯片上加一句」。
+   ⚠️ 判据读**写进 DOM 的文本**，不查源码里有没有那句话（查源码 = 假绿）。
+   ========================================================= */
+/* =========================================================
    Hud —— 拉扯提示的四个分支，以及阈值必须来自 config
    ========================================================= */
 new Function(fs.readFileSync(path.join(ROOT, 'src/ui/hud.js'), 'utf8')).call(global);
@@ -2489,6 +2495,63 @@ if (Hud && Hud.fightTip) {
   const wHi = 1 - Math.max(0, CFG.fight.dashWarnLead) / CFG.fight.dashWarnLead;
   ok(wLo === 1 && wHi === 0, `fight.js 的 warn 取值区间是 [${wHi}, ${wLo}]，阈值 ${CFG.fight.warnTipAt} 落在区间内`);
 }
+
+G_('Hud · 比试芯片在挂机时补一句');
+(function () {
+  /* 自建一份最小 DOM 桩（既有那几份 `els` 各自在自己的 IIFE 里，取不到）。
+     ⚠️ `querySelector` 对**认不出的选择器也返回一个节点**（而不是 null）——
+        hud.js 的 init() 会 U.on() 十几个元素，给 null 会当场抛错，
+        而那跟本节要验的事无关。只把要断言的两个留在注册表里。 */
+  const mk = () => ({
+    classList: { _s: [],
+      add(c) { if (this._s.indexOf(c) < 0) this._s.push(c); },
+      remove(c) { this._s = this._s.filter(x => x !== c); },
+      contains(c) { return this._s.indexOf(c) >= 0; },
+      toggle(c, on) { on ? this.add(c) : this.remove(c); } },
+    style: {}, textContent: '', title: '', checked: false,
+    querySelector() { return mk(); }, querySelectorAll() { return []; },
+    addEventListener() {}, setAttribute() {}, getAttribute() { return ''; },
+  });
+  const reg = { '#duelChip': mk() };
+  const realDoc = global.document;
+  global.document = { querySelector: s => reg[s] || mk(), querySelectorAll: () => [],
+                      createElement: () => mk(), addEventListener() {} };
+  /* `Hud.init()` 会连带初始化输入层（`PI.up()` → `window.addEventListener`），
+     而 test.js 的 window 桩（= global）上原本没有它 ⇒ 补一个空的、用完还原。
+     本节不派发任何事件，所以不需要它真的记住回调。 */
+  const realAddEvt = global.addEventListener;
+  global.addEventListener = () => {};
+  Hud.init({});
+  const chip = reg['#duelChip'];
+  const s0 = St.get();
+  const keepIdle = !!s0.settings.idle;
+  const o = { name: '老陈', target: 5000, best: 3000, casts: 1, leftMs: 65000 };
+
+  s0.settings.idle = false;
+  Hud.setDuel(o);
+  const plain = String(chip.textContent || '');
+  ok(plain.indexOf('挂机') < 0,
+     `没开挂机 ⇒ 芯片上不提挂机（实得 ${JSON.stringify(plain)}）`);
+  ok(plain.indexOf('1:05') >= 0 && plain.indexOf('目标') >= 0,
+     '倒计时与目标照常显示（新加的那句不许挤掉原有信息）');
+
+  s0.settings.idle = true;
+  Hud.setDuel(o);
+  const idleTxt = String(chip.textContent || '');
+  ok(idleTxt.indexOf('挂机不计入') >= 0,
+     `开着挂机 ⇒ 芯片上补「挂机不计入」（实得 ${JSON.stringify(idleTxt)}）`);
+  ok(idleTxt.indexOf('1:05') >= 0 && idleTxt.indexOf('目标') >= 0,
+     '补了那句之后倒计时与目标还在（不是把它替换掉了）');
+  ok(String(chip.title || '').indexOf('不算') >= 0,
+     '完整口径写进 title（芯片很窄，长句铺在顶栏会挤掉倒计时）');
+
+  Hud.setDuel(null);
+  ok(chip.classList.contains('hidden'), '比试结束 ⇒ 芯片收起（不受新逻辑影响）');
+  s0.settings.idle = keepIdle;
+  global.document = realDoc;
+  global.addEventListener = realAddEvt;
+})();
+
 
 /* =========================================================
    Build —— 单文件打包（tools/build.js）

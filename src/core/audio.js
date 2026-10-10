@@ -15,11 +15,19 @@ G.Audio = (function () {
   var ambLfo = null;   // 环境音的缓慢起伏 LFO（停止时要一起收，见 stopAmbience）
   /* 环境音的**循环采样**（2026-10-09 加，队列 Q20 的剩余那半件）。
      ⚠️ 键必须是 `[a-z][a-z0-9]*`（`G.Assets.resolve` 的口径）⇒ 不能写 `amb_water`。
-     ⚠️ 电平与低通**两条路共用**同一对常量：采样与合成必须是同一个音色口径，
-        否则「换成采样」这件事会顺手改掉音量平衡（那就是一次没人要求的平衡调整）。 */
+     ⚠️ **电平**两条路共用（换素材不该顺手改音量平衡）；**低通自 2026-10-10 起故意分开** ——
+        见下面两个 `AMB_FILTER_HZ_*` 的注释（拍板第 6 条：只给采样放宽到 ~1.5kHz）。 */
   var AMB_KEY = 'ambience';
   var AMB_GAIN = 0.10;
-  var AMB_FILTER_HZ = 520;
+  /* 🔴 低通**分两个**（2026-10-10 用户拍板第 6 条：「只给采样放宽低通到 ~1.5kHz」）。
+     原来两条路共用一个 520 Hz：合成那条本来就是一坨布朗噪声，520 把它压成「水底的闷响」是对的；
+     但**采样**是一段真实水声，520 会把它压得发暗（用户提的就是「要不要更亮」）。
+     ⚠️ 只放**采样**这条；合成 / BGM / 音效一个都不动（拍板原话「BGM / 音效不动」）。
+     ⚠️ `AMB_GAIN` 仍然**共用**：拍板只说低通 —— 顺手改电平就变成一次没人要求的平衡调整。
+     ⚠️ **一键回退**：把 `AMB_FILTER_HZ_SAMPLE` 改回 520 就回到改动前的音色
+        （判据见 `verify §41-b ④`：两条路各读各的，不许再合回一个）。 */
+  var AMB_FILTER_HZ_SYNTH = 520;    // 合成噪声：本来就是低沉的 520 就够
+  var AMB_FILTER_HZ_SAMPLE = 1500;  // 采样水声：给它留到 1.5k（拍板值）
   var AMB_FADE = 0.5;              // 合成 → 采样的热切换交叉淡化（秒）
   var ambSampleBuf = null;         // 解码好的整段水声（拿到就一直用它）
   var ambSampleAsked = false;      // 只请求一次（失败的键由 G.Assets 记备忘，不再重试）
@@ -506,7 +514,7 @@ G.Audio = (function () {
       src = ctx.createBufferSource();
       src.buffer = buf; src.loop = true;
       var flt = ctx.createBiquadFilter();
-      flt.type = 'lowpass'; flt.frequency.value = AMB_FILTER_HZ;
+      flt.type = 'lowpass'; flt.frequency.value = AMB_FILTER_HZ_SYNTH;
       g = ctx.createGain();
       g.gain.value = AMB_GAIN;
       src.connect(flt); flt.connect(g); g.connect(busAmb || master);
@@ -532,7 +540,7 @@ G.Audio = (function () {
       src.loop = true;
       if (ambSeamEnd > 0) { src.loopStart = 0; src.loopEnd = ambSeamEnd; }
       var flt = ctx.createBiquadFilter();
-      flt.type = 'lowpass'; flt.frequency.value = AMB_FILTER_HZ;
+      flt.type = 'lowpass'; flt.frequency.value = AMB_FILTER_HZ_SAMPLE;
       g = ctx.createGain();
       g.gain.value = AMB_GAIN;
       src.connect(flt); flt.connect(g); g.connect(busAmb || master);

@@ -4191,7 +4191,9 @@ console.log('\n[41-b] 环境音的循环采样通道：入口唯一 + 素材对�
   } else ok(`循环采样键 ${km[1]} 与磁盘上的 assets/audio/${km[1]}.mp3 对得上（键是现算的）`);
 
   /* ④ 环境音仍在 NO_SAMPLE 里（它要自己管「起 / 热切换 / 收」），
-        且电平与低通**两条路共用**同一对常量（各写各的就会分家） */
+        **电平**两条路共用同一份；**低通自 2026-10-10 起故意分开**
+        （拍板第 6 条「只给采样放宽低通到 ~1.5kHz，BGM / 音效不动」）——
+        判据反过来：两条路各读**自己那个**常量，且谁都不许读到对方那个。 */
   const i0 = at(code, 'var NO_SAMPLE');
   const e0 = i0 < 0 ? -1 : closeOf(code, code.indexOf('{', i0));
   if (e0 < 0) { err('取不到 NO_SAMPLE 的表体 —— 改写法了来更新第 41-b 节的判据'); bad++; }
@@ -4200,15 +4202,47 @@ console.log('\n[41-b] 环境音的循环采样通道：入口唯一 + 素材对�
       + '「放一次就完」的自动包装层包住');
     bad++;
   }
-  ['AMB_GAIN', 'AMB_FILTER_HZ'].forEach(k => {
-    const n = (code.match(new RegExp('\\b' + k + '\\b', 'g')) || []).length;
-    if (n < 2) { err(`${k} 在 audio.js 里只出现 ${n} 次（定义 + 至少一处使用）——`
-      + '合成与采样两条路各写各的数值就会分家'); subBad++; }
+  const nGain = (code.match(/\bAMB_GAIN\b/g) || []).length;
+  if (nGain < 2) {
+    err(`AMB_GAIN 在 audio.js 里只出现 ${nGain} 次（定义 + 至少一处使用）——`
+      + '**电平**两条路必须共用同一份（各写各的就会分家，换素材会顺手改掉音量平衡）');
+    subBad++;
+  }
+  const ambFn = m => {
+    const b = bodyOf(code, m);
+    if (!b) { err(`取不到 ${m} 的函数体 —— 改写法了来更新第 41-b 节的判据`); subBad++; }
+    return b || '';
+  };
+  const synthN = ambFn('function startSynthAmbience(');
+  const sampN = ambFn('function startAmbSample(');
+  ['AMB_FILTER_HZ_SYNTH', 'AMB_FILTER_HZ_SAMPLE'].forEach(k => {
+    if ((code.match(new RegExp('\\b' + k + '\\b', 'g')) || []).length < 2) {
+      err(`${k} 在 audio.js 里只出现不到 2 次（定义 + 它在自己那条路里的使用）——`
+        + '拍板第 6 条是「只给采样放宽低通」，两个常量各管一条路');
+      subBad++;
+    }
   });
+  if (synthN && !/AMB_FILTER_HZ_SYNTH/.test(synthN)) {
+    err('合成那条路（startSynthAmbience）读的不是 `AMB_FILTER_HZ_SYNTH` —— 拍板只放采样，合成必须留在原值');
+    subBad++;
+  }
+  if (sampN && !/AMB_FILTER_HZ_SAMPLE/.test(sampN)) {
+    err('采样那条路读的不是 `AMB_FILTER_HZ_SAMPLE` —— 拍板要的就是「只给采样放宽」');
+    subBad++;
+  }
+  if (synthN && /AMB_FILTER_HZ_SAMPLE/.test(synthN)) {
+    err('合成那条路**读到了采样的低通** —— 两条路又合回一个了：那样「只给采样放宽」'
+      + '会变成「两条一起变亮」，而那是拍板明确不要的');
+    subBad++;
+  }
+  if (sampN && /AMB_FILTER_HZ_SYNTH/.test(sampN)) {
+    err('采样那条路读到了合成的低通 —— 同上一类：两个常量必须各管一条路');
+    subBad++;
+  }
   bad += subBad;
 
   if (!bad) ok('循环采样只有那两个已知入口、BGM 保持程序化、素材键与磁盘对得上、'
-    + '环境音仍自管生命周期（电平 / 低通两条路共用常量）');
+    + '环境音仍自管生命周期；**电平两条路共用、低通按拍板分开（只放采样到 1.5k）**');
 })();
 
 

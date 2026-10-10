@@ -200,11 +200,18 @@ G.Hud = (function () {
     if (!o) { el.duelChip.classList.add('hidden'); return; }
     var sec = Math.max(0, Math.ceil((o.leftMs || 0) / 1000));
     var mm = Math.floor(sec / 60), ss = sec % 60;
+    /* 🔴 拍板第 10 条（2026-10-10）：「挂机中上的鱼不算比试、但玩家不知道」
+       ⇒ 芯片上补一句。⚠️ 芯片很窄，正文只放**最短的说法**（挂机不计入），
+       完整口径放 title —— 长句铺在顶栏会挤掉倒计时。
+       判定读的是**当前**挂机开关（玩家随时可以切），所以每次都现问。 */
+    var idleOn = !!(G.State && G.State.get && G.State.get().settings.idle);
     el.duelChip.classList.remove('hidden');
     el.duelChip.textContent = '⚔ 比试 · 目标 ' + U.kg(o.target || 0)
       + ' · 你 ' + ((o.best > 0) ? U.kg(o.best) : '—')
-      + ' · ' + mm + ':' + (ss < 10 ? '0' : '') + ss;
-    el.duelChip.title = '限时比最大重量：时间到之前上一条比目标更沉的鱼就算赢';
+      + ' · ' + mm + ':' + (ss < 10 ? '0' : '') + ss
+      + (idleOn ? ' · 挂机不计入' : '');
+    el.duelChip.title = '限时比最大重量：时间到之前上一条比目标更沉的鱼就算赢'
+      + (idleOn ? '。你现在开着挂机 —— 挂机自动上的鱼不算，要自己提竿的那一竿才算。' : '');
   }
 
   /* ---------------- 天气 / 时段 ---------------- */  function setWeather(sn) {

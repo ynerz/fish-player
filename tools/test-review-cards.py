@@ -26,7 +26,7 @@ import subprocess
 import sys
 import time
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -899,6 +899,78 @@ def main():
           "名字族仍命中 %d 条名字（现算）；⚠️ 有查证 form 的 %d 条使这条路在母版提示词上"
           "**生效 0 条** —— traits 补齐后的正常现状、不是 bug（「扩表」收益 = 0）"
           % (len(_hits), len(_ver)))
+
+    print("\n[19] 边缘去污染（Q11）：只改 RGB 不动 alpha / 沿边缘取主体色 / 轮数由规格现算")
+    # 先造一张「深底亮主体 + 被背景色污染的羽化边」的合成图 —— 与真实母版同一个成因：
+    # 边缘像素 = 主体色 × 覆盖度 + 背景色 × (1 − 覆盖度)，alpha 就是覆盖度。
+    _BG, _FG = (30, 30, 30), (200, 180, 60)
+    _FW, _FH = 200, 120
+    _syn = Image.new("RGBA", (_FW, _FH), (_BG[0], _BG[1], _BG[2], 0))
+    _px = _syn.load()
+    _L, _T, _R, _B = 60, 40, 140, 80
+    _FEATHER = 6.0
+
+    def _cover(v, a, b):
+        if v < a - _FEATHER or v > b + _FEATHER:
+            return 0.0
+        if v < a:
+            return (v - (a - _FEATHER)) / _FEATHER
+        if v > b:
+            return ((b + _FEATHER) - v) / _FEATHER
+        return 1.0
+
+    for _y in range(_FH):
+        for _x in range(_FW):
+            _c = _cover(_x, _L, _R) * _cover(_y, _T, _B)
+            _px[_x, _y] = tuple(int(round(_BG[i] + (_FG[i] - _BG[i]) * _c)) for i in range(3)) \
+                + (int(round(255 * _c)),)
+    _fixed = P.bleed(_syn)
+
+    def _edge_delta(img):
+        _al = img.getchannel("A")
+        _e = _al.point(lambda v: 255 if P.SPEC["alphaMin"] < v < P.SPEC["defringe"]["alphaHi"] else 0)
+        _o = _al.point(lambda v: 255 if v >= P.SPEC["defringe"]["alphaHi"] else 0)
+        _i = ImageChops.subtract(_o, _o.filter(ImageFilter.MinFilter(5)))
+        _rgb = img.convert("RGB")
+        _el = ImageStat.Stat(_rgb, _e).mean
+        _il = ImageStat.Stat(_rgb, _i).mean
+        _lum = lambda c: 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
+        return _lum(_el) - _lum(_il)
+
+    _d0, _d1 = _edge_delta(_syn), _edge_delta(_fixed)
+    check(_d0 < -40, "合成图**修前**确实被污染（Δ = %+.1f，负数 = 边缘比主体暗）" % _d0)
+    check(abs(_d1) <= 3, "修后边缘带的颜色回到主体色（Δ = %+.1f，应在 ±3 内）" % _d1)
+    check(_fixed.getchannel("A").tobytes() == _syn.getchannel("A").tobytes(),
+          "**alpha 通道逐字节不变** —— 去污染只许改颜色（动 alpha = 抠图轮廓被改，没人看得见）")
+    check(_fixed.getpixel((0, 0))[3] == 0 and _fixed.getpixel((0, 0))[:3] == _BG,
+          "抠图外的全透明像素不动（RGB 留在背景色上、alpha 仍是 0）")
+    # 轮数**真被消费**：给 0 轮 = 什么都不做（差值原样）；给不足的轮数 = 只抹掉最外一层
+    check(abs(_edge_delta(P.bleed(_syn, rounds=0)) - _d0) < 0.5, "rounds=0 时一个像素都不改")
+    _d2 = _edge_delta(P.bleed(_syn, rounds=1))
+    check(_d2 < _d1 - 10, "rounds=1 只抹掉最外一层（Δ = %+.1f，远达不到 %+.1f）—— 轮数是真参数"
+          % (_d2, _d1))
+    check(P.bleed(_syn).tobytes() == _fixed.tobytes(), "同一张图两次去污染逐字节相同（确定性）")
+    # 真数据上也成立（有卡面就跑，没有不算失败 —— 与 [16] 的「真数据」那几条同款）
+    _real = os.path.join(ROOT, "assets", "cards", "A01-normal.png")
+    if os.path.isfile(_real):
+        _rim = Image.open(_real).convert("RGBA")
+        _rf = P.bleed(_rim)
+        check(_edge_delta(_rf) > _edge_delta(_rim) + 20,
+              "真卡面 A01-normal：Δ %+.1f → %+.1f（外扩确实把背景色挤出边缘）"
+              % (_edge_delta(_rim), _edge_delta(_rf)))
+        check(_rf.getchannel("A").tobytes() == _rim.getchannel("A").tobytes(),
+              "真卡面：alpha 也逐字节不变")
+    # 实现唯一 + 规格消费（静态，剥注释；与 verify §53 ⑦ 同源但这里是 python 侧的自检）
+    _psrc = io.open(os.path.join(TOOLS, "prep-cards.py"), encoding="utf-8").read()
+    _pcode = re.sub(r'"""[\s\S]*?"""', "", _psrc)
+    _pcode = re.sub(r"#[^\n]*", "", _pcode)
+    check(len(re.findall(r"def bleed\(", _pcode)) == 1
+          and len(re.findall(r"bleed\(", _pcode)) == 2,
+          "bleed() 只有一处实现 + 一处调用（实得 %d / %d）"
+          % (len(re.findall(r"def bleed\(", _pcode)), len(re.findall(r"bleed\(", _pcode))))
+    _bl = _pcode.split("def bleed(")[1].split("\ndef ")[0]
+    check('SPEC["defringe"]["rounds"]' in _bl and "SPEC[\"alphaMin\"]" in _bl,
+          "轮数 / 羽化下界都从 SPEC 现算（`alphaMin` 以前是个零消费的规格键，这里才第一次读它）")
 
     print("\n" + "=" * 52)
     if fails:

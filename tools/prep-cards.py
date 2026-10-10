@@ -20,6 +20,16 @@
   3. **列表档要单独锐化**。缩到 512 宽之后，线的对比会被均值抹掉，不锐化就是「糊」。
      这是「同一张图的两个用途」，不是「同一张图缩放两次」。
 
+  4. **边缘去污染（Q11）**。抠图在主体边缘留下的一圈半透明像素，RGB 是「主体色 × 覆盖度 +
+     背景色 × (1−覆盖度)」的混合物 —— alpha（覆盖度）是对的，**颜色被背景污染了**。
+     实测（2026-10-10，8 张样本，量法 = 边缘带平均亮度 − 不透明内圈平均亮度）：
+     **Δ 中位 −77 → +2**（等于把污染整圈抹平），而 **alpha 通道逐字节不变**。
+     ⚠️ **口径更正**：待办原文猜的是「白边 / 原背景是白底」——实测这批母版的背景是**深灰**
+     （紧邻主体的背景像素均值 ≈ RGB 40~50），所以污染是**偏暗**的一圈：在**浅色底**
+     （图鉴面板是浅色的）上看起来是深色描边。⚠️ 不是「unpremultiply 一遍就好」——
+     反预乘（按已知背景色还原）实测只能把 Δ 从 −77 拉到 −38（背景并非常量：有渐晕），
+     而**邻域主体色外扩**能拉到 ≈0 ⇒ 采用后者（`bleed()`，只写 RGB、alpha 原样带回）。
+
 ⛔ 源**不许**是母版 `<id>.png`：它是灰底**不透明**图（实测四角 alpha = 255），
    垫透明边会在两侧留下两条灰棒。源一律取**透明抠图** `<id>-<档>[-N].png` ——
    与 `src/render/cardart.js` 的「游戏侧只吃透明抠图」是**同一条口径**（那里也把母版拦掉了）。
@@ -45,7 +55,7 @@ import json
 import os
 import sys
 
-from PIL import Image, ImageFilter
+from PIL import Image, ImageChops, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -64,6 +74,10 @@ SPEC = {
     "list": (512, 256),                  # 列表档：网格缩略图（更小 + 锐化）
     "listSharpen": (1.4, 90, 3),         # UnsharpMask 的 radius / percent / threshold
     "alphaMin": 8,                       # 低于它的像素算背景（抠图边缘有羽化，0 会把噪点算进来）
+    # Q11 边缘去污染：把不透明像素的颜色往「半透明边缘」外扩多少轮（每轮 8 个方向、1px）
+    # ⚠️ 轮数必须 ≥ 边缘羽化宽度（实测这批母版 ≈ 4~5px）；给 0/1 会只抹掉最外一层、
+    #    里面那几层仍然是背景色 —— 而且**不报错**（`assert_spec()` 因此要求 rounds ≥ 4）。
+    "defringe": {"rounds": 8, "alphaHi": 240},
 }
 
 def assert_spec():
@@ -81,6 +95,13 @@ def assert_spec():
             raise ValueError("%s 档 %r 不是 %r:1 —— 规格自相矛盾" % (_k, SPEC[_k], SPEC["padAspect"]))
     if os.path.abspath(SRC_DIR) == os.path.abspath(OUT_DIR):
         raise ValueError("源目录与输出目录不许是同一个（会把源图覆盖掉）")
+    # 去污染：轮数太少只抹最外一层（里面几层仍是背景色，且不报错）；alphaHi ≤ alphaMin
+    # 会让「边缘」这个集合空掉 ⇒ `bleed()` 静默什么也不做。
+    _d = SPEC["defringe"]
+    if not (_d["rounds"] >= 4):
+        raise ValueError("defringe.rounds 必须 ≥ 4（实测边缘羽化 4~5px）: %r" % (_d["rounds"],))
+    if not (_d["alphaHi"] > SPEC["alphaMin"] > 0):
+        raise ValueError("defringe.alphaHi 必须 > alphaMin > 0（否则没有「边缘」可补）")
 
 
 assert_spec()
@@ -146,6 +167,49 @@ def pad_canvas(w, h, aspect=None):
     return nw, nh, (nw - w) // 2, (nh - h) // 2
 
 
+# 8 邻域（含对角）：外扩一轮 = 把「已知颜色」朝 8 个方向各推 1px
+BLEED_DIRS = ((1, 0), (-1, 0), (0, 1), (0, -1), (1, 1), (-1, -1), (1, -1), (-1, 1))
+
+
+def bleed(im, rounds=None):
+    """Q11 边缘去污染：把**不透明像素的颜色**往「半透明边缘」外扩。**alpha 一个都不动**。
+
+    为什么是这个做法（而不是反预乘 unpremultiply）：
+      · 边缘像素 = 主体色 × 覆盖度 + 背景色 × (1−覆盖度)，而 **alpha 就是覆盖度**
+        ⇒ 缺的只是「去掉背景那一份」，把颜色换成最近的**主体色**最直接；
+      · 反预乘需要知道**背景色**，而这批母版的背景**不是常量**（有渐晕 / 明暗过渡）
+        ⇒ 实测只能把污染度从 −77 拉到 −38，外扩能拉到 ≈0（见文件头第 4 条）。
+      · 🔴 换的是 RGB，**alpha 必须原样带回**（`split() + (al,)`）：动了 alpha 就等于
+        改了抠图轮廓 —— 主体会胖一圈或瘦一圈，而且**没有任何断言看得见**。
+
+    实现走 PIL 的 `paste(..., mask=...)` 与 `ImageChops.offset`（都是 C 层）：
+    逐像素 Python 循环在这里不可行（885k 像素 × 1837 张）。`offset` 会环绕，
+    但环绕带进来的是对侧边界的颜色，而 `take` 只在「对侧那边真有已知颜色」时才写
+    ⇒ 主体不贴边时（本项目的构图归一保证了这一点）不会有事。
+
+    `rounds` 默认取 `SPEC["defringe"]["rounds"]`（**唯一一处**）；`alphaHi` 与 `alphaMin`
+    同理 —— `alphaMin` 以前是个**零消费**的规格键，这里才第一次真读它。
+    """
+    rounds = SPEC["defringe"]["rounds"] if rounds is None else rounds
+    hi, lo = SPEC["defringe"]["alphaHi"], SPEC["alphaMin"]
+    al = im.getchannel("A")
+    opaque = al.point(lambda v: 255 if v >= hi else 0)
+    fill = al.point(lambda v: 255 if lo < v < hi else 0)      # 只有「看得见的边缘」才补色
+    rgb = im.convert("RGB")
+    known = opaque
+    for _ in range(rounds):
+        if fill.getbbox() is None:
+            break                                             # 补完了（早退：省下剩余轮数）
+        for dx, dy in BLEED_DIRS:
+            take = ImageChops.multiply(fill, ImageChops.offset(known, dx, dy))
+            if take.getbbox() is None:
+                continue
+            rgb.paste(ImageChops.offset(rgb, dx, dy), (0, 0), take)
+            known = ImageChops.lighter(known, take)
+            fill = ImageChops.subtract(fill, take)
+    return Image.merge("RGBA", rgb.split() + (al,))
+
+
 def plan_slots(only_ids=None):
     """要派生的槽位清单（**只读**，不写盘）。
 
@@ -198,8 +262,12 @@ def stats_of(path):
 
 
 def render(slot):
-    """读源 → 补边 → 两个档位。返回 `(detail 图, list 图, 补边信息)`；**不写盘**。"""
-    im = Image.open(slot["src"]).convert("RGBA")
+    """读源 → **边缘去污染** → 补边 → 两个档位。返回 `(detail 图, list 图, 补边信息)`；**不写盘**。
+
+    ⚠️ 去污染必须在**补边 / 缩放之前**：LANCZOS 会把被污染的颜色往主体里混，
+        先缩小再补色等于把污染摊进更宽的带里（补完还有残余）。
+    """
+    im = bleed(Image.open(slot["src"]).convert("RGBA"))
     src_size = [im.width, im.height]
     nw, nh, ox, oy = pad_canvas(im.width, im.height)
     canvas = Image.new("RGBA", (nw, nh), (0, 0, 0, 0))
@@ -261,10 +329,12 @@ def main():
         return 1
 
     src_bytes = sum(os.path.getsize(s["src"]) for s in slots)
-    print("· 源 %d 张（%.1f MB）；目标：详情 %d×%d / 列表 %d×%d（锐化 %r）、补边到 %r:1"
+    print("· 源 %d 张（%.1f MB）；目标：详情 %d×%d / 列表 %d×%d（锐化 %r）、补边到 %r:1、"
+          "边缘去污染 %d 轮（alpha ≥ %d）"
           % (len(slots), src_bytes / 1048576.0,
              SPEC["detail"][0], SPEC["detail"][1], SPEC["list"][0], SPEC["list"][1],
-             SPEC["listSharpen"], SPEC["padAspect"]))
+             SPEC["listSharpen"], SPEC["padAspect"],
+             SPEC["defringe"]["rounds"], SPEC["defringe"]["alphaHi"]))
     if args.dry:
         for s in slots[:8]:
             print("   %s  ← %s" % (s["name"], os.path.basename(s["src"])))

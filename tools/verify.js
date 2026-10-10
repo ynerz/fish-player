@@ -7254,11 +7254,53 @@ console.log('\n[53] 卡面后处理：规格单源 + 派生物已 ignore + 文�
     bad.push('主体度量入口不唯一：全脚本 `analyze(` 共 ' + anaAll + ' 次、stats_of() 体内 '
       + anaIn + ' 次（应为 1 / 1）—— 第二处按 alpha 再算一遍就是两个「主体在哪」的口径');
   }
+  /* ⑦ Q11 边缘去污染：轮数从 SPEC 现算、实现只有一处、**只改 RGB 并把原 alpha 原样带回**。
+     ⚠️ 三个坑各有一条判据：
+       · 轮数写死在小函数里 ⇒ 规格改了不去改它（反向验证：把 rounds 改成 1，这里的判据不动、
+         但 test-review-cards.py 的 [19] 会报「污染只抹掉最外一层」）；
+       · `bleed()` 多出一份实现 ⇒ 两个「边缘怎么补色」的口径（本项目的经典坑型）；
+       · 忘了把原 alpha 带回去（顺手 `merge("RGBA", rgb.split() + (a,))` 用错变量）⇒
+         **轮廓被改**且没有任何断言看得见 —— 这一条是本节最值钱的判据。 */
+  const df = /"defringe"\s*:\s*\{[^}]*"rounds"\s*:\s*(\d+)[^}]*"alphaHi"\s*:\s*(\d+)/.exec(prepSrc);
+  const mAlphaMin = /"alphaMin"\s*:\s*(\d+)/.exec(prepSrc);
+  if (!df || !mAlphaMin) {
+    bad.push('SPEC 里读不出 defringe（rounds / alphaHi）或 alphaMin（取不到就报错，不许静默跳过）');
+  } else {
+    const rounds = +df[1], alphaHi = +df[2], alphaMin = +mAlphaMin[1];
+    if (!(rounds >= 4)) bad.push('defringe.rounds = ' + rounds + '（实测羽化 4~5px，<4 只抹最外一层）');
+    if (!(alphaHi > alphaMin && alphaMin > 0)) {
+      bad.push('defringe.alphaHi ' + alphaHi + ' 必须 > alphaMin ' + alphaMin + ' > 0（否则没有「边缘」可补）');
+    }
+    const bleedDef = (prepCode.match(/def bleed\(/g) || []).length;
+    const bleedAll = (prepCode.match(/bleed\(/g) || []).length;
+    const rdBody = stripPy(bodyOf(prepSrc, 'def render('));
+    if (bleedDef !== 1 || bleedAll !== 2 || (rdBody.match(/bleed\(/g) || []).length !== 1) {
+      bad.push('去污染入口不唯一：`def bleed(` ' + bleedDef + ' 处、脚本内 `bleed(` 共 ' + bleedAll
+        + ' 次（应 def 1 + 调用 1 = 2）、render() 体内 ' + (rdBody.match(/bleed\(/g) || []).length
+        + ' 次（应 1）—— 第二处实现 = 两个「边缘怎么补色」的口径');
+    }
+    const blBody = stripPy(bodyOf(prepSrc, 'def bleed('));
+    if (!has(blBody, 'SPEC["defringe"]["rounds"]')) {
+      bad.push('bleed() 体内没读 SPEC["defringe"]["rounds"]（轮数必须从规格现算）');
+    }
+    if (!has(blBody, 'Image.merge("RGBA", rgb.split() + (al,)')) {
+      bad.push('bleed() 没有把**原 alpha** 原样带回（少了这句 = 抠图轮廓被改，且没有任何断言看得见）');
+    }
+    /* ⑧ 文档必须描述这一步，且轮数从 SPEC 现算（改了常量忘改文档 ⇒ 报红） */
+    const doc2 = fs.readFileSync(path.join(ROOT, 'docs', '开发者文档.md'), 'utf8');
+    if (!has(doc2, '边缘去污染')) {
+      bad.push('docs/开发者文档.md 里没有描述「边缘去污染」（Q11 的落地只能有一处说明）');
+    } else if (!has(doc2, '去污染 ' + rounds + ' 轮')) {
+      bad.push('docs/开发者文档.md 里找不到现算的去污染轮数（要写成「去污染 ' + rounds
+        + ' 轮」）—— 改了 SPEC 忘改文档');
+    }
+  }
   if (bad.length) {
     err('卡面后处理规格不一致：' + bad.join('；'));
   } else {
     ok('卡面后处理：规格单源（补边 ' + spec.asp + ':1、详情 ' + spec.det.join('\u00d7')
-      + '、列表 ' + spec.lst.join('\u00d7') + '）、派生物目录 `assets/' + mOut[1]
+      + '、列表 ' + spec.lst.join('\u00d7') + '、边缘去污染 ' + df[1] + ' 轮只改 RGB 不动 alpha）、'
+      + '派生物目录 `assets/' + mOut[1]
       + '/` 已进 .gitignore 且只出现在 src/core/assets.js（唯一取用口径）与 tools/test.js（自测对拍）两处、'
       + '文档数字与常量现算一致、主体度量只有 stats_of() 一处');
   }

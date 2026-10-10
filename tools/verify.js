@@ -5403,7 +5403,11 @@ console.log('\n[46] 反作弊只许 L1 标记（不碰游戏数据、没有处�
 console.log('\n[47] 图鉴卡面回退链：AI 图优先 + 程序化兜底，且只有一处入口');
 let fallbackBad = 0;
 (function () {
-  const stripC = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[ \t])\/\/[^\n]*/gm, '$1');
+  /* 🔴 连**行尾**注释一起剥（硬规矩 ① 只剥「整行都是注释」的行注释与块注释）。
+     本节有两处判据是**数出现次数**的（档位字面量个数、取图口调用次数），
+     一句行尾注释写上一个档位字面量就能把它们喂饱 —— 那是本项目踩过两次的坑型
+     （见 `docs/改进待办.md`「反向验证里『行尾注释喂饱判据』是独立的一类」）。 */
+  const stripC = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
   const P = 'src/ui/panels.js', C = 'src/render/cardart.js';
   const jsP = stripC(fs.readFileSync(path.join(ROOT, P), 'utf8'));
   const jsC = stripC(fs.readFileSync(path.join(ROOT, C), 'utf8'));
@@ -5434,11 +5438,16 @@ let fallbackBad = 0;
     }
   }
 
-  /* ② 图鉴的两条绘制路径不许绕开入口（直接调 FishArt.draw = 那条路没有 AI 卡面）
-     ⚠️ marker 一律写成完整字面量（第 ㊷ 节 ⑧ 盯这个）：拼出来的 marker 它会看不见。 */
+  /* ② 四条绘制路径不许绕开入口（直接调 FishArt.draw = 那条路没有 AI 卡面）
+     ⚠️ marker 一律写成完整字面量（第 ㊷ 节 ⑧ 盯这个）：拼出来的 marker 它会看不见。
+     🔎 Q9 起把**鱼护 / 水族箱**两条也收进来 —— 它们原来各写一遍 `G.FishArt.draw`，
+        于是「图鉴里是 AI 图、鱼护里是程序化图」，同一个事实两条口径。 */
   const pathBook = bodyOf(jsP, 'function paintBookItem(');
   const pathDetail = bodyOf(jsP, 'function renderFishDetail(');
-  [[pathBook, 'paintBookItem', '图鉴网格'], [pathDetail, 'renderFishDetail', '图鉴详情页']]
+  const pathMini = bodyOf(jsP, 'function miniFish(');
+  const pathTank = bodyOf(jsP, 'function tankSprite(');
+  [[pathBook, 'paintBookItem', '图鉴网格'], [pathDetail, 'renderFishDetail', '图鉴详情页'],
+   [pathMini, 'miniFish', '鱼护 / 水族箱列表小图'], [pathTank, 'tankSprite', '水族箱精灵']]
     .forEach(([b, fn, cn]) => {
       if (!b) {
         err(P + ' 里找不到 `function ' + fn + '(`（' + cn + '）—— 改名了就来更新本节');
@@ -5456,13 +5465,71 @@ let fallbackBad = 0;
       }
     });
 
-  /* ③ 取用口只许出现在入口里（别处要画鱼必须走入口，否则又会冒出一处「没有兜底的取图」） */
-  ['G.CardArt.held(', 'G.CardArt.want('].forEach(call => {
+  /* ②-b 档位（tier）：每个绘制点必须**自己声明**要多大的图，而且声明得对。
+     病根形态很安静：档位写反不报任何错 —— 小框用详情档 = 白下 10 倍流量（图鉴一屏 362 项），
+     大框用列表档 = dpr>1 时发虚。两件事都只有真看画面才发现。
+     🔴 判据里**不许出现档位名的第二份真相**：合法档位集合从 `assets.js` 的 `TIER_SUB` 现算。 */
+  const jsA = stripC(fs.readFileSync(path.join(ROOT, 'src/core/assets.js'), 'utf8'));
+  const tierTab = /var TIER_SUB = \{([^}]*)\}/.exec(jsA);
+  /* ⚠️ 取 `tier: '<字面量>'` 只认带引号的写法：`tier: xxx` 这种变量形式**认不出来**，
+     所以要额外断言「box 里的 tier 全是字面量」，否则判据会被变量喂饱（硬规矩 ⑨ 同族）。 */
+  const tierLits = (jsP.match(/tier:\s*'([a-z]+)'/g) || []).map(s => /'([a-z]+)'/.exec(s)[1]);
+  const paintCalls = count(jsP, 'paintFish(') - 1;         // 减掉 `function paintFish(` 那一处
+  if (!tierTab) {
+    err('src/core/assets.js 里找不到 `var TIER_SUB = {...}` —— 卡面档位表是唯一真相，'
+      + '挪走 / 改名了就来更新本节（取不到就报错，不许静默跳过）');
+    fallbackBad++;
+  }
+  if (tierLits.length !== paintCalls) {
+    /* ⚠️ 这条报错文案里**不许再套单引号** —— 上一版写成 `' 个 `tier: '<字面量>'` —— ...'`，
+       内层的单引号把 JS 字符串提前闭掉，整句变成 `"…" < 字面量 > "…"`：**语法合法**（CJK 是合法
+       标识符），于是它躲过了「文件写崩」的直觉，只在判据真的要报红时抛 ReferenceError。
+       表现正是本项目最怕的那种：退出码 1、却没有「自检未通过」——反向验证 V5 当场逮到。 */
+    err(P + ' 有 ' + paintCalls + ' 处 paintFish() 调用，但只写了 ' + tierLits.length
+      + ' 个 `tier:` 加字面量 —— 少写的那些会拿不到对应的档，静默回退程序化绘制'
+      + '（写成变量的那处本条也认不出来，一并算「少写」）');
+    fallbackBad++;
+  }
+  const TIER_OF = [['function paintBookItem(', 'list', '图鉴网格 260×112'],
+    ['function renderFishDetail(', 'detail', '图鉴详情 380×190'],
+    ['function miniFish(', 'list', '鱼护 / 水族箱列表小图 96×52'],
+    ['function tankSprite(', 'detail', '水族箱精灵（宽 2.2L）']];
+  TIER_OF.forEach(([mk, want, cn]) => {
+    const b = bodyOf(jsP, mk);
+    if (b && !has(b, "tier: '" + want + "'")) {
+      err(P + ' 的 ' + cn + ' 用的不是 `' + want + '` 档 —— 写反不报错：'
+        + '小框用详情档白下 10 倍流量，大框用列表档在高 dpi 屏上发虚');
+      fallbackBad++;
+    }
+  });
+
+  /* ③ 取用口只许出现在入口里（别处要画鱼必须走入口，否则又会冒出一处「没有兜底的取图」）
+     ⚠️ **白名单**（逐条写「哪个函数里几次」；marker 一律写成**完整字面量** —— 拼出来的
+        marker 第 ㊷ 节 ⑧ 看不见它）：写多、写少、条目指向的函数被改名，三种都报红。
+        · `held` 在 `tankSprite()` 里还有 1 处 —— 它要**先**知道有没有图才能定精灵的框尺寸
+          （卡面 2:1、程序化要按 L 留外晕 pad），而那个判定发生在 `paintFish` 体内，
+          外面拿不到。它只用来**选尺寸 / 拼精灵键**，图本身仍然只由 `paintFish` 贴上去。
+          尺寸一旦定错（拿程序化的框装卡面）会**静默**画成拉伸 / 切边，所以这处有
+          测试兜着（`test.js`「鱼护 / 水族箱真的走卡面」那一段）。
+        · `want` 一处都不许外放：要图 = 要有人重画，那件事只有入口说得清。 */
+  const GATE_ALLOW = [
+    { call: 'G.CardArt.held(', fn: 'function paintFish(', n: 1 },
+    { call: 'G.CardArt.held(', fn: 'function tankSprite(', n: 1 },
+    { call: 'G.CardArt.want(', fn: 'function paintFish(', n: 1 },
+  ];
+  const callSet = [];
+  GATE_ALLOW.forEach(e => { if (callSet.indexOf(e.call) < 0) callSet.push(e.call); });
+  callSet.forEach(call => {
     const all = count(jsP, call);
-    const inside = entry ? count(entry, call) : 0;
-    if (all !== inside) {
-      err(P + ' 里有 ' + all + ' 处 `' + call + '`，其中只有 ' + inside + ' 处在 paintFish() 里 —— '
-        + '取图口只许留在入口那一处（散出去就会出现「取了图但没兜底」的路径）');
+    const rows = GATE_ALLOW.filter(e => e.call === call);
+    const got = rows.map(e => count(bodyOf(jsP, e.fn) || '', call));
+    const sum = got.reduce((s, v) => s + v, 0);
+    const desc = rows.map((e, i) => e.fn.replace('function ', '').replace('(', '')
+      + ' ' + got[i] + '/' + e.n).join('、');
+    if (all !== sum || rows.some((e, i) => got[i] !== e.n)) {
+      err(P + ' 里 `' + call + '` 共 ' + all + ' 处，白名单是 ' + desc + ' —— 取图口只许留在'
+        + '入口那一处（散出去就会出现「取了图但没兜底」的路径）；确实要多一处就写进'
+        + '第 47 节 ③ 的白名单并说明理由');
       fallbackBad++;
     }
     if (all === 0) {
@@ -5507,9 +5574,62 @@ let fallbackBad = 0;
     }
   }
 
+  /* ⑤ 🔴 **跨文件同源**：`assets.js` 的目录 / 档位表必须与 `tools/prep-cards.py` 的
+     `OUT_DIR` / `LIST_SUB` / `SPEC` 现算相等。
+     这是本节最值钱的一条：两处都不是「同一份代码里的两个地方」，而是**两种语言的两份真相**
+     —— JS 说 `assets/cards-ui/list/`、python 往别处写，没有任何编译器管得着，
+     表现是**全体静默 404 ⇒ 所有鱼回退程序化绘制**，而画面「看起来还行」。
+     ⚠️ 档位**集合**也要对拍（不多不少）：多一个档 = 指向一个没人产出的目录；
+        少一个档 = `prep-cards.py` 白出一半的图（零消费方）。 */
+  const prepSrc = fs.readFileSync(path.join(ROOT, 'tools', 'prep-cards.py'), 'utf8');
+  const mOutDir = /OUT_DIR = os\.path\.join\(ROOT, "assets", "([^"]+)"\)/.exec(prepSrc);
+  const mListSub = /LIST_SUB = "([^"]+)"/.exec(prepSrc);
+  /* 档位**集合**从 python 里现算：`assert_spec()` 的 `for _k in ("detail", "list")` 是
+     prep-cards.py 里唯一一处把「有哪些档」列全的地方（它同时是「两档尺寸都得等于 padAspect」
+     那道自校验的枚举）。⛔ 不许在 verify 里抄一份 `['detail','list']` —— 那就是第三份真相。 */
+  const mTierTuple = /for _k in \(([^)]*)\)/.exec(prepSrc);
+  const prepTiers = (mTierTuple ? (mTierTuple[1].match(/"([a-z]+)"/g) || []) : [])
+    .map(s => s.replace(/"/g, ''));
+  if (!mOutDir || !mListSub || prepTiers.length !== 2) {
+    err('tools/prep-cards.py 里读不出 OUT_DIR / LIST_SUB / 档位元组（取不到就报错，不许静默跳过）');
+    fallbackBad++;
+  } else if (tierTab) {
+    const table = {};
+    tierTab[1].split(',').forEach(kv => {
+      const m = /^\s*([a-z]+)\s*:\s*'([^']*)'\s*$/.exec(kv);
+      if (m) table[m[1]] = m[2];
+    });
+    const wantDir = 'assets/' + mOutDir[1] + '/';
+    const jsDir = /var CARD_DIR = '([^']+)'/.exec(jsA);
+    if (!jsDir || jsDir[1] !== wantDir) {
+      err('卡面目录两处不一致：assets.js 说 `' + (jsDir ? jsDir[1] : '(读不出)')
+        + '`、prep-cards.py 往 `' + wantDir + '` 写 —— 全体静默 404 ⇒ 所有鱼回退程序化绘制');
+      fallbackBad++;
+    }
+    const names = Object.keys(table).sort().join(',');
+    if (names !== prepTiers.slice().sort().join(',')) {
+      err('卡面档位集合两处不一致：assets.js 有 [' + names + ']、prep-cards.py 有 ['
+        + prepTiers.join(',') + '] —— 多一个档指向没人产出的目录，少一个档那份图零消费方');
+      fallbackBad++;
+    }
+    if (table.detail !== '' || table.list !== mListSub[1] + '/') {
+      err('卡面档位的子目录两处不一致：assets.js 是 detail=`' + table.detail + '` / list=`'
+        + table.list + '`、prep-cards.py 的 LIST_SUB 是 `' + mListSub[1] + '`');
+      fallbackBad++;
+    }
+    /* 判据自检：集合比较必须认得出「多一个档」与「少一个档」（拿合成样本试） */
+    const same = (a, b) => Object.keys(a).sort().join(',') === b.slice().sort().join(',');
+    if (!same({ detail: '', list: '' }, prepTiers) || same({ detail: '', list: '', tiny: '' }, prepTiers)
+        || same({ detail: '' }, prepTiers)) {
+      err('第 47 节判据自检不成立：档位集合比较分不出「相等 / 多一个 / 少一个」'); fallbackBad++;
+    }
+  }
+
   if (!fallbackBad) {
     ok('回退链只有一处入口（paintFish 里 AI 图 + 程序化兜底同处一体），'
-      + '图鉴网格 / 详情页都不绕开它，取图口没有散出去，档位名只来自 config');
+      + '图鉴网格 / 详情页 / 鱼护小图 / 水族箱精灵四条路都不绕开它，取图口没有散出去，'
+      + '颜色档只来自 config；**档位（tier）**：' + paintCalls + ' 个绘制点各自声明、'
+      + '必须是 list / detail 里对的那一个，且目录与档位集合与 `tools/prep-cards.py` 现算一致');
   }
 })();
 
@@ -7011,8 +7131,9 @@ console.log('\n[52] 传说档配色：色相必须铺开（不许再挤在同一
      · 规格常量（补边比例 / 两档尺寸）—— 只许一处，文档只描述、不抄出一份独立真相；
      · 派生物目录名 —— 脚本里的 `OUT_DIR` 与 `.gitignore` 必须同名（否则 `git add -A`
        会把 GB 级派生物卷进版本库，那是规范 §4 里唯一的高危动作）；
-     · 目录名在 `src/` 里必须**零出现** —— Q8 与 Q9 之间有顺序依赖（待办明写「顺序反了
-       就要返工」），提前在游戏侧写死派生物路径 = 绕过 Q9 那条回退链；
+     · 目录名在两处之外必须**零出现**，且那两处（`src/core/assets.js` / `tools/test.js`）
+       必须**真的出现** —— Q8 与 Q9 之间曾有顺序依赖（待办明写「顺序反了就要返工」），
+       接线前是「零出现」，Q9 落地后翻转成「只许这两处、且必须出现」（详见 ④ 的注释）；
      · 主体度量（占比 / 包围盒 / 重心）只许经 `stats_of()` 出来，不许第二处按 alpha 再算。
    ⚠️ 判据取不到东西时**直接报错**（空集会让断言恒真 —— 本项目反复栽过的形态）。 */
 console.log('\n[53] 卡面后处理：规格单源 + 派生物已 ignore + 文档数字现算（Q8）');
@@ -7073,24 +7194,43 @@ console.log('\n[53] 卡面后处理：规格单源 + 派生物已 ignore + 文�
     if (!has(gi, 'assets/' + mOut[1] + '/')) {
       bad.push('.gitignore 里没有 `assets/' + mOut[1] + '/` —— 派生物会被 git add -A 卷进库');
     }
-    /* ④ 第二处写者 / 游戏侧提前接线：目录名只许出现在本脚本的**代码**里。
+    /* ④ 第二处写者 / 游戏侧接线：目录名只许出现在两处，且**必须**出现在第一处。
        ⚠️ 先剥注释（开发者文档 §8 硬规矩 ①：只扫代码不扫注释）—— 散文里提一句目录名
           是正常的（`check-cards.py` 的字段注释就点了名）；注释能把判据喂饱 = 假通过。
-       ⚠️ 一律按 latin1 读（`.cmd` 可能是别的编码，用 utf8 读会抛）—— 要抓的是 ASCII 目录名。 */
+       ⚠️ 一律按 latin1 读（`.cmd` 可能是别的编码，用 utf8 读会抛）—— 要抓的是 ASCII 目录名。
+       🔎 白名单的由来（Q9 接线时定的）：
+          · `tools/prep-cards.py` —— 产出方（被扫时跳过）；
+          · `src/core/assets.js`  —— **唯一取用口径**（Q9 之前这里是「零出现」，接线后翻转成
+            「必须出现一次，且只许是它」）。做成「必须出现」是因为反过来也得防：
+            把接线整段删掉（游戏侧又回到程序化绘制）不会有任何报错；
+          · `tools/test.js` —— 自测里对拍 `resolve()` 拼出来的路径，**必须写死**才验得了。
+            它不是第二份真相，恰恰是那份真相的**验证**。
+        ⛔ 别处（`devtools.js` 的面板文案、任何一个 ui 模块）都不许再写一遍 ——
+           写第二遍的唯一后果是「改了脚本忘改这里」，而它什么都不影响，没人会发现。 */
+    const ALLOWED = ['src/core/assets.js', 'tools/test.js'];
     const stripAll = t => String(t)
       .replace(/"""[\s\S]*?"""/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/\/\/[^\n]*/g, '').replace(/#[^\n]*/g, '');
-    const dup = [];
+    const dup = [], seen = [];
     const scan = (dir, re) => fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
       const rel = dir + '/' + n, p = path.join(ROOT, rel);
       if (fs.statSync(p).isDirectory()) return scan(rel, re);
       if (!re.test(n) || rel === 'tools/prep-cards.py') return;
-      if (stripPy(fs.readFileSync(p, 'latin1')).indexOf(mOut[1]) >= 0) dup.push(rel);
+      if (stripPy(fs.readFileSync(p, 'latin1')).indexOf(mOut[1]) >= 0) {
+        seen.push(rel);
+        if (ALLOWED.indexOf(rel) < 0) dup.push(rel);
+      }
     });
     scan('src', /\.(js|html)$/);
     scan('tools', /\.(js|py|cmd)$/);
     if (dup.length) {
-      bad.push('这些文件里也出现了派生物目录名（' + dup.join('、') + '）—— src/ 里出现 = 绕过 Q9 的回退链直接接线');
+      bad.push('这些文件里也出现了派生物目录名（' + dup.join('、') + '）—— 只许 src/core/assets.js '
+        + '（唯一取用口径）与 tools/test.js（自测对拍）出现；别处出现 = 改脚本忘改它，静默漂开');
+    }
+    const miss = ALLOWED.filter(a => seen.indexOf(a) < 0);
+    if (miss.length) {
+      bad.push('派生物目录名没有出现在 ' + miss.join('、') + ' —— Q9 的接线被删掉了？'
+        + '（游戏侧不再取 `assets/' + mOut[1] + '/` 的图，全体回退程序化绘制，而且不报错）');
     }
   }
   /* ⑤ 文档数字必须与 SPEC 现算值相等（§18 第 1 步「找反向陈述」的机器版） */
@@ -7116,7 +7256,7 @@ console.log('\n[53] 卡面后处理：规格单源 + 派生物已 ignore + 文�
   } else {
     ok('卡面后处理：规格单源（补边 ' + spec.asp + ':1、详情 ' + spec.det.join('\u00d7')
       + '、列表 ' + spec.lst.join('\u00d7') + '）、派生物目录 `assets/' + mOut[1]
-      + '/` 已进 .gitignore 且 src/ 与 tools/ 其余文件里零出现（Q9 才接线）、'
+      + '/` 已进 .gitignore 且只出现在 src/core/assets.js（唯一取用口径）与 tools/test.js（自测对拍）两处、'
       + '文档数字与常量现算一致、主体度量只有 stats_of() 一处');
   }
 })();

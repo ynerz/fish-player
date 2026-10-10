@@ -186,7 +186,7 @@ G.Cheat = (function () {
       var tip = '模式 ' + G.Assets.mode() +
                 '｜图片 ok ' + u.image.ok + ' / fail ' + u.image.fail +
                 '｜音效 ok ' + u.sfx.ok + ' / fail ' + u.sfx.fail +
-                '｜缓存 ' + u.cached + '｜assets/cards/ · assets/audio/';
+                '｜缓存 ' + u.cached + '｜卡面 · 音效';
       /* 卡面回退链的家底（N3-1）：命中 = 画了 AI 图，缺图 = 留在程序化绘制上。
          没有这一行就分不清「图鉴用的是 AI 图」还是「一张都没加载上」。 */
       if (G.CardArt) {

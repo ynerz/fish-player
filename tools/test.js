@@ -32,7 +32,7 @@ global.localStorage = {
  'src/core/util.js', 'src/core/platform.js', 'src/core/profile.js', 'src/core/assets.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js',
  'src/core/integrity.js',
  'src/core/goals.js', 'src/core/weather.js', 'src/core/fishing.js', 'src/core/assistant.js', 'src/core/story.js', 'src/core/track.js',
- 'src/render/fishpaint.js',
+ 'src/render/fishpaint.js', 'src/render/cardart.js',
  'src/ui/tutorial.js']
   .forEach(r => (new Function(fs.readFileSync(path.join(ROOT, r), 'utf8'))).call(global));
 
@@ -2024,10 +2024,12 @@ ok(fTxt.indexOf(G.FIELDS.length + ' 个钓场') >= 0,
    Node 里没有 IntersectionObserver，走的就是「观察不到就直接画」的兜底分支。 */
 const realCanvasCreate = G.Platform.canvas.create;
 const noop = () => {};
+let drawImageCalls = 0;          // 卡面到底贴上去没有（`blit()` 的唯一出口就是 drawImage）
 const fakeCtx = {
   setTransform: noop, clearRect: noop, save: noop, restore: noop,
   translate: noop, scale: noop, beginPath: noop, moveTo: noop, lineTo: noop,
   closePath: noop, fill: noop, stroke: noop, ellipse: noop, fillRect: noop,
+  drawImage: () => { drawImageCalls++; },
   createLinearGradient: () => ({ addColorStop: noop }),
   fillStyle: '', strokeStyle: '', lineWidth: 1, globalAlpha: 1,
 };
@@ -2035,7 +2037,12 @@ G.Platform.canvas.create = () => ({ width: 0, height: 0, style: {}, className: '
 const realFishArt = G.FishArt;
 G.FishArt = { draw: noop };
 const realRAF = global.requestAnimationFrame, realCAF = global.cancelAnimationFrame;
-global.requestAnimationFrame = () => 1;
+/* 把帧回调**接住**（不是直接丢掉）：水族箱的卡面是在 `drawTank()` 那一帧里要的
+   （精灵按 (鱼, 色, L, 来源) 缓存 ⇒ 一只鱼最多要两次），所以要验它就必须真跑一帧。
+   上一版写成 `() => 1` 丢掉回调，于是「水族箱要详情档」这条断言**永远红**——
+   它红的原因与代码无关，是测试跑不到那条路。 */
+let lastRAF = null;
+global.requestAnimationFrame = (fn) => { lastRAF = fn; return 1; };
 global.cancelAnimationFrame = noop;
 
 const netA = G.FISH_BY_FIELD.D[0], netB = G.FISH_BY_FIELD.C[0];
@@ -2050,6 +2057,66 @@ ok(!netErr, 'VIEWS.net.render 能跑通（Node 里没有 IntersectionObserver，
 const netTxt = panelText(netRoot);
 ok(netTxt.indexOf(netA.name) >= 0 && netTxt.indexOf(netB.name) >= 0,
    '鱼护与水族箱里的鱼都渲染出了名字');
+
+/* ---- ⑤-a 鱼护 / 水族箱真的走卡面回退链，而且要的是**对的档**（Q9）----
+   本条是 Q9 接线的**行为证据**（源码断言只能证明「写了 paintFish」，证明不了
+   「真跑这条面板时它被调到了」）。钉两件事：
+     ① 鱼护小图 / 水族箱列表小图要 **list 档**、水族箱里那条大鱼要 **detail 档** ——
+        档位写反不会有任何报错，只会「小图糊 / 大图白下 10 倍流量」；
+     ② 图在手上时**真的贴上去**了（`blit()` 的唯一出口是 `ctx.drawImage`；
+        只画程序化 = 接线等于没接，那正是 Q9 之前的现状）。 */
+(function () {
+  const asked = [];
+  G.CardArt.reset();
+  drawImageCalls = 0;
+  G.CardArt.setLoader((tier, fid, morph) => {
+    asked.push(tier + ':' + fid + ':' + morph);
+    return { width: 512, height: 256 };
+  });
+  const r2 = mkEl('div');
+  let e2 = null;
+  try { Panels.VIEWS.net.render(r2); } catch (e) { e2 = e; }
+  ok(!e2, '鱼护 / 水族箱过一遍卡面回退链不抛错', e2 && e2.message);
+  const tiers = asked.map(s => s.split(':')[0]);
+  ok(tiers.length > 0, '鱼护 / 水族箱里的鱼**主动去要**了卡面（不是只在图鉴里要）');
+  ok(tiers.indexOf('list') >= 0, '鱼护 / 水族箱列表小图要的是**列表档**（512×256）');
+
+  /* 水族箱里那条鱼：卡面是在 `drawTank()` 那一帧里要的（精灵按 (鱼,色,L,来源) 缓存），
+     所以**真跑一帧** —— 不跑就等于那条路一次都没走过（上一版就是被这个坑住的）。
+     ⚠️ `drawTank()` 的头一句是 `if (!isOpen() || current !== 'net') return;` ——
+        直接 `VIEWS.net.render()` 是**绕开面板打开流程**的，`current` 还不是 'net'；
+        所以这里要给一套最小 DOM 桩（`#modal` / `#modalBody` …）并真走一次 `Panels.open('net')`。
+        这正是本文件那句「真跑一遍比扫源码可信」的用法。 */
+  const prevQS = global.document.querySelector, prevAEL = global.document.addEventListener;
+  const modalStub = { classList: { contains: () => false, add() {}, remove() {}, toggle() {} },
+    addEventListener() {} };
+  const qmap = { '#modal': modalStub, '#modalTitle': mkEl('div'), '#modalBody': mkEl('div'),
+                 '#modalClose': mkEl('button'), '#app': mkEl('div') };
+  global.document.querySelector = (s) => qmap[s] || null;
+  global.document.addEventListener = () => {};      // init() 会往 document 上挂 keydown
+  const prevAudio2 = G.Audio;
+  G.Audio = { click() {}, coin() {}, deny() {}, splash() {} };
+  Panels.init();
+  Panels.open('net');
+  G.Audio = prevAudio2;
+  drawImageCalls = 0;
+  if (lastRAF) lastRAF(16);
+  global.document.querySelector = prevQS;
+  global.document.addEventListener = prevAEL;
+  const tiers2 = asked.map(s => s.split(':')[0]);   // 帧后**重算**：上面那份是一个快照
+  ok(tiers2.indexOf('detail') >= 0, '水族箱水里那条鱼要的是**详情档**（1024×512）');
+  ok(tiers2.every(t => t === 'list' || t === 'detail'),
+     '档位只可能是 list / detail（写第三个 = Assets 拦掉 = 静默 404 ⇒ 全体回退程序化）');
+  ok(drawImageCalls > 0, '图在手上时**真的贴了卡面**（走 blit → ctx.drawImage）');
+
+  /* 🔴 「用的是卡面还是程序化」必须算进精灵键：第一帧建的是程序化精灵（那时图还没到），
+     图到了之后**下一帧必须换成卡面精灵** —— 键里漏掉来源的话这里会一直是 0（永远不换、
+     而且不报错，正是本项目最典型的静默失效）。 */
+  drawImageCalls = 0;
+  if (lastRAF) lastRAF(32);
+  ok(drawImageCalls > 0, '图到了之后**下一帧真的换成了卡面精灵**（精灵键里带了来源）');
+  G.CardArt.setLoader(null); G.CardArt.reset();
+})();
 
 /* ---- ⑤-b 鱼护行的下标必须「点击时现查」----
    `refresh()` 是 setTimeout(0) 排队的：状态已经变了、DOM 还没重建。
@@ -3248,35 +3315,47 @@ G_('Assets —— 键 → 地址（纯逻辑）');
   ok(A.mode() === 'inline' || A.mode() === 'external',
      `mode()：只可能是 inline / external（Node 没有 location ⇒ 实得「${A.mode()}」）`);
 
-  ok(A.resolve('fishcard:A01') === 'assets/cards/A01.png',
-     'resolve()：原色卡 = <id>.png');
-  ok(A.resolve('fishcard:A01:golden') === 'assets/cards/A01-golden.png',
-     'resolve()：档位卡 = <id>-<档位>.png');
+  ok(A.resolve('fishcard:list:A01:golden') === 'assets/cards-ui/list/A01-golden.png',
+     'resolve()：列表档 = assets/cards-ui/list/<id>-<档位>.png（Q8 派生物）');
+  ok(A.resolve('fishcard:detail:A01:golden') === 'assets/cards-ui/A01-golden.png',
+     'resolve()：详情档 = assets/cards-ui/<id>-<档位>.png');
+
+  /* 档位（tier）写错必须**直接拦掉**：认不出来却照拼路径 = 全体静默 404 ⇒ 回退程序化绘制，
+     画面上「看起来还行」，没人会发现卡面根本没接上。 */
+  ok(A.resolve('fishcard:big:A01:golden') === null && A.resolve('fishcard::A01:golden') === null,
+     'resolve()：不在档位表里的档位 / 空档位 → null');
 
   /* 档位名必须来自 config.colorMorphs —— 写错要**直接拦掉**，而不是拼出一个不存在的路径。
      这是本模块最容易出的静默失效：拼错了不会报错，只会 404。 */
-  ok(A.resolve('fishcard:A01:noSuchMorph') === null,
-     'resolve()：不在 config.colorMorphs 里的档位 → null（拦掉拼错的路径）');
-  CFG.colorMorphs.forEach(cm => ok(!!A.resolve('fishcard:A01:' + cm.key),
-     `resolve()：档位「${cm.name}」（${cm.key}）认得`));
+  ok(A.resolve('fishcard:detail:A01:noSuchMorph') === null,
+     'resolve()：不在 config.colorMorphs 里的颜色档 → null（拦掉拼错的路径）');
+  CFG.colorMorphs.forEach(cm => ok(!!A.resolve('fishcard:detail:A01:' + cm.key),
+     `resolve()：颜色档「${cm.name}」（${cm.key}）认得`));
 
+  /* 🔴 颜色档**不许省**：省了拼出来的是灰底母版 `<id>.png`（它在派生目录里根本不存在，
+     但「路径拼得出来」这件事本身就够危险 —— 母版贴到浅蓝底上是一块灰方块）。 */
+  ok(A.resolve('fishcard:detail:A01') === null && A.resolve('fishcard:list:A01') === null,
+     'resolve()：省略颜色档 → null（那会拼出灰底母版；这也是「母版不进游戏」的第二道防线）');
   ok(A.resolve('fishcard:') === null, 'resolve()：没有 id → null');
-  ok(A.resolve('fishcard:A01:golden:extra') === null, 'resolve()：键段数过多 → null');
+  ok(A.resolve('fishcard:detail:A01:golden:extra') === null, 'resolve()：键段数过多 → null');
   ok(A.resolve('nope:A01') === null, 'resolve()：不认识的键前缀 → null');
   ok(A.resolve('') === null && A.resolve(null) === null && A.resolve(undefined) === null,
      'resolve()：空 / null / undefined 都不抛，返回 null');
-  ok(A.resolve('fishcard:../etc/passwd') === null && A.resolve('fishcard:a/b') === null,
+  ok(A.resolve('fishcard:detail:../etc/passwd:golden') === null &&
+     A.resolve('fishcard:list:a/b:golden') === null,
      'resolve()：id 里的路径字符被拦掉（只允许字母数字，不许穿目录）');
 
-  ok(A.fishKey('A01') === 'fishcard:A01' && A.fishKey('A01', 'shiny') === 'fishcard:A01:shiny',
-     'fishKey()：拼键口径与 resolve() 一致（不许两处各拼一套）');
+  ok(A.fishKey('list', 'A01', 'shiny') === 'fishcard:list:A01:shiny' &&
+     A.fishKey('detail', 'A01', 'shiny') === 'fishcard:detail:A01:shiny',
+     'fishKey()：拼键口径与 resolve() 一致（档位在最前，不许两处各拼一套）');
 
   /* 上云：把前缀换掉即可，业务代码一行都不用改 */
   A.setBase('https://cdn.example.com/');
-  ok(A.resolve('fishcard:A01') === 'https://cdn.example.com/assets/cards/A01.png',
+  ok(A.resolve('fishcard:list:A01:golden') === 'https://cdn.example.com/assets/cards-ui/list/A01-golden.png',
      'setBase()：上云前缀生效（路径拼接只有这一处真相）');
   A.setBase('');
-  ok(A.resolve('fishcard:A01') === 'assets/cards/A01.png', 'setBase(\'\')：还原回同目录');
+  ok(A.resolve('fishcard:list:A01:golden') === 'assets/cards-ui/list/A01-golden.png',
+     'setBase(\'\')：还原回同目录');
 
   const u = A.used();
   ok(typeof u.ok === 'number' && typeof u.fail === 'number' && typeof u.cached === 'number',
@@ -3296,7 +3375,7 @@ G_('Assets —— 键 → 地址（纯逻辑）');
     G.Platform.image = { load: () => ({ then(res) { pend.push(res); } }) };
     G.Platform.audio = { load: () => ({ then(res) { pend.push(res); } }) };
     A.reset();
-    A.card('A01', 'golden');   // 图片：稍后成功
+    A.card('detail', 'A01', 'golden');   // 图片：稍后成功
     A.sfx('cast');             // 音效：稍后失败（file:// 下的常态）
     const z = A.used();
     ok(pend.length === 2 && z.ok === 0 && z.fail === 0,
@@ -3337,41 +3416,51 @@ G_('Assets —— 键 → 地址（纯逻辑）');
    ========================================================= */
 G_('CardArt —— 回退链（AI 卡面优先、程序化兜底）');
 (function () {
-  /* 按需加载：本文件顶部那份清单里没有它（它是渲染层模块，运行时才用画布） */
-  new Function(fs.readFileSync(path.join(ROOT, 'src/render/cardart.js'), 'utf8')).call(global);
+  /* ⚠️ cardart.js 现在在**文件顶部的模块清单**里就加载了（Q9 起面板渲染用例会碰它：
+     鱼护 / 水族箱也走 `paintFish()`，那时 `G.CardArt` 必须已经在）—— 这里不再按需 new。 */
   const CA = G.CardArt;
-  const img = (w, h) => ({ width: w, height: h });   // 画布只认 width / height
+  /* 画布只认 width / height。尺寸用 **Q8 派生物的真实尺寸**（1024×512 / 512×256）——
+     拿生图原始的 1152×768 来测，blit() 的期望值会全部对不上，而且掩盖真正的贴框口径。 */
+  const img = (w, h) => ({ width: w, height: h });
+  const DET = img(1024, 512), LST = img(512, 256);
   let asks = [];
-  const syncLoader = () => { asks.push(1); return img(1152, 768); };
+  const syncLoader = (t, f, m) => { asks.push([t, f, m]); return DET; };
 
   CA.reset();
   CA.setLoader(syncLoader);
 
-  /* ---- 母版禁令：游戏侧只吃透明抠图，空 / 未知档位必须直接拒绝 ---- */
+  /* ---- 母版禁令：游戏侧只吃透明抠图，空 / 未知颜色档必须直接拒绝 ---- */
   let badCb = 0;
-  ok(CA.held('A01') === null && CA.held('A01', '') === null && CA.held('A01', 'nope') === null,
-     'held()：空档位与未知档位一律 null（`<id>.png` 是灰底母版，不许进游戏）');
+  ok(CA.held('detail', 'A01') === null && CA.held('detail', 'A01', '') === null &&
+     CA.held('detail', 'A01', 'nope') === null,
+     'held()：空颜色档与未知颜色档一律 null（`<id>.png` 是灰底母版，不许进游戏）');
   asks = [];
-  ok(CA.want('A01', null, () => badCb++) === false &&
-     CA.want('A01', 'noSuchMorph', () => badCb++) === false &&
-     CA.want('', 'golden', () => badCb++) === false &&
-     CA.want('../etc/passwd', 'golden', () => badCb++) === false,
-     'want()：空档位 / 未知档位 / 空 id / 带路径字符的 id → 全部 false');
+  ok(CA.want('detail', 'A01', null, () => badCb++) === false &&
+     CA.want('detail', 'A01', 'noSuchMorph', () => badCb++) === false &&
+     CA.want('detail', '', 'golden', () => badCb++) === false &&
+     CA.want('detail', '../etc/passwd', 'golden', () => badCb++) === false,
+     'want()：空颜色档 / 未知颜色档 / 空 id / 带路径字符的 id → 全部 false');
   ok(asks.length === 0 && badCb === 0,
      'want()：被拒的请求**连加载器都不碰**（不许拼出一个可能 404 的路径）');
 
   /* ---- 正常路径（同步宿主）---- */
   asks = [];
   let got = 0, gotImg = null;
-  const first = CA.want('A01', 'golden', im => { got++; gotImg = im; });
+  const first = CA.want('detail', 'A01', 'golden', im => { got++; gotImg = im; });
   ok(first === true && got === 1 && !!gotImg,
      'want()：同步宿主下当场就把图交出来（返回 true ⇒ 调用方不必先画程序化的那张）');
-  ok(asks.length === 1, 'want()：加载器只被叫了一次');
-  ok(CA.held('A01', 'golden') === gotImg, 'held()：want() 之后拿到的是同一张图对象');
+  ok(asks.length === 1 && asks[0][0] === 'detail' && asks[0][1] === 'A01' && asks[0][2] === 'golden',
+     'want()：加载器只被叫了一次，且**档位原样透传**给 Assets（拼路径只有 Assets 一处真相）');
+  ok(CA.held('detail', 'A01', 'golden') === gotImg, 'held()：want() 之后拿到的是同一张图对象');
+
+  /* 🔴 两个档是**两张不同的图**，共用槽位会互相顶掉（先到的那张赢，而且不报错）。
+     这一条就是「档位必须进内部键」的判据 —— 把 key() 里的 tier 去掉，它当场变红。 */
+  ok(CA.held('list', 'A01', 'golden') === null,
+     'held()：列表档与详情档**互不相干**（档位进了内部键；去掉它两条会共用同一个槽位）');
 
   /* ---- 已经有了：不再发请求，但仍要回调（消费方等着重画）---- */
   asks = []; got = 0;
-  ok(CA.want('A01', 'golden', () => got++) === true && asks.length === 0 && got === 1,
+  ok(CA.want('detail', 'A01', 'golden', () => got++) === true && asks.length === 0 && got === 1,
      'want()：已有图时不再发请求，但仍回调一次（消费方据此重画）');
 
   /* ---- 异步宿主：同一张图并发只发一次请求，两个消费方都收到 ---- */
@@ -3379,14 +3468,14 @@ G_('CardArt —— 回退链（AI 卡面优先、程序化兜底）');
   asks = []; const resolveLater = [];
   CA.setLoader(() => { asks.push(1); return { then(res) { resolveLater.push(res); } }; });
   let a = 0, b = 0;
-  ok(CA.want('B07', 'shiny', () => a++) === false, 'want()：异步宿主下返回 false（现在还没图）');
-  ok(CA.want('B07', 'shiny', () => b++) === false, 'want()：同一张图第二次要 → 仍返回 false');
+  ok(CA.want('list', 'B07', 'shiny', () => a++) === false, 'want()：异步宿主下返回 false（现在还没图）');
+  ok(CA.want('list', 'B07', 'shiny', () => b++) === false, 'want()：同一张图第二次要 → 仍返回 false');
   ok(asks.length === 1, 'want()：同一张图并发只发一次请求（不许两张图各查一遍）');
-  ok(a === 0 && b === 0 && CA.held('B07', 'shiny') === null,
+  ok(a === 0 && b === 0 && CA.held('list', 'B07', 'shiny') === null,
      'want()：图还没到时回调不响、held() 仍是 null（画布上留着程序化那张）');
-  const late = img(1152, 768);
+  const late = img(512, 256);
   resolveLater[0](late);
-  ok(a === 1 && b === 1 && CA.held('B07', 'shiny') === late,
+  ok(a === 1 && b === 1 && CA.held('list', 'B07', 'shiny') === late,
      'want()：图到了 → 两个消费方各回调一次，held() 拿到图（这一步就是「重画」的触发点）');
 
   /* ---- 缺图 / 坏图：**一个回调都不发**，让程序化的那张留在画布上 ---- */
@@ -3394,28 +3483,34 @@ G_('CardArt —— 回退链（AI 卡面优先、程序化兜底）');
   CA.setLoader(() => null);
   let missCb = 0;
   const m0 = CA.used();
-  ok(CA.want('ZZZ', 'normal', () => missCb++) === false && missCb === 0 &&
-     CA.held('ZZZ', 'normal') === null,
+  ok(CA.want('detail', 'ZZZ', 'normal', () => missCb++) === false && missCb === 0 &&
+     CA.held('detail', 'ZZZ', 'normal') === null,
      'want()：加载器给 null（缺图 / 坏图）→ 不回调、held() 仍 null ⇒ 回退程序化绘制');
   ok(CA.used().miss === m0.miss + 1,
      'used()：没拿到图要记进 miss（开发者面板靠它分「贴了卡面 / 回退了程序化」各多少张）');
   CA.setLoader(() => { throw new Error('boom'); });
-  ok(CA.want('ZZZ', 'normal', () => missCb++) === false && missCb === 0,
+  ok(CA.want('detail', 'ZZZ', 'normal', () => missCb++) === false && missCb === 0,
      'want()：加载器自己抛了也不许把异常漏给调用方（绘制路径上抛 = 整个图鉴白屏）');
 
   /* ---- blit：等比放进框、居中、不裁切 ---- */
   CA.reset();
   const drawn = [];
   const ctx = { drawImage: (im, x, y, w, h) => drawn.push({ x, y, w, h }) };
-  /* 卡面是固定 1152×768（3:2），两个调用点的框都比它扁 ⇒ 实际总是「高度贴合」 */
-  const d1 = CA.blit(ctx, img(1152, 768), 130, 56, 260, 112);
-  ok(Math.abs(d1.w - 168) < 0.01 && Math.abs(d1.h - 112) < 0.01,
-     `blit()：图鉴网格 260×112 的框 → 168×112（高度贴合，实得 ${d1.w}×${d1.h}）`);
-  ok(Math.abs(drawn[0].x - (130 - 168 / 2)) < 0.01 && Math.abs(drawn[0].y - (56 - 112 / 2)) < 0.01,
+  /* 派生物是固定 **2:1**（Q8 补边），四个展示框都比它更扁或正好相等：
+       网格 260×112 = 2.32:1（高度贴合）、详情 380×190 = 2.00:1（**正好铺满**）、
+       鱼护小图 96×52 = 1.85:1（宽度贴合）。 */
+  const d1 = CA.blit(ctx, LST, 130, 56, 260, 112);
+  ok(Math.abs(d1.w - 224) < 0.01 && Math.abs(d1.h - 112) < 0.01,
+     `blit()：列表档贴进网格 260×112 → 224×112（高度贴合，实得 ${d1.w}×${d1.h}）`);
+  ok(Math.abs(drawn[0].x - (130 - 224 / 2)) < 0.01 && Math.abs(drawn[0].y - (56 - 112 / 2)) < 0.01,
      'blit()：以 (cx, cy) 为中心画（x/y 是左上角，不是中心）');
-  const d2 = CA.blit(ctx, img(1152, 768), 190, 90, 380, 190);
-  ok(Math.abs(d2.w - 285) < 0.01 && Math.abs(d2.h - 190) < 0.01,
-     `blit()：详情页 380×190 的框 → 285×190（实得 ${d2.w}×${d2.h}）`);
+  const d2 = CA.blit(ctx, DET, 190, 90, 380, 190);
+  ok(Math.abs(d2.w - 380) < 0.01 && Math.abs(d2.h - 190) < 0.01,
+     `blit()：详情档贴进详情框 380×190 → 380×190（**正好铺满**，实得 ${d2.w}×${d2.h}）`
+     + '—— 这就是 Q8「补边到 2:1」的收益：旧的 3:2 母版只能贴出 285×190，左右各空 12.5%');
+  const d4 = CA.blit(ctx, LST, 48, 26, 96, 52);
+  ok(Math.abs(d4.w - 96) < 0.01 && Math.abs(d4.h - 48) < 0.01,
+     `blit()：列表档贴进鱼护小图 96×52 → 96×48（宽度贴合，实得 ${d4.w}×${d4.h}）`);
   const d3 = CA.blit(ctx, img(100, 100), 50, 50, 200, 120);   // 方形图：宽度先贴合
   ok(Math.abs(d3.w - 120) < 0.01 && Math.abs(d3.h - 120) < 0.01,
      'blit()：方图放进扁框时宽度贴合（contain 口径：两边都不许超框）');
@@ -3425,6 +3520,10 @@ G_('CardArt —— 回退链（AI 卡面优先、程序化兜底）');
   const u = CA.used();
   ok(typeof u.hit === 'number' && typeof u.miss === 'number' && typeof u.ask === 'number',
      'used()：返回 { hit, miss, ask }（开发者面板「素材家底」读它分 AI 图 / 回退各多少张）');
+  ok(u.hit === 4,
+     `used()：hit = **真的贴上去几次**（上面 4 次 blit ⇒ 期望 4，实得 ${u.hit}）——`
+     + '数在 blit() 里；数在 `want()` 的「已经有图了」那一支会**恒为 0**（那条路实际走不到，'
+     + '因为调用方先问 held()、拿到了就直接贴、不会再问 want）');
   CA.setLoader(null);   // 还原成默认（Assets.card）——别把桩留给别的用例
 })();
 

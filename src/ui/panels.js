@@ -312,13 +312,17 @@ G.Panels = (function () {
   }
 
   /* ------------------------------------------------------------------
-     画「一条**已收集**的鱼」—— **回退链的唯一一处真相**（队列 N3-1）
+     画「一条**已收集**的鱼」—— **回退链的唯一一处真相**（队列 N3-1 / Q9）
      ------------------------------------------------------------------
-     优先级：AI 卡面（`G.CardArt` 拿到的透明抠图）→ 拿不到就 `G.FishArt` 程序化绘制。
-     为什么必须抽成一个函数：图鉴网格与详情页两处口径必须完全一致
-     （取哪一档的图、图放多大、什么时候兜底、什么时候重画），各写一份必然分家。
+     优先级：AI 卡面（`G.CardArt` 拿到 Q8 派生物）→ 拿不到就 `G.FishArt` 程序化绘制。
+     为什么必须抽成一个函数：**四个**绘制点（图鉴网格 / 图鉴详情 / 鱼护小图 / 水族箱小图）
+     的口径必须完全一致（取哪一档的图、图放多大、什么时候兜底、什么时候重画），
+     各写一份必然分家 —— 本文件原来就有两处各写一遍 `FishArt.draw`。
 
-     `box` = { cx, cy, len, w, h }：cx/cy 中心点、len 程序化绘制的鱼长、w/h 可用的框。
+     `box` = { cx, cy, len, w, h, tier }：cx/cy 中心点、len 程序化绘制的鱼长、
+     w/h 可用的框、**tier = 取哪一档的图**（`'detail'` / `'list'`，见 `assets.js` 的 `TIER_SUB`）。
+     ⚠️ tier 必须在 box 里一起给：它和 w/h 说的是同一件事（这个框要多大像素的图），
+        分开传就会出现「框是网格的、图要的是详情档」这种没人拦得住的组合。
      `onReady`：图**后来**才到时要做的重画（**只重画这一张画布**，
      不 `refresh()` 整个面板 —— 图鉴一屏 362 项，整面板重渲染会闪，而且搜索框会失焦）。
      返回这次到底画的是哪一种（自测与排查用）。
@@ -326,12 +330,12 @@ G.Panels = (function () {
         没收集到颜色时**不取图**：AI 卡面是「某一种颜色」的实物图，没有收集就没有这一档。*/
   function paintFish(ctx, f, cm, box, t, onReady) {
     if (cm) {
-      var img = G.CardArt.held(f.id, cm.key);
+      var img = G.CardArt.held(box.tier, f.id, cm.key);
       if (img) { G.CardArt.blit(ctx, img, box.cx, box.cy, box.w, box.h); return 'card'; }
     }
     var amt = cm && cm.tint ? 0.75 : 0;
     G.FishArt.draw(ctx, f, box.cx, box.cy, box.len, { tint: cm && cm.tint, tintAmt: amt, t: t });
-    if (cm) G.CardArt.want(f.id, cm.key, onReady);   // 图到了再重画这一张；拿不到就不动
+    if (cm) G.CardArt.want(box.tier, f.id, cm.key, onReady);   // 图到了再重画；拿不到就不动
     return 'art';
   }
 
@@ -343,7 +347,8 @@ G.Panels = (function () {
     cv.width = 260 * dpr; cv.height = 112 * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     if (e) {
-      paintFish(ctx, f, rarestColor(e), { cx: 130, cy: 56, len: 168, w: 260, h: 112 }, 0.6,
+      paintFish(ctx, f, rarestColor(e),
+        { cx: 130, cy: 56, len: 168, w: 260, h: 112, tier: 'list' }, 0.6,
         function () { paintBookItem(cv, f, e); });
     } else {
       G.FishArt.drawSilhouette(ctx, f, 130, 56, 168);
@@ -420,8 +425,10 @@ G.Panels = (function () {
         ctx.stroke();
       }
       if (e) {
-        /* 与图鉴网格走**同一个**回退链入口（图到了就重跑这一张） */
-        paintFish(ctx, f, best, { cx: 190, cy: 90, len: 240, w: 380, h: 190 }, 0.8, paintDetail);
+        /* 与图鉴网格走**同一个**回退链入口（图到了就重跑这一张）。
+           档位取 detail —— 这张画布 380×190，列表档只有 512 宽，dpr>1 时会明显发虚。 */
+        paintFish(ctx, f, best,
+          { cx: 190, cy: 90, len: 240, w: 380, h: 190, tier: 'detail' }, 0.8, paintDetail);
       } else {
         G.FishArt.drawSilhouette(ctx, f, 190, 90, 240);
         ctx.fillStyle = 'rgba(91,116,136,.75)';
@@ -721,20 +728,48 @@ G.Panels = (function () {
         不留 pad 会在精灵边界切出一道硬边。
      生命周期跟着面板走：`renderNet` 开头清空（卖出 / 取出会整块重绘）。 */
   var tankSprites = {};
+
+  /* 卡面档精灵的**框宽 = 这个倍数 × L**（图是 2:1 ⇒ 高自动是宽的一半）。
+     为什么还要乘 L：不乘的话所有鱼在箱子里一样大，「大鱼看着大」这条就没了。
+     ⚠️ 精确的「按体重 / 体型归一」是队列 **N3-3** 的事（它才去读 `index.json` 的
+        `bbox` / `long`）；这里只是让**大小方向**是对的，别在这里再归一一次。 */
+  var CARD_BOX_PER_L = 2.2;
+
   function tankSprite(fish, cm, L) {
-    var key = fish.id + '|' + (cm ? cm.key : 'n') + '|' + Math.round(L);
+    /* 有卡面就用卡面（detail 档：箱子里这条鱼是所有绘制点里最大的那一个）。
+       ⚠️ 这一处 `held()` 是**取图口的白名单条目**（见 verify 第 47 节 ③）：
+          `paintFish` 没法告诉我们「它会画图还是画程序化」——那个判定发生在它体**内**，
+          而精灵的框尺寸必须在画之前就定好（卡面 2:1、程序化要按 L 留外晕 pad）。
+          ⚠️ 「用的是卡面还是程序化」**必须算进精灵键** —— 否则图到了之后取到的还是
+             缓存里那张程序化的，永远不换，而且不报错（本项目最典型的静默失效）。
+             好处是**不需要回调重画**：drawTank 每帧都跑，下一帧自然会去取新键；
+             也**不需要**在面板打开时预先 `want()` 一遍（`paintFish` 每次建精灵时会要一次，
+             而精灵按 (鱼, 色, L, 来源) 缓存 ⇒ 一只鱼最多要两次，不会每帧都要）。 */
+    var cimg = cm ? G.CardArt.held('detail', fish.id, cm.key) : null;
+    var key = fish.id + '|' + (cm ? cm.key : 'n') + '|' + Math.round(L) + '|' + (cimg ? 'c' : 'a');
     var sp = tankSprites[key];
     if (sp) return sp;
-    var pad = (fish.glow ? 0.62 : 0.20) * L;
-    var w = Math.max(8, Math.round(2 * (0.86 * L + pad)));
-    var h = Math.max(8, Math.round(2 * (0.45 * L + pad)));
+    var w, h;
+    if (cimg) {
+      w = Math.max(8, Math.round(CARD_BOX_PER_L * L));
+      h = Math.max(8, Math.round(w / 2));
+    } else {
+      /* 程序化兜底。⚠️ 包围盒必须留够：鱼体在 `(0,0)` 两侧并不对称（约 −0.5L ~ +0.86L，
+         尾巴更长），所以半宽取 0.86L；发光鱼（`fish.glow`）还有 `shadowBlur = L*0.55`
+         的外晕，不留 pad 会在精灵边界切出一道硬边。 */
+      var pad = (fish.glow ? 0.62 : 0.20) * L;
+      w = Math.max(8, Math.round(2 * (0.86 * L + pad)));
+      h = Math.max(8, Math.round(2 * (0.45 * L + pad)));
+    }
     var dpr = G.Platform.sys.dpr();
     var c = G.Platform.canvas.create(Math.round(w * dpr), Math.round(h * dpr));
     var c2 = c.getContext('2d');
     c2.setTransform(dpr, 0, 0, dpr, 0, 0);
-    G.FishArt.draw(c2, fish, w / 2, h / 2, L, {
-      tint: cm && cm.tint, tintAmt: cm && cm.tint ? 0.75 : 0, t: 0.8,
-    });
+    /* 🔴 走**同一个**回退链入口 `paintFish()` —— 「这一条鱼该画哪张图」在全项目只有这一处
+       判定。这里虽然画的是离屏精灵（要缓存、要按 L 定框），但「取哪一张 / 拿不到怎么办」
+       与图鉴完全相同，另写一遍必然分家（本文件原来就有两处各写一遍 `FishArt.draw`）。
+       `onReady` 传 null：本函数的产物进了 `tankSprites`，重画由**精灵键**触发，不需要回调。 */
+    paintFish(c2, fish, cm, { cx: w / 2, cy: h / 2, len: L, w: w, h: h, tier: 'detail' }, 0.8, null);
     sp = { cv: c, w: w, h: h };
     tankSprites[key] = sp;
     return sp;
@@ -757,7 +792,10 @@ G.Panels = (function () {
     return dpr;
   }
 
-  /* 画一条鱼的小图标（列表用） */
+  /* 画一条鱼的小图标（鱼护 / 水族箱列表用）。
+     ⚠️ 走**同一个**回退链入口 `paintFish()`（Q9 之前这里直接调 `FishArt.draw`，
+        于是「鱼护里是程序化图、图鉴里是 AI 图」——同一个事实两条口径）。
+     档位取 list：这张画布只有 96×52，用详情档（1024 宽）纯属白下 10 倍流量。 */
   function miniFish(cv, entry) {
     var fish = G.FISH_ID[entry.f];
     if (!fish) return;
@@ -765,10 +803,10 @@ G.Panels = (function () {
     var ctx = cv.getContext('2d');
     var dpr = miniSize(cv);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, MINI_W, MINI_H);
-    G.FishArt.draw(ctx, fish, MINI_W / 2, MINI_H / 2, MINI_W * 0.9, {
-      tint: cm && cm.tint, tintAmt: cm && cm.tint ? 0.75 : 0, t: 0.6,
-    });
+    ctx.clearRect(0, 0, MINI_W, MINI_H);   // 重画前先擦掉上一张（图上来了会再进这里一次）
+    paintFish(ctx, fish, cm,
+      { cx: MINI_W / 2, cy: MINI_H / 2, len: MINI_W * 0.9, w: MINI_W, h: MINI_H, tier: 'list' },
+      0.6, function () { miniFish(cv, entry); });
   }
 
   function renderNet(root) {

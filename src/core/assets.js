@@ -24,7 +24,22 @@ window.G = window.G || {};
 G.Assets = (function () {
   'use strict';
 
-  var DIR = 'assets/cards/';
+  /* 卡面取的是 **Q8 的派生物**（`tools/prep-cards.py` 出：补边到 2:1 的两档），
+     不是生图原始输出 `assets/cards/`。理由有三条，任一条都足以决定：
+       ① 原始抠图是 **3:2**，而展示位是 2.32:1 / 2.00:1 ⇒ `contain` 贴进去左右各空掉一截；
+          派生物已补透明边到 **2:1**，贴进展示位像素级铺满（Q8 实测：A01 网格 300×200 → 400×200）。
+       ② 原始一张 495 KB，列表档只要 110 KB —— 图鉴一屏 362 项，差的是两个数量级。
+       ③ 「多大尺寸」这件事只能有一处真相：它住在 `prep-cards.py` 的 `SPEC` 里，
+          这里只放**两张表**（目录 + 档位子目录），`verify §53` 会拿 `SPEC` 现算对拍。
+     ⚠️ 目录名与 `tools/prep-cards.py:OUT_DIR` **同源**；改了脚本不改这里 = 全体静默 404
+        ⇒ 回退程序化绘制（画面「看起来还行」，所以没人会发现）。门禁盯着这条。 */
+  var CARD_DIR = 'assets/cards-ui/';
+  /* 档位（tier）→ 子目录。**唯一一处**。
+     档位不是「颜色档」（那是 `fishcard` 键里最后一节的 morph），而是**图的分辨率档**：
+       detail = `<CARD_DIR><槽位>.png`（1024×512，图鉴详情 / 水族箱）
+       list   = `<CARD_DIR>list/<槽位>.png`（512×256 且锐化，网格缩略 / 鱼护小图）
+     ⚠️ 子目录名与 `prep-cards.py:LIST_SUB` 同源（§53 现算对拍）。 */
+  var TIER_SUB = { detail: '', list: 'list/' };
   var SFX_DIR = 'assets/audio/';
   /* 上云之后把 CDN 前缀写在这里（或调用 setBase）。空 = 与 index.html 同目录。 */
   var base = '';
@@ -62,18 +77,27 @@ G.Assets = (function () {
   }
 
   /* 两类键：
-       `fishcard:<id>` / `fishcard:<id>:<档位>` —— 图鉴卡面（PNG）
-       `sfx:<名字>`                              —— 音效（MP3）
-     认不出来的键返回 null —— **宁可返回 null 让调用方走回退，也不要拼一个可能错的路径**。 */
+       `fishcard:<档位>:<id>:<颜色档>` —— 图鉴卡面（PNG，Q8 的两档派生物）
+       `sfx:<名字>`                  —— 音效（MP3）
+     认不出来的键返回 null —— **宁可返回 null 让调用方走回退，也不要拼一个可能错的路径**。
+
+     ⚠️ 卡面的四个键段**一个都不许省**：
+       · 档位（tier）省了 ⇒ 「要多大」就没说，只能猜；
+       · 颜色档（morph）省了 ⇒ 拼出来的是**灰底母版** `<id>.png`（它不在派生目录里，
+         本来就取不到；在这里拦掉是**第二道防线**，第一道在 `cardart.js` 的 `key()`）——
+         母版贴到浅蓝底上会糊一块灰方块，宁可回退程序化绘制。 */
   function resolve(key) {
     var p = String(key == null ? '' : key).split(':');
     if (p[0] === 'fishcard') {
-      if (p.length < 2 || p.length > 3) return null;
-      var fid = p[1];
+      if (p.length !== 4) return null;
+      /* ⚠️ `in` 判「键在不在」而不是 `p[1] in TIER_SUB ? ... : null` 的三元 ——
+         `TIER_SUB.detail` 的值是**空串**，用真值判断会把 detail 档自己也拦掉。 */
+      if (!(p[1] in TIER_SUB)) return null;                        // 档位写错 = 直接拦
+      var fid = p[2];
       if (!/^[A-Za-z0-9]+$/.test(fid)) return null;
-      var morph = p[2];
-      if (morph && morphKeys().indexOf(morph) < 0) return null;   // 档位名写错 = 直接拦掉
-      return base + DIR + fid + (morph ? '-' + morph : '') + '.png';
+      var morph = p[3];
+      if (morphKeys().indexOf(morph) < 0) return null;             // 档位名写错 = 直接拦掉
+      return base + CARD_DIR + TIER_SUB[p[1]] + fid + '-' + morph + '.png';
     }
     if (p[0] === 'sfx') {
       if (p.length !== 2 || !/^[a-z][a-z0-9]*$/.test(p[1])) return null;
@@ -82,8 +106,12 @@ G.Assets = (function () {
     return null;
   }
 
-  function fishKey(fid, morph) {
-    return 'fishcard:' + fid + (morph ? ':' + morph : '');
+  /* 拼键。**档位在最前** —— 念出来就是「列表档 / A01 / 闪光」，四个键段与 `resolve()`
+     的解析顺序一一对应（两处各拼一套必然分家，所以它俩必须同源）。
+     ⚠️ 参数顺序与 `resolve()` 一致；少传 / 传错会让 `resolve()` 返回 null ⇒
+        表现为「一直回退程序化绘制」，不会贴错图 —— 失败态是可见的（`miss` 计数会涨）。 */
+  function fishKey(tier, fid, morph) {
+    return 'fishcard:' + tier + ':' + fid + ':' + morph;
   }
 
   /* 加载。**失败返回 null，不抛也不 reject** —— 理由见 platform.image.load 的注释。 */
@@ -98,9 +126,9 @@ G.Assets = (function () {
     });
   }
 
-  /* 业务层的顺手封装：按鱼 id + 档位拿卡面。拿不到就是 null。 */
-  function card(fid, morph) {
-    return load(fishKey(fid, morph));
+  /* 业务层的顺手封装：按档位 + 鱼 id + 颜色档拿卡面。拿不到就是 null。 */
+  function card(tier, fid, morph) {
+    return load(fishKey(tier, fid, morph));
   }
 
   /* 音效：按名字拿一段**已解码的音频**。拿不到就是 null（调用方回退到合成音）。

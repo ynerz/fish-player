@@ -13,10 +13,18 @@
  *     ② `want()` —— 没有就去要，**要到了再重画那一张**（要不到就什么都不做）。
  *   ⇒ `Assets` 仍然是「怎么加载」的唯一真相，本模块只是它的**同步视图 + 重画回调**。
  *
- * 🔴 游戏侧只吃**透明抠图**（`<id>-<档位>.png`），永远不传空档位：
+ * 🔴 游戏侧只吃**透明抠图的派生物**（`assets/cards-ui/` 里的 `<id>-<档位>.png`），
+ *   永远不传空档位：
  *   `<id>.png` 是**灰底母版**（`alpha ≈ 252~255`，只在人工评审台里看），
  *   贴进图鉴的浅蓝底上会糊一块灰方块。所以 `key()` 里空档位一律返回 null ——
  *   宁可回退程序化绘制，也不把母版放进来。这条不需要调用方自觉，本模块自己拦。
+ *
+ * 档位（tier）是**取的图有多大**，不是颜色档：
+ *   `'detail'` = 1024×512（图鉴详情页 / 水族箱里的鱼）、`'list'` = 512×256 并锐化（网格 / 鱼护小图）。
+ *   ⚠️ 本模块**不持有档位表** —— 认不认这个档位由 `G.Assets.resolve()` 回答（它才是
+ *      「键 → 地址」的唯一真相）。档位写错时 `Assets` 返回 null ⇒ 本模块照常走回退链，
+ *      失败态是**回退程序化绘制**（可见、且在 `used().miss` 里数得出来），不是贴错图。
+ *   本模块的内部键**带档位**：两个档是两张不同的图，共用一个槽位会互相顶掉。
  *
  * ⚠️ 缺图 / 坏图 / 档位名写错 **都不是异常**（卡面是分批跑出来的，任何时刻都可能缺），
  *    `want()` 失败时**一个回调都不发** —— 画布上那张程序化绘制的鱼留在原地即可。
@@ -25,7 +33,8 @@ window.G = window.G || {};
 G.CardArt = (function () {
   'use strict';
 
-  /* 键 → Image。**同步视图**：画布是同步画的，必须能同步回答「这张有图了吗」。
+  /* 键（=`<档位>:<id>:<颜色档>`）→ Image。**同步视图**：画布是同步画的，必须能同步回答
+     「这张有图了吗」。
      ⚠️ 这不是第二份缓存 —— 图对象本身仍由 `Assets` 加载并持有，这里只记
         「哪些键已经有结果」，是给同步绘制路径用的索引。 */
   var READY = {};
@@ -38,7 +47,7 @@ G.CardArt = (function () {
   var loader = null;
   var stat = { hit: 0, miss: 0, ask: 0 };
 
-  /* 档位键必须在 `config.colorMorphs` 里 —— 档位名是平衡数值的一部分，
+  /* 颜色档键必须在 `config.colorMorphs` 里 —— 档位名是平衡数值的一部分，
      这里**不许另写一份表**（写两份必然分家，本项目反复踩过的坑型）。 */
   function knownMorph(morph) {
     if (!morph) return null;
@@ -47,17 +56,19 @@ G.CardArt = (function () {
     return null;
   }
 
-  /* 业务键：`<id>:<档位>`。**任一段不合规就返回 null**（调用方据此走程序化绘制）。 */
-  function key(fid, morph) {
+  /* 内部键：`<档位>:<id>:<颜色档>`。**任一段不合规就返回 null**（调用方据此走程序化绘制）。
+     ⚠️ 档位不在这里校验（表在 `Assets`）—— 但要**照原样带进键**：漏掉它会让两个档
+        共用同一个槽位，先到的那张图会把后到的顶掉（而且不报错）。 */
+  function key(tier, fid, morph) {
     var m = knownMorph(morph);
-    if (!m) return null;                        // 空 / 未知档位 ⇒ 拒绝（母版不进游戏）
+    if (!m) return null;                        // 空 / 未知颜色档 ⇒ 拒绝（母版不进游戏）
     if (!fid || !/^[A-Za-z0-9]+$/.test(String(fid))) return null;
-    return fid + ':' + m;
+    return String(tier) + ':' + fid + ':' + m;
   }
 
   /* 同步：已经拿到的图，或 null。 */
-  function held(fid, morph) {
-    var k = key(fid, morph);
+  function held(tier, fid, morph) {
+    var k = key(tier, fid, morph);
     return k ? (READY[k] || null) : null;
   }
 
@@ -66,16 +77,16 @@ G.CardArt = (function () {
        true  ⇒ 立刻画图（cb 也已经被同步调用过）
        false ⇒ 先画程序化绘制的，等 cb 来了再重画一次
      ⚠️ 拿不到图（缺图 / 坏图 / 键不合规）时**不调 cb**，也不返回 true。 */
-  function want(fid, morph, cb) {
-    var k = key(fid, morph);
+  function want(tier, fid, morph, cb) {
+    var k = key(tier, fid, morph);
     if (!k) { stat.miss++; return false; }
-    if (READY[k]) { stat.hit++; if (cb) cb(READY[k]); return true; }
+    if (READY[k]) { if (cb) cb(READY[k]); return true; }
     if (WAIT[k]) { if (cb) WAIT[k].push(cb); return false; }
     WAIT[k] = cb ? [cb] : [];
     stat.ask++;
-    var call = loader || function (f, m) { return G.Assets.card(f, m); };
+    var call = loader || function (t, f, m) { return G.Assets.card(t, f, m); };
     var r;
-    try { r = call(fid, morph); } catch (e) { r = null; }
+    try { r = call(tier, fid, morph); } catch (e) { r = null; }
     /* 两种宿主形态都要吃：Web 端给 Promise；同步宿主（测试桩 / 将来某个小程序的
        实现）直接给一张图或 null。**别假设一定是 thenable** —— 假设错了会静默不画。 */
     if (r && typeof r.then === 'function') {
@@ -97,20 +108,31 @@ G.CardArt = (function () {
   }
 
   /* 把一张卡面**等比放进框**，以 (cx, cy) 为中心画出来。
-     取 contain 口径（整张图都看得见，永不裁切）：卡面 1152×768 是固定 3:2，
-     而调用方的框比它更扁，所以实际总是「高度贴合」——
-     图鉴网格 260×112 → 168×112、详情 380×190 → 285×190（实测值）。
+     取 contain 口径（整张图都看得见，永不裁切）：派生物是固定的 **2:1**（Q8 补边），
+     而调用方的框都比它**更扁或正好相等**（图鉴网格 260×112 = 2.32:1、详情 380×190 = 2.00:1、
+     鱼护小图 96×52 = 1.85:1）⇒ 要么上下留一点、要么刚好铺满，**不会左右留白**。
+     🔎 实测（A01 贴进网格格 464×200）：旧的 3:2 母版贴出 300×200、现在 2:1 贴出 400×200；
+        **主体宽 268 → 270px（几乎没变）** ⇒ 这一步的收益是「贴满框 + 体积骤降」，
+        **不是**「鱼看着更大」（高度受限时两者主体像素本来就一样，别拿它当理由）。
      ⚠️ 精确的「按体重缩放鱼的大小」是队列 N3-3 的事，**不给它在这里埋第二套缩放规则**；
         本函数只负责「把图放进去」，与程序化绘制的 `len` 参数各管各的。
      返回实际画出的 { w, h, s }（自测据它断言，不用去猜 canvas 的像素）。 */
   function blit(ctx, img, cx, cy, bw, bh) {
+    /* 「命中」= **真的贴上去一次**，这里才是唯一该数它的地方。
+       ⚠️ 原来这个计数在 `want()` 的「已经有图了」那一支里 —— 而那条路**实际走不到**：
+          调用方（`paintFish`）先问 `held()`，拿到了就直接 `blit`、**不会再调 `want`**；
+          图是异步来的话，回调和重画也都被 `held()` 拦在前面。
+          结果是开发者面板那行「卡面 命中」**恒为 0** —— 而屏幕上明明全是 AI 卡面。
+          这种「指标口径写错」比没有指标更糟：它会让人以为接线没生效（Q9 当场所见）。 */
+    stat.hit++;
     var s = Math.min(bw / img.width, bh / img.height);
     var w = img.width * s, h = img.height * s;
     ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h);
     return { w: w, h: h, s: s };
   }
 
-  /* 家底：命中 / 缺图 / 真发出去的请求数。开发者面板与自测用。 */
+  /* 家底：真的贴上去多少张（hit）/ 有多少次要不到（miss）/ 真发出去多少请求（ask）。
+     开发者面板与自测用。⚠️ `hit` 数在 `blit()` 里，见那里的注释（写在 `want()` 里会恒为 0）。 */
   function used() { return { hit: stat.hit, miss: stat.miss, ask: stat.ask }; }
 
   /* 换加载器（传 null 回到 `Assets.card`）。 */

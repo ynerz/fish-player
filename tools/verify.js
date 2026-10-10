@@ -6396,6 +6396,176 @@ let storyBad = 0;
   }
 })();
 
+/* ---------------- 51. 生图管线：跳过判据与过期判据必须同源 ----------------
+   由来（2026-10-10，用户批量拍板第 8️⃣ 条「Q14 判据改」+ 第 🔟 条「gen-art.py 三处等一个不跑图的窗口」）：
+   `--skip-existing` 原来判的是「**文件在不在**」，而 `--stale` 判的是「**内容对不对**」——
+   两份判据各写各的。口径一改（比如 SS/SSS 那 180 条提示词重写），前者照旧**静默跳过**、
+   后者报过期，而图上完全看不出来：文件在、图也不坏，**只是不是这一版口径**。
+   实测代价：2026-10-10 全部 362 条鱼的卡都出齐了，其中 **373 张**仍是旧口径
+   （提示词已变 354 ／ 无台账 15 ／ 步数已变 4）。
+
+   本节钉住五件事（都在 `tools/gen-art.py` 里，**不依赖 python** —— verify 跑不了外部命令）：
+     ① **唯一判据**：`card_state()` 只定义**一处**，且 `--skip-existing` 与 `report_stale()`
+        **都调用它** —— 谁要是自己再算一遍，两张表必然分家（这正是 Q14 的成因）；
+     ② **判据覆盖四件事**：文件在、**母版派生 `-normal.png` 在**（Q28）、提示词一致、步数一致；
+     ③ **跳过分支不许再出现「只看文件在不在」**（`args.skip_existing and os.path.exists(`）；
+     ④ 两条**静默过期**的顺带修复：`--stale` 必须把「无文件」排除出「过期」（那是「待出」）；
+        生图收尾必须刷新 `docs/生图清单.md`（否则勾会一直停在旧状态 —— 实测有 **81 批**）；
+     ⑤ **耗时估计必须有实测来源**：`write_plan()` 优先用 `measured_sec()`（manifest 里逐张记的
+        `sec` 取中位），常数只当兜底 —— 手填常数换机器 / 改步数就悄悄过期（Q16）。
+
+   ⚠️ 这里只做**文本结构**检查。真实行为由两个探针证明，都跑过：
+     · 判据的 8 组注入（移文件 / 移派生 / 删台账 / 改提示词 / 改步数 / 负对照 / 改口径），
+       每条还原后逐字节 md5 复核；
+     · 两次**真跑**：最新口径的卡 `--skip-existing` 全跳过（零 ComfyUI 调用）、
+       过期卡**不跳过**而是走重出。 */
+console.log('\n[51] 生图管线：跳过判据与过期判据必须同源');
+let skipBad = 0;
+(function () {
+  const REL = 'tools/gen-art.py';
+  const raw = fs.readFileSync(path.join(ROOT, REL), 'utf8');
+  /* 只剥整行注释；结构性判据用剥过的，句子/字符串留在里面（③ 的正则要在代码上跑） */
+  const code = raw.replace(/^[ \t]*#[^\n]*$/gm, '');
+
+  /* `main()` 的函数体在 ① 与 ③ 都要用 ⇒ 提到最前面（`const` 不会提升，写后面会 TDZ 报错） */
+  const mbody0 = bodyOf(code, 'def main(');
+  if (!mbody0) {
+    err(REL + ' 里找不到 `def main(` —— 改名了就来更新本节');
+    skipBad++;
+  }
+
+  /* ① 唯一判据 + 两个消费者 */
+  const defs = (code.match(/^def card_state\(/gm) || []).length;
+  if (defs !== 1) {
+    err(REL + ' 的 `def card_state(` 不是**恰好一处**（实得 ' + defs + ' 处）—— '
+      + '判据只能有一份；两份必然分家，而分家的表现是「图上完全看不出来」（Q14）');
+    skipBad++;
+  }
+  const rs = bodyOf(code, 'def report_stale(');
+  if (!rs) {
+    err(REL + ' 里找不到 `def report_stale(` —— 改名了就来更新本节（不许当成「没有报告要检查」）');
+    skipBad++;
+  } else if (!has(rs, 'card_state_label(') && !has(rs, 'card_state(')) {
+    err('`report_stale()` 既没调 `card_state(` 也没调 `card_state_label(` —— '
+      + '过期报告自己另算了一套判据，于是与 `--skip-existing` 分家（这正是 Q14 的病根）');
+    skipBad++;
+  }
+  /* ⚠️ 判据是**一条链路**，只认中间那层的名字会被「中转函数自己另写一套」骗过去：
+     `report_stale()` → `card_state_label()` → `card_state()`，每一跳都得接上。 */
+  if (rs && has(rs, 'card_state_label(')) {
+    const csl = bodyOf(code, 'def card_state_label(');
+    if (!csl || !has(csl, 'card_state(')) {
+      err('`report_stale()` 走 `card_state_label()`，但后者没有调用 `card_state(` —— '
+        + '链路断了，等于过期报告还是在算自己那一套判据');
+      skipBad++;
+    }
+  }
+  /* 跳过分支：`main()` → `skip_note()` → `card_state()`，每一跳都要接上。
+     ⚠️ 这里全程走 `bodyOf()` 的**定义形态** marker（`'def 名字('`）——
+        不按位置切片（§42 ⑧ 的禁形）、也不给 marker 省左括号（§42 ⑧ 的第二条网）。 */
+  const sn = bodyOf(code, 'def skip_note(');
+  if (!sn) {
+    err(REL + ' 里找不到 `def skip_note(` —— 改名了就来更新本节');
+    skipBad++;
+  } else if (!has(sn, 'card_state(')) {
+    err('`skip_note()` 没有调用 `card_state(` —— 跳过判据在它这里另起了一套，'
+      + '于是与 `--stale` 分家（Q14 的病根）');
+    skipBad++;
+  } else if (!has(sn, 'enabled')) {
+    err('`skip_note()` 没有接「开关」（找不到 `enabled`）—— 不启用 `--skip-existing` 时'
+      + '它会把所有卡都判成可跳过，整轮一张都不出');
+    skipBad++;
+  }
+  if (!mbody0 || !has(mbody0, 'skip_note(')) {
+    err('`main()` 的出图循环没有调用 `skip_note(` —— 跳过这一步又散回循环里自己算，'
+      + '两处判据必然分家');
+    skipBad++;
+  }
+  /* 「只看文件在不在」这个写法**一处都不许留** */
+  if (/args\.skip_existing\s+and\s+os\.path\.exists\(/.test(code)) {
+    err(REL + ' 里还有 `args.skip_existing and os.path.exists(` 这种写法 —— 那正是 Q14 的病根'
+      + '（判据是「文件在不在」而不是「内容对不对」），必须走 `card_state()`');
+    skipBad++;
+  }
+
+  /* ② 判据必须覆盖四件事 —— 缺一项就是一类卡被静默放过 */
+  const cs = bodyOf(code, 'def card_state(');
+  if (!cs) {
+    err(REL + ' 里找不到 `def card_state(` —— 改名了就来更新本节（不许当成「没有判据要检查」）');
+    skipBad++;
+  } else {
+    [['-normal.png', '母版派生 `<id>-normal.png` 在不在（Q28：单独删它永远补不回来）'],
+     ['os.path.exists(dst)', '文件本身在不在'],
+     ['old != want', '提示词一致'],
+     ['old_steps != steps', '步数一致']].forEach(([n, what]) => {
+      if (!has(cs, n)) {
+        err('`card_state()` 没检查 ' + what + ' —— 缺一项就是一类卡被静默放过');
+        skipBad++;
+      }
+    });
+  }
+
+  /* ③ 两条「静默过期」的顺带修复 */
+  if (rs && !has(rs, '无文件')) {
+    err('`report_stale()` 没有把「无文件」排除出「过期」—— 还没出过的卡会被算成「过期」，'
+      + '报告的数字从此对不上（「待出」与「过期」是两件事）');
+    skipBad++;
+  }
+  if (!mbody0 || !has(mbody0, 'write_plan(')) {
+    err('`main()` 收尾没有刷新 `docs/生图清单.md`（找不到 `write_plan(`）—— '
+      + '清单的勾会一直停在旧状态，而它正是「下一轮跳不跳」的依据'
+      + '（实测：卡全出齐了，清单还有 81 批打着「未完成」）');
+    skipBad++;
+  }
+
+  /* ④ 耗时估计必须有实测来源 */
+  const wp = bodyOf(code, 'def write_plan(');
+  if (!wp || !has(wp, 'measured_sec(')) {
+    err('`write_plan()` 没有用 `measured_sec()` —— 清单的「单条耗时 / 还要多久」又退回手填常数，'
+      + '换台机器 / 改了步数就悄悄过期（Q16），而清单是排期的唯一依据');
+    skipBad++;
+  }
+  if (!/^SEC_SAMPLE_MIN\s*=/m.test(code)) {
+    err(REL + ' 里找不到 `SEC_SAMPLE_MIN =` —— 实测样本不足时的兜底阈值没了'
+      + '（会拿两三个样本去排期）');
+    skipBad++;
+  }
+  /* 逐张耗时：母版与档位**各记一次**，少一处就少一半样本 */
+  const secRec = (code.match(/"sec":\s*sec/g) || []).length;
+  if (secRec !== 2) {
+    err('manifest 的 `sec` 不是母版与档位**各记一次**（实得 ' + secRec + ' 处）—— '
+      + '少一处就等于少一半样本，`measured_sec()` 的中位失去代表性');
+    skipBad++;
+  }
+
+  /* ⑤ 判据自检：唯一入口的计数与「只看文件在不在」的注入样本都必须认得出 */
+  /* ⚠️ **不许写字面 `\n`** —— 源码里出现「反斜杠 + ndef + 空格」会被 §42 ⑧ 当成
+     「拿下一个 def 当终止符」，本节的夹具自己就先撞了那条禁形（第一次就是这么报红的）。
+     用 `String.fromCharCode(10)` 拼出来。 */
+  const NL = String.fromCharCode(10);
+  const dupSample = ['def card_state(a):', '    pass', '',
+                     'def card_state(b):', '    pass', ''].join(NL);
+  if ((dupSample.match(/^def card_state\(/gm) || []).length !== 2) {
+    err('第 51 节判据自检不成立：`^def card_state(` 的计数认不出「两处定义」');
+    skipBad++;
+  }
+  if (!/args\.skip_existing\s+and\s+os\.path\.exists\(/
+      .test('        if args.skip_existing and os.path.exists(dst):')) {
+    err('第 51 节判据自检不成立：「只看文件在不在」的注入样本没被那条正则认出来');
+    skipBad++;
+  }
+  if (has('        if args.skip_existing:', 'card_state(')) {
+    err('第 51 节判据自检不成立：空片段被认成「调用了 card_state」—— ③ 的判据恒真');
+    skipBad++;
+  }
+
+  if (!skipBad) {
+    ok('生图管线判据同源：`card_state()` 一处定义、`--skip-existing` 与 `--stale` 共用它，'
+      + '覆盖 文件 / 派生 / 提示词 / 步数 四项，清单收尾自动刷新，耗时估计有实测来源');
+  }
+})();
+
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

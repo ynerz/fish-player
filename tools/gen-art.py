@@ -2015,7 +2015,13 @@ RAR_CN = {0: "普通", 1: "稀有", 2: "史诗", 3: "传说"}
 #   档位 = 图生图 cfg=1.0 ≈ 20s
 # ⚠️ 别再用「单张 55s × 条数」估总时间 —— 每条鱼现在是 6 张（1 母版 + 5 档），
 #    按旧口径会把工期低估 3 倍（清单头部因此长期写着 6.4 小时，实际 ≈ 15.6 小时）。
-SEC_PER_MASTER = 55     # 母版：文生图，25 步（cfg=3.0，每步两次前向），实测 ≈55s
+# ⏱ 每张图多少秒 —— ⚠️ 这两个数是**兜底常数**，只在 manifest 还没有足够实测样本时用。
+#    `write_plan()` 现在优先用 `measured_sec()`（manifest 里逐张记的 `sec` 取中位）。
+#    为什么要有实测：这两个常数是手填的，换台机器 / 改了步数 / GPU 被别的任务占着
+#    就会悄悄过期，而清单是「还剩多少、还要多久」的唯一依据（Q16）。
+#    实测区间（1152×768 / 25 步 / cfg 3.0）：**48.2~51.3 s**（2026-10-10，RTX 5060 Laptop，
+#    连出 9 张）、**55~68 s**（2026-10-07 那批，机器同时在做别的事）⇒ 取 55 作兜底（偏保守）。
+SEC_PER_MASTER = 55     # 母版：文生图，25 步（cfg=3.0，每步两次前向）
 SEC_PER_MORPH = 55      # ⚠️ 五档**2026-10-07 起也是文生图** —— 曾走图生图（≈20s），已弃用。
                         #    所以现在和母版同价，别再按 20s 估。
 SEC_PER_CUT = 2         # 母版抠图 → `<id>-normal.png`（本地 BiRefNet，实测 1.5~3s）
@@ -2055,6 +2061,42 @@ def morph_keys():
     return keys
 
 
+SEC_SAMPLE_MIN = 20     # 实测样本少于此数就退回常数（中位不稳，别拿 3 个样本去排期）
+
+
+def measured_sec(man=None):
+    """manifest 里逐张记的 `sec` 的**中位**数；样本不足返回 `(None, n)`。
+
+    🔴 为什么要有它（Q16）：清单里那个「单条耗时 ≈ 277 s」是**手填常数** ——
+       换台机器、改了步数、或者 GPU 被别的任务占着，它就悄悄过期了，
+       而清单是「还剩多少、还要多久」的唯一依据。有真实样本时以样本为准。
+
+    ⚠️ 取**中位**不取均值：出图耗时会被偶发的卡顿（超时重试一次 = 5 分钟）拉出长尾，
+       均值会被一两条离群值带偏，而中位不受影响。
+    """
+    if man is None:
+        if not os.path.exists(MANIFEST):
+            return None, 0
+        try:
+            man = json.load(open(MANIFEST, encoding="utf-8"))
+        except Exception:
+            return None, 0
+    vals = []
+    for rec in man.values():
+        if not isinstance(rec, dict):
+            continue
+        if isinstance(rec.get("sec"), (int, float)):
+            vals.append(float(rec["sec"]))
+        for sub in (rec.get("morphs") or {}).values():
+            if isinstance(sub, dict) and isinstance(sub.get("sec"), (int, float)):
+                vals.append(float(sub["sec"]))
+    n = len(vals)
+    if n < SEC_SAMPLE_MIN:
+        return None, n
+    vals.sort()
+    return (vals[n // 2] if n % 2 else (vals[n // 2 - 1] + vals[n // 2]) / 2.0), n
+
+
 def write_plan(fish):
     """生成 docs/生图清单.md —— 带勾选框，供逐批执行与追踪"""
     bs = make_batches(fish)
@@ -2062,7 +2104,16 @@ def write_plan(fish):
     legend = sum(1 for f in fish if f["rar"] == 3)
     nk = len(morph_keys())
     # 每条鱼 = 1 张母版（文生图）+ (nk-1) 张档位（**也是文生图**）+ 1 次抠图（出 `-normal`）
-    per_fish = SEC_PER_MASTER + (nk - 1) * SEC_PER_MORPH + SEC_PER_CUT
+    # 📏 每张多少秒：**实测优先**（manifest 的 `sec` 中位），没有足够样本才退回常数。
+    #    每条鱼 = 1 张母版 + (nk-1) 张档位 = nk 张，每张都已经含各自那一次抠图。
+    m, m_n = measured_sec()
+    if m:
+        per_fish = m * nk
+        sec_note = "实测中位 **%.1f s** × %d 张（manifest 样本 %d 张）" % (m, nk, m_n)
+    else:
+        per_fish = SEC_PER_MASTER + (nk - 1) * SEC_PER_MORPH + SEC_PER_CUT
+        sec_note = ("常数估计（母版 %ds + %d 档 × %ds + 抠图 %ds；实测样本 %d 张，未达 %d）"
+                    % (SEC_PER_MASTER, nk - 1, SEC_PER_MORPH, SEC_PER_CUT, m_n, SEC_SAMPLE_MIN))
     # 🔴 一档可能出**多版**（传说档的闪光，`MORPH_VERSIONS_BY_RAR`）——
     #    漏算的话清单会**低估工期**，而清单是排期与「还剩多少」的唯一依据。
     cnt_rar, rounds = {}, lambda r: LEGEND_ROUNDS if r == 3 else 1
@@ -2072,7 +2123,8 @@ def write_plan(fish):
                       * sum(n - 1 for n in MORPH_VERSIONS_BY_RAR.get(r, {}).values())
                       for r in cnt_rar)
     shots = total * (1 + nk) + legend * (LEGEND_ROUNDS - 1) * (1 + nk) + extra_shots
-    secs = (total + legend * (LEGEND_ROUNDS - 1)) * per_fish + extra_shots * SEC_PER_MORPH
+    secs = ((total + legend * (LEGEND_ROUNDS - 1)) * per_fish
+            + extra_shots * (m or SEC_PER_MORPH))
 
     L = []
     L.append("# 图鉴卡面生图清单（%d 条鱼 / %d 批）\n" % (total, len(bs)))
@@ -2094,8 +2146,7 @@ def write_plan(fish):
     L.append("| 出图张数（含传说迭代） | ≈ **%d**（每条 %d 张：1 母版 + %d 档；"
              "另传说每条多 %d 张 —— 传说档的闪光出 2 版） |"
              % (shots, 1 + nk, nk, sum(n - 1 for n in MORPH_VERSIONS_BY_RAR.get(3, {}).values())))
-    L.append("| 单条耗时 | ≈ **%d s**（母版 %ds + %d 档 × %ds + 抠图 %ds） |"
-             % (per_fish, SEC_PER_MASTER, nk - 1, SEC_PER_MORPH, SEC_PER_CUT))
+    L.append("| 单条耗时 | ≈ **%.0f s**（%s） |" % (per_fish, sec_note))
     L.append("| 纯机器时间 | ≈ **%.1f 小时** |" % (secs / 3600.0))
     L.append("")
     L.append("⚠️ 真正的瓶颈不是机器时间，是**评审次数**：%d 批，每批都要「看图 → 判断合格 / 重出」。" % len(bs))
@@ -2309,63 +2360,117 @@ def write_forms(fish):
     print("形态档案已写出：%s（%d 条）" % (out, len(fish)))
 
 
+def card_state(f, morph, vi, man):
+    """这张卡相对**当前生成口径**的状态。
+
+    返回 `None` = 已是最新（`--skip-existing` 可以安全跳过）；
+    否则返回一个短原因标签。`无文件` 是「还没出过图」= 待出，**不属于过期**。
+
+    🔴 **唯一判据** —— `--skip-existing` 与 `--stale` 必须共用它。
+       Q14 的病根正是这两处各判各的：`--skip-existing` 判「文件在不在」、
+       `--stale` 判「内容对不对」。口径一改，前者照旧**静默跳过**、后者报过期 ——
+       两份判据分家，而图上完全看不出来（文件在、图也不坏，只是**不是这一版口径**）。
+       实测代价：2026-10-10 全部 362 条卡都出齐了，其中 **373 张**其实还是旧口径。
+
+    标签含义：
+      `无文件`    还没出过图（待出）
+      `派生缺失`  母版在、`<id>-normal.png` 不在。⚠️ **Q28**：`-normal` 是母版抠图的
+                  **派生、不占一个任务**，所以单独删它之后母版任务会「文件在 ⇒ 跳过」，
+                  5 个任务全跳完也补不回来 —— 游戏里那张图就永久退化成程序化绘制。
+      `无台账`    文件在，但 manifest 里没有可比的记录 ⇒ **证明不了**它是当前口径。
+                  ⚠️ 实测 12 张（`SS07` 整条鱼 + `C24` 的两版闪光 + `SS18`/`SS19`/`SS56`
+                  各两档）：manifest 曾被并发写覆盖掉一部分记录。这类卡必须重出
+                  （顺手把台账补回来，否则「可复现」这条硬约束在它们身上是空的）。
+      `提示词已变` / `步数已变`  台账记的与现算的不一致 ⇒ 重出。
+    """
+    fid = f["id"]
+    if morph is None:
+        dst = os.path.join(OUT, fid + ".png")
+        want, steps = build_prompt(f), steps_for(f, None)
+    else:
+        _ck, _tag, _sent, sfx = morph_versions(f, morph)[vi]
+        dst = os.path.join(OUT, "%s-%s%s.png" % (fid, morph, sfx))
+        want, steps = build_morph_prompt(f, morph, _sent), steps_for(f, morph)
+    if not os.path.exists(dst):
+        return "无文件"
+    # 母版这一个任务同时产出 `-normal` ⇒ 派生缺了就等于这个任务没做完（Q28）
+    if morph is None and not os.path.exists(os.path.join(OUT, fid + "-normal.png")):
+        return "派生缺失"
+    rec = man.get(fid) or {}
+    if morph is None:
+        old, old_steps = rec.get("prompt"), rec.get("steps", STEPS)
+    else:
+        sub = (rec.get("morphs") or {}).get(morph + (sfx or "")) or {}
+        old, old_steps = sub.get("prompt"), sub.get("steps", STEPS)
+    if not old:
+        return "无台账"
+    if old != want:
+        return "提示词已变"
+    # ⚠️ 步数也要比：只比提示词的话，「改步数」会**静默漏掉已生成的卡**
+    #    （既存在、又不会被列为过期）。
+    if old_steps != steps:
+        return "步数已变"
+    return None
+
+
+def skip_note(f, morph, vi, man, enabled=True):
+    """`--skip-existing` 该不该跳过这张卡：`None` = 跳过；否则返回「为什么不能跳过」。
+
+    ⚠️ 判据**本体**在 `card_state()` —— 这里只是把「开关 + 判据」收成一个**有名字的入口**：
+       ① 语义更清楚（不启用跳过时一律当作「要出图」）；
+       ② 门禁能按**定义形态**切到它（`verify` 第 51 节不按位置切片，那是本项目踩过的坑）。
+    """
+    if not enabled:
+        return "无文件"        # 不启用跳过 ⇒ 一律当作「要出图」
+    return card_state(f, morph, vi, man)
+
+
+def card_jobs_of(f):
+    """这条鱼的全部出图任务（母版 + 每一档的每一版），与 main() 的 jobs 顺序同源。"""
+    return [(None, 0)] + [(k, vi) for k, _d in MORPHS
+                          for vi in range(len(morph_versions(f, k)))]
+
+
+def card_state_label(f, morph, vi, man):
+    """(归档键, 原因标签 或 None) —— 键 `母版` / `bright` / `shiny-2`，与 manifest 同源。"""
+    st = card_state(f, morph, vi, man)
+    if morph is None:
+        return "母版", st
+    return morph + (morph_versions(f, morph)[vi][3] or ""), st
+
+
 def report_stale(fish):
-    """列出「**已出图、但 manifest 里记的提示词 ≠ 现在会生成的提示词**」的卡片。
+    """列出「**已出图、但与当前生成口径不一致**」的卡片，并给出可执行的命令。
 
-    🔴 为什么必须有它：`--skip-existing` 的判据是**文件在不在**，不是**内容对不对**。
-       所以一旦改过生成口径（提示词 / 颜色句 / 形态档案），已存在的卡会被
-       **静默跳过、永不重出** —— 图还在盘上、看起来也没坏，但它与新口径不一致，
-       而且**不报任何错**（这条本身就是待办里的一条，`--skip-existing` 那条）。
-       本报告就是那种情况下的「该重出哪些」清单，并且直接给出可执行的命令。
-
-    ⚠️ 判据是**与当前生成器现算的结果逐字比较**，不是与某个基准文件比 ——
-       所以它永远不会过期：口径一改，这个报告自动就准了。
+    ⚠️ 判据**与 `--skip-existing` 是同一份**（`card_state`）—— 见它的说明。
+       两张表分家就是这个报告存在的理由，所以这里绝不许再写第二份判据。
     """
     if not os.path.exists(MANIFEST):
         print("还没有 %s，无法比较（先跑一轮生图）" % os.path.basename(MANIFEST))
         return
     try:
-        m = json.load(open(MANIFEST, encoding="utf-8"))
+        man = json.load(open(MANIFEST, encoding="utf-8"))
     except Exception as e:
         print("manifest 读不出来：%s" % e)
         return
 
-    groups = {}
+    groups, reasons = {}, {}
     for f in fish:
-        fid = f["id"]
-        rec = m.get(fid)
-        if not rec:
-            continue
-        # 母版：文件在 + 记的提示词与现算的不一样
-        if os.path.exists(os.path.join(OUT, fid + ".png")) and (
-                rec.get("prompt") != build_prompt(f)
-                or rec.get("steps", STEPS) != steps_for(f, None)):
-            groups.setdefault("母版", []).append(fid)
-        for key, _d in MORPHS:
-            # ⚠️ 一档可能**出多版**（传说档的闪光）⇒ 逐版比对。
-            #    只按档名找文件的话，第 2 版（`<id>-闪光-2`）**永远不会被列为过期**
-            #    —— 又一个「不报错但静默漏掉」。
-            for _vi, (_ck, _tag, desc, sfx) in enumerate(morph_versions(f, key)):
-                mkey = key + sfx
-                path = os.path.join(OUT, "%s-%s%s.png" % (fid, key, sfx))
-                old = ((rec.get("morphs") or {}).get(mkey) or {}).get("prompt")
-                if not (os.path.exists(path) and old):
-                    continue
-                # 🔴 判据有**两个**：提示词不一致 **或** 步数不一致。
-                #    只比提示词的话，「改步数」会**静默漏掉已生成的卡**（既存在、又不会被列为过期）。
-                if (old != build_morph_prompt(f, key, desc)
-                        # ⚠️ 兜底用 `STEPS` 而不是 -1：**按档记 steps 是本次才加的**，
-                        #    老条目里没有这个键，而那时每一档都跑 25 步 ⇒ 缺失 = 25，
-                        #    用 -1 会把 bright / albino 这些**本来就没变**的档全算成过期（假警报一串）。
-                        or ((rec.get("morphs") or {}).get(mkey) or {}).get("steps", STEPS)
-                           != steps_for(f, key)):
-                    groups.setdefault(mkey, []).append(fid)
+        for k, vi in card_jobs_of(f):
+            key, st = card_state_label(f, k, vi, man)
+            if st is None or st == "无文件":
+                continue                      # 「无文件」是待出，不是过期
+            groups.setdefault(key, []).append(f["id"])
+            reasons[st] = reasons.get(st, 0) + 1
 
     total = sum(len(v) for v in groups.values())
     if not total:
-        print("✔ 没有过期卡片 —— 已出图的提示词与当前生成口径逐字一致")
+        print("✔ 没有过期卡片 —— 已出图的提示词 / 步数 / 派生文件都与当前生成口径一致")
         return
-    print("过期卡片共 %d 张（提示词与当前生成口径不一致 ⇒ 需要重出）：\n" % total)
+    print("过期卡片共 %d 张（已出图、但与当前生成口径不一致 ⇒ 需要重出）：" % total)
+    print("  原因：%s" % " ／ ".join("%s %d" % (k, v)
+                                     for k, v in sorted(reasons.items(), key=lambda x: -x[1])))
+    print()
     known = ["母版"]
     for x, _ in MORPHS:
         known += [x, x + "-2"]          # 一档多版时 manifest 键带 `-2` 后缀
@@ -2379,6 +2484,9 @@ def report_stale(fish):
               % (",".join(ids), "" if k == "母版" else " --only-morph " + k))
     print("⚠️ 母版重出会顺带刷新它的 `-normal`（原色档就是母版的抠图）；"
           "五档是独立文生图，单档重出只影响那一张，不会连带动别的档。")
+    print("💡 建议**加** `--skip-existing` 跑上面那些命令（断点续跑）：跳过判据与这里同源，"
+          "\n   所以它只会跳过「已经是最新口径」的卡，上面这些照样会重出。"
+          "⚠️ 2026-10-10 之前不是这样 —— 那时它只看文件在不在，这些卡会被**静默跳过**。")
 
 
 def main():
@@ -2621,13 +2729,24 @@ def main():
         # 步数 = max(按稀有度, 按档位) —— 见 `steps_for()`
         steps = steps_for(f, morph)
 
-        if args.skip_existing and os.path.exists(dst):
-            print("[%d/%d] %s %-7s 已存在，跳过" % (i, len(jobs), fid, label))
+        # 🔴 跳过判据 = **内容指纹**（`skip_note` → `card_state`），**不是**「文件在不在」（Q14）。
+        #    文件在、但台账对不上 / 没有台账 / 派生缺了 ⇒ **必须重出**。
+        #    旧实现只看文件在不在 ⇒ 口径一改，旧卡被静默跳过、**永不重出**，
+        #    而图上完全看不出来（文件在、图也不坏，只是不是这一版口径）。
+        st = skip_note(f, morph, vi, manifest, args.skip_existing)
+        if st is None:
+            print("[%d/%d] %s %-7s 已存在且口径一致，跳过" % (i, len(jobs), fid, label))
             skip += 1
             continue
+        if st != "无文件":
+            print("    ↻ %s 已存在，但%s ⇒ 重出" % (label, st))
 
         print("\n[%d/%d] %s %s   %s%s" % (i, len(jobs), fid, f["name"], label,
                                           ("　[" + variant_tag + "]") if variant_tag else ""))
+        # ⏱ 逐张计时 —— 落进 manifest 的 `sec`，供 `write_plan()` 用**实测中位**排期。
+        #    为什么必须记：清单里那个「单条耗时」原来是手填常数，换机器 / 改步数 /
+        #    GPU 被占着就会悄悄过期，而清单是「还剩多少、还要多久」的唯一依据。
+        t_card = time.time()
         if morph is None:
             # 母版：RGB 暗底（与 docs/images/标准/ 一致的外观对照）
             # ⚠️ 先出到 `_tmp/`、成功之后才 `supersede()` —— 见上面那段注释：
@@ -2654,11 +2773,14 @@ def main():
 
         if good:
             ok += 1
+            sec = round(time.time() - t_card, 1)
             if morph is None:
                 manifest[fid] = {
                     "name": f["name"], "rar": f["rar"], "shape": f["shape"],
                     "prompt": prompt, "negative": NEG, "seed": SEED, "cfg": CFG,
                     "size": [W, H], "steps": steps, "model": MODEL,
+                    # 实测耗时（秒）：母版这一步**含抠图**（它要顺带出 `-normal`）
+                    "sec": sec,
                 }
             else:
                 # ⚠️ **必须把「抽中的是哪个候选键」写进 manifest** ——
@@ -2667,7 +2789,9 @@ def main():
                 manifest.setdefault(fid, {}).setdefault("morphs", {})[mkey] = {
                     "candidate": variant_ck, "label": variant_tag, "prompt": prompt,
                     # 每个档也记步数（各档步数不再相同了）—— 供 `report_stale()` 与人工核对
-                    "steps": steps}
+                    "steps": steps,
+                    # 实测耗时（秒）—— 供 `write_plan()` 现算「每张多少秒」
+                    "sec": sec}
                 # 抽到哪一套也记下来 —— 光看提示词能反查，但列出标签便于人核对分布与复现
                 manifest.setdefault(fid, {}).setdefault("morphVariant", {})[mkey] = variant_tag
             print("    ok")
@@ -2684,8 +2808,20 @@ def main():
     except OSError:
         pass
     print("\n" + "=" * 50)
-    print("成功 %d / 失败 %d / 跳过 %d，清单 %s（共 %d 条）"
+    print("成功 %d / 失败 %d / 跳过 %d，台账 %s（共 %d 条）"
           % (ok, fail, skip, MANIFEST, len(manifest)))
+
+    # 📋 收尾顺手刷新生图清单：`[x]` 是按**磁盘实际状态**现算的，不刷新它会一直停在旧状态。
+    #    实测（2026-10-10）：362 条鱼的卡全出齐了，清单里还有 **81 批**打着「未完成」——
+    #    而清单的勾正是「下一轮跳不跳」的依据，停在旧状态会让人以为还有一大堆活没干。
+    #    ✅ 内容已是最新时逐字节相同 ⇒ **不会把工作区弄脏**（只有真的过期了才会写变）。
+    try:
+        write_plan(allfish)
+        print("📋 docs/生图清单.md 已按磁盘实际状态刷新（共 %d 批）"
+              % len(make_batches(allfish)))
+    except Exception as e:
+        print("⚠️ 清单刷新失败（不影响出图）：%s" % e)
+
     if fail:
         sys.exit(1)
 

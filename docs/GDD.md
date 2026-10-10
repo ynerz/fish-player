@@ -416,7 +416,7 @@ tools/gen-fish.py             鱼种生成器（鱼名/体重/价格，改完要
 tools/solve-drop.js           掉率求解器：反推掉率以命中节奏表
 tools/fix-rarity-price.js     稀有度定价归一化（**幂等**：跑第二遍必须 0 改动）
 tools/balance.js              数值仿真：胜率 / 节奏 / 收益 / 图鉴耗时（固定种子）
-tools/verify.js               数据自检 50 节（0 警告才算过；节数以 verify.js 自己的输出为准）
+tools/verify.js               数据自检 51 节（0 警告才算过；节数以 verify.js 自己的输出为准）
 tools/test.js                 单元测试（条数以它自己的输出为准）
 tools/gen-collect-time.js     生成 docs/收集耗时表.html
 tools/build.js                单文件打包（可选，发布用）
@@ -432,7 +432,7 @@ python tools/gen-fish.py         # 1. 参与生成的鱼名/体重/价格有变 
 node tools/solve-drop.js         # 2. 反推掉率并写回 fields.js / fish.js
 node tools/fix-rarity-price.js   # 3. 稀有度定价归一化（幂等，第二遍应 0 改动）
 node tools/balance.js            # 4. 复核：胜率 / 每小时收益 / 图鉴收集耗时
-node tools/verify.js             # 5. 自检 50 节
+node tools/verify.js             # 5. 自检 51 节
 node tools/gen-collect-time.js   # 6. 出收集耗时表
 ```
 

@@ -863,6 +863,43 @@ def main():
           "留痕：深层场 %d 条带 `·` 的**用全名**（含前缀）—— 与常规场的剥离口径不一致，见 ⛔ 待办"
           % len(_ddot))
 
+    print("\n[18] 名字族表（Q15 核实收口）：无死键 / 表序即优先级 / 函数可用 / 现状留痕")
+    _nm = [(x.get("name") or "") for x in _fish]
+    _hint_d = dict(GA2.NAME_HINTS)
+    _deadk = [k for k, _d in GA2.NAME_HINTS if not any(k in n for n in _nm)]
+    check(GA2.NAME_HINTS and not _deadk,
+          "NAME_HINTS 的 %d 个键每个都在真名字里命中过（零命中的死键：%s）"
+          % (len(GA2.NAME_HINTS), "、".join(_deadk) if _deadk else "无"))
+    # 表序即优先级（表里的注释明写「长串必须排在短串前」）：首个命中的键必须就是**最长**的那个
+    _shadow = []
+    for x in _fish:
+        _n = x.get("name") or ""
+        _first = next((k for k, _d in GA2.NAME_HINTS if k in _n), None)
+        _longest = None
+        for k, _d in GA2.NAME_HINTS:
+            if k in _n and (_longest is None or len(k) > len(_longest)):
+                _longest = k
+        if _first and _longest and _first != _longest:
+            _shadow.append((x["id"], _first, _longest))
+    check(not _shadow, "长串都排在短串前面（被截胡的 %d 处%s）"
+          % (len(_shadow), ("：" + repr(_shadow[:4])) if _shadow else ""))
+    # 函数可用：喂一个含该键的名字，必须原样拿到表里那句（不抛、不串行）
+    # ⚠️ 必须带 `shape`：`name_hint()` 的门是 `f.get("shape") not in FISH_SHAPES`
+    #    —— 缺这个键时是 `None not in …` ⇒ 直接返回空串，探针会以为「表坏了」。
+    _probe_bad = [k for k, _d in GA2.NAME_HINTS
+                  if GA2.name_hint({"name": "测试" + k, "shape": "fish"}) != _d]
+    check(not _probe_bad, "每个键单独喂进去都拿得到它自己那句描述（对不上的：%r）" % (_probe_bad[:4],))
+    # ⚠️ **现状留痕（Q15 的旧口径已作废）**：`build_prompt` 的 ② 是
+    #    `"" if verified else name_hint(f)` —— 而 **362 条全都有查证过的 `form`**
+    #    ⇒ 名字族在**母版提示词**上当前一条都不会生效。所以「按 88 条泛称补齐名字族」
+    #    这件事的收益是 **0**（改了也看不出来）；将来加新鱼若没有 `form` 才会用上。
+    _hits = [x for x in _fish if GA2.name_hint(x)]
+    _ver = [x for x in _fish if (GA2.trait_of(x["id"], "form") or "").strip()]
+    check(len(_hits) > 0,
+          "名字族仍命中 %d 条名字（现算）；⚠️ 有查证 form 的 %d 条使这条路在母版提示词上"
+          "**生效 0 条** —— traits 补齐后的正常现状、不是 bug（「扩表」收益 = 0）"
+          % (len(_hits), len(_ver)))
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

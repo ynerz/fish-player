@@ -1705,13 +1705,11 @@ NAME_HINTS = [
     ("鮟鱇", "very large head with a wide mouth and a bulky tapering body"),
     ("皇带", "extremely long ribbon body with a tall crest fin along the whole back"),
     ("灯笼", "small deep-sea fish with rows of tiny glowing photophores along the body"),
-    ("飞鱼", "streamlined body with very large wing-like pectoral fins"),
     ("剑鱼", "streamlined body with a long pointed bill extending from the snout"),
     ("旗鱼", "streamlined body with a very tall sail-like dorsal fin"),
     # —— 单字科属 ——
     ("鳢",   "elongated cylindrical body with a long dorsal fin and a large mouth"),
     ("鲶",   "broad flat head with long whisker barbels and smooth scaleless skin"),
-    ("鲇",   "broad flat head with long whisker barbels and smooth scaleless skin"),
     ("鳅",   "small slender bottom-dwelling body with short barbels"),
     ("鲀",   "rounded puffer-like body with small fins and a blunt face"),
     ("鲷",   "deep-bodied laterally compressed body with a spiny dorsal fin"),

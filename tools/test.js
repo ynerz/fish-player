@@ -4262,6 +4262,122 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
     catch (e) { duelThrow = e.message; }
     ok(duelThrow === '', '存档里的 duel 是数字时 settleDuel / duelInfo / noteCatch 都不抛'
       + (duelThrow ? ' —— ' + duelThrow : ''));
+    /* ---------- ⑬ 上一竿的结局（N7 六期）----------
+       `cond.after` = 「只在刚丢了鱼之后才开口」。它有两件事要钉：
+       ① **丢竿那条路必须是通的** —— 曾因 `fishing.js` 的时序（先回调、后收尾）整条死掉；
+       ② 那道门要真的按「引擎收到的结局」开关，而且**不改变别的事件的掷点**。 */
+
+    /* ⑬-a 🔴 行为级：驱动**一次真的丢竿**，看回调那一刻钓鱼状态收尾了没有。
+       这条断言抓的是「`consider()` 的 idle 门在丢竿回调里恒不通过」那个静默失效 ——
+       引擎那一侧永远看不出来（轮都轮不到它），只有真跑一遍才露头。 */
+    G.Goals.init();                       /* resolve() 会调 Goals.check()，先让它就位 */
+    if (St.get().settings.idle) St.setIdle(false);
+    var missState = '?', missResult = '';
+    Fish7.hardReset();
+    Fish7.init({ onMiss: function (r) { missState = Fish7.getState(); missResult = r; } });
+    try {
+      Fish7.cast();
+      var pend7 = Fish7.getPending();
+      Fish7.update(1.0);                       /* flying → waiting */
+      Fish7.update(pend7.wait + 0.001);        /* waiting → bite */
+      Fish7.update(99);                        /* 不提竿 ⇒ 咬口窗口走完 */
+    } finally { Fish7.init({}); }
+    ok(missResult === 'miss', '驱动出的确实是「错过咬口」这一种丢竿（实测 ' + missResult + '）');
+    ok(missState === 'idle', '丢竿回调里钓鱼状态**已经收尾**（idle）—— 否则 consider() 的 idle 门'
+      + '恒不通过，「丢了一竿」这条触发路整条是死的，而且不报错（实测 ' + missState + '）');
+
+    /* ⑬-b 门的行为：取内容表里**真带这道门**的事件现算（不写死 id / 值域） */
+    var afterEvs = [];
+    G.STORY_EVENTS.forEach(function (e) {
+      if (e.cond && Array.isArray(e.cond.after)) afterEvs.push(e);
+    });
+    ok(afterEvs.length > 0, '内容表里至少有一条事件带「上一竿的结局」这道门');
+    ok(afterEvs.every(function (e) { return e.cond.after.length > 0; }),
+      '带这道门的事件都列了非空数组（空数组 = 永远不匹配 = 白写一条）');
+
+    function probeHit(base, after) {
+      for (var s = 1; s <= 600; s++) {
+        var pp = { field: base.field, wx: base.wx, tm: base.tm, npc: base.npc,
+                   after: after, seq: s, now: 0 };
+        var got9 = S7.tryFire(pp);
+        if (got9) return { seq: s, ev: got9 };
+      }
+      return null;
+    }
+    /* 老陈那片 + 大晴天正午（他另外两条事件都要傍晚 / 有雾 ⇒ 不会来抢） */
+    var A9 = { field: 'D', wx: 'clear', tm: 'day', npc: 'chen' };
+    var slipEv = null;
+    afterEvs.forEach(function (e) { if (e.npc === 'chen') slipEv = e; });
+    ok(!!slipEv, '老陈有一条带这道门的事件（跑鱼那条）');
+    clean();
+    coolExcept(slipEv ? slipEv.id : '');
+    ok(probeHit(A9, undefined) === null, '**不带**结局时（= 结算卡关闭那条路）这条门恒关：一次都不出现');
+    ok(probeHit(A9, '') === null, '结局是空串同样不出现（空串 = 没带，不是「随便哪种都行」）');
+    ok(probeHit(A9, 'success') === null, '结局是值域外的东西（上鱼那一类）不出现');
+    var hitSnap = probeHit(A9, 'snap');
+    ok(!!hitSnap && hitSnap.ev.id === slipEv.id, '断线之后 ⇒ 他真会开口（门按引擎收到的那一个结局开）');
+    var hitEsc = probeHit(A9, 'escape');
+    ok(!!hitEsc && hitEsc.ev.id === slipEv.id, '脱钩之后同样会开口（这条门列了两种结局）');
+    ok(slipEv.cond.after.indexOf('miss') < 0 && probeHit(A9, 'miss') === null,
+      '没抓住咬口时**不**开口（这条门没列那个值；列了才该开口 —— 门不替你看语境）');
+
+    /* 掷点与结局**无关**：它是门，不是条件指纹（否则加一道门会挪动别的事件的掷点） */
+    var rollA = S7.rollFor(slipEv, { field: 'D', wx: 'clear', tm: 'day', seq: 9, now: 0, after: 'snap' });
+    var rollB = S7.rollFor(slipEv, { field: 'D', wx: 'clear', tm: 'day', seq: 9, now: 0 });
+    ok(rollA === rollB, '掷点不看「上一竿的结局」（它是门，不是条件指纹 —— 加门不会改掉别的事件的掷点）');
+
+    /* ⑬-c 顺序真的有作用：反应句排在最前，同一次结算里别人抢不走它。
+       ⚠️ 不能只断言「排最前那条赢了」—— 没有对手时它赢是废话。所以先造一个
+       「两条都该赢」的序号：把反应句**临时挪到表尾**就能观察出对手是谁，
+       再把顺序排回来 ⇒ 同一个序号上赢的必须换回反应句。 */
+    clean();                                  /* 两条候选都留着（不推进冷却） */
+    var comp = null;
+    var rIdx = G.STORY_EVENTS.indexOf(slipEv);
+    G.STORY_EVENTS.splice(rIdx, 1);
+    G.STORY_EVENTS.push(slipEv);
+    try {
+      for (var s10 = 1; s10 <= 600 && !comp; s10++) {
+        var pT = { field: 'D', wx: 'clear', tm: 'dusk', npc: 'chen', after: 'snap', seq: s10, now: 0 };
+        var gT = S7.tryFire(pT);
+        if (gT && gT.id !== slipEv.id && S7.rollFor(slipEv, pT) < slipEv.chance) {
+          comp = { seq: s10, id: gT.id };
+        }
+      }
+    } finally {
+      G.STORY_EVENTS.pop();
+      G.STORY_EVENTS.splice(rIdx, 0, slipEv);
+    }
+    ok(!!comp, '反向对照成立：有别的候选会在同一个序号上赢过它'
+      + '（没有这条前提的话，「排最前」那条断言等于没验）');
+    var backHit = comp
+      ? S7.tryFire({ field: 'D', wx: 'clear', tm: 'dusk', npc: 'chen', after: 'snap',
+                     seq: comp.seq, now: 0 })
+      : null;
+    ok(!!backHit && backHit.id === slipEv.id,
+      '排回最前之后，同一个序号上赢的又是它（顺序 = 反应句的优先级，实打实）');
+
+    /* ⑬-d 走**真正的那条路**：`consider(结局)` 能触发；不带结局（结算卡关闭那一路）不能。
+       天气 / 钓场都换成受控值，其余事件全推进冷却里 ⇒ 只剩反应句一个候选。 */
+    G.Weather.snapshot = function () { return { wx: { key: 'clear' }, tm: { key: 'day' } }; };
+    St.get().field = 'D';
+    Fish7.hardReset();
+    clean(); coolExcept(slipEv.id);
+    S7.reset();
+    var condHit = null;
+    for (var q9 = 0; q9 < 600 && !condHit; q9++) condHit = S7.consider('snap');
+    ok(!!condHit && condHit.id === slipEv.id && Array.isArray(condHit.lines) && condHit.lines.length > 0,
+      '丢竿之后 consider(结局) 真能触发反应句，而且带得出台词（面板不会弹空卡）');
+    clean(); coolExcept(slipEv.id);
+    S7.reset();
+    var noOut = null;
+    for (var q10 = 0; q10 < 600 && !noOut; q10++) noOut = S7.consider();
+    ok(noOut === null, '不带结局时（= 上鱼 / 卖鱼之后的结算卡关闭那一路）反应句一次都不出现');
+    clean(); coolExcept(slipEv.id);
+    S7.reset();
+    var dirtHit = null;
+    for (var q11 = 0; q11 < 600 && !dirtHit; q11++) dirtHit = S7.consider(123);
+    ok(dirtHit === null, '结局传了个数字（脏值）⇒ 当「没带」处理，门不会意外打开（也不抛）');
+
     clean();
     S7.init({});
   } finally {

@@ -6076,6 +6076,87 @@ let storyBad = 0;
   }
   if (curChain.length) { err('「谁在场」没按钓场挑：' + curChain.join('、')); storyBad++; }
 
+  /* ⑦-g 🔴 「上一竿的结局」这道门（N7 六期）：`cond.after` = 只在**刚丢了鱼**之后才开口。
+     五种坏法**全是静默的**：
+       · 值写错（拼错 / 用了引擎永远不会给出的结局）⇒ 那条事件**永远不出现**；
+       · 值不是非空数组 ⇒ 同上（写了个永远不匹配的门）；
+       · 引擎那一侧没把结局读进门（`cond` 白写）⇒ 同上；
+       · `main.js` 没把丢竿回调的参数转交下去 ⇒ 所有带这道门的事件全是死的；
+       · 🔴 **时序**：`fishing.js` 的 `resolve()` 若先回调 `cb.onMiss`、后把状态收到 `idle`，
+         那么 `main.js` 在丢竿回调里那次 `consider()` 的 idle 门**恒不通过** ——
+         「丢了一竿」这条触发路**整条**是死的（不只是这道门）：不报错、也没人看得出来。
+         ⇒ 判据：`resolve()` 里「一竿收尾」（`state = 'idle'`）必须**早于** `cb.onMiss(`。
+     值域**现算**（不写死任何结局名）：`fishing.js` 的 `resolve('…')` + `fight.js` 的
+     `finish('…')` 里的字面量，去掉成功那个（它不走丢竿回调）。
+     ⚠️ 键名**动态认**（「值是丢竿结局组成的数组」的那个键）—— 理由同 ⑦-f：
+        写死了，verify.js 自己就成了 32-g 眼里的一个消费方。
+     ⚠️ 判据一律吃**剥过注释**的那两份源码（硬规矩 第 1 条），而且要**连行尾注释一起剥**
+        （`x = 1; // 这里写着 resolve('xxx')`）—— §50 那只 `strip` 只认「整行都是注释」，
+        行尾那种剥不掉 ⇒ 这一组单用 `stripAll`。不剥的话，注释里那一句就能把「值域」或
+        「收尾早于回调」喂饱（反向验证 V1c / V2c 就是专门为这一口设计的）。 */
+  const stripAll = t => String(t).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const fishSrc = stripAll(fs.readFileSync(path.join(ROOT, 'src/core/fishing.js'), 'utf8'));
+  const fightSrc = stripAll(fs.readFileSync(path.join(ROOT, 'src/core/fight.js'), 'utf8'));
+  const outcomes = [];
+  [[fishSrc, /resolve\(\s*'([^']+)'\s*\)/g], [fightSrc, /finish\(\s*'([^']+)'\s*\)/g]]
+    .forEach(pair => {
+      let m;
+      while ((m = pair[1].exec(pair[0])) !== null) {
+        /* ⚠️ 成功那一侧不走丢竿回调，不是「结局」的候选 */
+        if (m[1] !== 'success' && outcomes.indexOf(m[1]) < 0) outcomes.push(m[1]);
+      }
+    });
+  const outBad = [];
+  if (!outcomes.length) {
+    outBad.push('拿不到「丢竿结局」的值域（resolve / finish 的字面量一个都没扫到）—— 抓不到就报错，不许空过');
+  }
+  let afterKey = '';
+  EVS.some(ev => Object.keys(ev.cond || {}).some(k => {
+    const v = (ev.cond || {})[k];
+    if (Array.isArray(v) && v.length
+      && v.every(x => typeof x === 'string' && outcomes.indexOf(x) >= 0)) { afterKey = k; return true; }
+    return false;
+  }));
+  let withAfter = 0;
+  if (!afterKey) {
+    outBad.push('没有任何事件用「上一竿的结局」这道门 —— 引擎里那条通路没有内容喂它（整条是死的）');
+  } else {
+    EVS.forEach(ev => {
+      const c = ev.cond || {};
+      if (!(afterKey in c)) return;
+      withAfter++;
+      const v = c[afterKey];
+      if (!Array.isArray(v) || !v.length) {
+        outBad.push('事件 ' + ev.id + ' 的 cond.' + afterKey + ' 不是非空数组 —— 这条门永不匹配（事件永不出现）');
+        return;
+      }
+      v.forEach(x => {
+        if (outcomes.indexOf(x) < 0) {
+          outBad.push('事件 ' + ev.id + ' 的 cond.' + afterKey + ' 里写了引擎不会给出的结局「' + x
+            + '」（现算值域：' + outcomes.join(' / ') + '）—— 这条事件永远不会触发');
+        }
+      });
+    });
+    if (!readsField(bodyOf(coreCode, 'function condOk('), 'c\\.' + afterKey)) {
+      outBad.push('condOk() 没读 cond.' + afterKey + ' —— 内容表写了这道门，引擎不当回事'
+        + '（事件会在任意时刻冒出来）');
+    }
+    if (!/consider\(\s*result\s*\)/.test(mainSrc)) {
+      outBad.push('main.js 的丢竿回调没把这一竿的结局交给 consider() —— 所有带这道门的事件全是死的');
+    }
+  }
+  /* 时序（见上面第 5 种坏法）：只做**先后**判断，所以走压平坐标（`idx()`）是够的。 */
+  const resBody = bodyOf(fishSrc, 'function resolve(');
+  const atIdle = idx(resBody, "state = 'idle'");
+  const atMissCall = idx(resBody, 'cb.onMiss(');
+  if (atIdle < 0 || atMissCall < 0) {
+    outBad.push('§50 没能从 fishing.js 的 resolve() 里认出「一竿收尾」与「cb.onMiss(」—— 抓不到就报错');
+  } else if (atIdle > atMissCall) {
+    outBad.push('fishing.js 的 resolve() 先回调 cb.onMiss、后把状态收到 idle —— '
+      + '丢竿那一刻 consider() 的 idle 门恒不通过：「丢了一竿」这条触发路整条是死的，且不报错');
+  }
+  if (outBad.length) { err('「上一竿的结局」这道门 / 链路不对：' + outBad.join('；')); storyBad++; }
+
   /* ⑧ 存档：字段要在 blank() 里，migrate() 要纠正**每一个**容器类型（脏档兜底）
      ⚠️ 判据必须认**字段声明 / 赋值本身**，不能只认「这段文字里出现过 story 这个词」——
         第一版写成 `has(body, 'story')`，反向验证当场假通过：把 `story:` 那一行删掉之后，
@@ -6139,6 +6220,8 @@ let storyBad = 0;
       + (duelEvs ? duelEvs + ' 条事件办限时比试（占位符只许 '
         + TOKEN_ALLOW.map(x => '{' + x + '}').join(' / ') + '、场地不含隐藏钓场且 pool 有鱼）'
         : '没有办比试的事件') + '、'
+      + (withAfter ? withAfter + ' 条事件认「上一竿的结局」（值域现算 ' + outcomes.length
+        + ' 个、门与链路都在，且丢竿回调早于状态收尾）' : '没有认得上一竿结局的事件') + '、'
       + '存档 story 的 ' + contKeys.length + ' 个容器两边对得上且有迁移纠正、'
       + '奖励白名单为空（纯剧情）、引擎不用 Math.random');
   }

@@ -145,6 +145,16 @@ G.Fishing = (function () {
     var color = pending ? pending.color : null;
     G.Scene.endFight();
     G.Fight.end();
+    /* 🔴 「这一竿结束了」必须在**回调之前**成立（N7 六期）。
+       回调的接收方会拿这个状态做判断 —— 最典型的一处：`main.js` 在**丢竿回调**里调
+       `G.Story.consider()`，而它头一道门就是「必须是 idle」。先回调、后改状态的话，
+       那一刻 `getState()` 还是 `bite` / `fight` / `waiting`，那道门**恒不通过**
+       ⇒ 事件永远不会在「丢了一竿」这条路上出现，而且**不报任何错**。
+       ⚠️ 其余收尾（清 pending / 鱼饵 / 落盘）**仍然留在回调之后**：这一竿的鱼饵与环境
+          还要被下面的分维计数读到（`recordCatch` 的 ctx），提前清就把这一竿记错了。
+       `verify` 第 50 节盯着这个顺序（写反就报红）。 */
+    state = 'idle';
+    timer = 0;
 
     if (result === 'success') {
       /* ctx 里的鱼饵 / 天气 / 时段会写进 stats 的分维计数，
@@ -231,8 +241,6 @@ G.Fishing = (function () {
     }
 
     pending = null;
-    state = 'idle';
-    timer = 0;
     autoHold = true;
     /* 这一竿到此为止：鱼已经咬过钩（钓上 / 脱钩 / 断线 / 错过咬口），
        饵就是花掉了，不许再被后续的 giveUp 退回来 */

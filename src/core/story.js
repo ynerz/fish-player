@@ -19,6 +19,11 @@
         绝不在 wait / fight 中途插进来 —— 那会把玩家正在拉的鱼冻在面板后面。
         挂机（自动钓鱼）与「面板/结算卡开着」时也一律不触发：人不在屏幕前时
         弹对话是打扰，而两层 modal 叠在一起会互相打架。
+        🔴 **这个门依赖一个时序事实**：「一竿结束了」必须在 `cb.onMiss` / `cb.onCatch`
+           回调**之前**成立。它由 `fishing.js` 的 `resolve()` 保证（N7 六期修）——
+           先回调后改状态的话，`onMiss` 里那次 `consider()` 的 idle 门**恒不通过**，
+           「丢了一竿」这条触发路整条是死的，而且**不报任何错**。
+           `verify` 第 50 节盯着 `resolve()` 里的先后顺序。
 
      ③ **奖励红线**：事件只能给「称号 / 纯外观」，不许给金币 / 鱼饵 / 装备 / 掉率。
         本模块把 `reward` 交出去但**自己不落地任何数值奖励** —— 给东西要走专门的
@@ -75,6 +80,16 @@
           一条事件都不参与抽签（`p.npc === ''` 谁都对不上）。这不报错，是**有意**的。
         · ⚠️ 与 `cond.field` 是**两件事**，不重复：`fields` 说「这个人站哪几片」，
           `cond.field` 说「这件事在哪几片能发生」（同一个人也可以只在其中一片办某一件事）。
+     ⑨ **「上一竿的结局」也是条件**（N7 六期）：事件可以带 `cond.after: ['snap','escape',…]`，
+        意思是**只在刚丢了鱼之后**才开口（值 = `fishing.js` 丢竿回调给的那几个结局）。
+        它是**门**不是条件指纹 —— 与 `npc` 同款：
+        · 由调用方**逐次带进来**（`consider(after)`），**不落存档、不参与 `seq` 归零**
+          （`seq` 仍然只按「钓场|天气|时段」归零）⇒ 不会因为「这次带了结局」而改变
+          别的事件的掷点（口径 ① 不受影响）。
+        · **只有丢竿那条路会带**：结算卡关闭那处（上鱼 / 卖鱼 / 收护之后）不带 ⇒
+          「上鱼之后被人接一句风凉话」这种事不会发生。
+        · 脏值（非字符串）一律当**没带**（空字符串）处理：脏档 / 误传对象都不该让
+          一条门意外打开。
    ========================================================= */
 
 window.G = window.G || {};
@@ -141,12 +156,17 @@ G.Story = (function () {
     return hash32([p.field, p.wx, p.tm, p.seq, ev.id].join('|')) / 4294967296;
   }
 
-  /* 条件：`cond` 里列出的每一项都要满足；没列的项不参与判定。 */
+  /* 条件：`cond` 里列出的每一项都要满足；没列的项不参与判定。
+     ⚠️ `after`（上一竿的结局，口径 ⑨）**也是**「没列就不参与」：没写它的事件在
+        丢竿那一次照样能命中（这道门只对写了它的事件生效）。而 `p.after` 是空串
+        （= 这一次没带结局）时，写了 `after` 的事件一律不参与 —— 所以门里写成**空数组**
+        等于「永远不匹配」（`verify` 第 50 节要求它是非空数组，就是拦这个）。 */
   function condOk(ev, p) {
     var c = ev.cond || {};
     if (c.field && c.field.indexOf(p.field) < 0) return false;
     if (c.wx && c.wx.indexOf(p.wx) < 0) return false;
     if (c.tm && c.tm.indexOf(p.tm) < 0) return false;
+    if (c.after && c.after.indexOf(p.after) < 0) return false;
     return true;
   }
 
@@ -230,8 +250,11 @@ G.Story = (function () {
       npc: curNpcId(),
     };
   }
-  /* `tryFire()` 要的那份入参（纯数值，不含对象引用）—— 同样是为了把字面量挪出返回块 */
-  function probeOf(c, n, t) { return { field: c.field, wx: c.wx, tm: c.tm, npc: c.npc, seq: n, now: t }; }
+  /* `tryFire()` 要的那份入参（纯数值，不含对象引用）—— 同样是为了把字面量挪出返回块。
+     `after` = **这一竿的结局**（口径 ⑨）：只有丢竿那条路带得进来，空串 = 没带。 */
+  function probeOf(c, n, t, after) {
+    return { field: c.field, wx: c.wx, tm: c.tm, npc: c.npc, after: after, seq: n, now: t };
+  }
 
   /* ---------------- 对外动作 ---------------- */
   /* 「现在该站在钓场里的那一位」是谁 —— **只有这一处**回答这个问题。
@@ -490,9 +513,15 @@ G.Story = (function () {
 
   /* 一次「可以考虑触发」的时机。调用点只有 main.js 的两处（结算卡关闭 / 丢竿之后），
      外加测试。返回真正触发的那条事件，或 null。
+     `after` = **这一竿的结局**（口径 ⑨）：丢竿那处把 `onMiss` 的结果（`snap` / `escape` /
+     `miss`）原样带进来，结算卡关闭那处**不带**（上鱼之后不该有人接风凉话）。
+     🔴 它**不进 `ctxKey`**：条件指纹仍然只有「钓场|天气|时段」三项 —— 带不带结局
+        都不影响 `seq` 的归零与已有事件的掷点（口径 ①）。
+     ⚠️ 与 `probeOf()` 同一条纪律：**返回块里不许出现 `键: 值` 形态的对象字面量**
+        （`verify` 的 `exportKeys()` 会把它们当成导出名）。
      ⚠️ 四道门（顺序即优先级）：状态必须是 idle → 不能是挂机 → 不能有面板开着 →
         全局间隔没到。前三条是「别打断人」，第四条是「别一分钟碰上俩邻居」。 */
-  function consider() {
+  function consider(after) {
     if (G.Fishing && G.Fishing.getState && G.Fishing.getState() !== 'idle') return null;
     if (G.Fishing && G.Fishing.isIdleMode && G.Fishing.isIdleMode()) return null;
     if (G.Panels && ((G.Panels.isOpen && G.Panels.isOpen())
@@ -508,7 +537,8 @@ G.Story = (function () {
     var gap = cfg().minGapMs || 0;
     if (lastAt && (t - lastAt) < gap) return null;
 
-    var probe = probeOf(c, seq, t);
+    /* 脏值（对象 / 数字 / undefined）一律当「没带结局」—— 它不该让一条门意外打开。 */
+    var probe = probeOf(c, seq, t, (typeof after === 'string') ? after : '');
     var ev = tryFire(probe);
     if (!ev) return null;
     lastAt = t;

@@ -449,8 +449,14 @@
       Hud.toast({ text: '没抓住咬口，鱼跑了', kind: 'warn' });
     }
     /* 丢了一竿、回到 idle —— 另一处「可以碰上隔壁钓鱼佬」的时机
-       （挂机那一支上面已经 return 了：人不在屏幕前，弹对话只会打断他回来后的操作） */
-    if (G.Story) G.Story.consider();
+       （挂机那一支上面已经 return 了：人不在屏幕前，弹对话只会打断他回来后的操作）
+       🔴 `result` 就是**这一竿的结局**（`snap` 断线 / `escape` 脱钩 / `miss` 错过咬口），
+          一并交给引擎 —— 带 `cond.after` 的事件靠它表达「他是在你刚跑鱼之后才开口的」。
+          ⚠️ 这个调用点曾经**整条是死的**：`fishing.js` 的 `resolve()` 先回调、后把状态收到
+             `idle`，于是 `consider()` 的 idle 门在这一刻恒不通过 —— 不报错，事件永远不来。
+             已修在 `fishing.js`（「一竿结束」是回调**之前**就该成立的事实），
+             `verify` 第 50 节盯着那个顺序。 */
+    if (G.Story) G.Story.consider(result);
   }
 
   function onUnlock(list) {

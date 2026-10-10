@@ -88,6 +88,21 @@ G.U = (function () {
     var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
     return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
   }
+  /* ---------------- 日期 ----------------
+     `dayKey()` = 本地日期键 `YYYY-MM-DD`，**全项目唯一一份**。
+     🔴 谁需要「今天是哪天」都走这里：每日任务的跨天重掷（`core/goals.js`）与本机
+        钓鱼日记（`core/diary.js`）必须是**同一个日期口径** —— 各写一份的话会出现
+        「任务已经重掷、日记还接着昨天写」这种半截换天，而且**不报错**
+        （`verify` 的 [50-c] 盯着「拼日期的代码只有一处」）。
+     ⚠️ 用**系统本地日期**（单机游戏、无服务端时间）；不掺 UTC —— 玩家眼里的「今天」
+        就是手机 / 电脑上的今天，用 UTC 会让东八区的玩家在早上 8 点前记到昨天那一栏。
+     可传 date（面板要算「昨天」那个键），不传 = 现在。 */
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function dayKey(date) {
+    var d = date || new Date();
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  }
+
   /* 重量文本 */
   function kg(w) {
     if (w < 1) return (w * 1000).toFixed(0) + ' g';
@@ -113,6 +128,7 @@ G.U = (function () {
     hex2rgb: hex2rgb, rgb2hex: rgb2hex, mix: mix, lighten: lighten,
     darken: darken, rgba: rgba,
     num: num, coin: coin, dur: dur, clock: clock, kg: kg,
+    dayKey: dayKey,
     $: $, $$: $$, el: el, on: on,
   };
 })();

@@ -7211,6 +7211,150 @@ let storyBad = 0;
   }
 })();
 
+/* ---------------- 50-c. 本机「钓鱼日记」（N11 ④）：日期同源 / 打点各一处 / 面板可达 / 只写本机 ----------------
+   由来：用户口径（2026-10-10）——「本机「钓鱼日记」（今天钓了什么 / 碰上过谁，纯展示、**不做分享墙**）」。
+   本节盯的是这类新增**最容易静默失效的四处**（每处都「不报错、玩家却看得出不对」）：
+     ① **日期键出现第二份实现** ⇒ 跨天那一刻任务与日记分家（一个换了天、一个还写昨天）；
+     ② **打点少一处** ⇒ 画面上明明刚见过他、日记里说「今天没碰上谁」；
+     ③ **面板加了但顶栏没入口**（或 tab 名与 `VIEWS` 的键写岔）⇒ 玩家永远打不开；
+     ④ **日记不该有任何联网 / 导出** —— 它是「伪社交」的一环，只写本机才不碰版号那条线
+        （真要导出图的是 N5-1 渔获分享卡，另一条线，别混进来）。
+   ⚠️ 文档那一侧不必在这儿再写一条：`34-c`（GDD §11 必须覆盖 blank() 每个顶层字段）自动盯住。
+   ⚠️ **豁免要写清反例**（规范 §9.1 第 2 条）：`goals.js` 的 `weekOf()` 也调 `getFullYear()`，
+      但那是 **ISO 周键**（先取本地年月日、再 UTC 归一，见它自己的注释）—— 不是第二份日键。
+      判据因此写成「`getFullYear()` 只许出现在这两个文件、且 `goals.js` 那处必须在 `weekOf()` 体内」。 */
+console.log('\n[50-c] 本机钓鱼日记：日期同源 / 打点各一处 / 面板可达 / 只写本机');
+let diaryBad = 0;
+(function () {
+  const stripJs = t => String(t)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^[ \t]*\/\/[^\n]*$/gm, '');
+  const srcOf = rel => { try { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); } catch (e) { return ''; } };
+
+  const diaryRaw = srcOf('src/core/diary.js');
+  if (!diaryRaw) {
+    err('缺 `src/core/diary.js` —— [50-c] 的判据会恒真，先修判据');
+    return;
+  }
+  const diary = stripJs(diaryRaw);
+
+  /* ① 日期键只有一处实现 */
+  const dateHits = [];
+  (function walk(rel) {
+    const abs = path.join(ROOT, rel);
+    if (fs.statSync(abs).isDirectory()) { fs.readdirSync(abs).forEach(n => walk(rel + '/' + n)); return; }
+    if (!/\.(js|html)$/.test(rel)) return;
+    if (stripJs(srcOf(rel)).indexOf('getFullYear(') >= 0) dateHits.push(rel);
+  })('src');
+  const ALLOW_DATE = ['src/core/util.js', 'src/core/goals.js'];
+  const stray = dateHits.filter(f => ALLOW_DATE.indexOf(f) < 0);
+  if (dateHits.indexOf('src/core/util.js') < 0 || stray.length) {
+    err('「今天是哪天」的实现位置不对：含 `getFullYear()` 的是 '
+      + (dateHits.join('、') || '一处都没有') + '（只许 src/core/util.js 与 src/core/goals.js 的周键）—— '
+      + '多出来的那处就是第二份日键：两处会在跨天那一刻分家，而且**不报错**');
+    diaryBad++;
+  }
+  const mkDay = (stripJs(srcOf('src/core/util.js')).match(/getFullYear\(\)\s*\+\s*'-'/g) || []).length;
+  if (mkDay !== 1) {
+    err('`src/core/util.js` 里 `getFullYear() + \'-\'` 出现 ' + mkDay + ' 次（应为 1）—— '
+      + '`dayKey()` 的形态变了，或者日键拼装又多了一处；本判据要跟着改');
+    diaryBad++;
+  }
+  const goalsCode = stripJs(srcOf('src/core/goals.js'));
+  const weekBody = bodyOf(goalsCode, 'function weekOf(');
+  if (!weekBody || (weekBody.match(/getFullYear\(\)/g) || []).length !== 1) {
+    err('`src/core/goals.js` 的 `getFullYear()` 不在 `weekOf()` 体内（或找不到该函数）—— '
+      + '周键那处是唯一豁免；出现在别处就是在实现第二份日键');
+    diaryBad++;
+  }
+  ['src/core/diary.js', 'src/core/goals.js'].forEach(rel => {
+    if (stripJs(srcOf(rel)).indexOf('U.dayKey(') < 0) {
+      err('`' + rel + '` 没有走 `G.U.dayKey()` —— 自己拼了一份「今天」（与 ① 是同一个病）');
+      diaryBad++;
+    }
+  });
+
+  /* ② 天数上限只有一处来源（config 定，模块与面板都从它读） */
+  const mCap = /diary\s*:\s*\{[\s\S]*?maxDays\s*:\s*(\d+)/.exec(stripJs(srcOf('src/data/config.js')));
+  if (!mCap) {
+    err('`src/data/config.js` 里读不到 `diary.maxDays` —— 天数上限必须有唯一来源'
+      + '（拿不到就报错，不许让模块静默兜一个数：那正是「改了 config 不生效」的温床）');
+    diaryBad++;
+  } else if (!/CFG\.diary\.maxDays/.test(diary)) {
+    err('diary.js 没从 config 读 `maxDays` —— 上限写死在模块里了（改 config 不生效）');
+    diaryBad++;
+  }
+  const panels = stripJs(srcOf('src/ui/panels.js'));
+  if (!/G\.Diary\.maxDays\(\)/.test(panels)) {
+    err('日记面板没有读 `G.Diary.maxDays()` —— 面板文案里的天数会与 config 分家（㉙ 同族）');
+    diaryBad++;
+  }
+
+  /* ③ 打点：渔获一处（`state.js` 的 recordCatch 体内）、邻居三处（story.js 的各一条通路） */
+  const state = stripJs(srcOf('src/core/state.js'));
+  const rcBody = bodyOf(state, 'function recordCatch(');
+  const catchAll = (state.match(/Diary\s*\.\s*onCatch\(/g) || []).length;
+  const catchIn = (rcBody.match(/Diary\s*\.\s*onCatch\(/g) || []).length;
+  if (!rcBody || catchAll !== 1 || catchIn !== 1) {
+    err('渔获日记的打点不唯一：`src/core/state.js` 里 `Diary.onCatch(` 共 ' + catchAll
+      + ' 次、`recordCatch()` 体内 ' + catchIn + ' 次（应为 1 / 1）—— 写到别处就漏掉挂机与'
+      + '离线补算那两条路（它们**也只走** recordCatch，漏了不报错）');
+    diaryBad++;
+  }
+  const story = stripJs(srcOf('src/core/story.js'));
+  const npcAll = (story.match(/Diary\s*\.\s*onNpc\(/g) || []).length;
+  const missN = [];
+  [['function mark(', '事件'], ['function talk(', '主动搭话'], ['function markBanter(', '旁观对话']].forEach(p => {
+    const b = bodyOf(story, p[0]);
+    if (!b || (b.match(/Diary\s*\.\s*onNpc\(/g) || []).length !== 1) missN.push(p[1]);
+  });
+  if (npcAll !== 3 || missN.length) {
+    err('邻居日记的打点不齐：`src/core/story.js` 里 `Diary.onNpc(` 共 ' + npcAll + ' 次（应为 3）'
+      + (missN.length ? '，缺在：' + missN.join(' / ') : '，且有落点不在 mark / talk / markBanter 体内')
+      + ' —— 少一处 = 「画面上刚见过他、日记里说没碰上」');
+    diaryBad++;
+  }
+
+  /* ④ 面板可达：顶栏有入口、`VIEWS` 有实现，且 tab 名逐个对得上 */
+  const html = srcOf('index.html');
+  if (!/data-panel="diary"/.test(html)) {
+    err('`index.html` 顶栏没有 `data-panel="diary"` —— 日记面板做出来了玩家也打不开（不报错）');
+    diaryBad++;
+  }
+  if (!/VIEWS\.diary\s*=\s*\{/.test(panels)) {
+    err('`panels.js` 里没有 `VIEWS.diary` —— 顶栏那个按钮点下去是空的');
+    diaryBad++;
+  }
+  const tabMiss = [...html.matchAll(/data-panel="([a-zA-Z]+)"/g)]
+    .map(m => m[1]).filter(n => !new RegExp('VIEWS\\.' + n + '\\s*=').test(panels));
+  if (tabMiss.length) {
+    err('顶栏这些 tab 在 `panels.js` 里没有对应的 VIEWS（点了没有任何反应）：' + tabMiss.join('、'));
+    diaryBad++;
+  }
+
+  /* ⑤ 只写本机：日记这条路不许出现联网 / 导出能力（伪社交口径） */
+  const forbid = ['fetch(', 'XMLHttpRequest', 'WebSocket', 'sendBeacon', 'Blob', 'toDataURL', 'download'];
+  const dView = bodyOf(panels, 'function renderDiary(');
+  const leakA = forbid.filter(k => diary.indexOf(k) >= 0);
+  const leakB = forbid.filter(k => dView.indexOf(k) >= 0);
+  if (leakA.length || leakB.length) {
+    err('日记这条路出现了联网 / 导出能力（' + leakA.concat(leakB).join('、')
+      + '）—— 口径是「只记在本机、不分享」（导出图是 N5-1 渔获分享卡，另一条线）');
+    diaryBad++;
+  }
+  if (!dView) {
+    err('读不到 `function renderDiary(` 的函数体 —— ⑤ 的判据会恒真，先修判据');
+    diaryBad++;
+  }
+
+  if (!diaryBad) {
+    ok('本机钓鱼日记：日期键只有 `G.U.dayKey()` 一处实现（`goals.js` 的 `getFullYear()` 是 ISO 周键、'
+      + '在 `weekOf()` 体内）、天数上限只从 `config.diary.maxDays` 现算（面板也读它）、'
+      + '打点各一处（渔获在 `recordCatch()` 体内；邻居在 mark / talk / markBanter 三处）、'
+      + '顶栏入口与 `VIEWS.diary` 都在且每个 tab 都对得上、这条路没有任何联网 / 导出能力');
+  }
+})();
+
 /* ---------------- 51. 生图管线：跳过判据与过期判据必须同源 ----------------
    由来（2026-10-10，用户批量拍板第 8️⃣ 条「Q14 判据改」+ 第 🔟 条「gen-art.py 三处等一个不跑图的窗口」）：
    `--skip-existing` 原来判的是「**文件在不在**」，而 `--stale` 判的是「**内容对不对**」——

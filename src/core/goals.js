@@ -28,12 +28,13 @@ G.Goals = (function () {
   var dayTick = 0;
 
   /* ---------------- 日期 / 周 种子 ---------------- */
+  /* ⚠️ 日期键**不再在这里实现**（原先是本文件私有的 `todayKey()`）：
+     本机钓鱼日记（`core/diary.js`）也要问「今天是哪天」，两处各写一份就会
+     出现「任务换了天、日记没换」的半截换天，而且不报错。
+     现在只有一处实现 —— `G.U.dayKey()`；这里只保留这个名字给本文件的调用点用。 */
+  function todayKey() { return U.dayKey(); }
+  /* 补零：只剩 ISO 周键在用（日期键已经统一走 `U.dayKey()`）。 */
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
-  function todayKey() {
-    /* 用系统本地日期（单机游戏，不需要服务端时间） */
-    var d = new Date();
-    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
-  }
   /* ISO 周键：`2026-W41`。周一为一周之始，用「本周四」所在年份定归属
      （这样跨年那一周不会算成两个不同的周）。全部走 UTC，避免时区把日期推偏。
      纯函数形式（weekOf）导出给测试用 —— 周数算法很容易写错，要能定点验。 */

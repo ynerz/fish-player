@@ -32,7 +32,7 @@ global.localStorage = {
  'src/core/util.js', 'src/core/platform.js', 'src/core/profile.js', 'src/core/assets.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js',
  'src/core/integrity.js',
  'src/core/cloud.js',
- 'src/core/goals.js', 'src/core/weather.js', 'src/core/fishing.js', 'src/core/assistant.js', 'src/core/story.js', 'src/core/track.js',
+ 'src/core/goals.js', 'src/core/weather.js', 'src/core/fishing.js', 'src/core/assistant.js', 'src/core/story.js', 'src/core/diary.js', 'src/core/track.js',
  'src/render/fishpaint.js', 'src/render/cardart.js',
  'src/ui/tutorial.js']
   .forEach(r => (new Function(fs.readFileSync(path.join(ROOT, r), 'utf8'))).call(global));
@@ -1717,7 +1717,7 @@ console.error = realErrLoad;
    另有一条源码级断言，扫「每个导出函数都必须有消费方」。
    ========================================================= */
 G_('Util · 导出面（不留零消费的死函数）');
-const UTIL_KEYS = ['$', '$$', 'clamp', 'clock', 'coin', 'darken', 'dur', 'easeOut',
+const UTIL_KEYS = ['$', '$$', 'clamp', 'clock', 'coin', 'darken', 'dayKey', 'dur', 'easeOut',
   'el', 'hex2rgb', 'kg', 'lerp', 'lighten', 'mix', 'num', 'on', 'range',
   'rgb2hex', 'rgba', 'skew', 'weighted'];
 ok(Object.keys(U).sort().join(',') === UTIL_KEYS.join(','),
@@ -5248,6 +5248,130 @@ G_('Cloud · 云存档（离线静默降级）');
   /* ④ 推的必须是**当前账号**那份档：键走 St.saveKey()，不许自己拼 CFG.saveKey */
   ok(typeof St.saveKey === 'function' && St.saveKey() === G.Profile.key(),
     'St.saveKey() 暴露出来了、且等于当前档案的键（云存档推的就是这一份）');
+})();
+
+/* =========================================================
+   本机「钓鱼日记」（N11 ④）：唯一入口 / 跨天 / 截断 / 去重 / 脏档
+   =========================================================
+   🔴 这一组尽量走**真记账路径**（`St.recordCatch()` / `G.Story.talk()`），
+     不是直接调日记模块凑数：日记的全部价值就是「玩家钓鱼时它真的被写下来了」，
+     只调 `D.onCatch()` 能证明函数在，证明不了那条链路是通的。
+   ⚠️ 现场要还原（图鉴 / 日记 / 挂机开关 / 钓场）—— 这个文件是**顺序执行**的，
+     一个组把 `s.book` 清空却不管，后面的组会莫名其妙地红。 */
+G_('Diary · 本机钓鱼日记');
+(() => {
+  const D = G.Diary, s = St.get();
+  ok(!!D && ['maxDays', 'onCatch', 'onNpc', 'days'].every(k => typeof D[k] === 'function'),
+    'G.Diary 挂上了 maxDays / onCatch / onNpc / days 四个口子');
+  ok(D.maxDays() === CFG.diary.maxDays,
+    '天数上限只有一处来源（config.diary.maxDays = ' + D.maxDays() + '）');
+
+  const realDiary = s.diary, realBook = s.book, realIdle = s.settings.idle, realField = s.field;
+  s.diary = { list: [] };
+  s.book = {};
+  St.setIdle(false);
+  const f0 = G.FISH[0], f1 = G.FISH[1];
+  const todayK = U.dayKey();
+
+  try {
+    /* ① 唯一入口：走真记账函数，日记必须自己长出来 */
+    St.recordCatch(f0, 0.5, 'normal');
+    const d0 = D.days();
+    ok(d0.length === 1 && d0[0].d === todayK,
+      '日记真的接在记账路径上（`St.recordCatch()` 之后出现今天那一条，日期键 = ' + todayK + '）');
+    ok(d0[0].n === 1 && Math.abs(d0[0].kg - 0.5) < 1e-9 && d0[0].best.f === f0.id && d0[0].best.c === 'normal',
+      '第一次钓获记进了条数 / 总重 / 最大那一尾（含颜色档）');
+    ok(d0[0].nf === 1,
+      '「图鉴新增」也记了（nf = 1 —— `isNew` 由 recordCatch 传进来，日记不自己再查一遍图鉴）');
+    ok(d0[0].flds[f0.field] === 1,
+      '去过的钓场记了一笔（键是钓场 id）');
+
+    /* ② 更重的一条顶掉「最大那一尾」；更轻的不会；老鱼不算新认识 */
+    St.recordCatch(f1, 3.0, 'golden');
+    ok(D.days()[0].n === 2 && D.days()[0].nf === 2 && Math.abs(D.days()[0].kg - 3.5) < 1e-9,
+      '第二条鱼让条数 / 总重继续累加');
+    ok(D.days()[0].best.f === f1.id && D.days()[0].best.c === 'golden',
+      '更重的一条顶掉「最大那一尾」');
+    St.recordCatch(f0, 1.0, 'normal');
+    ok(D.days()[0].best.f === f1.id && D.days()[0].best.kg === 3.0,
+      '更轻的一条**不会**顶掉（判据是 `>`：写成 `>=` 会让「最大的那条」在面板上反复跳）');
+    ok(D.days()[0].nf === 2,
+      '老鱼不算「新认识」（nf 仍为 2）');
+    St.recordCatch(f1, 3.0, 'bright');
+    ok(D.days()[0].best.c === 'golden' && D.days()[0].best.kg === 3.0,
+      '同重量**不**顶掉（保留先到的那一条 —— 写成 `>=` 会让「最大那一尾」跟着最后一条的颜色反复变）');
+
+    /* ③ 挂机上的鱼单独计数（判据由 `fishing.js` 造 ctx 时标进来 —— 这里直接给 ctx） */
+    const idleBefore = D.days()[0].idle;
+    St.recordCatch(f0, 0.4, 'normal', { idle: true });
+    ok(D.days()[0].idle === idleBefore + 1,
+      '挂机上的鱼单独记一笔（`ctx.idle` —— 判据只有 `Fishing.isIdleMode()` 一处，由它标进 ctx）');
+    St.recordCatch(f0, 0.6, 'normal');
+    ok(D.days()[0].idle === idleBefore + 1,
+      '没标挂机的那一竿不算挂机（不传 ctx 也不会被误算）');
+
+    /* ④ 邻居「开口」才记，而且一天只记一次 */
+    D.onNpc('chen'); D.onNpc('chen');
+    ok(D.days()[0].npcs.length === 1 && D.days()[0].npcs[0] === 'chen',
+      '同一位邻居一天只记一次（按「碰上过」记，不是按话数累加 —— 那是 story.talk 的事）');
+    D.onNpc('hai');
+    ok(D.days()[0].npcs.length === 2, '今天上过场的第二位邻居也记了进来');
+    ok(D.onNpc('') === null && D.onNpc(null) === null,
+      '脏值（空串 / null）不记、也不抛');
+
+    /* ⑤ 跨天：把今天那条改成很久以前 ⇒ 下一条要**新开一天**，老记录不能丢 */
+    const beforeN = D.days()[0].n;
+    D.days()[0].d = '1999-01-01';
+    D.onCatch(f0, 2.0, 'normal', false);
+    const d2 = D.days();
+    ok(d2.length === 2 && d2[0].d === todayK && d2[0].n === 1,
+      '跨天那一刻新开一条（判据是**日期键**，不是时间戳相减 —— 夏令时 / 跨月都不会算错）');
+    ok(d2[1].d === '1999-01-01' && d2[1].n === beforeN,
+      '上一天那一条的账一个字没动');
+
+    /* ⑥ 上限：只留最近 maxDays() 天，新的在前（从最老那天扔） */
+    const cap = D.maxDays();
+    for (let i = 0; i < cap + 3; i++) {
+      D.days()[0].d = '1900-01-0' + (i % 9 + 1);
+      D.onNpc('chen');
+    }
+    ok(D.days().length === cap,
+      '超过上限的天数被截断（正好留 ' + cap + ' 天 —— 上限取自 config.diary.maxDays）');
+    ok(D.days()[0].d === todayK, '截断从**最老**那天开始扔（今天这一条永远在最前）');
+
+    /* ⑦ 脏档：容器 / 条目 / 字段三种脏法都不许抛，且自愈成可用形状 */
+    let threw = false;
+    try {
+      s.diary = 5; D.onNpc('chen');
+      s.diary = { list: 'x' }; D.onNpc('chen');
+      s.diary = { list: [42] }; D.onCatch(f0, 1, 'normal', false);
+      s.diary = { list: [{ d: todayK, n: '3', kg: 'x', npcs: 'y', flds: 5 }] };
+      D.onCatch(f0, 1, 'normal', false);
+    } catch (e) { threw = true; }
+    ok(!threw, '脏档（diary 不是对象 / list 不是数组 / 条目是数字 / 字段是字符串）一律不抛');
+    const heal = D.days()[0];
+    ok(heal.n === 4 && heal.kg === 1 && Array.isArray(heal.npcs) && !Array.isArray(heal.flds),
+      '脏字段被纠回可用形状（`"3" + 1` 会变成 "31" —— 那是最难发现的一种静默污染）');
+
+    /* ⑧ 存档往返：日记是存档的一部分，落盘之后还在 */
+    St.save(true);
+    const raw = JSON.parse(localStorage.getItem(St.saveKey()) || '{}');
+    ok(raw.diary && Array.isArray(raw.diary.list) && raw.diary.list.length > 0,
+      '日记随存档落盘（`St.save()` 之后能在存档文本里读到它）');
+
+    /* ⑨ 邻居真的开口（走真引擎）⇒ 日记里出现他 */
+    s.diary = { list: [] };
+    s.field = 'D';                       /* 老陈守内陆三片（村口小池塘在列） */
+    const t = G.Story.talk('chen');
+    ok(t && D.days().length === 1 && D.days()[0].npcs.indexOf('chen') >= 0,
+      '`G.Story.talk()` 真开口之后日记里出现这位邻居（引擎那三处打点之一走的是真链路）');
+  } finally {
+    s.diary = realDiary;
+    s.book = realBook;
+    s.field = realField;
+    St.setIdle(realIdle);
+    St.save(true);
+  }
 })();
 
 /* ---------- 汇总 ---------- */

@@ -448,7 +448,7 @@ node tools/build.js --release  # 剔除 devtools，断言产物里搜不到 G.Ch
 node tools/build.js --check    # 只跑断言不写盘
 ```
 
-产物 ≈ **821 KB / 1 个网络请求**（原本 34 个），可以 `file://` 双击直接跑。
+产物 ≈ **838 KB / 1 个网络请求**（原本 35 个），可以 `file://` 双击直接跑。
 
 ---
 
@@ -498,6 +498,14 @@ node tools/build.js --check    # 只跑断言不写盘
      —— 六者都只记事实，不升存档版本；**换钓场换人**这件事本身**不写存档**
      （它是「当前钓场」的现算结果，内容表里的站位表说了算） */
   story: { fired{}, at{}, talk{}, pick{}, duel{ id, end, name, target, best, casts, wins, losses }, banter{} },
+
+  /* 本机「钓鱼日记」（N11 ④）—— 每天一条摘要，新的在前（最多留 `config.diary.maxDays` 天，
+     超了从最老那天扔）。**只写本机存档：不上传、不导出、不分享**，所以它不构成
+     「玩家内容展示」。list[i] = { d: 日期键(YYYY-MM-DD)、n: 条数、kg: 总重、
+     idle: 其中挂机上的条数、best: { f: 鱼种id, kg, c: 颜色档 }、nf: 今天新认识的鱼种数、
+     flds: { 钓场id: 条数 }、npcs: [今天开口过的邻居 id] }。
+     同为子键式新增 ⇒ **不升版本**（老档补成空列表） */
+  diary: { list: [] },
 
   stats: {
     casts, catches, escapes, misses, snaps, idleCatches, maxKg, maxKgFish, totalValue, days,
@@ -787,7 +795,7 @@ node tools/build.js --check    # 只跑断言不写盘
 ```
 
 - 把 `index.html` + 样式表 + `src/` 下全部脚本**内联成一个 HTML**
-- 产物 ≈ **821 KB / 1 个网络请求**（原本 34 个），可以 `file://` 双击直接跑 ——
+- 产物 ≈ **838 KB / 1 个网络请求**（原本 35 个），可以 `file://` 双击直接跑 ——
   这也是「零外部依赖」最硬的证据
 - ⚠️ 它只是**可选的发布步骤**，不在开发流程里（改完刷新浏览器即可）；`dist/` 不入库
 - `<script src>` 必须连续挨成一块，`config.js` 第一（建 `window.G`）、`main.js` 最后（boot）——

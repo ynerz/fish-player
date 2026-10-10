@@ -271,6 +271,10 @@ G.Story = (function () {
     var st = rec();
     st.fired[ev.id] = (st.fired[ev.id] || 0) + 1;
     st.at[ev.id] = t;
+    /* 本机钓鱼日记（N11 ④）：他今天开过口 ⇒ 日记里记一笔「碰上了谁」。
+       ⚠️ 三处打点之一（另两处 = `talk()` 与 `markBanter()`）—— 少一处就是
+          「画面上明明见过他、日记里说没碰上」。 */
+    if (G.Diary && G.Diary.onNpc) G.Diary.onNpc(ev.npc);
     if (G.State && G.State.save) G.State.save(true);
     return ev;
   }
@@ -358,6 +362,10 @@ G.Story = (function () {
   function markBanter(ev) {
     var st = rec();
     st.banter[ev.id] = (st.banter[ev.id] || 0) + 1;
+    /* 本机钓鱼日记（N11 ④）：打点三处之一。🔴 旁观对话**两位都开口了** ⇒ 两位都记 ——
+       只记第一位的话，日记上会永远缺一个「你今天明明见过他」。 */
+    var pair = (ev && ev.pair) || [];
+    for (var i = 0; i < pair.length; i++) { if (G.Diary && G.Diary.onNpc) G.Diary.onNpc(pair[i]); }
     if (G.State && G.State.save) G.State.save(true);
     return ev;
   }
@@ -523,6 +531,8 @@ G.Story = (function () {
     if (typeof line !== 'string' || !line.trim()) return null;
 
     st.talk[id] = n + 1;
+    /* 本机钓鱼日记（N11 ④）：主动搭话也算「碰上过」（打点三处之一）。 */
+    if (G.Diary && G.Diary.onNpc) G.Diary.onNpc(id);
     if (G.State && G.State.save) G.State.save(true);   /* 与 mark() 同样立刻落盘 */
     return payload(npc, [line]);
   }

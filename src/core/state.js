@@ -95,6 +95,15 @@ G.State = (function () {
          —— 六者都是「存档只记事实」，重开游戏「这条我见过没 / 上次说到哪 /
          上次我选了什么 / 比过几场 / 那句闲聊听过没」都不会变。 */
       story: { fired: {}, at: {}, talk: {}, pick: {}, duel: {}, banter: {} },
+      /* ---- 本机「钓鱼日记」（N11 ④）----
+         每天一条摘要，新的在前：`{ d: 日期键, n: 条数, kg: 总重, idle: 挂机上的条数,
+         best: { f: 鱼种 id, kg, c: 颜色档 }, nf: 今天新认识的鱼种数,
+         flds: 各钓场条数, npcs: 今天开口过的邻居 id }`。
+         🔴 **只写本机、不上传、不分享**（伪社交口径，见 `docs/改进待办.md` 第四批）。
+         ⚠️ 它也是**子键式新增**：老档补成 `{ list: [] }` ⇒ **不升 SAVE_V**
+            （同 `story.banter` / `settings.*` 那条约定）；结构由
+            `core/diary.js: store()` 一处建与纠，`migrate()` 只保证它是个对象。 */
+      diary: { list: [] },
       stats: {
         casts: 0, catches: 0, escapes: 0, misses: 0, snaps: 0, idleCatches: 0,
         /* ⚠️ `misses` = **错过咬口**（咬钩了但没提竿），与 `escapes`（张力贴地脱钩）
@@ -198,7 +207,7 @@ G.State = (function () {
          · `baits: 5`    → 买鱼饵扣了金币、`S.baits[id] = n` 静默不生效 → 饵没到账。
          · `rods: 5`     → `S.rods.indexOf` 不是函数，换竿 / 买竿直接 TypeError。
        先统一纠正类型，内容再由下面的逐字段兜底处理。 */
-    ['stats', 'settings', 'baits', 'unlocked', 'book', 'medalSeen', 'integrity', 'story'].forEach(function (k) {
+    ['stats', 'settings', 'baits', 'unlocked', 'book', 'medalSeen', 'integrity', 'story', 'diary'].forEach(function (k) {
       if (!d[k] || typeof d[k] !== 'object' || Array.isArray(d[k])) d[k] = {};
     });
     ['net', 'tank', 'rods', 'lines', 'decors', 'achSeen'].forEach(function (k) {
@@ -688,6 +697,15 @@ G.State = (function () {
     // 全局统计
     if (kg > S.stats.maxKg) { S.stats.maxKg = kg; S.stats.maxKgFish = fish.name; }
     recordDims(fish, ctx);
+
+    /* 本机钓鱼日记（N11 ④）：**这里是唯一的打点处** —— 手动提竿 / 挂机 / 离线补算 /
+       开发者面板刷鱼全走 `recordCatch`，记在这儿就不会漏（也不会记两遍）。
+       ⚠️ 把 `isNew` 与 `ctx` 一起传进去、而不是让日记自己回头查：
+          「是不是图鉴新增」只有这一个判据（新鱼的 `maxKg` 是 0 ⇒ `isNew` 必然同时
+          `isRecord`，与陪伴助手那条台词优先级同源）；「这一竿是不是挂机」也只有
+          `fishing.js` 知道（它造 ctx 时顺手标了 `idle`）⇒ 日记不必反过来依赖战局状态。
+       ⚠️ 日记只改 `S.diary`、**不自己落盘** —— 下面那句 `scheduleSave()` 就是它的保存。 */
+    if (G.Diary && G.Diary.onCatch) G.Diary.onCatch(fish, kg, colorKey, isNew, ctx);
 
     scheduleSave();
     return { isNew: isNew, isRecord: isRecord };

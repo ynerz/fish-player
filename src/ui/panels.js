@@ -1419,6 +1419,93 @@ G.Panels = (function () {
   };
 
   /* =========================================================
+     本机「钓鱼日记」（N11 ④）
+     =========================================================
+     用户口径：「今天钓了什么 / 碰上过谁，**纯展示、不做分享墙**」。
+     🔴 这一页**只读本机存档**（`S.diary`，由 `core/diary.js` 记）：没有分享按钮、
+        没有导出、没有任何联网 —— 所以它不构成「玩家内容展示」，不碰版号那条线。
+     ⚠️ 文案里的数字**全部现算**：天数上限取自 `G.Diary.maxDays()`（config 唯一来源）、
+        重量走 `U.kg()`、条数取记录本身 —— 一句都不许写死
+        （改了 `config.diary.maxDays` 而文案还写着「最近 7 天」就是分家，㉙ 同族）。
+     ⚠️ 空态必须显式画出来：没有记录的玩家点进来看到的不能是一片空白。 */
+  /* 日记那一页的渲染。⚠️ **写成具名函数**而不是内联在 `VIEWS.diary.render` 里：
+     `verify` 的 [50-c] 要切出这一段的函数体来查「不许有联网 / 导出能力」，
+     而 `bodyOf()` 只认 `'function 名字('` 这种**带左括号的定义形态**（§42 会拦下别的写法：
+     marker 不带左括号会先命中调用点，函数体被切成一行、判据静默失效）。
+     ⇒ 面板段一律写成具名函数，判据才盯得住。 */
+  function renderDiary(root) {
+    var rows = G.Diary.days();
+    root.appendChild(U.el('div', 'hint-text',
+      '这一页只记在这台设备上：不上传、也不会给别人看到。最多保留最近 '
+      + G.Diary.maxDays() + ' 天。'));
+
+    if (!rows.length) {
+      root.appendChild(U.el('div', 'empty-tip', '还没有记录。抛一竿，这里就会记下今天。'));
+      return;
+    }
+
+    var todayK = U.dayKey();
+    var yd = new Date(); yd.setDate(yd.getDate() - 1);
+    var yestK = U.dayKey(yd);
+
+    var list = U.el('div', 'shop-list');
+    rows.forEach(function (r) {
+      /* 三个来源都可能在脏档里查不到（鱼种被删 / 钓场 id 是脏值）⇒ 一律容错，
+         显示成「—」而不是抛异常把整页干掉。 */
+      var fish = (r.best && G.FISH_ID[r.best.f]) ? G.FISH_ID[r.best.f] : null;
+      var col = r.best ? G.Loot.colorByKey(r.best.c).name : '';
+
+      var sub = [];
+      if (r.n > 0) {
+        sub.push('钓到 ' + r.n + ' 条 · 共 ' + U.kg(r.kg) +
+          (fish ? ' · 最大的一尾：' + fish.name + ' ' + U.kg(r.best.kg) + '（' + col + '）' : ''));
+      } else {
+        /* ⚠️ 文案不能写「今天还没上鱼」：这一行可能是**前几天**的记录
+           （真浏览器验证时当场看到 10-09 那一行也写着「今天」）。 */
+        sub.push('没有渔获');
+      }
+      if (r.nf > 0) sub.push('新认识 ' + r.nf + ' 种');
+      if (r.idle > 0) sub.push('其中 ' + r.idle + ' 条是挂机上的');
+
+      var names = (r.npcs || []).map(function (id) {
+        var n = G.STORY_NPCS[id];
+        return (n && n.name) ? n.name : '';
+      }).filter(function (x) { return !!x; });
+      if (names.length) sub.push('碰上：' + names.join('、'));
+
+      var fids = r.flds ? Object.keys(r.flds) : [];
+      var fnames = fids.map(function (id) {
+        var f = G.FIELD_MAP[id];
+        return (f && f.name) ? f.name : '';
+      }).filter(function (x) { return !!x; });
+      if (fnames.length) {
+        sub.push('去过：' + fnames[0] + (fnames.length > 1 ? ' 等 ' + fnames.length + ' 个钓场' : ''));
+      }
+
+      var item = U.el('div', 'shop-item');
+      item.innerHTML = '<div class="sh-ico">📔</div>' +
+        '<div class="sh-main"><div class="sh-name">' + esc(dayLabel(r.d, todayK, yestK)) + '</div>' +
+        '<div class="sh-desc">' + sub.map(esc).join('<br>') + '</div></div>';
+      list.appendChild(item);
+    });
+    root.appendChild(list);
+  }
+
+  /* 日期标签：今天 / 昨天 / `MM-DD`（跨年的老日子带上年份）。
+     ⚠️ 「昨天」比较的是**日期键**而不是时间戳相减 —— 夏令时 / 跨月 / 跨年都不会算错。
+     ⚠️ 这个函数只认日期键字符串，认不出（脏档写了别的）就原样回显：宁可显示一个怪日期，
+        也不能让整页炸掉。 */
+  function dayLabel(d, todayK, yestK) {
+    var k = String(d == null ? '' : d);
+    if (k === todayK) return '今天';
+    if (k === yestK) return '昨天';
+    var y = todayK.slice(0, 4);
+    return (k.slice(0, 4) === y) ? k.slice(5) : k;
+  }
+
+  VIEWS.diary = { title: '钓鱼日记', render: renderDiary };
+
+  /* =========================================================
      目标（每日任务 / 称号 / 成就）
      =========================================================
      ⚠️ 奖励口径：这里只发「称号」与纪念币（纪念币无消费出口），

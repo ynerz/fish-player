@@ -168,6 +168,12 @@ G.Fishing = (function () {
            真为空就记 null —— recordDims 会跳过，宁可少记一条，也别错记成别人的鱼饵。 */
         bait: castBait ? castBait.id : null,
         env: castEnv,
+        /* 这一竿是**挂机**上的吗 —— 本机钓鱼日记（N11 ④）用它把挂机鱼单独分出来。
+           🔴 由**这一层**传下去、而不是让日记自己去问 `isIdleMode()`：
+              日记是记账链上的下游，回头查战局状态就把两个模块的顺序绑死了
+              （`test.js` 在 fishing 未 init 时直接调 `recordCatch` ⇒ 当场 TypeError，
+              真机上则表现为「换个加载顺序就崩」）。判据仍然只有一处 = 这里的 isIdleMode()。 */
+        idle: isIdleMode(),
       });
       St.noteResult(true);
       /* 埋点：传说鱼是**调平衡最需要的一条数据** —— 多久出一条、在哪个钓场、什么颜色，
@@ -439,8 +445,10 @@ G.Fishing = (function () {
     // 写进图鉴（按比例折算成整数条）
     /* ctx 必须一起传：每日任务里有「用某鱼饵钓 N 条」这类分维任务，
        离线补算不传 ctx 就会让这些任务在挂机后进度纹丝不动。
-       天气 / 时段继续用中性值（离线会跨过很多次变天，硬记一个反而失真）。 */
-    var offlineCtx = { bait: St.curBait().id, env: G.Weather.neutral() };
+       天气 / 时段继续用中性值（离线会跨过很多次变天，硬记一个反而失真）。
+       ⚠️ `idle: true` 是本机钓鱼日记（N11 ④）要的：这一整批本来就是挂机上的鱼
+          —— 不标的话，玩家回来翻日记会发现「挂机上的几十条全算成了手动钓的」。 */
+    var offlineCtx = { bait: St.curBait().id, env: G.Weather.neutral(), idle: true };
     Object.keys(gained).forEach(function (id) {
       var c = Math.max(1, Math.round(gained[id] * scale));
       var fish = G.FISH_ID[id];

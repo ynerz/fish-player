@@ -7190,6 +7190,144 @@ let storyBad = 0;
       + '链路 arriveSoon → arrive → tryBanter 齐全、面板真画两位说话人');
   }
 
+  /* ⑫ 🔴 隔壁抢走你正遛的鱼（N11 五期）：唯一一条**在拉扯中途**发生的互动。
+     六种坏法**全是静默的**：
+       · 内容带了「抢鱼」标记、而 `tryFire()` 没把它摘出去 ⇒ 它会在**任意时刻**作为
+         普通事件冒出来（他嘴上说抢、鱼还在你手里），面板 / 结算卡关掉那两次也算；
+       · `robArm()` 不看鱼的档位 / 不看图鉴 ⇒ 玩家白等十分钟换来的一条大鱼被夺走、
+         或者图鉴里一条新种被抠掉（这一条内容就从「调剂」变成「劝退」）；
+       · 「这一片水里有人」绕过 `curCtx()` 自己查一份站位表 ⇒ 两份真相；
+       · `fishing.js` 没在 `startFight()` 里问 `robArm()` ⇒ 这条内容**永远不会发生**；
+       · 🔴 **时序**：`robFire()` 若排在 `resolve('rob')` **之后**，`resolve()` → `cb.onMiss`
+         → `consider()` 会先把**别的**事件开出来，抢鱼的台词被 `P.open()` 覆盖掉 ——
+         玩家只看到「鱼没了、他在说天气」，而且**不报错**；
+       · 计数写进 `escapes` 而不是自己的键 ⇒ 面板上「脱钩次数」把别人抢走的也算进去
+         （Q44 同族：不许让一行统计说一句不成立的话）。
+     ⚠️ 值域 / 数量**现算**：抢鱼那几条从内容表现算（不写死 id）、数值表从
+        `CFG.story.rob` 现算（本文件里不抄一份）。
+     ⚠️ 判据吃**剥过注释**的那些源码（硬规矩 第 1 条）—— `core/story.js` 的文件头与
+        函数上方逐条解释着这几个函数名，拿原文当判据等于让注释喂饱自己。 */
+  const ROB_CFG = (sandbox.G && sandbox.G.CONFIG && sandbox.G.CONFIG.story
+    && sandbox.G.CONFIG.story.rob) || null;
+  const robBad = [];
+  /* ① 「抢鱼」标记那个键名**动态认**：锚点是 `tryFire()` 里那条**跳过语句**
+     （`if (ev.<键>) continue;`）—— 它表达的就是「这几条不参与这里的抽签」这件事本身。
+     ⚠️ 不能拿「值为 true 且被某个函数按 `ev.<键>` 读过」认：`once` 也满足（两个键一起收进来）。
+     写死键名的话，改了键名这条判据就静默失去覆盖。 */
+  const tryFireBody = bodyOf(coreCode, 'function tryFire(');
+  const skipM = /if \(ev\.([A-Za-z_$][\w$]*)\) continue;/.exec(String(tryFireBody));
+  const robKey = skipM ? skipM[1] : '';
+  const robArmAnchor = bodyOf(coreCode, 'function robArm(');
+  const robEvs = robKey
+    ? EVS.filter(ev => ev[robKey] === true
+      && new RegExp('ev\\.' + robKey + '(?![A-Za-z0-9_$])').test(robArmAnchor))
+    : [];
+
+  if (!robKey) {
+    robBad.push('认不出「抢鱼」那个标记键（内容表里没有值为 true 且被引擎按 `ev.<键>` 读过的字段）'
+      + ' —— 抓不到就报错，先修本节判据本身');
+  } else if (!robEvs.length) {
+    robBad.push('内容表里一条「抢鱼」都没有 —— 引擎里那条通路没有内容喂它（整条是死的）');
+  } else {
+    const armBody = bodyOf(coreCode, 'function robArm(');
+    const fireBody = bodyOf(coreCode, 'function robFire(');
+    const planBody = bodyOf(coreCode, 'function robPlan(');
+    const cfgBody = bodyOf(coreCode, 'function robCfg(');
+    const fire2 = bodyOf(coreCode, 'function tryFire(');
+    if (!armBody || !fireBody || !planBody || !cfgBody) {
+      robBad.push('core/story.js 少了 robArm() / robFire() / robPlan() / robCfg() 里的某一个 —— 链路不完整');
+    } else {
+      if (!ROB_CFG || typeof ROB_CFG !== 'object') {
+        robBad.push('CFG.story.rob 不在（数值表是这条内容的调参入口，缺了就没法判「只抢小杂鱼」）');
+      } else {
+        if (!(ROB_CFG.atMinMs > 0) || !(ROB_CFG.atMaxMs >= ROB_CFG.atMinMs)) {
+          robBad.push('CFG.story.rob 的 atMinMs / atMaxMs 不是「正数且上界 ≥ 下界」—— 他永远下不了手');
+        }
+        if (!(ROB_CFG.maxRar >= 0) || ROB_CFG.maxRar % 1 !== 0) {
+          robBad.push('CFG.story.rob.maxRar 不是非负整数（它是稀有度下标）');
+        }
+      }
+      /* 数值**只许一处**：引擎不许自己写死那两个时刻 —— 它必须从 `cfg()`（CFG.story）读。 */
+      if (!has(cfgBody, 'cfg()')) {
+        robBad.push('robCfg() 没从 cfg()（CFG.story）取数值表 —— 数值搬进引擎源码之后 config 就调不动了');
+      }
+      /* 判定链：不抢新种（只走 `G.State.isCaught()` 那一处真相）、不抢挂机、谁在场只问 `curCtx()` */
+      if (!has(armBody, 'caughtOne(')) {
+        robBad.push('robArm() 没查图鉴 —— 它会把玩家还没见过的鱼也抢走（图鉴里直接少一条）');
+      }
+      if (!has(armBody, 'curCtx(')) {
+        robBad.push('robArm() 没走 curCtx() —— 「这一片水里有人」可能出现第二份回答');
+      }
+      if (!has(armBody, 'isIdleMode')) {
+        robBad.push('robArm() 没排除挂机 —— 挂机一晚上会被抢掉一堆鱼（人不在屏幕前）');
+      }
+      if (!has(armBody, 'rollFor(') || !has(planBody, 'hash32(')) {
+        robBad.push('robArm() / robPlan() 没有复用引擎那套哈希（rollFor / hash32）—— '
+          + '这条内容就不可定点复现了（口径 ① 要的是「同一份存档 + 同一组条件 + 同一个押竿序号」）');
+      }
+      if (!has(armBody, 'st.fired') || !has(armBody, 'st.at')) {
+        robBad.push('robArm() 没读存档里的触发 / 冷却事实（st.fired / st.at）—— '
+          + '它就有了自己一套计数（同一件事的两份真相）');
+      }
+      if (!fire2 || !new RegExp('ev\\.' + robKey + '(?![A-Za-z0-9_$])').test(fire2)) {
+        robBad.push('tryFire() 没把「抢鱼」那几条摘出去 —— 它会在**任意时刻**作为普通事件冒出来'
+          + '（他嘴上说抢、鱼还在玩家手里）');
+      }
+      if (!has(fireBody, 'mark(') || !has(fireBody, 'cb.onEvent(')) {
+        robBad.push('robFire() 没有「记账 + 把台词交出去」—— 玩家会看到鱼凭空消失');
+      }
+      if (!has(fireBody, 'isOpen') || !has(fireBody, 'isCatchOpen')) {
+        robBad.push('robFire() 没排除「面板 / 结算卡开着」—— 两层 modal 会叠在一起');
+      }
+    }
+    /* 每条抢鱼内容：speaker 得真在场（与 ⑦-f 同一道口径）、台词非空（③ 已覆盖结构）。 */
+    robEvs.forEach(ev => {
+      if (npcIds.indexOf(ev.npc) < 0) robBad.push(ev.id + ' 的 npc 不存在');
+      else if (!(NPCS[ev.npc].spots && Object.keys(NPCS[ev.npc].spots).length)) {
+        robBad.push(ev.id + ' 的那位邻居没有站位表 —— 他永远不会出现在任何钓场，这条内容永不发生');
+      }
+    });
+  }
+  /* ② `fishing.js` 那一侧：问一次、到点判一次、收尾一次，**顺序**是硬要求。 */
+  const fishRob = stripAll(fs.readFileSync(path.join(ROOT, 'src/core/fishing.js'), 'utf8'));
+  const sfBody = bodyOf(fishRob, 'function startFight(');
+  if (!sfBody || !has(sfBody, 'G.Story.robArm(')) {
+    robBad.push('fishing.js 的 startFight() 没在开赛那一刻问 robArm() —— 这条内容永远不会发生');
+  }
+  const robAtCall = idx(fishRob, 'G.Story.robFire(');
+  const robResolve = idx(fishRob, "resolve('rob')");
+  if (robAtCall < 0 || robResolve < 0) {
+    robBad.push('fishing.js 里找不到「robFire() / resolve(\'rob\')」这一对 —— 抓不到就报错，先修本节判据本身');
+  } else if (robAtCall > robResolve) {
+    robBad.push('fishing.js 先收尾这一竿、后开抢鱼的对话（resolve(\'rob\') 排在 robFire() 之前）—— '
+      + '那一次 cb.onMiss → consider() 会先把别的事件开出来，抢鱼那句被覆盖掉，且不报错');
+  }
+  if (!has(fishRob, 'robAt > 0')) {
+    robBad.push('fishing.js 里没有「预约时刻到了没有」的判据（robAt）—— 预约了也没人执行');
+  }
+  /* ③ 计数：**写进自己的键、面板读它**（不许混进 escapes —— Q44 同族）。 */
+  const statsLit = (() => {
+    const m = /stats:\s*\{/.exec(bodyOf(stateSrc, 'function blank(')) || [];
+    return m ? true : false;
+  })();
+  if (!statsLit || !/robbed\s*:/.test(bodyOf(stateSrc, 'function blank('))) {
+    robBad.push('state.js 的 blank() 里没有 `robbed` 这个计数键 —— 老档读回来是 undefined（面板上直接显示 U.num(undefined)）');
+  }
+  if (!/'robbed'/.test(bodyOf(stateSrc, 'function migrate('))) {
+    robBad.push('state.js 的 migrate() 归一化表里没有 `robbed` —— 脏档（NaN / 负数 / 字符串）会被原样带进游戏');
+  }
+  if (!has(fishRob, 'stats.robbed')) {
+    robBad.push('fishing.js 的 resolve() 没把被抢走记进 stats.robbed');
+  }
+  if (!has(fishRob, "result === 'rob'")) {
+    robBad.push('fishing.js 的 resolve() 里没有「被抢走」这一条独立分支 —— 它会被并到别的计数里'
+      + '（面板上「脱钩次数」就会把别人抢走的也算进去）');
+  }
+  if (!has(panelSrc, 'st.robbed')) {
+    robBad.push('panels.js 的统计面板没消费 `st.robbed` —— 这个计数没有消费方（玩家看不见）');
+  }
+  if (robBad.length) { err('「隔壁抢鱼」这条链路不对：' + robBad.join('；')); storyBad++; }
+
   if (!storyBad) {
     ok('隔壁钓鱼佬在位：' + npcIds.length + ' 个 NPC / ' + EVS.length + ' 条事件，'
       + '字段全有人读、接线齐全（含点他搭话、分支选项与限时比试三条通路）、命中框与画法同源、'
@@ -7206,6 +7344,10 @@ let storyBad = 0;
         + ' 个、门与链路都在，且丢竿回调早于状态收尾）' : '没有认得上一竿结局的事件') + '、'
       + (gateKey ? withGate + ' 条事件认「图鉴门」（值域现算 ' + Object.keys(FISH_T).length
         + ' 条鱼、门与链路都在，且判定只走 G.State.isCaught()）' : '没有认图鉴门的事件') + '、'
+      + (robEvs.length ? robEvs.length + ' 条内容会**抢走你正遛的鱼**（' + robKey
+        + '：只抢小杂鱼 / 不抢新种 / 挂机与面板开着都不抢、掷点复用同一套哈希、'
+        + '开赛定死时机、先开对话后收尾，计数进 stats.robbed 且面板读它）'
+        : '没有抢鱼的内容') + '、'
       + '存档 story 的 ' + contKeys.length + ' 个容器两边对得上且有迁移纠正、'
       + '奖励白名单为空（纯剧情）、引擎不用 Math.random');
   }

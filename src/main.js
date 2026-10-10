@@ -463,6 +463,10 @@
       if (fee) Hud.syncCoin(true);
     } else if (result === 'escape') {
       Hud.toast({ text: '松线太久，鱼脱钩了', kind: 'bad' });
+    } else if (result === 'rob') {
+      /* 🔴 被隔壁抢走（N11 五期）：**这里不播报** —— 那句台词就是这一竿的反馈
+         （`G.Story.robFire()` 已经在收尾**之前**把对话开出来了）。
+         再叠一条 toast 就是「同一件事两处说」，两句迟早分家。 */
     } else {
       Hud.toast({ text: '没抓住咬口，鱼跑了', kind: 'warn' });
     }

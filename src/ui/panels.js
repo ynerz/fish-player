@@ -1383,6 +1383,9 @@ G.Panels = (function () {
            以前两者共用 `escapes`，这一格叫「脱钩次数」，于是每次没提竿都被算成脱钩。
            ⚠️ 老档两者已混、补不回来 ⇒ 这一行下面那句小字必须留着（口径要说明）。 */
         box('错过咬口', U.num(st.misses)) +
+        /* 🔴 N11 五期：被邻居抢走的那一类单独一行 —— 它既不是断线也不是脱钩，
+           是别人从你手里拿走的（见 `fishing.js` 的 `resolve()` 与 GDD 统计口径）。 */
+        box('被抢走', U.num(st.robbed)) +
         box('挂机钓获', U.num(st.idleCatches)) +
         box('鱼护 / 容量', St.netCount() + ' / ' + s.netCap) +
         box('水族箱 / 容量', St.tankCount() + ' / ' + s.tankCap);
@@ -1392,7 +1395,8 @@ G.Panels = (function () {
          与其悄悄给一个错的数，不如把口径写在玩家看得见的地方。 */
       root.appendChild(U.el('div', 'hint-text',
         '「脱钩」＝张力贴地太久（松线跑鱼）；「错过咬口」＝鱼咬钩了但没提竿。'
-        + '两者自 v0.6.0 起分开记 —— 更早的存档里它们是混在一起的，拆不开。'));
+        + '两者自 v0.6.0 起分开记 —— 更早的存档里它们是混在一起的，拆不开。'
+        + '「被抢走」＝拉扯中途被隔壁那几位抄走了（只发生在小杂鱼上）。'));
 
       root.appendChild(U.el('div', 'section-title', '各钓场进度'));
       var g3 = U.el('div', 'shop-list');

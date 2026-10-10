@@ -28,6 +28,7 @@ G.Fishing = (function () {
   var castEnv = null;      // 本竿**抛竿那一刻**的天气 / 时段（结算归因要用它，见 resolve）
   var reelAcc = 0;         // 「收线咔哒」自上次发声以来累计收进的进度（见 fight 分支）
   var reelLast = null;     // 上一帧的进度（用来算增量；null = 本局还没起算）
+  var robAt = 0;           // 本竿「被隔壁抢走」的时刻（毫秒，自开赛起算）；0 = 这一竿不抢
   var cb = {};
 
   function init(callbacks) {
@@ -46,6 +47,7 @@ G.Fishing = (function () {
     timer = 0; pending = null;
     waitLeft = 0; biteLeft = 0; holding = false;
     castBait = null; castPrevSel = null; castEnv = null;
+    robAt = 0;        // 这一竿作废 ⇒ 预约的「被抢」也一起作废（否则会落到下一竿头上）
     catchCount = 0;   // 挂机累计播报重新计数，避免跨场/跨状态乱触发
     G.Fight.end();
     G.Scene.endFight();
@@ -135,6 +137,15 @@ G.Fishing = (function () {
        ⚠️ 这里**不去问 G.Fight 要起始进度**（`begin()` 的返回值 / `get()` 的字段）——
           战局对象是别人的实现，单测里还会被桩替掉；本局只要「从零开始累计」就够了。 */
     reelAcc = 0; reelLast = null;
+    /* 隔壁抢鱼（N11 五期）：**开赛这一刻**就把「他抢不抢、什么时候抢」定死。
+       为什么不在拉扯里逐帧掷点：拉扯多久由玩家的按住 / 松开决定 ⇒ 掷点不可复现
+       （口径 ① 要的是「同一份存档 + 同一组条件 + 同一个抛竿序号 ⇒ 同一个结果」）。
+       引擎没装 / 内容表没有这几条 / 这一竿不够格（大鱼、新种、挂机、没人在场）⇒ 0。 */
+    robAt = 0;
+    if (G.Story && G.Story.robArm && pending) {
+      var rp = G.Story.robArm(pending.fish);
+      if (rp && rp.atMs > 0) robAt = rp.atMs;
+    }
     if (cb.onState) cb.onState('fight');
   }
 
@@ -145,6 +156,9 @@ G.Fishing = (function () {
     var color = pending ? pending.color : null;
     G.Scene.endFight();
     G.Fight.end();
+    /* 这一竿到此为止 ⇒ 预约的「被抢」作废（`resolve` 的每一条路都要清，
+       否则它会在下一竿的同一个时刻又冒出来一次）。 */
+    robAt = 0;
     /* 🔴 「这一竿结束了」必须在**回调之前**成立（N7 六期）。
        回调的接收方会拿这个状态做判断 —— 最典型的一处：`main.js` 在**丢竿回调**里调
        `G.Story.consider()`，而它头一道门就是「必须是 idle」。先回调、后改状态的话，
@@ -228,7 +242,7 @@ G.Fishing = (function () {
     } else {
       var st = St.get();
       var fee = 0;
-      St.noteResult(false);          // 断线 / 脱钩 / 错过咬口都打断「连续成功」
+      St.noteResult(false);          // 断线 / 脱钩 / 错过咬口 / 被抢走都打断「连续成功」
       if (result === 'snap') {
         st.stats.snaps++;
         G.Audio.snap(); G.Scene.splash(1.5);
@@ -248,6 +262,12 @@ G.Fishing = (function () {
            声音与溅水的表现**保持不变**：鱼确实咬过钩又跑了，观感上就是「跑鱼」。 */
         if (result === 'miss') {
           st.stats.misses++;
+        } else if (result === 'rob') {
+          /* 🔴 **被隔壁抢走**（N11 五期）：与「脱钩」**分开记**。
+             鱼不是你放跑的，也不是线断了 —— 是别人从你手里拿走的。
+             面板上写「脱钩次数」会让玩家白自责（与 Q44 把 `misses` 从 `escapes`
+             里拆出来是同一条理由：**不许拿「影响低」当理由说一句不成立的话**）。 */
+          st.stats.robbed++;
         } else {
           st.stats.escapes++;
         }
@@ -336,6 +356,19 @@ G.Fishing = (function () {
           state = 'idle'; timer = 0;
           if (cb.onState) cb.onState(state);
           break;
+        }
+        /* 🔴 隔壁抢鱼（N11 五期）：到点了他就下手 —— **顺序是先开对话、再收尾这一竿**。
+           `robFire()` 必须在 `resolve('rob')` **之前**：反过来的话 `resolve()` →
+           `cb.onMiss` → `main.js` 那次 `consider()` 会先把**别的事件**（天气句之类）
+           开出来，抢鱼的台词被随后那句覆盖掉（面板是覆盖式的）—— 而且**不报错**，
+           玩家只看到「鱼没了、他在说天气」。`verify` 第 50 节按源码里的先后盯着这一条。
+           ⚠️ 位置在 `Fight.update()` / `stepAuto()` **之前**：抢走是「这一帧就发生」的事，
+              先让战局再走一步的话，那一步的张力 / 进度就已经算进「被抢走的那一竿」了。
+           ⚠️ 没被抢成（面板开着 ⇒ `robFire()` 给 false）时**这一竿照常继续拉扯**，
+              不是「推迟到下一刻」—— 推迟会让玩家先看到「咦鱼还在」，更难理解。 */
+        if (robAt > 0 && timer * 1000 >= robAt) {
+          robAt = 0;
+          if (G.Story && G.Story.robFire && G.Story.robFire()) { resolve('rob'); break; }
         }
 
         if (isIdleMode()) {

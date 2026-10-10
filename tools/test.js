@@ -5207,6 +5207,258 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
 })();
 
 /* =========================================================
+   N11 五期 · 隔壁抢走你正遛的鱼（唯一一条**在拉扯中途**发生的互动）
+   =========================================================
+   用户点名（N7 余下的初稿）：「隔壁钓走你正遛的鱼」的**机械版** —— 他真把鱼拿走。
+   三块各自验清楚：
+     ① **引擎侧的门**（`robArm()`）：只抢小杂鱼 / 不抢你没见过的 / 挂机不抢 /
+        没人在场不抢 / 冷却期内不抢 / 同入参同结果（纯函数）；
+     ② **引擎侧的动作**（`robFire()`）：面板开着不抢、真抢了要记账 + 交台词、
+        而且**这一竿就作废**（不是推迟）；
+     ③ **接线**（`fishing.js`）：开赛问一次、到点判一次、**先开对话后收尾**、
+        计数进 `stats.robbed`（不混进 escapes）。
+   本节**不走**手写 `st.stats.robbed++` 那条路 —— 计数一定是从真的一竿里出来的。
+   ========================================================= */
+G_('隔壁抢鱼 · 引擎的门与真拉扯里的接线（N11 五期）');
+(function () {
+  var S8 = G.Story, Fish8 = G.Fishing;
+  var realSnap = G.Weather.snapshot, realPanels = G.Panels;
+  var realStoryEngine = G.Story;
+  var realBook = St.get().book;
+  var ROB_CFG = CFG.story.rob;
+
+  /* 一条**小杂鱼**（档位上限以内的最低档）与一条**超过上限的**大鱼：两份都从鱼表现算，
+     不写死 id —— 数值链改档位顺序时这两条断言跟着走。
+     ⚠️ 稀有度分档表是 `G.FISH_BY_FIELD_RARITY`（`G.FISH_BY_FIELD` 那一份是**扁平的鱼表**，
+        按下标取会拿到鱼本身 —— 第一版就是这么写的，`bigFish` 当场成了 undefined）。 */
+  var smallFish = ((G.FISH_BY_FIELD_RARITY.D[0] || [])[0]) || null;
+  var bigFish = ((G.FISH_BY_FIELD_RARITY.D[ROB_CFG.maxRar + 1] || [])[0]) || null;
+
+  function setFieldBook(field, fish) {
+    St.get().field = field;
+    St.get().book = {};
+    if (fish) St.get().book[fish.id] = { n: 1, maxKg: 1, colors: {}, first: 0 };
+  }
+  /* 扫一个能让 `robArm()` 命中的抛竿序号（不写死：改一次 `chance` / 加一条内容就失效）。 */
+  function armHit(fish) {
+    for (var c = 0; c <= 500; c++) {
+      S8.reset();                       /* 清全局兜底间隔（上一组用例可能刚触发过）*/
+      St.get().stats.casts = c;
+      var r = S8.robArm(fish);
+      if (r) return { casts: c, plan: r };
+    }
+    return null;
+  }
+
+  try {
+    G.Weather.snapshot = function () { return { wx: { key: 'clear' }, tm: { key: 'day' } }; };
+    G.Panels = { isOpen: function () { return false; }, isCatchOpen: function () { return false; } };
+    St.get().story = { fired: {}, at: {} };
+    if (St.get().settings.idle) St.setIdle(false);
+
+    /* ---------- ① 引擎侧的门 ---------- */
+    ok(!!smallFish && !!bigFish,
+       '鱼表里有「小杂鱼」与「超过抢鱼上限的大鱼」两类（本节的前提，从鱼表现算）');
+    setFieldBook('D', smallFish);       /* 老陈站得住的内陆钓场 */
+    var hit = armHit(smallFish);
+    ok(!!hit, '小杂鱼 + 你已经钓到过 + 有人在场 ⇒ 他会抢（掷点扫到的序号 ' + (hit && hit.casts) + '）');
+    ok(hit && hit.plan.atMs >= ROB_CFG.atMinMs && hit.plan.atMs <= ROB_CFG.atMaxMs,
+       '下手的时刻落在 `CFG.story.rob` 那个区间里（' + (hit && hit.plan.atMs) + ' ms）—— 数值只许一处');
+    /* 纯函数：同一入参两次同一个结果（否则「同一份存档两次跑出不同结果」） */
+    S8.reset(); St.get().stats.casts = hit.casts;
+    var again1 = S8.robArm(smallFish);
+    S8.reset(); St.get().stats.casts = hit.casts;
+    var again2 = S8.robArm(smallFish);
+    ok(again1 && again2 && again1.atMs === again2.atMs,
+       '同一份存档 + 同一组条件 + 同一个抛竿序号 ⇒ 同一个下手时刻（纯函数，不用 Math.random）');
+
+    /* 不抢大鱼（档位上限之外） */
+    setFieldBook('D', bigFish);
+    ok(armHit(bigFish) === null,
+       '超过 `maxRar` 的大鱼不抢（' + bigFish.rar + ' 档 > 上限 ' + ROB_CFG.maxRar
+       + '）—— 玩家白等几分钟换来的东西被夺走不是调剂，是劝退');
+    /* 不抢新种（图鉴里还没有的，一个档位之内也不抢） */
+    setFieldBook('D', null);
+    ok(armHit(smallFish) === null,
+       '图鉴里还没有那条鱼 ⇒ 不抢（否则玩家一辈子少一条图鉴，而且没人看得出来）');
+    /* 挂机不抢 */
+    setFieldBook('D', smallFish);
+    St.setIdle(true);
+    ok(armHit(smallFish) === null, '挂机时不抢（人不在屏幕前，一晚上会被抢掉一堆）');
+    St.setIdle(false);
+    /* 没人站着的那片水不抢 */
+    setFieldBook('ZZ-nosuch', smallFish);
+    ok(armHit(smallFish) === null, '没人在场的那片水不抢（「谁在场」仍然只有一处回答）');
+    setFieldBook('D', smallFish);
+    /* 冷却：写一个「刚刚才抢过」的时刻 */
+    var ev0 = null;
+    G.STORY_EVENTS.forEach(function (e) { if (!ev0 && e.rob) ev0 = e; });
+    ok(!!ev0, '内容表里有带「抢鱼」标记的事件（' + (ev0 && ev0.id) + '）');
+    S8.reset(); St.get().stats.casts = hit.casts;
+    St.get().story.at[ev0.id] = 1e12;      /* 未来时刻 ⇒ `now - last` 是负数 ⇒ 在冷却里 */
+    ok(S8.robArm(smallFish) === null, '冷却期内不再抢（隔多久由内容表的 cooldownMs 说了算）');
+    St.get().story.at = {};
+    /* 脏入参：没有鱼 / 鱼是不可信的档位 ⇒ 一律不抢（宁可这条内容不出现） */
+    S8.reset();
+    ok(S8.robArm(null) === null && S8.robArm({}) === null && S8.robArm({ rar: 'x', id: smallFish.id }) === null,
+       '脏入参（null / 空对象 / rar 不是数字）一律不抢，且不抛');
+
+    /* ---------- ② 引擎侧的动作：记账 + 交台词 + 面板挡 -------------------------------------------------- */
+    ok(S8.robFire() === false, '没有预约时 robFire() 给 false（不会凭空抢走玩家的鱼）');
+    S8.reset(); St.get().stats.casts = hit.casts;
+    S8.robArm(smallFish);
+    var seen = { ev: null, n: 0 };
+    S8.init({ onEvent: function (ev) { seen.ev = ev; seen.n++; } });
+    var cash3 = { coin: St.get().coin, medals: St.get().medals, eco: St.get().eco };
+    ok(S8.robFire() === true, '预约到点 ⇒ robFire() 真抢（返回 true 让 fishing 收尾这一竿）');
+    ok(seen.n === 1 && seen.ev && Array.isArray(seen.ev.lines) && seen.ev.lines.length
+      && seen.ev.npc === G.STORY_NPCS[ev0.npc],
+       '抢走的同时**台词就到手了**（面板拿得到说话人与内容）—— 鱼没了却没人说话是最糟的观感');
+    ok(St.get().story.fired[ev0.id] >= 1 && typeof St.get().story.at[ev0.id] === 'number',
+       '记账写进存档：fired 计数 +1、冷却时刻也记下');
+    ok(St.get().coin === cash3.coin && St.get().medals === cash3.medals && St.get().eco === cash3.eco,
+       '抢鱼不动金币 / 纪念币 / 生态值（奖励红线：事件不是第二个经济系统）');
+    ok(S8.robFire() === false, '同一次预约只兑现一次（不会连着抢两遍）');
+    /* 面板 / 结算卡开着 ⇒ 不抢；而且要**当场作废**（不是推迟） */
+    S8.reset(); St.get().story.at = {}; St.get().stats.casts = hit.casts;
+    S8.robArm(smallFish);
+    G.Panels = { isOpen: function () { return true; }, isCatchOpen: function () { return false; } };
+    ok(S8.robFire() === false, '面板开着时不抢（两层 modal 叠在一起会打架）');
+    G.Panels = { isOpen: function () { return false; }, isCatchOpen: function () { return false; } };
+    ok(S8.robFire() === false, '🔴 而且这一竿就**作废**（不是推迟到面板关掉之后 —— 那会让玩家先看到「咦鱼还在」）');
+
+    /* ---------- ③ 它**不参与** tryFire() 的抽签 ----------
+       坏法：漏摘的话它会在任意时刻作为普通事件冒出来（他嘴上说抢、鱼还在你手里）。
+       做法：把其余事件全推进远未来的冷却里 ⇒ 若它参与抽签，这一片水里早就该只剩它。 */
+    S8.reset(); St.get().story = { fired: {}, at: {} };
+    St.get().field = 'D'; St.get().stats.casts = hit.casts;
+    G.STORY_EVENTS.forEach(function (e) { if (!e.rob) St.get().story.at[e.id] = 1e12; });
+    var leaked = 0;
+    for (var sq2 = 1; sq2 <= 600; sq2++) {
+      var got2 = S8.tryFire({ field: 'D', wx: 'clear', tm: 'day', npcs: ['chen'], seq: sq2, now: 0 });
+      if (got2 && got2.rob) leaked++;
+    }
+    ok(leaked === 0, '600 个序号里，抢鱼那几条一次都没从 tryFire() 漏出来（它们只认「你正拉扯」那个时机）');
+    St.get().story.at = {};
+
+    /* ---------- ④ 接线：真拉扯里被抢（fishing.js 三处）----------
+       用**桩 Story** 把「引擎到底怎么决定」与「fishing 怎么接」分开验：
+       引擎的门与动作上一段已经验过，这里要的是「问一次 / 到点判一次 / 顺序对」。 */
+    var log = [];
+    var armCalls = 0, fireCalls = 0, fireVal = true;
+    G.Story = {
+      robArm: function () { armCalls++; return { atMs: 100 }; },
+      robFire: function () { fireCalls++; log.push('fire'); return fireVal; },
+    };
+    G.Fight = { begin() {}, end() {}, update() {}, drainEvents() { return []; },
+                get() { return { over: false, result: '', tensionMax: 100, tension: 0,
+                                 struggle: 0, warn: 0, dashing: false, elapsed: 1 }; },
+                snapshot() { return {}; } };
+    G.Scene = sceneStub;
+    var missSeen = [];
+    G.Fishing.init({ onToast: function () {}, onMiss: function (r) { missSeen.push(r); log.push('miss'); } });
+    St.reset(); G.Goals.init();
+    Fish8.cast();
+    Fish8.update(1.0);                          /* flying → waiting */
+    Fish8.update(Fish8.getPending().wait + 0.001);  /* → bite */
+    Fish8.strike();                             /* → fight（这里该问一次 robArm） */
+    ok(armCalls === 1, '开赛那一刻问了**一次** robArm()（问两次就会为同一竿掷两次点）');
+    Fish8.update(0.05);                         /* 50ms < 100ms ⇒ 还没到点 */
+    ok(Fish8.getState() === 'fight' && fireCalls === 0, '没到点之前不动手（不是一开赛就抢）');
+    Fish8.update(0.2);                          /* 累计 250ms > 100ms ⇒ 到点 */
+    ok(fireCalls === 1, '到点了问一次 robFire()');
+    ok(Fish8.getState() === 'idle', '被抢的那一竿当场收尾（回到 idle，不是继续拉扯）');
+    ok(missSeen.length === 1 && missSeen[0] === 'rob',
+       '丢竿回调收到的是「被抢走」这个结局（' + JSON.stringify(missSeen) + '）—— 它也是 `cond.after` 的值域之一');
+    ok(log.join('>') === 'fire>miss',
+       '🔴 **先开对话、后收尾**（' + log.join(' > ') + '）：反过来的话 consider() 会先把别的事件开出来，'
+       + '抢鱼那句被覆盖掉，而且不报错');
+    ok(St.get().stats.robbed === 1 && St.get().stats.escapes === 0 && St.get().stats.snaps === 0,
+       '计数进自己的键 `stats.robbed`，**没有**混进脱钩 / 断线（robbed=' + St.get().stats.robbed
+       + ' / escapes=' + St.get().stats.escapes + '）');
+    ok(St.get().stats.casts === 1, '抛竿计数照常（被抢的这一竿也算抛过竿）');
+
+    /* 引擎不给预约 ⇒ 这一竿绝对不抢（robAt 保持 0） */
+    armCalls = 0; fireCalls = 0; log = []; missSeen = [];
+    G.Story = {
+      robArm: function () { armCalls++; return null; },
+      robFire: function () { fireCalls++; return true; },
+    };
+    Fish8.hardReset();                        /* 上一个用例停在 fight 里（桩不会自己结束）*/
+    St.reset(); G.Goals.init();
+    Fish8.cast();
+    Fish8.update(1.0);
+    Fish8.update(Fish8.getPending().wait + 0.001);
+    Fish8.strike();
+    for (var u2 = 0; u2 < 40; u2++) Fish8.update(0.1);      /* 4 秒，远超桩里那个 100ms */
+    ok(armCalls === 1 && fireCalls === 0,
+       'robArm() 给 null ⇒ 这一竿拉多久都不会有人来抢（不是「默认抢」）');
+
+    /* 面板开着 ⇒ 引擎给 false ⇒ 这一竿照常继续（不是「推迟」） */
+    armCalls = 0; fireCalls = 0; fireVal = false; log = []; missSeen = [];
+    G.Story = {
+      robArm: function () { armCalls++; return { atMs: 50 }; },
+      robFire: function () { fireCalls++; return fireVal; },
+    };
+    Fish8.hardReset();
+    St.reset(); G.Goals.init();
+    Fish8.cast();
+    Fish8.update(1.0);
+    Fish8.update(Fish8.getPending().wait + 0.001);
+    Fish8.strike();
+    Fish8.update(0.2);
+    ok(fireCalls === 1 && Fish8.getState() === 'fight',
+       '「被挡下」= 这一竿继续拉扯（回到 idle 才是被抢了）');
+    for (var u3 = 0; u3 < 20; u3++) Fish8.update(0.1);
+    ok(fireCalls === 1, '🔴 被挡下之后**不重试**（到点只问一次 —— 推迟会让玩家先看到「咦鱼还在」）');
+
+    /* ---------- ⑤ 记分键的老档迁移 / 脏值归一化（与 Q44 的 misses 同一条链） ---------- */
+    function loadRobb(stats) {
+      var d = { v: 6, coin: 500, playTime: 3600, field: 'D', unlocked: { D: true },
+                book: {}, baits: { worm: -1 }, rods: ['bamboo'], lines: ['n2'], decors: [],
+                net: [], tank: [], netCap: 30, tankCap: 6, netEx: 0, tankEx: 0,
+                stats: stats, settings: { sound: true, volume: 0.5, ambient: true, idle: false } };
+      store[G.Profile.key()] = JSON.stringify(d);
+      St.load();
+      return St.get().stats;
+    }
+    var base = { casts: 3, catches: 4, escapes: 9, misses: 1, snaps: 1, idleCatches: 0,
+                 maxKg: 2, maxKgFish: 'x', totalValue: 100, days: 0 };
+    ok(loadRobb(base).robbed === 0, '老档（没有 robbed）补齐成 0（而不是 undefined）');
+    ok(loadRobb(base).misses === 1 && loadRobb(base).escapes === 9,
+       '补齐 robbed 不影响已有的 misses / escapes（历史数据不动）');
+    ok(loadRobb(Object.assign({}, base, { robbed: -3 })).robbed === 0, '脏值负数被归一化成 0');
+    ok(loadRobb(Object.assign({}, base, { robbed: 'x' })).robbed === 0, '脏值字符串被归一化成 0');
+    ok(loadRobb(Object.assign({}, base, { robbed: 2.6 })).robbed === 3, '小数被四舍五入（2.6 → 3）');
+
+    /* ---------- ⑥ 面板上真的看得见（计数有消费方） ----------
+       直接真渲染 `VIEWS.stats`（与「Panels · 面板入参兜底与现算文案」同一套桩），
+       不去 `Panels.open()` —— 那要一整套 modal 元素，而这里要验的只是「这一格画出来了」。 */
+    St.reset();
+    St.get().stats.robbed = 47;
+    var statRoot = mkEl('div'), statErr = null;
+    try { realPanels.VIEWS.stats.render(statRoot, undefined); } catch (e) { statErr = e; }
+    var stxt = panelText(statRoot);
+    ok(!statErr, '统计面板真渲染不抛（robbed 那一格接上之后也不会）', statErr && statErr.message);
+    var robAt1 = stxt.indexOf('被抢走');
+    ok(robAt1 >= 0, '统计面板上有「被抢走」这一格（计数不是没人看的死字段）');
+    ok(robAt1 >= 0 && /47/.test(stxt.slice(robAt1, robAt1 + 120)),
+       '它显示的是真数（本用例把 robbed 设成 47，面板上就是 47）');
+  } finally {
+    G.Weather.snapshot = realSnap;
+    G.Panels = realPanels;
+    G.Story = realStoryEngine;
+    S8.init({});
+    S8.reset();
+    St.get().story = { fired: {}, at: {} };
+    St.get().book = realBook;
+    St.get().stats.robbed = 0;
+    if (St.get().settings.idle) St.setIdle(false);
+    if (G.Fishing && G.Fishing.hardReset) G.Fishing.hardReset();
+  }
+})();
+
+/* =========================================================
    云存档（N8 ③）：平台层兜底不抛 + 离线静默降级
    =========================================================
    ⚠️ 本文件是**全同步**的（没有 async/await），所以这里只钉**同步**那部分：

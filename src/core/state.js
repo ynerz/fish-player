@@ -105,10 +105,13 @@ G.State = (function () {
             `core/diary.js: store()` 一处建与纠，`migrate()` 只保证它是个对象。 */
       diary: { list: [] },
       stats: {
-        casts: 0, catches: 0, escapes: 0, misses: 0, snaps: 0, idleCatches: 0,
-        /* ⚠️ `misses` = **错过咬口**（咬钩了但没提竿），与 `escapes`（张力贴地脱钩）
-           是两件事 —— 2026-10-10 用户拍板 Q44 分开记（以前共用 escapes，
-           面板叫「脱钩次数」，玩家看到的数偏大）。老档两者已混，**自 v0.6.0 起才准**。 */
+        casts: 0, catches: 0, escapes: 0, misses: 0, robbed: 0, snaps: 0, idleCatches: 0,
+        /* ⚠️ `misses` = **错过咬口**（咬钩了但没提竿），`robbed` = **被隔壁抢走**
+           （N11 五期：拉扯中途被邻居抄走），`escapes` = 张力贴地脱钩 —— 三件事
+           各不相同，分开记：2026-10-10 用户拍板 Q44（misses），2026-10-11 抢鱼落地
+           时同一条理由（robbed）。面板按这三个名字各显示一行，谁也不替谁背。
+           ⚠️ `misses` 混进 `escapes` 的老档**补不回来**（自 v0.6.0 起才准）；
+           `robbed` 是新键，老档缺它一律补 0（下面那张归一化表管着）。 */
         maxKg: 0, maxKgFish: '', totalValue: 0, days: 0,
         /* 分维计数：供每日任务 / 成就取数（不要删，Goals 依赖它们） */
         byRar: [0, 0, 0, 0],           // 各稀有度的钓获条数
@@ -332,7 +335,7 @@ G.State = (function () {
     d.stats.maxKg = Math.max(0, safeNum(d.stats.maxKg, 0));
     d.stats.totalValue = Math.max(0, safeNum(d.stats.totalValue, 0));
     // ⚠️ 新增的计数键**必须**加进这张表：漏了的话脏档（NaN / 负数 / 字符串）会被原样带进游戏
-    ['casts', 'catches', 'escapes', 'misses', 'snaps', 'idleCatches', 'days'].forEach(function (k) {
+    ['casts', 'catches', 'escapes', 'misses', 'robbed', 'snaps', 'idleCatches', 'days'].forEach(function (k) {
       d.stats[k] = Math.max(0, Math.round(safeNum(d.stats[k], 0)));
     });
     if (!G.FIELD_MAP[d.field] || !d.unlocked[d.field]) d.field = 'D';

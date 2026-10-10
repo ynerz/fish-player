@@ -111,6 +111,11 @@
           **当门不开**：宁可这条事件不出现，也不让它「因为存档脏了反而天天冒出来」。
           写错 id 同样**不报错**，只会静默地永不触发 ⇒ `verify` 第 50 节拿 `G.FISH_ID`
           现算值域（抓的就是这个）。
+
+     ⑫ **隔壁抢走你正遛的鱼**（N11 五期）—— 唯一一条**在拉扯中途**发生的互动：
+        内容仍是事件表里带 `rob: true` 的那几条，但它**不走 `tryFire()`**
+        （由 `fishing.js` 的拉扯循环问 `robArm()` / `robFire()`）。
+        四条口径与「为什么只抢小杂鱼」写在那两个函数上面（本节末尾），改它之前先读。
    ========================================================= */
 
 window.G = window.G || {};
@@ -125,6 +130,10 @@ G.Story = (function () {
      顺带改变事件的掷点（口径 ①）。条件指纹的拼法与 `ctxKey` 一样，但各存各的。 */
   var aseq = 0;
   var actxKey = '';
+  /* 隔壁抢鱼（N11 五期）：**这一竿**被预约抢走的那条内容（`robArm()` 定下的）。
+     `null` = 这一竿不抢。它是**内存状态**、不落存档 —— 存档只记「发生了没有」
+     （`s.story.fired` / `at`），与 `seq` / `lastAt` 同一类东西。 */
+  var robEv = null;
 
   function cfg() { return (G.CONFIG && G.CONFIG.story) || {}; }
   function now() {
@@ -242,6 +251,11 @@ G.Story = (function () {
     var list = evs();
     for (var i = 0; i < list.length; i++) {
       var ev = list[i];
+      /* 🔴 「抢鱼」那几条（`rob: true`，N11 五期）**不参与这里的抽签**：它们的触发时机
+         是「你正拉扯」那一刻（`robArm()` / `robFire()`），落在 `tryFire()` 里就会变成
+         「他嘴上说抢、鱼还在你手里」，而且会在**任意时刻**冒出来（面板 / 结算卡关闭之后
+         那两次 `consider()` 也算）—— 全程**不报错**。 */
+      if (ev.rob) continue;
       /* 🔴 NPC 门（口径 ⑧）：只让「当前钓场**在场的那些位**」的事参与抽签。
          少了这一条，海边会跳出老陈的「借线」（画面上是阿海、弹窗里是老陈），且不报错。
          `p.npcs` 由 `probeOf()` 从 `curCtx()` 带下来 —— 「谁在场」只有 `curNpcIds()`
@@ -437,6 +451,95 @@ G.Story = (function () {
   function arriveSoon() {
     if (typeof setTimeout !== 'function') return;
     setTimeout(function () { arrive(); }, 0);
+  }
+
+  /* ---------------- 隔壁抢走你正遛的鱼（N11 五期 / 口径 ⑫） ----------------
+     唯一一条**在拉扯中途**发生的互动：他一句话把你的鱼抄走，你这一竿就没了。
+     与事件表的关系：内容仍是 `G.STORY_EVENTS` 里带 `rob: true` 的那几条
+     （台词 / 冷却 / `chance` 都在那边），但**不参与 `tryFire()` 的抽签** ——
+     触发时机完全不同（由 `fishing.js` 的拉扯循环来问，不走 `consider()`）。
+     🔴 四条口径（每条都对应一种「不报错但玩家会看出问题」）：
+       ① **只抢小杂鱼、且不抢你没见过的**（`CFG.story.rob.maxRar` + `G.State.isCaught()`）：
+          「抢」唯一能被接受的边界 —— 让玩家白等十分钟换来的一条大鱼被夺走、
+          或者从图鉴里抠掉一条新种，都不是调剂而是劝退。
+       ② **决策在开赛那一刻定死**（`fishing.js` 的 `startFight()` 调 `robArm()` 一次）：
+          拉扯多久由玩家的按住 / 松开决定 ⇒ **逐帧掷点不可复现**；定死之后
+          「同一份存档 + 同一组条件 + 同一个抛竿序号」永远同一个结果（口径 ①）。
+       ③ **真的把鱼拿走**：`fishing.js` 用 `resolve('rob')` 收尾、`stats.robbed` 记一笔。
+          只是嘴上认领的话它就是 `snatch`（那条已经有了），这条就没有存在的理由。
+       ④ 🔴 **先开对话、再收尾这一竿**（`robFire()` 必须在 `resolve('rob')` **之前**）：
+          反过来的话 `resolve()` → `cb.onMiss` → `main.js` 那次 `consider()` 会
+          **先把别的事件**（天气句 / 闲聊之类）开出来，抢鱼的台词被 `P.open()` 覆盖掉 ——
+          玩家只看到「鱼没了 + 他在说天气」，而且**不报错**。
+          `verify` 第 50 节在 `fishing.js` 的源码里按先后盯着这一条。 */
+  function robCfg() {
+    var c = cfg().rob;
+    return (c && typeof c === 'object') ? c : null;
+  }
+  /* 「他这一竿什么时候下手」：与事件的掷点同一套哈希（`rollFor()` 的盐 + 一段前缀
+     `'robat'`）⇒ 加内容不会挪动它。**纯函数**：同一入参永远同一个时刻。 */
+  function robPlan(ev, p) {
+    var r = robCfg();
+    var t = hash32(['robat', p.field, p.wx, p.tm, p.seq, ev.id].join('|')) / 4294967296;
+    var o = {};
+    o.atMs = Math.round(r.atMinMs + (r.atMaxMs - r.atMinMs) * t);
+    return o;
+  }
+  /* 开赛那一刻问一次「这一竿他抢不抢」。返回 `{ atMs }`（自开赛起算的毫秒）或 `null`。
+     门按顺序（顺序即优先级）：数值表在 → 是小杂鱼 → 你已经钓到过 → 不是挂机 →
+     这一片水里有人 → 与 `consider()` 同一道全局兜底间隔 → 每条候选自己过一遍
+     （在场 / `cond` / `once` / 冷却 / 掷点）。
+     ⚠️ 冷却与 `once` 读的是**与 `tryFire()` 同一份存档事实**（`st.fired` / `st.at`）——
+        两套计数就是同一件事的两份真相，改一处忘一处只会表现为「偶尔连着抢两次」。
+     ⚠️ 「这一片水里有人」走 `curCtx()`（它内部就是 `curNpcIds()`）—— 谁在场**只有那一处回答**。 */
+  function robArm(fish) {
+    robEv = null;
+    var r = robCfg();
+    if (!r || !fish || typeof fish !== 'object') return null;
+    if (typeof fish.rar !== 'number' || fish.rar > r.maxRar) return null;   /* 口径 ① */
+    if (!caughtOne(fish.id)) return null;                                   /* 口径 ①（不抢新种） */
+    if (G.Fishing && G.Fishing.isIdleMode && G.Fishing.isIdleMode()) return null;
+    var c = curCtx();
+    if (!c || !c.npcs.length) return null;
+    var t = now();
+    var gap = cfg().minGapMs || 0;
+    if (lastAt && (t - lastAt) < gap) return null;
+    var s = (G.State && G.State.get) ? G.State.get() : null;
+    var n = (s && s.stats && typeof s.stats.casts === 'number') ? s.stats.casts : 0;
+    var p = probeOf(c, n, t, '');
+    var st = rec();
+    var list = evs();
+    for (var i = 0; i < list.length; i++) {
+      var ev = list[i];
+      if (!ev.rob) continue;
+      if (c.npcs.indexOf(ev.npc) < 0) continue;
+      if (!condOk(ev, p)) continue;
+      if (ev.once && (st.fired[ev.id] || 0) > 0) continue;
+      var last = st.at[ev.id];
+      if (last && (t - last) < ev.cooldownMs) continue;
+      if (rollFor(ev, p) >= ev.chance) continue;
+      robEv = ev;
+      return robPlan(ev, p);
+    }
+    return null;
+  }
+  /* 到点了、`fishing.js` 来问「真抢吗」。返回 true = 已记账 + 已把对话交出去。
+     🔴 面板 / 结算卡开着 ⇒ **不抢**（不在两层 modal 之上再叠一层）：这一竿就这么算了
+        （`robEv` 清掉），**不是「推迟」** —— 推迟的话玩家会先看到「咦鱼还在」，
+        过一会儿又被突然抢走，比不抢更难理解。
+     ⚠️ 它**不看概率**：`robArm()` 那一刻已经掷过了。玩家会看到「鱼没了」这件事，
+        台词就必须来 —— 再掷一次点，坏掉的样子是「鱼凭空消失」。 */
+  function robFire() {
+    if (!robEv) return false;
+    if (G.Panels && ((G.Panels.isOpen && G.Panels.isOpen())
+      || (G.Panels.isCatchOpen && G.Panels.isCatchOpen()))) { robEv = null; return false; }
+    var ev = robEv;
+    robEv = null;
+    var t = now();
+    lastAt = t;
+    mark(ev, t);
+    if (cb.onEvent) cb.onEvent(payload(npcOf(ev.npc), ev.lines, ev.title));
+    return true;
   }
 
   /* ---------------- 对外动作 ---------------- */
@@ -771,13 +874,15 @@ G.Story = (function () {
   /* 清掉**内存里**的推进状态（序号 / 条件指纹 / 全局间隔）——
      ⚠️ 它**不碰存档**：「这条我见过没」是存档的事实，不该被一次重置抹掉。
      测试要清存档请直接改 `St.get().story`。 */
-  function reset() { seq = 0; ctxKey = ''; lastAt = 0; aseq = 0; actxKey = ''; }
+  function reset() { seq = 0; ctxKey = ''; lastAt = 0; aseq = 0; actxKey = ''; robEv = null; }
 
   return {
     init: init,
     consider: consider,
     arrive: arrive,
     arriveSoon: arriveSoon,
+    robArm: robArm,
+    robFire: robFire,
     neighbors: neighbors,
     talk: talk,
     choose: choose,

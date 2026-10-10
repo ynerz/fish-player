@@ -2075,18 +2075,34 @@ G.Panels = (function () {
     title: function (d) { return (d && d.title) || '搭话'; },
     render: function (root, d) {
       d = d || dialogLast;
+      /* 旁观对话（N11 二期）：`duo` = 一行一个说话人（`{who, name, text}`），`head` = 面板头那一行。
+         它与 `lines` 是**两条并列的支路**：`duo` 在场时按它画，否则走原来的单人路。 */
+      var hasDuo = !!(d && d.duo && d.duo.length);
       var hasChoices = !!(d && d.choices && d.choices.length);
-      if (!d || ((!d.lines || !d.lines.length) && !hasChoices)) {
+      if (!d || ((!d.lines || !d.lines.length) && !hasChoices && !hasDuo)) {
         /* 真·没有内容（比如被 refresh 撞了一次又没缓存）—— 明确说出来，不渲染一张空卡。
-           注意「有选项但没开场白」是**合法**的（台词全在选项里），不能当成空卡。 */
+           注意「有选项但没开场白」与「两个人只对看一眼」都是**合法**的，不能当成空卡。 */
         root.appendChild(U.el('div', 'empty-tip', '他没再说什么。'));
         return;
       }
       dialogLast = d;
       var npc = d.npc || {};
-      var who = U.el('div', 'dlg-who',
-        npc.name ? npc.name + (npc.tag ? '　·　' + npc.tag : '') : '隔壁的钓鱼佬');
-      root.appendChild(who);
+      /* 面板头：`head`（旁观对话 = 「甲　与　乙」）优先；单人路仍走 `name · tag`。 */
+      var whoTxt = (typeof d.head === 'string' && d.head)
+        ? d.head
+        : (npc.name ? npc.name + (npc.tag ? '　·　' + npc.tag : '') : '隔壁的钓鱼佬');
+      root.appendChild(U.el('div', 'dlg-who', whoTxt));
+      if (hasDuo) {
+        var dbox = U.el('div', 'dlg-lines');
+        d.duo.forEach(function (row) {
+          /* 说话人名字从内容表来（`main.js` 已经把它填进 `name`）—— 这里**不发明**任何字：
+             名字 / 台词缺一个就退化成不带名字的那一句，而不是画一行空白。 */
+          var txt = (row && typeof row.text === 'string') ? row.text : '';
+          var nm = (row && typeof row.name === 'string' && row.name) ? row.name + '：' : '';
+          dbox.appendChild(U.el('div', 'dlg-line', nm + txt));
+        });
+        root.appendChild(dbox);
+      }
       if (d.lines && d.lines.length) {
         var box = U.el('div', 'dlg-lines');
         d.lines.forEach(function (t) { box.appendChild(U.el('div', 'dlg-line', t)); });

@@ -6774,6 +6774,138 @@ let storyBad = 0;
     storyBad++;
   }
 
+  /* ⑪-b 🔴 NPC 之间互相搭话（N11 二期）：第二张内容表 + 第二个触发时机。
+     这一段的判据全部**从内容表现算**，抓的是「写了但永远不会发生」这一类静默坏法：
+       · `pair` 里的两位**必须真的在某一片共场**（`spots` 有交集）——
+         写一对从不共场的人（老陈守内陆、阿海在海那四片）不报错，只会永远不出现；
+       · `lines` 每个说话人必须是 `pair` 里的 id；
+       · 掷点必须**另有其盐**（`banterRoll` 里那个 `'banter'`）：与 `rollFor()` 同源的话，
+         加一条内容就会挪动既有事件的命中时机（口径 ① 明令不许，而且**不报错**）。 */
+  const BNC = (sandbox.G && sandbox.G.STORY_BANTER) || null;
+  const bncBad = [];
+  if (!BNC || !BNC.length) {
+    bncBad.push('src/data/story.js 里没有 STORY_BANTER 表（NPC 之间互相搭话的内容）');
+  } else {
+    const evIds = EVS.map(e => e.id);
+    const seenIds = {};
+    BNC.forEach((b, bi) => {
+      const tag = 'STORY_BANTER[' + bi + ']（' + (b && b.id) + '）';
+      if (!b || typeof b !== 'object') { bncBad.push(tag + ' 不是对象'); return; }
+      if (typeof b.id !== 'string' || !b.id) bncBad.push(tag + ' 没有 id');
+      else if (seenIds[b.id]) bncBad.push(tag + ' 的 id 与另一条重复');
+      else if (evIds.indexOf(b.id) >= 0) {
+        bncBad.push(tag + ' 的 id 与事件表里的一条**重名** —— 两张表各有一个 `fired` 容器，'
+          + '重名会让人以为「记在一起」；分开的容器本来就是有意分开的，id 也别撞');
+      } else seenIds[b.id] = 1;
+      if (typeof b.title !== 'string' || !b.title) bncBad.push(tag + ' 没有 title（面板标题）');
+      if (!Array.isArray(b.pair) || b.pair.length !== 2) {
+        bncBad.push(tag + ' 的 pair 必须是**恰好两位**的数组（现在是 ' + JSON.stringify(b.pair) + '）');
+      } else {
+        if (b.pair[0] === b.pair[1]) bncBad.push(tag + ' 的 pair 是同一个人');
+        const unknown = b.pair.filter(x => npcIds.indexOf(x) < 0);
+        if (unknown.length) bncBad.push(tag + ' 的 pair 里有不存在的 NPC：' + unknown.join('、'));
+        else {
+          /* **真的共场吗** —— 从站位表现算（这一条抓的就是「写了根本不共场的两个人」） */
+          const fields0 = new Set();
+          npcIds.forEach(id => {
+            const sp = (NPCS[id] && NPCS[id].spots) || {};
+            Object.keys(sp).forEach(f => { if (typeof sp[f] === 'number') fields0.add(f); });
+          });
+          const coFields = [...fields0].filter(f => {
+            const here = npcIds.filter(id => {
+              const sp = (NPCS[id] && NPCS[id].spots) || {};
+              return typeof sp[f] === 'number';
+            });
+            return b.pair.every(x => here.indexOf(x) >= 0);
+          });
+          if (!coFields.length) {
+            bncBad.push(tag + ' 的两个人**没有任何一片钓场共场** ⇒ 这条内容永远不会出现'
+              + '（老陈守内陆、阿海在海那四片就是这种组合）');
+          }
+          if (b.cond && Array.isArray(b.cond.field)) {
+            const dead = b.cond.field.filter(f => coFields.indexOf(f) < 0);
+            if (dead.length) {
+              bncBad.push(tag + ' 的 cond.field 里有他们俩不共场的钓场：' + dead.join('、')
+                + '（那几片永远不会命中，等于写了个死条件）');
+            }
+          }
+        }
+      }
+      if (!(typeof b.chance === 'number' && b.chance > 0 && b.chance <= 1)) {
+        bncBad.push(tag + ' 的 chance 必须是 (0,1] 里的数（现在是 ' + b.chance + '）');
+      }
+      if (b.once !== true && b.once !== false) bncBad.push(tag + ' 的 once 必须是布尔');
+      if (!Array.isArray(b.lines) || !b.lines.length) {
+        bncBad.push(tag + ' 没有 lines（旁观对话至少要一句）');
+      } else {
+        b.lines.forEach((row, ri) => {
+          if (!Array.isArray(row) || row.length !== 2) {
+            bncBad.push(tag + ' 第 ' + (ri + 1) + ' 句不是 [谁, 台词] 两元组');
+            return;
+          }
+          if (Array.isArray(b.pair) && b.pair.indexOf(row[0]) < 0) {
+            bncBad.push(tag + ' 第 ' + (ri + 1) + ' 句的说话人 `' + row[0] + '` 不在 pair 里');
+          }
+          if (typeof row[1] !== 'string' || !row[1].trim()) {
+            bncBad.push(tag + ' 第 ' + (ri + 1) + ' 句台词不是非空字符串');
+          }
+        });
+      }
+      /* 字段零消费：这些键必须在引擎里真被读过 */
+      Object.keys(b).forEach(k => {
+        if (!new RegExp('\\.' + k + '(?![A-Za-z0-9_$])').test(coreCode)) {
+          bncBad.push(tag + ' 的字段 `' + k + '` 在 core/story.js 里没人读（零消费字段）');
+        }
+      });
+    });
+    /* 掷点必须另有其盐 + 链路必须在（`arriveSoon` → `arrive` → `tryBanter`） */
+    const brBody = bodyOf(coreSrc, 'function banterRoll(');
+    if (!brBody || !has(brBody, "'banter'")) {
+      bncBad.push('`banterRoll()` 里没有 `\'banter\'` 这个盐 —— 与 `rollFor()` 同源的话，'
+        + '加一条旁观对话就会挪动既有事件的命中时机（口径 ① 明令不许，而且不报错）');
+    }
+    const arrBody = bodyOf(coreSrc, 'function arrive(');
+    if (!arrBody || !has(arrBody, 'tryBanter(') || !has(arrBody, 'markBanter(')) {
+      bncBad.push('`arrive()` 没有走 `tryBanter()` / `markBanter()` —— 触发链路断了');
+    }
+    if (!/setTimeout\(/.test(bodyOf(coreSrc, 'function arriveSoon(') || '')) {
+      bncBad.push('`arriveSoon()` 没有延后（`setTimeout`）—— 切钓场是从面板里点的，'
+        + '那一刻面板还开着，直接问必然被门拦掉，而且**不报错**（表现只是「从没听见过他们聊天」）');
+    }
+    if (!has(mainSrc, 'G.Story.arriveSoon(')) {
+      bncBad.push('main.js 没有在切钓场那处调 `G.Story.arriveSoon(` —— 第二个触发时机没人接');
+    }
+    /* 序号必须各记各的：`aseq` / `seq` 是两个计数器。
+       ⚠️ 判据盯的是**两个函数体**（`arrive()` 里不许出现裸 `seq`、`consider()` 里不许出现 `aseq`）——
+          行为层验不准这件事（共用序号只让掷点整体挪一格，命中序列**常常照样一样**，
+          实测反向验证第 8 组：行为断言假绿、这条静态判据真红）。 */
+    if (!/var\s+aseq\s*=\s*0/.test(coreCode) || !/var\s+seq\s*=\s*0/.test(coreCode)) {
+      bncBad.push('core/story.js 里 `seq` 与 `aseq` 不再各记各的 —— 两个触发时机共用一个序号，'
+        + '会让「加一条旁观对话」顺带改变事件的掷点');
+    }
+    if (/\bseq\b/.test(bodyOf(coreSrc, 'function arrive(') || '')
+      || /aseq/.test(bodyOf(coreSrc, 'function consider(') || '')) {
+      bncBad.push('两个触发时机共用了序号（`arrive()` 里出现裸 `seq` 或 `consider()` 里出现 `aseq`）'
+        + ' —— 口径 ① 不许，「加一条内容就挪动既有事件的命中」是静默的');
+    }
+    /* UI：面板必须真的画两位说话人（`duo` 与 `head` 都有消费方） */
+    if (!has(panelSrc, 'd.duo.forEach(') || !has(panelSrc, 'd.head')) {
+      bncBad.push('panels.js 的对话面板没有消费 `duo` / `head` —— 旁观对话会渲染成空白卡');
+    }
+    if (!has(mainSrc, 'ev.duo')) {
+      bncBad.push('main.js 的 dialogPayload() 没有把 `ev.duo` 交给面板 —— 上面那句消费不到东西');
+    }
+  }
+  if (bncBad.length) {
+    err('「NPC 之间互相搭话」（N11 二期）不对：' + bncBad.join('；'));
+    storyBad++;
+  } else {
+    ok('NPC 之间互相搭话：' + BNC.length + ' 条旁观对话（'
+      + BNC.map(b => b.id + '(' + b.pair.join('+') + ')').join(' / ')
+      + '）、每一对都**真有共场的钓场**、说话人都在 pair 里、掷点另有其盐（不挪动事件命中）、'
+      + '链路 arriveSoon → arrive → tryBanter 齐全、面板真画两位说话人');
+  }
+
   if (!storyBad) {
     ok('隔壁钓鱼佬在位：' + npcIds.length + ' 个 NPC / ' + EVS.length + ' 条事件，'
       + '字段全有人读、接线齐全（含点他搭话、分支选项与限时比试三条通路）、命中框与画法同源、'

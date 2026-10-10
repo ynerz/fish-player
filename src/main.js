@@ -149,6 +149,12 @@
          ⚠️ 放在 `FIELD_MAP` 那道守卫**之前**：钓场 id 不认时也该把人撤掉（`neighbors()` 给空数组），
             而不是把上一位留在画面上。 */
       if (G.Story && S.setNeighbors) S.setNeighbors(G.Story.neighbors());
+      /* 到了这一片水 —— 站着的两位可能正聊着（N11 二期：玩家旁观，不用点他们）。
+         🔴 **必须延到这一栈跑完之后**：切钓场是从钓场面板里点的，此刻面板还开着，
+            直接问必然被「面板开着」那道门（与 `consider()` 同款）拦掉，而且
+            **不报错**（表现只是「从来没听见过他们聊天」）。
+            `arriveSoon()` 就是那一层延后（`setTimeout(…, 0)`），别在这里直接调 `arrive()`。 */
+      if (G.Story && G.Story.arriveSoon) G.Story.arriveSoon();
       if (!G.FIELD_MAP[fid]) return;
       var se = St.get().settings;
       if (se.sound && se.music) G.Audio.startBgm(bgmOf());
@@ -368,6 +374,13 @@
      不是本模块的内部状态。 */
   function dialogPayload(ev, npc) {
     var d = { title: ev.title, npc: npc, lines: ev.lines };
+    /* 旁观对话（N11 二期）：`duo` 是「谁说了哪一句」、`head` 是面板头那一行（两个人一起出现）
+       —— 两位说话人时没有单一的「他」，所以 `npc` 是 null、`lines` 也不出现。
+       对象整体交给 `panels.js`，本模块不替它决定怎么画。 */
+    if (ev.duo && ev.duo.length) {
+      d.duo = ev.duo;
+      d.head = ev.head || '';
+    }
     if (ev.choices && ev.choices.length) {
       d.choices = ev.choices;
       d.onPick = function (i) { pickBranch(ev, i); };

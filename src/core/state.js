@@ -21,7 +21,9 @@ G.State = (function () {
              ⚠️ `story.talk`（N7 二期：主动搭话计数）与 `story.pick`（N7 三期：分支选项计数）
              都是**同一版容器下的子键**，由 `migrate()` 单独纠正容器类型、
              `core/story.js` 的 `rec()` 兜底新建，**不另升版本号**
-             —— 升了也不能多做什么（同 `settings.*` 那条约定）。 */
+             —— 升了也不能多做什么（同 `settings.*` 那条约定）。
+             ⚠️ 同理 **`story.banter`**（N11 二期：NPC 之间互相搭话的记录）也是子键，
+             **不升版本**（老档补成空记录 = 一句都没听过）。 */
   var SAVE_V = 6;
 
   /* 数字兜底：任何来自存档或计算的数值都要过一遍，
@@ -87,9 +89,12 @@ G.State = (function () {
          `duel` = **比试那一本账**（N7 四期）：进行中的窗口（`id` / `end` / `name` /
          `target` / `best` / `casts`，`end = 0` 就是没有进行中的）+ **累计战绩**
          `wins` / `losses`（开局只重置窗口字段，战绩不清）；
-         —— 五者都是「存档只记事实」，重开游戏「这条我见过没 / 上次说到哪 /
-         上次我选了什么 / 比过几场」都不会变。 */
-      story: { fired: {}, at: {}, talk: {}, pick: {}, duel: {} },
+         `banter` = **NPC 之间互相搭话**（N11 二期）：里面那层 `fired` 记「每一条旁观对话
+         发生过几次」（`once` 靠它）。⚠️ 与事件的 `fired` **分成两个容器**：两者 id
+         各管各的命名空间，混在一起会让同名的对话与事件互相顶掉，而且**不报错**。
+         —— 六者都是「存档只记事实」，重开游戏「这条我见过没 / 上次说到哪 /
+         上次我选了什么 / 比过几场 / 那句闲聊听过没」都不会变。 */
+      story: { fired: {}, at: {}, talk: {}, pick: {}, duel: {}, banter: {} },
       stats: {
         casts: 0, catches: 0, escapes: 0, misses: 0, snaps: 0, idleCatches: 0,
         /* ⚠️ `misses` = **错过咬口**（咬钩了但没提竿），与 `escapes`（张力贴地脱钩）
@@ -279,6 +284,13 @@ G.State = (function () {
     if (!d.story.talk || typeof d.story.talk !== 'object' || Array.isArray(d.story.talk)) d.story.talk = {};
     if (!d.story.pick || typeof d.story.pick !== 'object' || Array.isArray(d.story.pick)) d.story.pick = {};
     if (!d.story.duel || typeof d.story.duel !== 'object' || Array.isArray(d.story.duel)) d.story.duel = {};
+    /* 旁观对话（N11 二期）：`banter` 是 **id → 发生过几次** 的一层表（与 `fired` 同形）。
+       ⚠️ 与 `fired`（事件的）**分成两个容器**是有意的：两者 id 各管各的命名空间，
+       混在一起会让同名的对话与事件互相顶掉，而且**不报错**。
+       ⚠️ 刻意**不做成 `{ fired: {} }` 那种嵌套容器** —— 存档 `story` 的键名有门禁
+       （`verify` 第 50 节按 `blank()` 与 `rec()` **双向现算**，而它按扁平层解析），
+       嵌套一层会被解析成多出来的一个键。 */
+    if (!d.story.banter || typeof d.story.banter !== 'object' || Array.isArray(d.story.banter)) d.story.banter = {};
 
     /* ---- 按版本号迁移 ---- */
     if (from < 2) {

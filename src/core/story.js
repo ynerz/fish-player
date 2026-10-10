@@ -121,6 +121,10 @@ G.Story = (function () {
   var seq = 0;                     /* 当前条件下已经「考虑」过几次（条件一变就归零） */
   var ctxKey = '';                 /* 上一次考虑时的条件指纹（钓场|天气|时段） */
   var lastAt = 0;                  /* 上一次真触发的时刻（全局兜底间隔，防同时碰上俩） */
+  /* 旁观对话（`arrive()`，N11 二期）**自己一套序号**：与 `seq` 共用会让「加一条旁观对话」
+     顺带改变事件的掷点（口径 ①）。条件指纹的拼法与 `ctxKey` 一样，但各存各的。 */
+  var aseq = 0;
+  var actxKey = '';
 
   function cfg() { return (G.CONFIG && G.CONFIG.story) || {}; }
   function now() {
@@ -155,6 +159,10 @@ G.Story = (function () {
     if (!t.talk || typeof t.talk !== 'object') t.talk = {};
     if (!t.pick || typeof t.pick !== 'object') t.pick = {};
     if (!t.duel || typeof t.duel !== 'object') t.duel = {};
+    /* NPC 之间互相搭话（N11 二期）：**id → 发生过几次**的一层表（`once` 靠它）。
+       ⚠️ 与事件的 `fired` **分开一个容器**（有意）：两者 id 各管各的命名空间，
+       混在一起的话「对话 id」与「事件 id」重名会互相顶掉，而且**不报错**。 */
+    if (!t.banter || typeof t.banter !== 'object') t.banter = {};
     if (s) s.story = t;            /* 顺手纠正回去，省得每个调用点各纠正一次 */
     return t;
   }
@@ -297,6 +305,130 @@ G.Story = (function () {
      `after` = **这一竿的结局**（口径 ⑨）：只有丢竿那条路带得进来，空串 = 没带。 */
   function probeOf(c, n, t, after) {
     return { field: c.field, wx: c.wx, tm: c.tm, npcs: c.npcs, after: after, seq: n, now: t };
+  }
+
+  /* ---------------- NPC 之间互相搭话（N11 二期 / 口径 ⑪） ----------------
+     玩家**旁观**：换到一片水的那一刻，站着的两位可能正聊着（不用点他们）。
+     与事件表的关系：**完全平行的第二张表**（`G.STORY_BANTER`）——
+       · 时机不同：这个走 `arrive()`（换钓场那一刻），事件走 `consider()`（一竿结算之后）；
+       · 参与人不同：这个要求 `pair` 里**两位都在场**，事件只要求自己那一位在场；
+       · 掷点不同源：`banterRoll()` 用 `'banter'` 当盐 ⇒ 加内容**不会挪动**任何事件的命中
+         （口径 ① 的全部实现就是这个盐；`verify` 第 50 节从源码里盯着它）。
+     两张表共用同一套**门**（`condOk`）与同一份**在场集合**（`curNpcIds()`）——
+     一个事实仍只有一处回答。 */
+  function bncs() {
+    var a = G.STORY_BANTER;
+    return (a && a.length) ? a : [];
+  }
+  /* `pair` 里的**每一位**都得在场（且内容表里真有这个人）。少一位 ⇒ 这条不参与。
+     ⚠️ 内容表里写了不存在的 id ⇒ 那位永远不在场 ⇒ 这条内容**永远不会出现**，且不报错
+        （`verify` 第 50 节拿 NPC 表现算，抓的就是这个）。 */
+  function pairHere(ev, here) {
+    var pair = (ev && ev.pair) || null;
+    if (!pair || !pair.length) return false;
+    for (var i = 0; i < pair.length; i++) {
+      if (!npcOf(pair[i])) return false;
+      if (here.indexOf(pair[i]) < 0) return false;
+    }
+    return true;
+  }
+  /* 这一条在「这组条件 + 这个序号」下的掷点（0~1）。
+     🔴 盐是 `'banter'` 而不是事件那套 `field|wx|tm|seq|id` —— 与 `rollFor()` **不同源**，
+        这正是「加旁观对话不会挪动事件命中」的保证（口径 ① / 文件头 ⑪）。 */
+  function banterRoll(ev, p) {
+    return hash32(['banter', p.field, p.wx, p.tm, p.seq, ev.id].join('|')) / 4294967296;
+  }
+  /* 按顺序挑第一条「两人都在场 + 过门 + 过了 once」且掷点命中的对话。
+     ⚠️ 纯函数（只看入参 + 存档事实），与 `tryFire()` 同款 —— 测试靠这条钉住可复现。 */
+  function tryBanter(p) {
+    var st = rec();
+    var list = bncs();
+    var here = Array.isArray(p.npcs) ? p.npcs : [];
+    for (var i = 0; i < list.length; i++) {
+      var ev = list[i];
+      if (!pairHere(ev, here)) continue;
+      if (!condOk(ev, p)) continue;
+      if (ev.once && (st.banter[ev.id] || 0) > 0) continue;
+      if (banterRoll(ev, p) >= ev.chance) continue;
+      return ev;
+    }
+    return null;
+  }
+  /* 记一笔（立刻落盘，与 `mark()` / `talk()` 同一条口径：玩家可能看完就关页面）。 */
+  function markBanter(ev) {
+    var st = rec();
+    st.banter[ev.id] = (st.banter[ev.id] || 0) + 1;
+    if (G.State && G.State.save) G.State.save(true);
+    return ev;
+  }
+  /* 面板要的载荷（旁观对话）：`head` = 「甲　与　乙」（面板头那一行）、
+     `duo` = 每句「谁说的 + 说了什么」。
+     ⚠️ 与 `payload()` 同一条纪律：**不在返回块里写内联对象字面量** ——
+        顶层导出清单是按 `^  return \{` 抓的，写在这里的字段名会被误当成导出名。 */
+  function duoPayload(ev) {
+    var pair = (ev && ev.pair) || [];
+    var names = {}, i, n;
+    for (i = 0; i < pair.length; i++) {
+      n = npcOf(pair[i]);
+      names[pair[i]] = (n && n.name) ? n.name : '';
+    }
+    var duo = [], rows = (ev && ev.lines) || [];
+    for (i = 0; i < rows.length; i++) {
+      if (!rows[i] || rows[i].length < 2) continue;
+      var o = {};
+      o.who = rows[i][0];
+      o.name = names[rows[i][0]] || '';
+      o.text = String(rows[i][1]);
+      duo.push(o);
+    }
+    var headTxt = [];
+    for (i = 0; i < pair.length; i++) { if (names[pair[i]]) headTxt.push(names[pair[i]]); }
+    var out = {};
+    out.npc = null;                                 /* 两个说话人 ⇒ 没有单一的「他」 */
+    out.title = (ev && ev.title) || '他们在聊';
+    out.head = headTxt.join('　与　');
+    out.duo = duo;
+    return out;
+  }
+
+  /* `arrive()` —— **换到一片水的那一刻**可以考虑一次（唯一的调用点在 `main.js` 的
+     切钓场那条状态事件里，且**延到面板关掉之后**再问：换钓场是从面板里点的，
+     那一刻面板还开着，直接问必然被「面板开着」那道门拦掉）。
+     🔴 四道门与 `consider()` **同款**（顺序即优先级）：idle ⇒ 不挂机 ⇒ 没有面板 / 结算卡
+        ⇒ 全局间隔没到。少任何一条都会出现「鱼还在拉扯、旁边俩人先聊上了」。
+     ⚠️ 序号 `aseq` 与 `consider()` 的 `seq` **各记各的**：`cond` 门是按钓场 / 天气 / 时段
+        现算的，两个计数器共用会让「加一条旁观对话」顺带改变事件的掷点（口径 ① 不许）。
+     返回真触发的那一条，或 `null`。 */
+  function arrive() {
+    if (G.Fishing && G.Fishing.getState && G.Fishing.getState() !== 'idle') return null;
+    if (G.Fishing && G.Fishing.isIdleMode && G.Fishing.isIdleMode()) return null;
+    if (G.Panels && ((G.Panels.isOpen && G.Panels.isOpen())
+      || (G.Panels.isCatchOpen && G.Panels.isCatchOpen()))) return null;
+
+    var c = curCtx();
+    if (!c) return null;
+    var key = [c.field, c.wx, c.tm].join('|');
+    if (key !== actxKey) { actxKey = key; aseq = 0; }
+    aseq++;
+
+    var t = now();
+    var gap = cfg().minGapMs || 0;
+    if (lastAt && (t - lastAt) < gap) return null;
+
+    var probe = probeOf(c, aseq, t, '');
+    var ev = tryBanter(probe);
+    if (!ev) return null;
+    lastAt = t;
+    markBanter(ev);
+    if (cb.onEvent) cb.onEvent(duoPayload(ev), null, rewardOf(ev));
+    return ev;
+  }
+  /* 切钓场时**延后**问一次（见 `arrive()` 的注释）：`setTimeout` 在本项目里
+     属于「业务代码可以直接用」的东西（任何宿主都有，见规范 §9.3）——
+     这里要的只是「等当前这一栈跑完（面板 close() 了）再说」。 */
+  function arriveSoon() {
+    if (typeof setTimeout !== 'function') return;
+    setTimeout(function () { arrive(); }, 0);
   }
 
   /* ---------------- 对外动作 ---------------- */
@@ -629,11 +761,13 @@ G.Story = (function () {
   /* 清掉**内存里**的推进状态（序号 / 条件指纹 / 全局间隔）——
      ⚠️ 它**不碰存档**：「这条我见过没」是存档的事实，不该被一次重置抹掉。
      测试要清存档请直接改 `St.get().story`。 */
-  function reset() { seq = 0; ctxKey = ''; lastAt = 0; }
+  function reset() { seq = 0; ctxKey = ''; lastAt = 0; aseq = 0; actxKey = ''; }
 
   return {
     init: init,
     consider: consider,
+    arrive: arrive,
+    arriveSoon: arriveSoon,
     neighbors: neighbors,
     talk: talk,
     choose: choose,
@@ -641,7 +775,9 @@ G.Story = (function () {
     settleDuel: settleDuel,
     duelInfo: duelInfo,
     tryFire: tryFire,
+    tryBanter: tryBanter,
     rollFor: rollFor,
+    banterRoll: banterRoll,
     reset: reset,
   };
 })();

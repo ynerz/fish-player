@@ -2355,6 +2355,59 @@ G_('Panels · 结算卡待决时底栏只禁左半（catch-open 的挂载与摘�
 })();
 
 /* =========================================================
+   Panels · 旁观对话（N11 二期）：两位说话人必须真画出来
+   引擎那一侧（`arrive()` / `duo` 载荷）另有 ⑭ 那组行为用例；这一节只问一件事：
+   **端到端渲染出来的是不是「谁说了什么」** —— 引擎给对了载荷、面板画不出来，
+   玩家看到的仍然是一张空白卡，而且不报错。
+   ========================================================= */
+G_('Panels · 旁观对话面板（N11 二期）');
+(function () {
+  var doc = global.document;
+  /* ⚠️ 对话面板读的是 `childNodes`（不是上面那个 `children`）—— 最小 DOM 桩要补上它，
+     否则「渲染」这条真路径一跑就抛（而这正是本节想验的东西）。
+     两个名字指向同一个数组：本项目别处的桩用的是 `children`，两边都要认。 */
+  function mkDlgEl(tag) {
+    var e = mkEl(tag);
+    Object.defineProperty(e, 'childNodes', { get: function () { return e.children; } });
+    return e;
+  }
+  global.document = { createElement: mkDlgEl, querySelector: function () { return null; },
+                      querySelectorAll: function () { return []; } };
+  try {
+    var root = mkDlgEl('div');
+    var payload = { title: '他们在聊', npc: null, head: '阿海　与　船家',
+                    duo: [{ who: 'hai', name: '阿海', text: '早啊。' },
+                          { who: 'chuan', name: '船家', text: '浪要起来了。' }] };
+    var derr = null;
+    try { Panels.VIEWS.dialog.render(root, payload); } catch (e) { derr = e; }
+    ok(!derr, 'VIEWS.dialog 能渲染旁观对话（duo 载荷）', derr && derr.message);
+    var dtxt = panelText(root);
+    ok(dtxt.indexOf('阿海　与　船家') >= 0, '面板头写的是**两个人**（`head` 有消费方）');
+    ok(dtxt.indexOf('阿海：早啊。') >= 0 && dtxt.indexOf('船家：浪要起来了。') >= 0,
+       '每一句都带说话人名字（否则两位说话分不清谁说的）');
+
+    /* 脏载荷：`duo` 是空数组 ⇒ 与单人路的空载荷同款兜底（不抛、也不画空白卡） */
+    var root2 = mkDlgEl("div"), derr2 = null;
+    try { Panels.VIEWS.dialog.render(root2, { title: 'x', duo: [] }); } catch (e) { derr2 = e; }
+    ok(!derr2 && panelText(root2).indexOf('没再说什么') >= 0,
+       'duo 是空数组时不抛、渲染空态提示（与单人路同一条兜底）');
+    /* 行里缺名字 / 缺台词 ⇒ 退化成不带名字的那一句，不画空白行 */
+    var root3 = mkDlgEl("div");
+    Panels.VIEWS.dialog.render(root3, { title: 'x', duo: [{ who: 'hai', text: '嗯。' }, null] });
+    var t3 = panelText(root3);
+    ok(t3.indexOf('嗯。') >= 0 && t3.indexOf('undefined') < 0 && t3.indexOf('null') < 0,
+       '行里缺名字时退化成「只有台词」，不渲染 undefined / null');
+
+    /* 单人路没被改坏：`npc` + `lines` 照旧走 `名字 · 标签` 那一套 */
+    var root4 = mkDlgEl("div");
+    Panels.VIEWS.dialog.render(root4, { npc: { name: '老陈', tag: '隔壁的钓鱼佬' }, lines: ['嗯。'] });
+    var t4 = panelText(root4);
+    ok(t4.indexOf('老陈') >= 0 && t4.indexOf('隔壁的钓鱼佬') >= 0 && t4.indexOf('嗯。') >= 0,
+       '单人对话照旧（name · tag + 台词）—— 新支路没把老路挤掉');
+  } finally { global.document = doc; }
+})();
+
+/* =========================================================
    Panels · 设置键必须能从界面改（真渲染 + 真触发注册上来的回调）
    =========================================================
    由来（2026-10-08，Q26）：`state.js` 的 `blank().settings` 是设置键的唯一真相，
@@ -4813,6 +4866,74 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
     catch (e) { duelThrow = e.message; }
     ok(duelThrow === '', '存档里的 duel 是数字时 settleDuel / duelInfo / noteCatch 都不抛'
       + (duelThrow ? ' —— ' + duelThrow : ''));
+    /* ---------- ⑭ NPC 之间互相搭话（N11 二期）：换钓场那一刻的**第二个触发时机** ----------
+       🔴 钉三件事：
+         ① **两位都在场**才可能发生（pair 门）—— 一位在 / 没人，都不行；
+         ② `arrive()` **不消耗 `consider()` 的序号**（各自一套 `seq` / `aseq` +
+            各自一个掷点盐）⇒ 加旁观对话不会挪动既有事件的命中时机（口径 ①）；
+         ③ 载荷里 `duo` / `head` 都填好了、说话人带得出名字（面板层另有真渲染验收）。
+       ⚠️ 全局兜底间隔（`lastAt`）是**有意共用**的：刚碰上一位邻居就别立刻再开一个弹窗
+          —— 所以「arrive() 完全不干扰」这句话只在①②的意义上成立，不是逐字的不干扰。 */
+    G.Weather.snapshot = function () { return { wx: { key: 'clear' }, tm: { key: 'day' } }; };
+    G.Panels = { isOpen: function () { return false; }, isCatchOpen: function () { return false; } };
+    Fish7.hardReset();
+    St.setIdle(false);
+
+    var BANTER = G.STORY_BANTER || [];
+    ok(BANTER.length > 0, '内容表里有旁观对话（' + BANTER.length + ' 条）—— 一条都没有的话这节是空转');
+    var seenD = [];
+    S7.init({ onEvent: function (ev) { seenD.push(ev); } });
+
+    /* ① 两位共场的那一片 ⇒ 一定发生（内容表里那条是 once + chance 1，与概率无关） */
+    St.get().field = 'SS';
+    clean(); S7.reset();
+    var b1 = S7.arrive();
+    ok(!!b1 && Array.isArray(b1.pair) && b1.pair.length === 2,
+       '走到「两位共场」的那一片时旁观对话真的触发' + (b1 ? '（' + b1.id + '）' : '—— 一条都没触发'));
+    ok(!!b1 && St.get().story.banter[b1.id] === 1,
+       '触发**立刻记进** s.story.banter（新容器真的被写，不是只写在注释里）');
+    ok(seenD.length === 1 && seenD[0].duo && b1 && seenD[0].duo.length === b1.lines.length
+      && typeof seenD[0].head === 'string' && seenD[0].head.length > 0,
+       'UI 回调拿到的是 duo 载荷（每句一个说话人 + head 是两个人）');
+    ok(seenD.length === 1 && b1 && seenD[0].duo.every(function (row) {
+      return b1.pair.indexOf(row.who) >= 0 && !!row.name && !!row.text;
+    }), '每一句的说话人都在 pair 里、而且带得出名字（面板不会画一行空白）');
+    /* 可复现（口径 ① 的同一套要求）：清干净再跑一次 ⇒ 同一条 */
+    var firstId = b1 && b1.id;
+    clean(); S7.reset();
+    var b1b = S7.arrive();
+    ok(!!b1b && b1b.id === firstId,
+       '同一份存档 + 同一组条件 ⇒ 还是那一条（不用 Math.random()，可定点复现）');
+    /* ② `once` 只发生一次 */
+    var b2 = S7.arrive();
+    ok(St.get().story.banter[firstId] === 1, 'once 的那一条只记一次（第二次到达不重放）');
+    ok(!b2 || b2.id !== firstId, '第二次到达不会再给同一条（once 真的生效）');
+
+    /* ③ 只有一位 / 没人在场 ⇒ 不触发（pair 门在真链路上也成立） */
+    clean(); S7.reset();
+    St.get().field = 'D';                       /* 这一片只有老陈一位 */
+    var none1 = S7.arrive();
+    St.get().field = 'ZZ-nosuch';               /* 谁都不在 */
+    var none2 = S7.arrive();
+    ok(none1 === null && none2 === null,
+       '一位在场（D）与没人（脏钓场 id）都不触发旁观对话 —— 挡住它的是 pair 门，不是概率');
+    ok(Object.keys(St.get().story.banter).length === 0, '这两次一条记录都没写');
+
+    /* ④ 全局兜底间隔（`lastAt`）是**有意共用**的：刚走到这一片听他们聊完，
+       紧接着那一竿的结算不该再弹第二个框（两层弹窗叠着最烦人）。
+       ⚠️ 「两个序号各记各的」这条是**结构性事实**（不是行为能验准的：
+          共用序号只让掷点整体挪一格，命中序列常常照样一样）⇒ 由 `verify` 第 50 节的
+          静态判据盯着（`arrive()` 里出现裸 `seq` 就报红）。 */
+    clean(); S7.reset();
+    St.get().field = 'SS';
+    var b3 = S7.arrive();
+    var afterArrive = null;
+    for (var k4 = 0; k4 < 40 && !afterArrive; k4++) afterArrive = S7.consider();
+    ok(!!b3 && afterArrive === null,
+       '刚到达就聊过之后，紧接着的 consider() 不再弹第二个框（共用同一个全局兜底间隔）');
+    S7.init({});
+    clean();
+
     /* ---------- ⑬ 上一竿的结局（N7 六期）----------
        `cond.after` = 「只在刚丢了鱼之后才开口」。它有两件事要钉：
        ① **丢竿那条路必须是通的** —— 曾因 `fishing.js` 的时序（先回调、后收尾）整条死掉；

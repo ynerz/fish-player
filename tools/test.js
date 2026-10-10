@@ -5412,6 +5412,175 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
 })();
 
 /* =========================================================
+   N11 ⑥ · 「躲雨」那批内容（2026-10-11）
+   =========================================================
+   三条新内容，各自只在**一种天气**下出现，而且其中两条是「一个分支 + 它的后续」：
+     · `shelter`（老陈 · 雨 · **带分支**）：躲一阵 / 再钓两竿
+     · `tea`（老陈 · 白天 · `need` 门）：**只有选过「躲一阵」才会出现**
+     · `moor`（船家 · 雨 · 只在他站的两片）
+   本节盯三件事：
+     ① **天气门真的在起作用**（雨天才来，晴天一次都不来）—— 门写错只会静默不触发；
+     ② **分支的可观测后果**（`need` 双向：没选过 ⇒ 一次都不出现；选过 ⇒ 真会开口）；
+     ③ 🔴 **共场那一刻谁先说**（雨天深海断崖上阿海与船家都在场）：先让阿海说「起浪」，
+        掷点没轮到他时船家才开口 —— 这是 N11 一期「同场的人各说各的」那条规矩的
+        **另一半**（一期只验了「雾天只有船家开口」）。
+   ⚠️ 全部 id 都是**写死**的：本节问的就是「这三条具体内容在不在、门对不对」，
+      与 ⑨-a/⑨-c 那种「按内容表现算」的用例职责不同，不是两份真相。
+   ========================================================= */
+G_('N11 ⑥ · 躲雨 / 姜茶 / 收船（天气门 + 分支的后果 + 共场谁先说）');
+(function () {
+  var S9 = G.Story;
+  var evBy = function (id) {
+    for (var i = 0; i < G.STORY_EVENTS.length; i++) if (G.STORY_EVENTS[i].id === id) return G.STORY_EVENTS[i];
+    return null;
+  };
+  var realSnap9 = G.Weather.snapshot;
+  var realPanels9 = G.Panels;
+  var realBook9 = St.get().book;
+
+  /* 场上的人**从内容表现算**（不手抄站位表）：给一个钓场 id，问引擎现场有谁 */
+  function hereAt(f) {
+    var keep = St.get().field;
+    St.get().field = f;
+    var ids = S9.neighbors().map(function (n) { return n.id; });
+    St.get().field = keep;
+    return ids;
+  }
+  function probeAt(f, wx, tm, npcIds, seq, id) {
+    var p = { field: f, wx: wx, tm: tm, npcs: npcIds, seq: seq, now: 0 };
+    return S9.tryFire(p);
+  }
+  /* 清干净：内存序号 + `fired` / `at`，但**保留 `pick`**（那条是「玩家选过什么」的存档事实，
+     清掉就没法验「选过之后门才开」了 —— 第一版就是栽在这儿：断言变成「选过也不出现」）。 */
+  function clean9(keepIds) {
+    S9.reset();
+    var keepPick = St.get().story && St.get().story.pick;
+    St.get().story = { fired: {}, at: {} };
+    if (keepPick) St.get().story.pick = keepPick;
+    /* 把其余事件全推进冷却：候选只剩想验的那几条（不写死别的 id） */
+    var keep = [].concat(keepIds || []);
+    G.STORY_EVENTS.forEach(function (e) {
+      if (keep.indexOf(e.id) < 0) St.get().story.at[e.id] = 1;
+    });
+  }
+  /* 从 seq=1 往下扫一个真能命中的序号（不写死数字） */
+  function hitOf(id, f, wx, tm, npcIds) {
+    clean9([id]);
+    for (var i = 1; i <= 600; i++) {
+      var ev = probeAt(f, wx, tm, npcIds, i);
+      if (ev) return { seq: i, ev: ev };
+    }
+    return null;
+  }
+
+  try {
+    var shel = evBy('shelter'), tea = evBy('tea'), moor = evBy('moor');
+    ok(!!shel && !!tea && !!moor, '内容表里有「躲雨 / 姜茶 / 收船」三条（N11 ⑥ 这一批）');
+    ok(!!shel && Array.isArray(shel.choices) && shel.choices.length === 2,
+       '「躲雨」是**带分支**的内容（两个选项：躲一阵 / 再钓两竿）');
+    ok(!!tea && tea.need && tea.need.pick === 'shelter' && tea.need.opt === 0,
+       '「姜茶」靠 `need` 门开 —— 它盯的是「躲雨」的**第 0 项**（选了躲一阵）');
+
+    /* ---------- ① 天气门：三条各自只在它认的天气里出现 ---------- */
+    var chenAt = hereAt('D'), chuanAt = hereAt('A');
+    ok(chenAt.indexOf('chen') >= 0, '老陈站在 D 场（下面几条断言的前提，抓不到就报错）');
+    ok(chuanAt.indexOf('chuan') >= 0 && chuanAt.indexOf('hai') >= 0,
+       'A 场站着两位（船家 + 阿海）—— 「谁先说」那条断言的前提');
+
+    var clearHit = null;
+    clean9(['shelter']);
+    for (var i = 1; i <= 600 && !clearHit; i++) clearHit = probeAt('D', 'clear', 'day', chenAt, i);
+    ok(clearHit === null, '大晴天 ⇒ 「躲雨」一次都不出现（天气门不是「碰巧没掷中」）');
+
+    var shelterHit = hitOf('shelter', 'D', 'rain', 'day', chenAt);
+    ok(!!shelterHit && shelterHit.ev.id === 'shelter',
+       '雨天的内陆 ⇒ 「躲雨」真会开口' + (shelterHit ? '（第 ' + shelterHit.seq + ' 次）' : ''));
+
+    var moorHit = hitOf('moor', 'A', 'rain', 'day', chuanAt);
+    ok(!!moorHit && moorHit.ev.id === 'moor',
+       '雨天的深海断崖 ⇒ 船家会开口（他在场 + 天气对）' + (moorHit ? '（第 ' + moorHit.seq + ' 次）' : ''));
+
+    /* ---------- ② `need` 双向：没选过 ⇒ 一次不出现；选过 ⇒ 真开口 ---------- */
+    var teaBefore = hitOf('tea', 'D', 'clear', 'day', chenAt);
+    ok(teaBefore === null, '从没躲过雨 ⇒ 「姜茶」一次都不出现（门恒关）');
+
+    S9.choose(shel, 0);                     /* 真走玩家那条路：选了「躲一阵」 */
+    ok(St.get().story.pick.shelter && St.get().story.pick.shelter[0] === 1,
+       'choose() 把「躲一阵」记进了存档（pick.shelter[0] = 1）');
+    var teaAfter = hitOf('tea', 'D', 'clear', 'day', chenAt);
+    ok(!!teaAfter && teaAfter.ev.id === 'tea',
+       '选过「躲一阵」之后 ⇒ 「姜茶」真会开口' + (teaAfter ? '（第 ' + teaAfter.seq + ' 次）' : ''));
+
+    /* 只选了**另一项** ⇒ 门仍然关着（判据认的是「哪一项」，不是「选过就算」） */
+    S9.reset();
+    St.get().story = { fired: {}, at: {} };
+    S9.choose(shel, 1);
+    clean9(['tea']);
+    var teaOther = null;
+    for (var j = 1; j <= 600 && !teaOther; j++) teaOther = probeAt('D', 'clear', 'day', chenAt, j);
+    ok(teaOther === null && St.get().story.pick.shelter[1] === 1,
+       '只选了「再钓两竿」⇒ 「姜茶」仍然不出现（门认的是**哪一项**）');
+
+    /* ---------- ③ 共场：雨天 A 场两人都在，表序在前的阿海先说 ---------- */
+    var order9 = G.STORY_EVENTS.map(function (e) { return e.id; });
+    ok(order9.indexOf('swell') < order9.indexOf('moor'),
+       '内容表里「起浪」排在「收船」**之前**（表序即优先级 —— 这是下面那条断言的根据）');
+    /* 同序号下把两条的掷点都算出来，找一个「起浪没过、收船过了」的序号 ——
+       那个序号上，两人的门都开着，唯一决定谁开口的就是**表序**。 */
+    var swell = evBy('swell');
+    var bothSeq = null;
+    for (var k = 1; k <= 600; k++) {
+      var p = { field: 'A', wx: 'rain', tm: 'day', npcs: chuanAt, seq: k, now: 0 };
+      if (S9.rollFor(swell, p) >= swell.chance && S9.rollFor(moor, p) < moor.chance) {
+        bothSeq = k; break;
+      }
+    }
+    ok(bothSeq !== null, '找得到一个「起浪没过、收船过了」的序号（判据抓不到就报错，不许空过）');
+    clean9(['swell', 'moor']);
+    var hitBoth = probeAt('A', 'rain', 'day', chuanAt, bothSeq);
+    ok(!!hitBoth && hitBoth.id === 'moor',
+       '雨天 A 场：同在场的两人各说各的 —— 阿海的掷点没过时，开口的是**船家**'
+       + '（不是「列表里第一个一直说」）' + (hitBoth ? '（' + hitBoth.id + ' @' + bothSeq + '）' : '：null'));
+    /* 反过来：阿海过了门 ⇒ 先说的一定是他（同一个序号上把两条的掷点调过来） */
+    var haiSeq = null;
+    for (var k2 = 1; k2 <= 600; k2++) {
+      var p3 = { field: 'A', wx: 'rain', tm: 'day', npcs: chuanAt, seq: k2, now: 0 };
+      if (S9.rollFor(swell, p3) < swell.chance) { haiSeq = k2; break; }
+    }
+    ok(haiSeq !== null, '找得到一个「起浪过了」的序号（判据抓不到就报错）');
+    clean9(['swell', 'moor']);
+    var hitHai = probeAt('A', 'rain', 'day', chuanAt, haiSeq);
+    ok(!!hitHai && hitHai.id === 'swell',
+       '同一个序号上，阿海过了门 ⇒ 开口的是**他**（先过门者赢，与掷点大小无关）'
+       + (hitHai ? '（' + hitHai.id + ' @' + haiSeq + '）' : '：null'));
+
+    /* ---------- ④ 走**真正的那条路**：consider() + 存档事实 ---------- */
+    G.Weather.snapshot = function () { return { wx: { key: 'rain' }, tm: { key: 'day' } }; };
+    St.get().field = 'D';
+    G.Panels = { isOpen: function () { return false; }, isCatchOpen: function () { return false; } };
+    if (G.Fishing && G.Fishing.hardReset) G.Fishing.hardReset();
+    St.setIdle(false);
+    clean9(["shelter"]);
+    var fired9 = null;
+    for (var q = 0; q < 600 && !fired9; q++) fired9 = S9.consider();
+    ok(!!fired9 && fired9.id === 'shelter' && Array.isArray(fired9.lines) && fired9.lines.length,
+       '真链路（consider + 雨天 + 老陈在场）⇒ 「躲雨」会触发且带得出台词');
+    ok(!!fired9 && Array.isArray(fired9.choices) && fired9.choices.length === 2,
+       '触发的载荷里带着两个选项（面板摆得出按钮）');
+    ok(St.get().story.fired.shelter === 1, '触发一次就记一笔 fired（once 靠它，冷却也靠它）');
+  } finally {
+    G.Weather.snapshot = realSnap9;
+    G.Panels = realPanels9;
+    St.get().book = realBook9;
+    S9.init({});
+    S9.reset();
+    St.get().story = { fired: {}, at: {} };
+    if (St.get().settings.idle) St.setIdle(false);
+    if (G.Fishing && G.Fishing.hardReset) G.Fishing.hardReset();
+  }
+})();
+
+/* =========================================================
    N11 五期 · 隔壁抢走你正遛的鱼（唯一一条**在拉扯中途**发生的互动）
    =========================================================
    用户点名（N7 余下的初稿）：「隔壁钓走你正遛的鱼」的**机械版** —— 他真把鱼拿走。

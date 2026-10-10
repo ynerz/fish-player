@@ -7137,6 +7137,97 @@ let storyBad = 0;
   }
   if (gateBad.length) { err('「图鉴门」这道门 / 链路不对：' + gateBad.join('；')); storyBad++; }
 
+  /* ⑦-i 🔴 天气门 / 时段门的**值域必须现算**（N11 ⑥ · 2026-10-11 新增）。
+     由来：做「躲雨」这批内容时发现 —— `cond.field` 的值域一直有网（⑦-c 与 duel 那节都查），
+     `cond.have` / `cond.after` 也有网，但 **`cond.wx` 与 `cond.tm` 的值域一处都没查**。
+     坏法和其他几道门**一模一样地静默**：把 `wx: ['rain']` 拼成 `['rian']`，
+     或者时段写成 `tm: ['evening']`（真实键是 `dusk`）⇒ `condOk()` 永远不匹配 ⇒
+     那条事件**永远不出现**，而门禁、测试、界面全都不吭声。
+     ⚠️ 天气 / 时段这两个键名**动态认**（与 ⑦-f / ⑦-g / ⑦-h 同款理由：
+        写死键名会让 verify.js 自己成为 32-g 眼里的一个消费方，真读它的那处被删也不报红）——
+        认法 = 「这个 cond 键的值域**完全落进**天气（或时段）表」。
+     值域**现算**：`config.weather.types[].key` / `config.weather.times[].key`。 */
+  const WCFG = (sandbox.G && sandbox.G.CONFIG && sandbox.G.CONFIG.weather) || null;
+  const WX_T = (WCFG && Array.isArray(WCFG.types)) ? WCFG.types.map(t => t.key) : null;
+  const TM_T = (WCFG && Array.isArray(WCFG.times)) ? WCFG.times.map(t => t.key) : null;
+  const wxBad = [];
+  if (!WX_T || !WX_T.length || !TM_T || !TM_T.length) {
+    wxBad.push('拿不到 `config.weather.types` / `.times` 的键 —— 值域现算不出来（先修判据本身）');
+  } else {
+    const allLits = [];
+    EVS.forEach(ev => Object.keys(ev.cond || {}).forEach(k => {
+      (ev.cond[k] || []).forEach(v => { if (typeof v === 'string') allLits.push([k, v]); });
+    }));
+    const wxKeys = [], tmKeys = [];
+    Object.keys(EVS.reduce((o, ev) => { Object.keys(ev.cond || {}).forEach(k => { o[k] = 1; }); return o; }, {}))
+      .forEach(k => {
+        const vals = [];
+        allLits.forEach(([kk, v]) => { if (kk === k && vals.indexOf(v) < 0) vals.push(v); });
+        if (!vals.length) return;
+        if (vals.every(v => WX_T.indexOf(v) >= 0)) wxKeys.push(k);
+        if (vals.every(v => TM_T.indexOf(v) >= 0)) tmKeys.push(k);
+      });
+    if (!wxKeys.length) wxBad.push('没有任何 cond 键的值域落在天气表里 —— 天气门没被内容用到？抓不到就报错');
+    if (!tmKeys.length) wxBad.push('没有任何 cond 键的值域落在时段表里 —— 时段门没被内容用到？抓不到就报错');
+    let withWx = 0, withTm = 0;
+    EVS.forEach(ev => {
+      const c = ev.cond || {};
+      wxKeys.forEach(k => {
+        if (!(k in c)) return;
+        withWx++;
+        const v = c[k];
+        if (!Array.isArray(v) || !v.length) {
+          wxBad.push('事件 ' + ev.id + ' 的 cond.' + k + ' 不是非空数组 —— 这条门永不匹配（事件永不出现）');
+          return;
+        }
+        v.forEach(x => {
+          if (WX_T.indexOf(x) < 0) {
+            wxBad.push('事件 ' + ev.id + ' 的 cond.' + k + ' 里写了不存在的天气「' + x
+              + '」（现算值域：' + WX_T.join(' / ') + '）—— 这条事件永远不会触发');
+          }
+        });
+      });
+      tmKeys.forEach(k => {
+        if (!(k in c)) return;
+        withTm++;
+        const v = c[k];
+        if (!Array.isArray(v) || !v.length) {
+          wxBad.push('事件 ' + ev.id + ' 的 cond.' + k + ' 不是非空数组 —— 这条门永不匹配（事件永不出现）');
+          return;
+        }
+        v.forEach(x => {
+          if (TM_T.indexOf(x) < 0) {
+            wxBad.push('事件 ' + ev.id + ' 的 cond.' + k + ' 里写了不存在的时段「' + x
+              + '」（现算值域：' + TM_T.join(' / ') + '）—— 这条事件永远不会触发');
+          }
+        });
+      });
+    });
+    if (!withWx) wxBad.push('一条事件都没用到天气门（内容表里那几道天气门是不是被删光了？）');
+    if (!withTm) wxBad.push('一条事件都没用到时段门（内容表里那几道时段门是不是被删光了？）');
+    /* 旁观对话那张表吃同一份 `condOk()` ⇒ 同一条规则也要盯住（不然它是网外之物）。
+       ⚠️ 这里**自己读一次** `G.STORY_BANTER`（不借本文件后面那个 `BNC`）——
+          那个 `const` 在本组之后才声明，借它会踩 TDZ（实测：整份门禁当场抛 ReferenceError）。 */
+    (((sandbox.G && sandbox.G.STORY_BANTER) || [])).forEach(b => {
+      const c = (b && b.cond) || {};
+      Object.keys(c).forEach(k => {
+        const v = c[k];
+        if (!Array.isArray(v)) return;
+        v.forEach(x => {
+          if (typeof x !== 'string') return;
+          if (WX_T.indexOf(x) >= 0 || TM_T.indexOf(x) >= 0) return;
+          if (k === 'field') return;                  /* 钓场的值域另有判据（⑪-b） */
+          if (FISH_T && FISH_T[x]) return;            /* 图鉴门（另有判据） */
+          if (outcomes.indexOf(x) >= 0) return;       /* 上一竿的结局（另有判据） */
+          wxBad.push('STORY_BANTER[' + (b && b.id) + '] 的 cond.' + k + ' 里写了「' + x
+            + '」—— 它既不是天气（' + WX_T.join('/') + '）也不是时段（' + TM_T.join('/') + '），'
+            + '这道门永远不匹配');
+        });
+      });
+    });
+  }
+  if (wxBad.length) { err('天气门 / 时段门的值域不对：' + wxBad.join('；')); storyBad++; }
+
   /* ⑧ 存档：字段要在 blank() 里，migrate() 要纠正**每一个**容器类型（脏档兜底）
      ⚠️ 判据必须认**字段声明 / 赋值本身**，不能只认「这段文字里出现过 story 这个词」——
         第一版写成 `has(body, 'story')`，反向验证当场假通过：把 `story:` 那一行删掉之后，

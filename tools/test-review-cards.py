@@ -670,6 +670,41 @@ def main():
             l for l in src.split("\n") if ("say(" not in l and "print(" not in l)),
             "rerender.py 的**代码行**里不碰锁路径（提示句里提一下是允许的）")
 
+    print("\n[15] 形态档案：大小档（maxKg）两条路都要写（Q13）")
+    GA = load_genart()
+    _f = GA.load_fish()
+    _ver = [f for f in _f if GA.trait_of(f["id"], "form")]
+    # ① 行为判据（真判据）：362 条（全都有查证过的 form）的形态档案里都必须能读出自己的大小档
+    _miss = [f["id"] for f in _f if GA.size_band(f) not in GA.form_profile(f)]
+    check(_f and _ver and not _miss,
+          "每条鱼的形态档案都含自己的大小档（有 form 的 %d 条；缺 %d 条%s）"
+          % (len(_ver), len(_miss), ("：%s" % ", ".join(_miss[:6])) if _miss else ""))
+    check([f for f in _f if not GA.form_profile(f).startswith(GA.size_band(f))] == [],
+          "大小档排在形态档案**最前**（原来的推导路径也是这个次序 —— 别塞到尾巴上）")
+    # ② 名词要跟着体型族走：非鱼不许写 fish
+    _nonfish = [f for f in _f if f.get("shape", "fish") not in GA.FISH_SHAPES]
+    _fishy = [f for f in _f if f.get("shape", "fish") in GA.FISH_SHAPES]
+    check(_nonfish and _fishy, "体型集合两侧都非空（非鱼 %d 条 / 鱼形 %d 条）"
+          % (len(_nonfish), len(_fishy)))
+    check(all("fish" not in GA.size_band(f) for f in _nonfish),
+          "非鱼体型（螺 / 蟹 / 水母…）的大小档不写 fish（写 creature）—— 写 fish 是类别错误")
+    check(all(GA.size_band(f).endswith("fish") for f in _fishy), "鱼形家族的大小档以 fish 结尾")
+    # ③ 五档边界 + 超界兜底（空集 ⇒ 恒真，所以两处都先证明非空）
+    _bands = [GA.size_band({"maxKg": kg, "shape": "fish"}) for kg in (0.3, 1.0, 5.0, 50.0, 1e6)]
+    check(len(set(_bands)) == 5, "5 个档位各命中一句（实得 %r）" % (_bands,))
+    _over = [f for f in _f if (f.get("maxKg") or 0) >= GA.SIZE_BANDS[-1][0]]
+    check(_over and all(GA.size_band(f).startswith("a huge massive ") for f in _over),
+          "maxKg 超出最后一档的 %d 条走兜底（不兜底 = 不报错、只是静默少一句）" % len(_over))
+    # ④ 唯一实现：form_profile 体内不许再摸 SIZE_BANDS（判据剥注释与 docstring —— 散文里提到不算）
+    _src = io.open(os.path.join(TOOLS, "gen-art.py"), encoding="utf-8").read()
+    _body = _src.split("def form_profile(f):")[1].split("\ndef ")[0]
+    _code = re.sub(r'""".*?"""', "", _body, flags=re.S)
+    _code = re.sub(r"#[^\n]*", "", _code)
+    check(len(_code) > 200 and "size_band(f)" in _code,
+          "form_profile 体内确实调了 size_band(f)（取不到函数体就报这里的红）")
+    check("SIZE_BANDS" not in _code,
+          "form_profile 体内不再出现 SIZE_BANDS —— 大小档只有 size_band() 一处实现")
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

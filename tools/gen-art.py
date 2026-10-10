@@ -1841,28 +1841,71 @@ TAIL_HINTS = [
     ("鲸",   "a wide horizontal fluke"),
 ]
 
-# 体型大小 —— 由 `maxKg` 分档（实测分布：p25=1.2 / p50=4 / p75=40 / max=20000，
+# 体型大小 —— 由 `maxKg` 分档（实测分布：p25=1.2 / p50=4 / p75=40 / max=2e18，
 # 跨 5 个数量级，是最有效的「个体差异」维度之一）
+#
+# ⚠️ 这五句里那个**名词留空（`%s`），由 `size_band()` 现填** ——
+#    362 条里有 **177 条不是鱼**（螺 / 蟹 / 甲壳 / 海蛇尾 / 水母 / 龟 / 虫…），
+#    一律写 "fish" 是**类别错误**（理由与代价见 `size_band()` 的注释）。
 SIZE_BANDS = [
-    (0.5,  "a very small fish"),
-    (2.0,  "a small fish"),
-    (8.0,  "a medium-sized fish"),
-    (60.0, "a large fish"),
-    (1e9,  "a huge massive fish"),
+    (0.5,  "a very small %s"),
+    (2.0,  "a small %s"),
+    (8.0,  "a medium-sized %s"),
+    (60.0, "a large %s"),
+    (1e9,  "a huge massive %s"),
 ]
+
+
+def size_band(f):
+    """**体型大小档** —— `SIZE_BANDS` 的**唯一消费方**（2026-10-10 提出来）。
+
+    🔴 **为什么必须单独成一个函数**：`form_profile()` 原来在「有查证过的 `form`」时**提前
+       return**（`if real_form: return [real_form, fins]`）—— 而 **362 条全都有 `form`**
+       ⇒ 大小档**一条都没写进提示词**，`SIZE_BANDS` 整张表成了死代码。
+       结果是一条 **0.04 kg 的食蚊鱼**和一条 **2e18 kg 的「时之终点·无相龟」**在提示词里
+       **完全同尺寸**（实测：两边的 `form_profile()` 输出都不含任何大小档）。
+       提出来之后，`form_profile()` 的两条分支共用这一处实现 ⇒
+       「大小档」这个事实**只有一处真相**（这也是 Q13 的正解）。
+
+    🔴 **为什么档位的名词要现填而不是写死 "fish"**：362 条里 **177 条不是鱼**。
+       给「塘泥螺」写 "a very small fish" 是**类别错误** —— 本项目因为同一类错误栽过一次
+       （`proportion_line()` 曾把章鱼写成 "a moderately slender fish"）。
+       判据用**集合** `FISH_SHAPES`（不许写 `shape == "fish"` 那种单键比较 ——
+       通用鱼形拆成 19 个体型之后它会**静默失效**，见那张表的注释）。
+       ⚠️ 代价：`eel` / `oarfish` / `ray` / `manta` / `shark` **不在** `FISH_SHAPES` 里
+       （它们是鱼，只是不适用「体深 ÷ 体长」那套框架）⇒ 会说成 "creature"。
+       这是**有意**的方向选择：`creature` 对它们**成立**（只是不如 "fish" 具体），
+       而对螺 / 蟹 / 水母 / 龟是**唯一正确**的说法 —— **宁可说得笼统，不说错**。
+
+    ⚠️ **超出最后一档必须兜底**：SS / SSS 里 **64 条**的 `maxKg` 从 1.1e9 一直到 2e18，
+       连 `SIZE_BANDS` 最后那档（1e9）都够不着 —— 循环 `kg < lim` 走完**一个都不命中**。
+       不兜底就又是「不报错、只是静默少一句」，所以直接取最后一档。
+    """
+    noun = "fish" if f.get("shape", "fish") in FISH_SHAPES else "creature"
+    kg = f.get("maxKg") or 0.1
+    desc = SIZE_BANDS[-1][1]
+    for lim, tpl in SIZE_BANDS:
+        if kg < lim:
+            desc = tpl
+            break
+    return desc % noun
 
 
 def form_profile(f):
     """**形态档案** —— 用户口径：「按身体特征对每条鱼先写一个描述」。
 
     🔴 **优先级（2026-10-07 改）**：
-      ① `fish-traits.json` 里**逐条查证过**的 `form` / `fins` —— 有就用它，直接用完就返回
+      ① `fish-traits.json` 里**逐条查证过**的 `form` / `fins` —— 有就用它
       ② 没有查证记录时，才退回下面的推导（名义上是"由真实数据驱动"，但**是推导不是查证**）
+
+    🔴 **大小档两条路都写**（2026-10-10 修，见 Q13）：原来①这一支是**提前 return**，
+       把大小档一起吃掉了 —— 而 362 条全都有 `form` ⇒ **一条都没写过尺寸**。
+       现在① = `大小档 + form + fins`，② 也走同一个 `size_band()`（唯一实现）。
 
     ⚠️ 退回推导时，数据来源是：
       | 维度 | 来源 |
       |---|---|
-      | 体型大小 | `maxKg`（0.04~20000，跨 5 个数量级） |
+      | 体型大小 | `maxKg`（0.04~2e18，跨 5 个以上数量级）—— 见 `size_band()` |
       | 身体比例 | `body_ratio`（0.20~0.86） |
       | 头型 / 尾型 | 名字科属线索（`TAIL_HINTS` / `HEAD_HINTS`） |
 
@@ -1873,11 +1916,15 @@ def form_profile(f):
 
     ⚠️ 五条都写进提示词会太长、稀释风格锚点，所以推导路径**只挑最能区分的三条**
        （大小 / 比例 / 尾型），头型重叠时再补一条。
+
+    ⚠️ **推导路径当前是死代码**（362/362 都有查证过的 `form`，一进函数就从①返回）——
+       留着是为了「将来加一条没查证过的鱼」时不至于报错，但**别指望它被跑到**。
+       Q13 的病根恰恰就是「唯一被跑到的那条分支漏了大小档」。
     """
-    # ① 查证过的真实形态优先 —— 有就不必再推导
+    # ① 查证过的真实形态优先（**大小档照样要写** —— 见 docstring / Q13）
     real_form = trait_of(f["id"], "form")
     if real_form:
-        parts = [real_form]
+        parts = [size_band(f), real_form]
         real_fins = trait_of(f["id"], "fins")
         if real_fins:
             parts.append(real_fins)
@@ -1885,12 +1932,8 @@ def form_profile(f):
 
     out = []
 
-    # ② 体型大小（maxKg）
-    kg = f.get("maxKg") or 0.1
-    for lim, desc in SIZE_BANDS:
-        if kg < lim:
-            out.append(desc)
-            break
+    # ② 体型大小（maxKg）—— 唯一实现见 `size_band()`
+    out.append(size_band(f))
 
     # ③ 身体比例（body_ratio）—— 只对有躯干的体型
     shape = f.get("shape", "fish")
@@ -2664,9 +2707,14 @@ def write_forms(fish):
     L = []
     L.append("# 鱼形态档案（%d 条）\n" % len(fish))
     L.append("> 由 `tools/gen-art.py --forms` 生成，**不要手改**（改逻辑请改 `form_profile()`）。")
-    L.append("> 每条鱼的形态描述从 `fish.js` 的真实数据推导：")
-    L.append("> **体型大小 ← `maxKg`** ｜ **身体比例 ← `body_ratio`** ｜ "
-             "**尾型 / 头型 ← 名字线索，找不到用稳定随机兜底**。")
+    L.append("> **有查证过的 `form`（现在 362/362 都有）时**：本条 = `大小档 + form + fins`；")
+    L.append("> 没有时退回推导：**体型大小 ← `maxKg`**（`size_band()`）｜ "
+             "**身体比例 ← `body_ratio`** ｜ **尾型 / 头型 ← 名字线索，找不到就`不写`**。")
+    L.append("> 🔴 **大小档两条路都写**（2026-10-10 修 Q13 —— 修之前它被提前 return 吃掉，"
+             "362 条全无尺寸）。")
+    L.append("> ⚠️ 大小档那个名词按体型族现填：**非鱼写 `creature`**"
+             "（362 条里 177 条不是鱼，一律写 `fish` 是类别错误）。")
+    L.append("> ⛔ 尾型 / 头型**没有随机兜底**，命中不了就不写（旧版这里写着「稳定随机兜底」，早已作废）。")
     L.append("> ⚠️ `tail` 字段**不可用**（实测 351/362 都是 `fan`），所以尾型不走它。\n")
     L.append("| id | 名字 | 档 | 体型 | 形态描述 |")
     L.append("|---|---|---|---|---|")

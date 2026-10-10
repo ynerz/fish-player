@@ -3348,6 +3348,180 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
     + 'check_pools() 加载即校验；morph_pick 走 md5；四档基准句在册');
 })();
 
+/* ---------------- 33-g. 图鉴**手写文案**（`docs/图鉴文案-手写.md`）的口径不许漂 ----------------
+   🔴 为什么要有这一节（2026-10-11，W1 收尾）：这份 362 条的文案**不被游戏读取**、
+   也不在任何门禁的视野里 —— 它漂开的时候一句报错都没有。而它是对外说
+   「这条鱼是怎么活的」的唯一一份逐条文字（将来接进图鉴 / 拿去做别的产物都用它）。
+   判据全部**从数据现算**（`fish.js` / `fields.js` / `config.js` / `docs/新物种名册.md`），
+   不写死任何鱼名、档位名、条数：
+     ① 条数 / 序号 / id：与 `fish.js` 一一对应，序号 1..N 连续；
+     ② 表头：每条标题的「名字（钓场 · 最小体重 · 价格）」必须等于现算值 ——
+        它由 `_tmp/merge_captions.py` 一次性生成，改完数值没人重算就**永远停在旧数上**；
+     ③ 档位：分界**从 `CFG.rarity` 现算**（`epic` 那个下标）——
+        普通 / 稀有只写「原色 + 闪光」，史诗 / 传说写全五档（用户口径）；
+     ④ 正文不许把**生图提示词**抄进来（用户口径「图鉴文案中不需要有生成图的提示词」）；
+     ⑤ 旧物种：`docs/新物种名册.md` 的「原名」列是**已经删掉的真实物种**
+        （鲷 / 鲳 / 金枪鱼 / 章鱼 / 鲸 …），W1 把 104 条按新物种重写了 ⇒
+        同一条的正文里不许再出现那个旧名，**也不许出现它的末字**（属名）。
+        ⚠️ 新名里含末字时跳过（例：`终焉之影·忘川` 的末字「川」在新名里）。
+     ⑥ 文末「待重写清单」的勾选状态必须与正文**一致**：勾了 ⇒ 正文认不出旧物种；
+        没勾 ⇒ 正文**必须**还认得出旧物种（不然勾选就是个装饰）。
+   ⚠️ 这一节**不计数**（名字带字母后缀，㉞ 只数纯数字节号）。
+*/
+(function () {
+  const rel = 'docs/图鉴文案-手写.md';
+  const P = path.join(ROOT, rel);
+  if (!fs.existsSync(P)) { err(`缺 ${rel} —— 逐条手写文案是「这条鱼怎么活的」唯一一份文字`); return; }
+  const txt = fs.readFileSync(P, 'utf8');
+  const lines = txt.split('\n');
+  const HEAD = /^## (\d+) · ([A-Z]{1,3}\d{2,3}) (.+)（([^（）]*)）\s*$/;
+
+  /* 一趟扫完：标题 + 正文块 */
+  const items = [];
+  let cur = null;
+  lines.forEach(l => {
+    const m = HEAD.exec(l);
+    if (m) { cur = { no: +m[1], id: m[2], name: m[3], meta: m[4], body: [] }; items.push(cur); }
+    else if (cur) cur.body.push(l);
+  });
+  if (!items.length) { err(`${rel} 一条都没认出（标题格式变了？）—— 以下判据会恒真，先修解析`); return; }
+  let bad = 0;
+
+  /* ① 条数 / 序号 / id 一一对应 */
+  const fname = {}, fieldOf = {};
+  (G.FIELDS || []).forEach(f => { fname[f.id] = f.name; });
+  Object.keys(G.FISH_BY_FIELD || {}).forEach(fid => {
+    (G.FISH_BY_FIELD[fid] || []).forEach(f => { fieldOf[f.id] = fid; });
+  });
+  if (!Object.keys(fieldOf).length) { err('拿不到 G.FISH_BY_FIELD —— 33-g 的钓场判据抓不到数据（先修判据本身）'); return; }
+  if (items.length !== G.FISH.length) {
+    err(`${rel} 有 ${items.length} 条，而 fish.js 有 ${G.FISH.length} 条`); bad++;
+  }
+  const seqBad = items.filter((h, i) => h.no !== i + 1);
+  if (seqBad.length) {
+    err(`${rel} 的序号不连续（第 ${seqBad[0].no} 条排在 ${seqBad[0].id} 前面）—— `
+      + '合并脚本那次「序号连续」的断言管不住后续的人工编辑'); bad++;
+  }
+  const cnt = {}; items.forEach(h => { cnt[h.id] = (cnt[h.id] || 0) + 1; });
+  const dup = Object.keys(cnt).filter(k => cnt[k] !== 1);
+  if (dup.length) { err(`${rel} 有重复 id：${dup.slice(0, 8).join(' / ')}`); bad++; }
+  const ghost = items.filter(h => !G.FISH_ID[h.id]).map(h => h.id);
+  if (ghost.length) { err(`${rel} 有 fish.js 里不存在的 id：${ghost.slice(0, 8).join(' / ')}`); bad++; }
+  const missing = G.FISH.filter(f => !cnt[f.id]).map(f => f.id);
+  if (missing.length) { err(`${rel} 漏了 ${missing.length} 条鱼：${missing.slice(0, 8).join(' / ')}`); bad++; }
+
+  /* ② 表头三个数必须现算。体重口径**与 merge_captions.py 同源**：
+      <1kg → g、<1000kg → kg、再往上 吨 / 万吨 / 亿吨 / 万亿吨。
+      ⚠️ 与游戏内 `U.kg()`（一律 g/kg）**不是同一个口径**，是有意的（文件头写明）。 */
+  function handKg(w) {
+    if (w < 1) return Math.round(w * 1000) + ' g';
+    if (w < 1000) return (w.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')) + ' kg';
+    const t = w / 1000;
+    const units = [[1e12, '万亿吨'], [1e8, '亿吨'], [1e4, '万吨'], [1, '吨']];
+    for (const [div, unit] of units) {
+      if (t >= div) return (t / div).toFixed(2).replace(/0+$/, '').replace(/\.$/, '') + ' ' + unit;
+    }
+    return Math.round(t) + ' 吨';
+  }
+  const metaBad = [];
+  items.forEach(h => {
+    const f = G.FISH_ID[h.id];
+    if (!f) return;
+    if (f.name !== h.name) metaBad.push(`${h.id} 名字写「${h.name}」，fish.js 是「${f.name}」`);
+    const parts = h.meta.split(' · ');
+    if (parts.length !== 3) { metaBad.push(`${h.id} 标题括号里不是「钓场 · 体重 · 价格」三段：「${h.meta}」`); return; }
+    const want = [fname[fieldOf[h.id]] || fieldOf[h.id], handKg(f.minKg), f.price + ' 金'];
+    parts.forEach((got, i) => { if (got !== want[i]) metaBad.push(`${h.id} 表头第 ${i + 1} 段写「${got}」，现算是「${want[i]}」`); });
+  });
+  if (metaBad.length) {
+    err(`${rel} 的表头有 ${metaBad.length} 处与数据对不上（前 6 处：${metaBad.slice(0, 6).join('；')}）—— `
+      + '表头是「现算」的，改完数值要重算；它是最容易被手抄成旧值的一处'); bad++;
+  }
+
+  /* ③ 档位覆盖：分界从 CFG.rarity 现算 */
+  const cn = (CFG.colorMorphs || []).map(c => c.name);
+  const epicIdx = (CFG.rarity || []).findIndex(r => r.key === 'epic');
+  if (cn.length < 2 || epicIdx < 0) {
+    err('读不到 `CFG.colorMorphs` / `CFG.rarity` 的 `epic` 档 —— 33-g 的档位判据会恒真，先修判据'); return;
+  }
+  const few = [cn[0], cn[cn.length - 1]];      /* 原色 + 闪光 */
+  const all = cn.slice();
+  const MORPH = /^- \*\*(.+?)\*\*：/;
+  const lvBad = [], alien = [];
+  items.forEach(h => {
+    const f = G.FISH_ID[h.id];
+    const bold = h.body.map(l => (MORPH.exec(l) || [, null])[1]).filter(Boolean);
+    /* 档位行 = 名字∈`CFG.colorMorphs`；其余粗体行只许是写稿期的旁注（`⚠️ 备注`） */
+    bold.forEach(b => { if (cn.indexOf(b) < 0 && !/^⚠️/.test(b)) alien.push(`${h.id} 的「${b}」`); });
+    const got = bold.filter(b => cn.indexOf(b) >= 0);
+    const want = (f && f.rar >= epicIdx) ? all : few;
+    if (got.join('|') !== want.join('|')) lvBad.push(`${h.id} 写的是 [${got.join('/')}]，应为 [${want.join('/')}]`);
+  });
+  if (alien.length) {
+    err(`${rel} 里有 ${alien.length} 行粗体标题不是档位名、也不是 ⚠️ 旁注（${alien.slice(0, 6).join('；')}）—— `
+      + '多半是档位名写错（写错了只会被静默忽略，等于那一档没写）'); bad++;
+  }
+  if (lvBad.length) {
+    err(`${rel} 有 ${lvBad.length} 条的档位不对（前 6 条：${lvBad.slice(0, 6).join('；')}）—— `
+      + '口径是「普通 / 稀有只写原色 + 闪光，史诗 / 传说写全五档」'); bad++;
+  }
+
+  /* ④ 正文不许抄进生图提示词 */
+  const leak = items.filter(h => h.body.some(l => /提示词|prompt/i.test(l))).map(h => h.id);
+  if (leak.length) {
+    err(`${rel} 里 ${leak.length} 条的正文出现了「提示词 / prompt」（${leak.slice(0, 8).join(' / ')}）—— `
+      + '用户口径：「图鉴文案中不需要有生成图的提示词」'); bad++;
+  }
+
+  /* ⑤ 旧物种不许再出现在同一条的正文里（名册「原名」列现算） */
+  const rosterP = path.join(ROOT, 'docs/新物种名册.md');
+  if (!fs.existsSync(rosterP)) { err('缺 `docs/新物种名册.md` —— 33-g 的旧物种判据抓不到名单（先修判据本身）'); return; }
+  const roster = {};
+  (fs.readFileSync(rosterP, 'utf8').match(/^\|\s*([A-Z]{1,3}\d{2,3})\s*\|[^|]*\|\s*([^|]+?)\s*\|\s*\*\*([^*]+)\*\*\s*\|/gm) || [])
+    .forEach(r => {
+      const m = /^\|\s*([A-Z]{1,3}\d{2,3})\s*\|[^|]*\|\s*([^|]+?)\s*\|\s*\*\*([^*]+)\*\*\s*\|/.exec(r);
+      if (m) roster[m[1]] = { old: m[2], neu: m[3] };
+    });
+  if (!Object.keys(roster).length) { err('`docs/新物种名册.md` 的「原名」列一条都认不出 —— 33-g 的旧物种判据会恒真'); return; }
+  const byId = {}; items.forEach(h => { byId[h.id] = h; });
+  const dirty = {};                       /* id -> 正文里还留着旧物种的证据 */
+  Object.keys(roster).forEach(id => {
+    const h = byId[id]; if (!h) return;
+    const body = h.body.join('\n');
+    const { old, neu } = roster[id];
+    if (body.includes(old)) { dirty[id] = `整串旧名「${old}」`; return; }
+    /* 旧属名：用**末两字**，不用末一字 —— 末一字会假报（实测 S41「已经不是鱼了」/ S47「鱼雷」
+       都是正常行文，而它们的旧名末字恰好是「鱼」，见反向验证第 ② 组）。
+       新名里已经含它时跳过（例「终焉之影·忘川」的「忘川」）。 */
+    const tail2 = old.slice(-2);
+    if (old.length > 2 && !neu.includes(tail2) && body.includes(tail2)) dirty[id] = `旧属名「${tail2}」`;
+  });
+
+  /* ⑥ 清单勾选状态必须与正文一致 */
+  const chk = [];
+  lines.forEach(l => {
+    const m = /^- \[([ x])\] `([A-Z]{1,3}\d{2,3})`/.exec(l);
+    if (m) chk.push({ done: m[1] === 'x', id: m[2] });
+  });
+  if (!chk.length) { err(`${rel} 文末的「待重写清单」一条都没认出（格式变了？）—— 勾选判据会恒真`); return; }
+  const chkGhost = chk.filter(c => !G.FISH_ID[c.id]).map(c => c.id);
+  if (chkGhost.length) { err(`${rel} 的清单里有 fish.js 不存在的 id：${chkGhost.slice(0, 8).join(' / ')}`); bad++; }
+  const lieNo = chk.filter(c => c.done && dirty[c.id]).map(c => `${c.id}（${dirty[c.id]}）`);
+  if (lieNo.length) {
+    err(`${rel} 的清单已经勾掉、但正文还认得出旧物种：${lieNo.slice(0, 8).join(' / ')}`); bad++;
+  }
+  const lieYes = chk.filter(c => !c.done && roster[c.id] && !dirty[c.id]).map(c => c.id);
+  if (lieYes.length) {
+    warn(`${rel} 的清单还留着未勾项，但那些条的正文已认不出旧物种（${lieYes.slice(0, 8).join(' / ')}）`
+      + ' —— 勾选状态与事实不符，去把清单勾上'); 
+  }
+  if (!bad) {
+    ok(`${rel}：${items.length} 条与 fish.js 一一对应、序号连续、表头三个数现算一致；`
+      + `档位覆盖按 rarity 现算（\`epic\` 以下 ${few.join(' + ')}、以上 ${all.length} 档全写）；`
+      + `旧物种名 ${Object.keys(roster).length} 条无一回流；清单勾选与正文一致`);
+  }
+})();
+
 /* ---------------- 34. 文档里写的「自检 N 节」必须就是本文件的节数 ----------------
    开发者文档 §8 出现过「数据自检 29 节」、GDD §目录树 写着「自检 15 节」，
    而本文件早就不是这个数了 —— 每加一节就过期一次，而且没人会去核对。

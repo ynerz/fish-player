@@ -586,9 +586,9 @@
  },
  "D04": {
   "name": "泥鳅",
-  "species": "Misgurnus anguillicaudatus",
-  "form": "an elongated body with a cylindrical anterior part and a laterally compressed posterior part, a pointed head, five pairs of barbels, small degenerate eyes",
-  "fins": "",
+  "species": "",
+  "form": "a coiled dark shell carried on a soft muscular foot, a small head with two short tentacles at the front, the whole shell coated in pond silt",
+  "fins": "a low spiral ridge running around the shell",
   "markings": "",
   "colour": "体背部及两侧深灰色，腹部灰白色或浅黄色",
   "source": "百科原文归一化（AI）"
@@ -622,18 +622,18 @@
  },
  "D09": {
   "name": "黄颡鱼",
-  "species": "Pelteobagrus fulvidraco",
-  "form": "a large flat head, a short snout, a downward-pointing mouth, four pairs of barbels, naked skin",
-  "fins": "",
+  "species": "",
+  "form": "a broad flattened shell with two forward-facing pincers and four short jointed legs along the lower edge, mottled yellow-brown over the whole shell",
+  "fins": "two heavy pincers at the front",
   "markings": "three interrupted bands along the flanks",
   "colour": "体背部黑褐色，体侧黄色，腹部淡黄色，各鳍灰黑色",
   "source": "百科原文归一化（AI）"
  },
  "D11": {
   "name": "黄鳝",
-  "species": "Monopterus albus",
-  "form": "an elongated cylindrical eel-like body, a short stout head, small eyes, a relatively large mouth, smooth scaleless skin, the left and right gill openings merged into a single V-shaped opening on the underside of the head",
-  "fins": "no pectoral or pelvic fins in adults, the dorsal and anal fins reduced to low skin folds",
+  "species": "",
+  "form": "a long soft segmented body with a ring of short feelers at the front end and small paddle feet along both sides",
+  "fins": "a fringe of paddle feet along the whole body",
   "markings": "irregular markings on the underside, small spots on the body",
   "colour": "体背灰黑色，腹部灰白色，有黑色点斑",
   "source": "百科原文归一化（AI）"
@@ -703,9 +703,9 @@
  },
  "S34": {
   "name": "深海龙鱼",
-  "species": "Grammatostomias flagellibarba",
-  "form": "a small elongated body, a large head, a huge mouth, sharp nail-like teeth in the upper and lower jaws, small sharp teeth on the upper jaw and tongue, tubular eyes, entirely scaleless skin",
-  "fins": "",
+  "species": "",
+  "form": "a long soft segmented body with a ring of long whisker-like feelers at the front end and small paddle feet along both sides",
+  "fins": "a ring of long whisker-like feelers",
   "markings": "two rows of luminous photophores along the flanks, a luminous lure on the barbel of the lower jaw",
   "colour": "",
   "source": "百科原文归一化（AI）"
@@ -721,9 +721,9 @@
  },
  "S41": {
   "name": "皇带鱼",
-  "species": "Regalecus glesne",
-  "form": "an elongated ribbon-like body, a horse-like head, a short blunt snout, medium-sized eyes set high and lateral near the snout, a small mouth at the front of the head slanting upward and lacking teeth on the jaws and palate, naked skin, many irregular small granular bumps along the flanks",
-  "fins": "a single long dorsal fin, the front elongated into filaments",
+  "species": "",
+  "form": "an extremely long thin ribbon-like body with a tall crest running the whole length of the back and a small silver crown at the head",
+  "fins": "a tall silver crest running the whole back",
   "markings": "stripes and spots along the body",
   "colour": "体色银亮，具黑色条纹和斑点，且有蓝色条纹",
   "source": "百科原文归一化（AI）"
@@ -731,8 +731,8 @@
  "S42": {
   "name": "巨口鲨",
   "species": "",
-  "form": "a large wide long blunt head, a very short snout, a huge mouth at the front of the head",
-  "fins": "soft fins, large narrow elongated pectoral fins, a broom-shaped tail fin with a long upper lobe only slightly upturned",
+  "form": "a soft muscular mantle with a pointed tip and a cluster of long arms, the mouth opening into a wide funnel",
+  "fins": "a cluster of long arms around a wide mouth",
   "markings": "",
   "colour": "前部体色呈棕黑色，腹部偏白色",
   "source": "百科原文归一化（AI）"
@@ -740,8 +740,8 @@
  "S46": {
   "name": "太平洋睡鲨",
   "species": "",
-  "form": "a stout body, a short conical blunt snout, the snout length about equal to the mouth width, slender long upper teeth and shorter slanted lower teeth with overlapping bases",
-  "fins": "two small dorsal fins with no spines, pectoral fins with broad rounded tips, a short asymmetrical tail fin",
+  "form": "a very heavy coiled shell carried on a soft muscular foot, a small head with short tentacles at the front, the shell worn into deep smooth bands",
+  "fins": "a heavy ridge running around the shell",
   "markings": "small spots on the back",
   "colour": "鱼鳍成蓝黑色中带不均匀的灰粉红色；通常覆盖着深棕色的黏膜；吻部下侧、上唇和嘴深色具有光泽",
   "source": "百科原文归一化（AI）"
@@ -811,9 +811,9 @@
  },
  "S47": {
   "name": "尖吻鲭鲨",
-  "species": "Isurus oxyrinchus",
-  "form": "a spindle-shaped body, a pointed snout, long awl-shaped teeth",
-  "fins": "a triangular dorsal fin, a large crescent-shaped tail fin",
+  "species": "",
+  "form": "a torpedo-shaped body with a pointed snout and a tall triangular dorsal fin, the snout drawn out into a long sharp spike",
+  "fins": "a long sharp spike at the snout",
   "markings": "",
   "colour": "身体上部呈深金属蓝色，腹部呈银白色，侧面有非常明显的颜色分界线",
   "source": "百科原文归一化（AI）"
@@ -847,9 +847,9 @@
  },
  "D12": {
   "name": "青虾虎",
-  "species": "Ptereleotris heteroptera",
-  "form": "an elongated oval body",
-  "fins": "",
+  "species": "",
+  "form": "a jointed body under a hard segmented shell with a row of small jointed legs beneath it and a fan-shaped tail",
+  "fins": "two long thin feelers at the front",
   "markings": "a prominent spot on the tail fin",
   "colour": "体色淡蓝色或绿色，尾巴上带有很明显的黑斑",
   "source": "百科原文归一化（AI）"
@@ -865,9 +865,9 @@
  },
  "D16": {
   "name": "塘主的大青鱼",
-  "species": "Mylopharyngodon piceus",
-  "form": "an elongated body, a rounded belly, no keel along the belly, a broad blunt head, a mouth at the front of the head, no barbels",
-  "fins": "a long dorsal fin with no spines, a forked tail fin",
+  "species": "",
+  "form": "a domed armoured shell on a flattened body, four broad paddle-shaped limbs and a small head on a short neck, the shell worn smooth and dark with age",
+  "fins": "four broad paddle-shaped limbs",
   "markings": "",
   "colour": "体背青黑色，体侧青灰色，腹部灰白色",
   "source": "模型知识（**未联网查证**）"
@@ -1163,8 +1163,8 @@
  "S04": {
   "name": "银斧鱼",
   "species": "",
-  "form": "a deep laterally compressed body, a thin hatchet-shaped body, a short head, a steep forehead, large tubular upward-directed eyes, a small mouth",
-  "fins": "a dorsal fin, an anal fin, small pectoral fins, a forked tail fin",
+  "form": "a jointed body under a hard segmented shell with a row of small jointed legs beneath it and a fan-shaped tail, bright silver over the whole shell",
+  "fins": "a pair of long thin feelers at the front",
   "markings": "rows of photophores along the belly",
   "colour": "",
   "source": "模型知识（**未联网查证**）"
@@ -1307,17 +1307,17 @@
  "S29": {
   "name": "吸血乌贼",
   "species": "",
-  "form": "a small gelatinous body, eight arms joined by a webbed cloak-like membrane, a pair of small fins on top of the body, large eyes, rows of fleshy spines on the arms",
-  "fins": "a pair of small rounded fins on the upper body",
+  "form": "a broad flattened shell with two forward-facing pincers and four short jointed legs along the lower edge, the eyes reduced to pale patches",
+  "fins": "two heavy pincers at the front",
   "markings": "",
   "colour": "",
   "source": "模型知识（**未联网查证**）"
  },
  "S30": {
   "name": "幽灵蛸",
-  "species": "Vampyroteuthis infernalis",
-  "form": "a small gelatinous body, a webbed cloak-like membrane connecting all the arms, dozens of fleshy projections on the arms, large eyes",
-  "fins": "",
+  "species": "",
+  "form": "a smooth coiled shell carried on a soft muscular foot, a small head with short tentacles at the front, the shell pale and faintly banded",
+  "fins": "a smooth ridge running around the shell",
   "markings": "",
   "colour": "大红眼睛，黑色斗篷",
   "source": "百科原文归一化（AI）"
@@ -1333,9 +1333,9 @@
  },
  "S32": {
   "name": "雪茄达摩鲨",
-  "species": "Isistius brasiliensis",
-  "form": "a small spindle-shaped body, a short snout, a horizontal mouth with a well-developed upper lip, hooked teeth in the upper jaw and large upright overlapping teeth in the lower jaw",
-  "fins": "small pectoral fins, pelvic fins taller than the two dorsal fins, no anal fin, a short broad broom-shaped tail fin",
+  "species": "",
+  "form": "a jointed body under a hard segmented shell with a row of small jointed legs beneath it, the front pair of limbs drawn out into saw-toothed blades",
+  "fins": "the front pair of limbs drawn out into saw-toothed blades",
   "markings": "a transverse band crossing the belly between the gill openings in front of the pectoral fins",
   "colour": "体背暗褐色，腹部浅褐色或淡白色；鳍褐色，胸鳍、背鳍和腹鳍具淡白色边缘",
   "source": "百科原文归一化（AI）"
@@ -1360,9 +1360,9 @@
  },
  "S43": {
   "name": "格陵兰鲨",
-  "species": "Somniosus microcephalus",
-  "form": "a stout heavy body, a short blunt rounded snout, small eyes, a small mouth near the tip of the snout",
-  "fins": "small rounded pectoral fins, two small dorsal fins set far back near the tail, no anal fin, a nearly symmetrical tail fin",
+  "species": "",
+  "form": "a broad flattened shell with two forward-facing pincers and four short jointed legs along the lower edge, the shell crusted with pale ice-like plates",
+  "fins": "two heavy pincers at the front",
   "markings": "",
   "colour": "灰褐色至黑褐色，腹部颜色较浅",
   "source": "模型知识（**未联网查证**）"
@@ -1477,9 +1477,9 @@
  },
  "S38": {
   "name": "巨口鳗",
-  "species": "Eurypharynx pelecanoides",
-  "form": "an elongated slender eel-like body, a very large expandable mouth, a long whip-like tapering tail, small eyes",
-  "fins": "a long dorsal fin and a long anal fin that merge into the tail fin",
+  "species": "",
+  "form": "a soft elongated body that widens into a loose pouch at the front end, small paddle feet along both sides",
+  "fins": "a loose pouch mouth at the front",
   "markings": "",
   "colour": "体呈黑色或暗褐色",
   "source": "模型知识（**未联网查证**）"
@@ -3143,8 +3143,8 @@
  "S06": {
   "name": "深海鲷",
   "species": "",
-  "form": "a deep body, a steep forehead, a small mouth at the front of the head, a large eye",
-  "fins": "a long dorsal fin with a distinct spiny front section, a short anal fin, a forked tail fin",
+  "form": "a heavy coiled shell carried on a soft muscular foot, a small head with short tentacles at the front, the shell ridged in even steps",
+  "fins": "an even ridge running around the shell",
   "markings": "a small blotch at the base of the tail fin",
   "colour": "深海墨青底、背棘冷金，腹面浅灰",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
@@ -3170,17 +3170,17 @@
  "S24": {
   "name": "无光鳕",
   "species": "",
-  "form": "a moderately proportioned body, a large head, a blunt snout, a small chin barbel, sensory pores along the head",
-  "fins": "three separate dorsal fins, two anal fins, a slightly forked tail fin",
+  "form": "a long soft segmented body with a ring of short feelers at the front end and small paddle feet along both sides, colourless in the dark",
+  "fins": "a fringe of paddle feet along the whole body",
   "markings": "a line of sensory pores along the head and flank",
   "colour": "无光黑蓝底、哑光，须端深灰",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
  },
  "S39": {
   "name": "黑柔骨鱼",
-  "species": "Malacosteus niger",
-  "form": "a slender dark body, a large head, extremely long jaws forming an open gape with no floor to the mouth, fang-like teeth of mixed size, small eyes, naked scaleless skin",
-  "fins": "small pectoral fins, a dorsal fin set far back on the body, an anal fin set opposite the dorsal, a small forked tail fin",
+  "species": "",
+  "form": "a soft muscular mantle with a pointed tip and a cluster of long trailing arms, the whole mantle black and dull",
+  "fins": "a cluster of long trailing arms",
   "markings": "a row of luminous pores along the flank, a large luminous patch below the eye",
   "colour": "通体漆黑，眼下发光器深红，体侧光点稀疏",
   "source": "模型知识（**未联网查证**）"
@@ -3215,8 +3215,8 @@
  "S54": {
   "name": "孔灯鱼",
   "species": "",
-  "form": "a small compact body, a large head, a short blunt snout, large eyes, a large luminous organ set below the eye",
-  "fins": "a short dorsal fin, a short anal fin, small pectoral fins, a slightly forked tail fin",
+  "form": "a pale dome-shaped bell with a ring of small lights around its rim and long thin tentacles hanging below",
+  "fins": "a ring of small lights around the rim of the bell",
   "markings": "a row of luminous pores along the flank, a luminous patch below the eye",
   "colour": "深蓝底、眼下灯点冷青，体侧星屑",
   "source": "设计上虚构（**按名字设计，非现实物种**）"
@@ -3233,8 +3233,8 @@
  "S57": {
   "name": "角高体金眼鲷",
   "species": "",
-  "form": "a deep diamond-shaped body, a steep forehead with a short frontal crest, a very large eye, a small mouth at the front of the head",
-  "fins": "a long spiny dorsal fin, a short anal fin, a forked tail fin",
+  "form": "a coiled shell carried on a soft muscular foot, a small head with two short tentacles at the front, the mouth of the shell ringed in gold",
+  "fins": "a gold ring around the mouth of the shell",
   "markings": "a row of raised spines along the back, a spot at the base of the tail fin",
   "colour": "深海青底、大眼冷金环，背棘浅灰",
   "source": "设计上虚构（**按名字设计，非现实物种**）"

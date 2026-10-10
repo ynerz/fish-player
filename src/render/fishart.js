@@ -890,6 +890,159 @@ G.FishArt = (function () {
     }
   };
 
+  /* ── 蟹：**横宽**的甲壳 + 一对朝前的螯 + 下缘一排短步足 ──────────────────────
+     与 `crustacean` 的分工：那个是**虾形**（纵长的分节腹 + 尾扇），这个是**蟹形**。
+     共用一个剪影会把「虾 / 蟹」画成一个样 —— 而这一轮正好要把它俩分开用。 */
+  TPL.crab = function (ctx, fish, L, opt, p, rand) {
+    var t = (opt.t || 0);
+    var h = L * Math.max(0.20, Math.min(0.34, (fish.body_ratio || 0.34) * 1.00));
+    var rx = L * 0.44, ry = h * 0.92;
+    /* 甲壳：**横宽椭圆**（宽 > 高，这是蟹与虾最大的区别）。
+       ⚠️ 先画壳、**后画附肢** —— 反过来（第一版）腿和螯会被壳整块盖住，
+          截图上看就是「一个带眼睛的蛋」。 */
+    ctx.beginPath();
+    ctx.ellipse(L * 0.02, 0, rx, ry, 0, 0, 6.3);
+    var g = ctx.createLinearGradient(0, -ry, 0, ry);
+    g.addColorStop(0, p.bodyDark); g.addColorStop(0.45, p.body); g.addColorStop(1, p.belly);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.7, L * 0.008); ctx.stroke();
+    /* 甲壳分区（蟹壳上那两道沟） */
+    ctx.strokeStyle = U.rgba(p.bodyDark, 0.50); ctx.lineWidth = LWM(0.6, L * 0.007);
+    ctx.beginPath();
+    ctx.moveTo(L * 0.28, -ry * 0.82); ctx.quadraticCurveTo(L * 0.14, 0, L * 0.28, ry * 0.82);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-L * 0.40, -ry * 0.34); ctx.quadraticCurveTo(-L * 0.26, 0, -L * 0.40, ry * 0.34);
+    ctx.stroke();
+    /* 步足：每侧 4 条，从壳的下缘**伸出去** */
+    ctx.strokeStyle = U.rgba(p.accentDark, 0.95);
+    ctx.lineCap = 'round';
+    for (var i = 0; i < 4; i++) {
+      var x = (0.26 - i * 0.22) * L;
+      var wob = Math.sin(t * 2.4 + i * 0.9) * h * 0.10;
+      ctx.lineWidth = LWM(1.0, L * 0.013);
+      ctx.beginPath();
+      ctx.moveTo(x, ry * 0.55);
+      ctx.quadraticCurveTo(x - L * 0.06, ry * 1.05, x - L * 0.22, ry * 1.30 + wob);
+      ctx.stroke();
+    }
+    /* 一对螯：**在壳之外**（前面），一大一小 —— 蟹最好认的特征 */
+    [[L * 0.78, -h * 0.44, 1.00], [L * 0.74, h * 0.40, 0.82]].forEach(function (c) {
+      var cxp = c[0], cyp = c[1], sc = c[2];
+      ctx.beginPath();
+      ctx.moveTo(cxp - L * 0.26, cyp + h * 0.30 * sc);
+      ctx.quadraticCurveTo(cxp + L * 0.20 * sc, cyp - h * 0.84 * sc,
+                           cxp + L * 0.10 * sc, cyp - h * 0.16 * sc);
+      ctx.quadraticCurveTo(cxp + L * 0.06 * sc, cyp + h * 0.30 * sc,
+                           cxp - L * 0.26, cyp + h * 0.30 * sc);
+      ctx.closePath();
+      ctx.fillStyle = U.rgba(p.accent, 0.96); ctx.fill();
+      ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.6, L * 0.007); ctx.stroke();
+    });
+    /* 眼（蟹眼在壳的前缘，两只分开） */
+    eye(ctx, L, h, L * 0.26, -ry * 0.52, Math.max(1.4, L * 0.032), p);
+    eye(ctx, L, h, L * 0.28, ry * 0.38, Math.max(1.3, L * 0.028), p);
+  };
+
+  /* ── 螺 / 贝：螺旋壳 + 腹足（壳是**偏圆**的，不是长条）────────────────────
+     ⚠️ 螺线**不能只画一条外螺线再填充**：`fill()` 会把首尾连成一块，
+     形状会随螺旋圈数抖。这里改成「先画一个偏圆的壳 + 再补一条内螺线」——
+     稳定，而且侧视读起来就是「卷起来的壳 + 一条缝」。 */
+  TPL.shell = function (ctx, fish, L, opt, p, rand) {
+    var t = (opt.t || 0);
+    var r = L * Math.max(0.34, Math.min(0.56, (fish.body_ratio || 0.34) * 1.5));
+    var h = r * 0.52;
+    var cx = -L * 0.04, cy = -r * 0.10;
+    /* 腹足（壳下面的软足，前端一个小头） */
+    ctx.beginPath();
+    ctx.moveTo(L * 0.08, r * 0.46);
+    ctx.quadraticCurveTo(L * 0.50, r * 0.92, L * 0.34, r * 1.12);
+    ctx.quadraticCurveTo(L * 0.00, r * 1.26, -L * 0.34, r * 0.94);
+    ctx.quadraticCurveTo(-L * 0.12, r * 0.44, L * 0.08, r * 0.46);
+    ctx.closePath();
+    ctx.fillStyle = U.rgba(p.belly, 0.96); ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.7, L * 0.008); ctx.stroke();
+    /* 壳（偏圆的螺旋体） */
+    ctx.beginPath(); ctx.ellipse(cx, cy, r, r * 0.96, 0, 0, 6.3);
+    var g = ctx.createRadialGradient(cx - r * 0.30, cy - r * 0.34, r * 0.15, cx, cy, r * 1.10);
+    g.addColorStop(0, U.lighten(p.body, 0.30));
+    g.addColorStop(0.55, p.body);
+    g.addColorStop(1, p.bodyDark);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.8, L * 0.009); ctx.stroke();
+    /* 内螺线（由内到外，一圈半多一点） */
+    var a0 = r * 0.10, turns = 2.2;
+    var b0 = Math.log(r * 0.92 / a0) / (turns * Math.PI * 2);
+    ctx.beginPath();
+    for (var i = 0; i <= 72; i++) {
+      var th = i / 72 * turns * Math.PI * 2;
+      var rr = a0 * Math.exp(b0 * th);
+      var x2 = cx + Math.cos(th - 1.1) * rr;
+      var y2 = cy + Math.sin(th - 1.1) * rr * 0.92;
+      if (i === 0) ctx.moveTo(x2, y2); else ctx.lineTo(x2, y2);
+    }
+    ctx.strokeStyle = U.rgba(p.bodyDark, 0.72);
+    ctx.lineWidth = LWM(0.9, L * 0.010); ctx.lineCap = 'round'; ctx.stroke();
+    /* 壳口（朝前那道加厚的唇） */
+    ctx.beginPath();
+    ctx.moveTo(cx + r * 0.40, cy - r * 0.64);
+    ctx.quadraticCurveTo(cx + r * 0.98, cy - r * 0.04, cx + r * 0.36, cy + r * 0.68);
+    ctx.strokeStyle = U.rgba(p.accent, 0.95);
+    ctx.lineWidth = LWM(1.6, L * 0.020); ctx.stroke();
+    eye(ctx, L, h, L * 0.30, r * 0.72, Math.max(1.3, L * 0.028), p);
+  };
+
+  /* ── 龟：穹形背甲 + 四只桨状鳍足 + 短颈小头 ────────────────────────────────
+     背甲是**穹顶 + 平底**（不是椭圆），甲片分格是它最好认的特征。 */
+  TPL.turtle = function (ctx, fish, L, opt, p, rand) {
+    var t = (opt.t || 0);
+    var h = L * Math.max(0.22, Math.min(0.38, (fish.body_ratio || 0.34) * 1.10));
+    /* 背甲：**穹顶 + 平底**（先画壳，鳍足与头颈随后压在外侧） */
+    ctx.beginPath();
+    ctx.moveTo(-L * 0.50, h * 0.30);
+    ctx.quadraticCurveTo(-L * 0.48, -h * 0.98, L * 0.04, -h * 1.02);
+    ctx.quadraticCurveTo(L * 0.54, -h * 0.96, L * 0.56, h * 0.26);
+    ctx.quadraticCurveTo(L * 0.04, h * 0.50, -L * 0.50, h * 0.30);
+    ctx.closePath();
+    var g = ctx.createLinearGradient(0, -h, 0, h);
+    g.addColorStop(0, p.bodyDark); g.addColorStop(0.45, p.body); g.addColorStop(1, p.belly);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.8, L * 0.009); ctx.stroke();
+    /* 甲片分格 */
+    ctx.strokeStyle = U.rgba(p.bodyDark, 0.55); ctx.lineWidth = LWM(0.6, L * 0.008);
+    for (var k = 0; k < 4; k++) {
+      var sx = (-0.28 + k * 0.22) * L;
+      ctx.beginPath();
+      ctx.moveTo(sx, -h * 0.92 + Math.abs(k - 1.4) * h * 0.12);
+      ctx.lineTo(sx + L * 0.04, h * 0.38);
+      ctx.stroke();
+    }
+    /* 四只鳍足：**压在壳的外侧**（前大后小、随水轻摆）——
+       ⚠️ 第一版画在壳之前 ⇒ 整只被盖住，截图上看就是「一个圆顶 + 一个头」。 */
+    [[0.34, -0.30, 1.00], [0.10, 0.34, 0.92], [-0.34, -0.26, 0.86], [-0.44, 0.30, 0.80]]
+      .forEach(function (f, i) {
+        var fx = f[0] * L, fy = f[1] * h, sc = f[2];
+        var flap = Math.sin(t * 1.5 + i * 1.4) * h * 0.12;
+        ctx.beginPath();
+        ctx.moveTo(fx, fy);
+        ctx.quadraticCurveTo(fx + L * 0.16, fy + (fy < 0 ? -h * 0.74 : h * 0.74) * sc,
+                             fx + L * 0.26 * sc, fy + (fy < 0 ? h * 0.10 : -h * 0.10));
+        ctx.quadraticCurveTo(fx - L * 0.02, fy + (fy < 0 ? h * 0.20 : -h * 0.20), fx, fy);
+        ctx.closePath();
+        ctx.fillStyle = U.rgba(p.accent, 0.94); ctx.fill();
+        ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.5, L * 0.006); ctx.stroke();
+      });
+    /* 头颈（右前，短） */
+    ctx.beginPath();
+    ctx.moveTo(L * 0.44, -h * 0.24);
+    ctx.quadraticCurveTo(L * 0.74, -h * 0.52, L * 0.80, -h * 0.10);
+    ctx.quadraticCurveTo(L * 0.78, h * 0.12, L * 0.50, h * 0.10);
+    ctx.closePath();
+    ctx.fillStyle = U.rgba(p.body, 0.98); ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.6, L * 0.007); ctx.stroke();
+    eye(ctx, L, h, L * 0.68, -h * 0.18, Math.max(1.3, L * 0.030), p);
+  };
+
   /* =========================================================
      对外接口
      ========================================================= */

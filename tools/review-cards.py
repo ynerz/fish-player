@@ -156,13 +156,17 @@ def facet_options(items):
 #     按项目规矩（不加没有消费方的配置）不写进来（test-review-cards.py 第 [9] 节会报红）。
 SHAPE_NAME_HINTS = (
     ("shark", ("鲨",)),
-    ("eel", ("鳗", "鳝")),
+    ("eel", ("鳗",)),
     ("ray", ("鳐", "魟")),
     ("squid", ("鱿", "乌贼", "章鱼")),
     ("jelly", ("水母",)),
     ("whale", ("鲸",)),
     ("dragon", ("龙鱼",)),
-    ("oarfish", ("带鱼", "皇带")),
+    ("oarfish", ("皇带",)),
+    # 2026-10-10 新增的 3 个体型（词表是**量出来的**：每条都真命中，见 test-review-cards [9] 节）
+    ("crab", ("蟹",)),
+    ("shell", ("螺",)),
+    ("turtle", ("龟", "鳖")),
 )
 
 

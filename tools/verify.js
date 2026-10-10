@@ -2668,7 +2668,7 @@ let shapeBad = 0;
   }
 
   /* ③ 🔴 2026-10-09 加：**还有两份「体型清单」会跟着漂，而且都不报错** ——
-     ① `docs/画风与颜色标准.md` §7.3「十二种体型句」表：加一个体型就得加一行，
+     ① `docs/画风与颜色标准.md` §7.3「十五种体型句」表：加一个体型就得加一行，
         原先只有 prose 里的数字被现算比对，**表格行本身没人管**；
      ② `docs/图鉴文案.md` 每条鱼的标题里带 `（稀有度 · shape）` —— 改 `fish.js` 的 shape
         而不重跑 `tools/gen-captions.py`，那张表就静默留着旧键
@@ -2683,7 +2683,7 @@ let shapeBad = 0;
   if (!stdKeys.length) {
     err('读不到「画风与颜色标准 §7.3 体型句表」的键列 —— 表被改名/改格式了？'); shapeBad++;
   } else if (missStd.length) {
-    err(`docs/画风与颜色标准.md §7.3「十二种体型句」表漏了 ${missStd.length} 种体型：${missStd.join(' / ')}`
+    err(`docs/画风与颜色标准.md §7.3「十五种体型句」表漏了 ${missStd.length} 种体型：${missStd.join(' / ')}`
       + ' —— 它是对外说「这 12 种体型长什么样」的表，缺行 = 标准参考图会漏做');
     shapeBad++;
   }

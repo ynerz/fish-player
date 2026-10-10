@@ -42,6 +42,9 @@ G.CONFIG = {
     crustacean: '甲壳类',
     star      : '海蛇尾',
     worm      : '软体长形',
+    crab      : '蟹',
+    shell     : '螺/贝',
+    turtle    : '龟',
   },
 
   /* 是否把「设计时长」也当作硬性解锁门槛。

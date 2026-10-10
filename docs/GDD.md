@@ -403,7 +403,7 @@ src/core/fishing.js           钓鱼主循环状态机 + 离线补算
 src/core/goals.js             每日任务 / 成就 / 称号的判定与结算
 src/core/assistant.js         陪伴助手（G.Assistant）：什么时候说哪一句 / 说不说出声（不碰 DOM）
 src/core/track.js             错误采集（空壳：环形缓冲 + 可导出文本，不接外部服务）
-src/render/fishart.js         参数化鱼类绘制器（12 种体型 × 6 套候选画风，默认 flat）
+src/render/fishart.js         参数化鱼类绘制器（15 种体型 × 6 套候选画风，默认 flat）
 src/render/cardart.js         AI 卡面的取用与回退链（G.CardArt：有图贴图、拿不到就程序化绘制）
 src/render/scene.js           Canvas 场景渲染（渐变缓存 + 装饰绘制）
 src/ui/hud.js                 顶栏、底栏、按钮、提示、拉扯 UI、渔获播报

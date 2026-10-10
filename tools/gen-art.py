@@ -376,12 +376,29 @@ MORPH_POOL_BY_RAR = {
     },
 }
 
-# 🔴 **一档出几版**（2026-10-08 用户口径：「传说级的是生成 2 版」）
-#    传说档的闪光按**池子顺序**取前 N 项各出一张，供人工挑 —— 传说鱼本来就「一条一汇报」。
-#    ⚠️ 这是全项目唯一「同一条鱼同一档出两张」的地方：
-#       第 2 版文件名加 `-N` 后缀（第 1 版仍是 `<id>-<档>.png`），
-#       所以清单 / `check-cards.py` / `--skip-existing` 的既有口径都不用改。
-MORPH_VERSIONS_BY_RAR = {3: {"shiny": 2}}
+# 🔴 **一档出几版**（每档默认版数）
+#
+# 2026-10-08 用户口径：「传说级的是生成 2 版」。
+# 🔴 2026-10-10 用户口径（本轮）：「**闪光生成两个版本的，我会选一个最好看的**」
+#    ⇒ 从「只有传说档的闪光 2 版」改成「**所有稀有度的闪光都 2 版**」。
+#
+# 为什么可以就这么铺开（一张颜色句都不用多写）：闪光档的池子本来就是 **2 个候选**
+#   （`shiny/1` 与 `shiny/7`，权重 1:1），而多版走的是**池子顺序前 N 项、不抽样** ——
+#   所以「2 版」= 把原先按 id 加权二选一的那两个候选**都出出来**给人挑。
+#
+# ⚠️ 这是全项目唯一「同一条鱼同一档出两张」的地方：
+#   第 2 版文件名加 `-N` 后缀（第 1 版仍是 `<id>-<档>.png`），
+#   所以清单 / `check-cards.py` / `--skip-existing` / 评审台的既有口径都不用改。
+# ⚠️ 两版都只是**候选**：游戏加载的是主文件名 `<id>-shiny.png`。
+#   挑完要用 `python tools/pick-card.py <id> shiny 2` 把选中的那版**扶正**
+#   （它会把文件与 manifest 里的候选记录一起换 —— **别手工改名**，手工改会让台账与盘上对不上）。
+MORPH_VERSIONS = {"shiny": 2}
+
+# 按稀有度的覆写（在默认值之上再加）。
+# ⚠️ 2026-10-10 起这张表是**空的**：旧口径的 `{3: {"shiny": 2}}` 已是 `MORPH_VERSIONS`
+#    的子集，留着就是第二份真相。空表保留为「某档在某稀有度上要多于默认版数」的旋钮
+#    （校验见 `check_pools()`：版数必须 ≤ **该稀有度实际会用的那个池子**的长度）。
+MORPH_VERSIONS_BY_RAR = {}
 
 
 def pool_for(key, rar=None):
@@ -392,6 +409,18 @@ def pool_for(key, rar=None):
     `verify §33-f` 会盯 `pool_entries()` 必须走这里。
     """
     return MORPH_POOL_BY_RAR.get(rar, {}).get(key, MORPH_POOL[key])
+
+
+def morph_version_count(rar, key):
+    """这条鱼这一档**要出几版** —— **唯一判据**。
+
+    🔴 判据只许有这一处：出图（`morph_versions()`）、清单排期（`write_plan()`）、
+       A/B 对拍（`tools/prompt-ab.py`）三处都读它。分开写的话，
+       「清单说 6 张、实际出 7 张」这种偏差**不会报错**，只会让工期估计悄悄失真 ——
+       而清单是排期与「还剩多少」的唯一依据。
+    取法：**按稀有度的覆写 > 每档默认 > 1**。
+    """
+    return MORPH_VERSIONS_BY_RAR.get(rar, {}).get(key, MORPH_VERSIONS.get(key, 1))
 
 
 def pool_entries(key, rar=None):
@@ -441,6 +470,14 @@ def check_pools():
                 raise RuntimeError("MORPH_POOL_BY_RAR[%d] 里挂了不存在的档：%s —— "
                                    "这条鱼永远读不到它，而且不报错" % (rar, key))
             _check_one_pool(key, pairs, "MORPH_POOL_BY_RAR[%d]" % rar)
+    for key, n in MORPH_VERSIONS.items():
+        if key not in MORPH_ORDER:
+            raise RuntimeError("MORPH_VERSIONS 里挂了不存在的档：%s —— "
+                               "这条永远读不到，而且不报错" % (key,))
+        if not isinstance(n, int) or isinstance(n, bool) or n < 1:
+            # n == 1 等价于没有这一条；n < 1 会让这档**一张都不出**
+            raise RuntimeError("MORPH_VERSIONS[%s] 必须是 ≥1 的整数：%r"
+                               "（<1 会让这一档一张都不出，而且不报错）" % (key, n))
     for rar, ov in MORPH_VERSIONS_BY_RAR.items():
         if rar not in (0, 1, 2, 3):
             raise RuntimeError("MORPH_VERSIONS_BY_RAR 里的稀有度不合法：%r" % (rar,))
@@ -448,13 +485,20 @@ def check_pools():
             if key not in MORPH_ORDER:
                 raise RuntimeError("MORPH_VERSIONS_BY_RAR[%d] 里挂了不存在的档：%s" % (rar, key))
             if not isinstance(n, int) or isinstance(n, bool) or n < 1:
-                # n == 1 等价于没有这一条；n < 1 会让这档**一张都不出**
                 raise RuntimeError("MORPH_VERSIONS_BY_RAR[%d][%s] 必须是 ≥1 的整数：%r"
                                    "（<1 会让这一档一张都不出，而且不报错）" % (rar, key, n))
-            if n > len(MORPH_POOL[key]):
-                raise RuntimeError("MORPH_VERSIONS_BY_RAR[%d][%s]=%d 超过了池子长度 %d —— "
-                                   "多出来的版本抽不到，而且不报错"
-                                   % (rar, key, n, len(MORPH_POOL[key])))
+    # 🔴 版数必须**逐个稀有度跟它实际会用的那个池子**比。
+    #    旧写法只比默认池子 `MORPH_POOL[key]`，于是「`MORPH_POOL_BY_RAR` 把某个档的池子
+    #    改短了、而版数还写着 2」这种组合漏网：第 2 版**抽不到**，而且不报错。
+    for rar in (0, 1, 2, 3):
+        for key in MORPH_ORDER:
+            n = morph_version_count(rar, key)
+            plen = len(pool_for(key, rar))
+            if n > plen:
+                raise RuntimeError(
+                    "稀有度 %d 的 %s 档要出 %d 版，但它**实际会用**的池子只有 %d 项 —— "
+                    "多出来的版本抽不到，而且不报错（池子见 pool_for()）"
+                    % (rar, key, n, plen))
 
 
 check_pools()
@@ -484,7 +528,7 @@ def morph_versions(f, key):
     """这条鱼这一档**要出几版** → `[(候选键, 标签, 颜色句, 文件名后缀), …]`。
 
     常规 = 按鱼 id 稳定加权抽 **1** 套（后缀 `""`）；
-    **传说档的闪光 = 2 版**（后缀 `""` 与 `"-2"`），见 `MORPH_VERSIONS_BY_RAR`。
+    **闪光 = 2 版**（后缀 `""` 与 `"-2"`，所有稀有度），见 `MORPH_VERSIONS`。
 
     ⚠️ 多版走的是**池子顺序前 N 项**、**不抽样** —— 用户要的就是「这两版都给我看」，
        抽样会把「都出」变成「随机出其中一个」。
@@ -492,7 +536,7 @@ def morph_versions(f, key):
        否则清单勾选 / `check-cards.py` / `--skip-existing` 的既有口径全部失配。
     """
     entries = pool_entries(key, f.get("rar"))
-    n = MORPH_VERSIONS_BY_RAR.get(f.get("rar"), {}).get(key, 1)
+    n = morph_version_count(f.get("rar"), key)
     if n > 1:
         return [(ck, tag, sent, "" if i == 0 else "-%d" % (i + 1))
                 for i, (ck, tag, sent, _w) in enumerate(entries[:n])]
@@ -2334,13 +2378,14 @@ def write_plan(fish):
         per_fish = SEC_PER_MASTER + (nk - 1) * SEC_PER_MORPH + SEC_PER_CUT
         sec_note = ("常数估计（母版 %ds + %d 档 × %ds + 抠图 %ds；实测样本 %d 张，未达 %d）"
                     % (SEC_PER_MASTER, nk - 1, SEC_PER_MORPH, SEC_PER_CUT, m_n, SEC_SAMPLE_MIN))
-    # 🔴 一档可能出**多版**（传说档的闪光，`MORPH_VERSIONS_BY_RAR`）——
+    # 🔴 一档可能出**多版**（闪光 = 2 版，`MORPH_VERSIONS`）——
     #    漏算的话清单会**低估工期**，而清单是排期与「还剩多少」的唯一依据。
+    #    ⚠️ 版数走 `morph_version_count()`（唯一判据），别在这里另算一遍。
     cnt_rar, rounds = {}, lambda r: LEGEND_ROUNDS if r == 3 else 1
     for f in fish:
         cnt_rar[f["rar"]] = cnt_rar.get(f["rar"], 0) + 1
     extra_shots = sum(cnt_rar[r] * rounds(r)
-                      * sum(n - 1 for n in MORPH_VERSIONS_BY_RAR.get(r, {}).values())
+                      * sum(morph_version_count(r, k) - 1 for k in MORPH_ORDER)
                       for r in cnt_rar)
     shots = total * (1 + nk) + legend * (LEGEND_ROUNDS - 1) * (1 + nk) + extra_shots
     secs = ((total + legend * (LEGEND_ROUNDS - 1)) * per_fish
@@ -2364,8 +2409,8 @@ def write_plan(fish):
     L.append("| 批次数 | **%d** |" % len(bs))
     L.append("| 传说鱼 | %d 条，每条按 %d 轮迭代（评审轮次） |" % (legend, LEGEND_ROUNDS))
     L.append("| 出图张数（含传说迭代） | ≈ **%d**（每条 %d 张：1 母版 + %d 档；"
-             "另传说每条多 %d 张 —— 传说档的闪光出 2 版） |"
-             % (shots, 1 + nk, nk, sum(n - 1 for n in MORPH_VERSIONS_BY_RAR.get(3, {}).values())))
+             "另**闪光档每条多 %d 张** —— 闪光出 2 版供人挑） |"
+             % (shots, 1 + nk, nk, sum(morph_version_count(0, k) - 1 for k in MORPH_ORDER)))
     L.append("| 单条耗时 | ≈ **%.0f s**（%s） |" % (per_fish, sec_note))
     L.append("| 纯机器时间 | ≈ **%.1f 小时** |" % (secs / 3600.0))
     L.append("")
@@ -2528,7 +2573,8 @@ def write_prompts(fish):
              "同一条鱼重跑永远是同一套（可复现），**不同鱼之间才会不一样**。")
     L.append("下表列的就是**实际会被抽中的那一套**（键 = `候选键 中文标签`）。")
     L.append("⚠️ **传说档例外**：彩虹/白化/黄金**定死**一套，闪光**出 2 版** ——")
-    L.append("下表列的是第 1 版，第 2 版见 `MORPH_VERSIONS_BY_RAR`（开发者文档 §17.12.0）。\n")
+    L.append("下表列的是第 1 版；**闪光档还有第 2 版**（`MORPH_VERSIONS`，所有稀有度，供人挑）——"
+             "挑完跑 `python tools/pick-card.py <id> shiny 2` 扶正（开发者文档 §17.12.0）。\n")
     L.append("| id | 名字 | %s |" % " | ".join(MORPH_CN[k] for k in MORPH_ORDER))
     L.append("|---|---|%s" % ("---|" * len(MORPH_ORDER)))
     for f in fish:
@@ -2822,7 +2868,7 @@ def main():
             for key, _desc in MORPHS:
                 if only and key not in only:
                     continue
-                # 一档可能出**多版**（传说档的闪光，见 `MORPH_VERSIONS_BY_RAR`）
+                # 一档可能出**多版**（闪光 2 版，见 `MORPH_VERSIONS`）
                 for vi in range(len(morph_versions(f, key))):
                     jobs.append((f, key, vi))
     if not jobs:

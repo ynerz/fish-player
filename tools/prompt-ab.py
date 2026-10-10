@@ -174,9 +174,9 @@ def report_picks(fish_all):
                       % (r, " / ".join("%s×%d" % (e[0], e[3]) for e in entries), n))
             # ⚠️ 这一档这个稀有度是**一档多版**（传说档闪光）⇒ 它根本不抽样，
             #    打出概率分布会让人以为「这一档也是一半一半抽」。
-            nv = GA.MORPH_VERSIONS_BY_RAR.get(r, {}).get(tier, 1)
+            nv = GA.morph_version_count(r, tier)   # 唯一判据（别在这儿重算一遍）
             if nv > 1:
-                print("   ⓘ 这一档**不抽样**：池子前 %d 项各出一版（`MORPH_VERSIONS_BY_RAR`）" % nv)
+                print("   ⓘ 这一档**不抽样**：池子前 %d 项各出一版（`MORPH_VERSIONS`，见开发者文档 §17.12.0）" % nv)
                 continue
             for _ck, tag, _sent, w in entries:
                 c = hit.get(tag, 0)

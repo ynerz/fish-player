@@ -3227,12 +3227,24 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
     err(`基准颜色句被删了或改动了：${miss.join('、')} —— 池子第 0 项引用的就是它们，不许动`);
     return;
   }
-  /* ⑤ 按稀有度覆盖池子 / 一档多版（2026-10-08 用户口径：传说档定死 + 传说闪光出 2 版）
+  /* ⑤ 按稀有度覆盖池子 / 一档多版（2026-10-08 用户口径：传说档定死；2026-10-10 改为「闪光一律 2 版」）
      🔴 盯「覆盖会被绕过」这一型：只要有人绕过 `pool_for()` 直接读 `MORPH_POOL`，
-        传说鱼就照旧轮换出参差 —— 图上看不出来是哪一步漏了，也不报任何错。 */
-  if (!/MORPH_POOL_BY_RAR\s*=\s*\{/.test(src) || !/MORPH_VERSIONS_BY_RAR\s*=\s*\{/.test(src)) {
-    err('缺少 MORPH_POOL_BY_RAR / MORPH_VERSIONS_BY_RAR —— 传说档定死与「一档出 2 版」没了'); return;
+        传说鱼就照旧轮换出参差 —— 图上看不出来是哪一步漏了，也不报任何错。
+     🔴 2026-10-10 追加盯三件事（用户口径：「闪光生成两个版本的，我会选一个最好看的」）：
+        · 闪光必须 ≥2 版（`MORPH_VERSIONS`）—— 少了它「两个版本」这条口径当场失效，
+          而图**照样出得来**（只出一版），没人会去数；
+        · 版数判据只许有 `morph_version_count()` 一处 —— 出图 / 清单排期 / prompt-ab
+          各写一遍的话，「清单说 6 张、实际出 7 张」不会报错，只会让工期估计悄悄失真；
+        · 挑选用 `tools/pick-card.py`，且它必须**文件与 manifest 一起换** ——
+          只换文件会让台账开始描述另一张图（`report_stale()` / 可复现全跟着错）。 */
+  if (!/MORPH_POOL_BY_RAR\s*=\s*\{/.test(src) || !/MORPH_VERSIONS_BY_RAR\s*=\s*\{/.test(src)
+      || !/MORPH_VERSIONS\s*=\s*\{/.test(src)) {
+    err('缺少 MORPH_POOL_BY_RAR / MORPH_VERSIONS / MORPH_VERSIONS_BY_RAR —— '
+      + '传说档定死与「闪光出 2 版」没了'); return;
   }
+  /* 现算闪光的版数（不写死 2）：口径是「闪光是多版档」，具体几版由 `MORPH_VERSIONS` 说了算 */
+  const mvBlock = (/MORPH_VERSIONS\s*=\s*\{([^}]*)\}/.exec(src) || [, ''])[1];
+  const morphVersions = parseInt((/["']?shiny["']?\s*:\s*(\d+)/.exec(mvBlock) || [, '0'])[1], 10);
   const peFn = bodyOf(src, 'def pool_entries(');
   if (!/pool_for\(/.test(peFn)) {
     err('pool_entries() 没有走 pool_for() —— 按稀有度的覆盖会被**静默绕过**（传说鱼照旧轮换）');
@@ -3244,9 +3256,53 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
     err('morph_versions() 没把第 1 版的后缀留成空串 —— 主文件名会漂，清单/验收/断点续跑的既有口径全部失配');
     return;
   }
+  /* ⑤a 版数走唯一判据；判据本身必须两张表都读 */
+  if (morphVersions < 2) {
+    err(`\`MORPH_VERSIONS\` 里闪光只有 ${morphVersions} 版 —— 用户口径是「闪光生成两个版本的」，`
+      + '上面那行改回去就等于悄悄砍掉候选版，而图照样出得来');
+    return;
+  }
+  const mvcFn = bodyOf(src, 'def morph_version_count(');
+  if (!mvcFn || !/MORPH_VERSIONS_BY_RAR\.get\(/.test(mvcFn) || !/MORPH_VERSIONS\.get\(/.test(mvcFn)) {
+    err('`morph_version_count()` 不存在，或没把「按稀有度覆写 / 每档默认」两张表都读上 —— '
+      + '它是版数的**唯一判据**，缺一张表就会漏算或错算'); return;
+  }
+  if (/MORPH_VERSIONS_BY_RAR\.get\(/.test(mvFn)) {
+    err('`morph_versions()` 自己去读 `MORPH_VERSIONS_BY_RAR` 了 —— 版数判据必须只有'
+      + ' `morph_version_count()` 一处，否则出图与清单会各算一套'); return;
+  }
+  if (!/morph_version_count\(/.test(mvFn)) {
+    err('`morph_versions()` 没有走 `morph_version_count()` —— 出图张数与口径分家了'); return;
+  }
+  const wpFn = bodyOf(src, 'def write_plan(') || '';
+  /* ⚠️ 判据要**切到 `extra_shots = …` 那一条语句**再查，不能只看「函数里出现过
+     `morph_version_count(`」—— 同一段代码后面拼文案时还会再引用一次它，
+     于是「把版数算回旧表」的坏样本照样绿（本轮反向验证第 ③ 组当场逮到）。 */
+  const exStmt = (/extra_shots\s*=[^\n]*(?:\n[ \t]+[^\n]*)*/.exec(wpFn) || [''])[0];
+  if (!exStmt || !/morph_version_count\(/.test(exStmt)) {
+    err('`write_plan()` 里算「多出来的张数」的那条语句（`extra_shots = …`）没有走 '
+      + '`morph_version_count()` —— 清单会**低估工期**，而清单是排期与「还剩多少」的唯一依据');
+    return;
+  }
+  /* ⑤b 挑选用具：文件与 manifest 必须一起换（只换一处不会报错，只会让台账描述另一张图） */
+  const pk = path.join(ROOT, 'tools/pick-card.py');
+  if (!fs.existsSync(pk)) {
+    err('缺 `tools/pick-card.py` —— 闪光两版出完之后没有「把选中那版扶正」的用具，'
+      + '手工改名会让 manifest 里的候选记录与盘上的图对不上'); return;
+  }
+  const pkSrc = fs.readFileSync(pk, 'utf8').replace(/"""[\s\S]*?"""/g, '').replace(/#[^\n]*/g, '');
+  const pair = [['os\\.replace\\(', '真的动了文件'],
+                ['sub\\[key1\\], sub\\[key2\\] =', 'manifest 里两个槽位的记录跟着换'],
+                ['morphVariant', 'morphVariant 也跟着换']];
+  const pkMiss = pair.filter(([re]) => !new RegExp(re).test(pkSrc)).map(([, why]) => why);
+  if (pkMiss.length) {
+    err(`tools/pick-card.py 缺了：${pkMiss.join('、')} —— 只换文件不换台账 = `
+      + '「可复现」与 report_stale() 从此描述另一张图，而且不报错'); return;
+  }
   ok('候选总表 + 权重池 + 按稀有度覆盖 + 一档多版齐备；MORPHS 派生、池内只存键与权重；'
-    + '覆盖必须走 pool_for()；第 1 版落在主文件名；check_pools() 加载即校验；morph_pick 走 md5；'
-    + '四档基准句在册');
+    + '覆盖必须走 pool_for()；第 1 版落在主文件名；**闪光 ' + morphVersions + ' 版（唯一判据 '
+    + 'morph_version_count，出图/清单/AB 三处共用）**；pick-card 文件与台账一起换；'
+    + 'check_pools() 加载即校验；morph_pick 走 md5；四档基准句在册');
 })();
 
 /* ---------------- 34. 文档里写的「自检 N 节」必须就是本文件的节数 ----------------

@@ -649,7 +649,20 @@ else {
   if (headM && headM[2] !== CFG.version) {
     err(`GDD 版本历史表的标题写到 v${headM[2]}，但当前版本是 v${CFG.version}`); entryBad++;
   }
-  if (!bad && rows.length >= 5) ok(`GDD 版本历史表 ${rows.length} 行按版本号递增，标题对齐 v${CFG.version}`);
+  /* 🔴 2026-10-10 补：**最后一行必须就是当前版本** ——
+     原判据只盯标题与递增，于是「升了版本却没补行」照样全绿。
+     实测代价：自 v0.5.7 起攒了 8 个方向没进表（N1/N2/N3-1/N6/N7/N10/音频/图鉴卡面），
+     直到用户拍板「补行并正式升 v0.6.0」才发现。**「表里有这版」这件事必须有人盯。 */
+  if (rows.length && headM) {
+    const last = rows[rows.length - 1];
+    const cur = CFG.version.split('.').map(Number);
+    if (last[0] !== cur[0] || last[1] !== cur[1] || last[2] !== cur[2]) {
+      err(`GDD 版本历史的**最后一行是 v${last.join('.')}**，而当前版本是 v${CFG.version}`
+        + ' —— 升了版本就必须补一行（否则「这一版做了什么」永远查不到）');
+      entryBad++;
+    }
+  }
+  if (!bad && rows.length >= 5) ok(`GDD 版本历史表 ${rows.length} 行按版本号递增、末行 = 当前版本 v${CFG.version}，标题对齐`);
 }
 
 /* 11-h 文档里写的「单文件产物 ≈ N KB」必须与真实构建相符

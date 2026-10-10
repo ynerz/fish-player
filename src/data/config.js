@@ -8,7 +8,7 @@ window.G = window.G || {};
 
 G.CONFIG = {
 
-  version   : '0.5.7',
+  version   : '0.6.0',
   /* ⚠️ 键名里的 `v1` 是历史遗留，**与 SAVE_V 无关** —— 不要跟着版本号改它，
      否则所有老存档都会读不到（当前存档格式版本见 state.js 的 SAVE_V = 5）。 */
   saveKey   : 'fishplayer.save.v1',

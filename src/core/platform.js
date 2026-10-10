@@ -8,7 +8,7 @@
    这样将来上微信小程序时，只需要再写一份 platform.weapp.js
    在 index.html（或 app.json 入口）里替换掉本文件，逻辑层一行不用改。
 
-   接口（9 组）：
+   接口（10 组）：
      storage    get / set / kind
      audio      createContext() / load(url) → Promise<AudioBuffer|null> / playFile（小程序占位）
                 —— 小程序要换成 wx.createInnerAudioContext
@@ -22,6 +22,9 @@
      dialog     confirm(msg) / prompt(msg,def)   —— 小程序换成 wx.showModal
      speech     available() / list() / onVoices(fn) / speak(text,opts) / stop()
                 —— 陪伴助手（N6）的出声能力；小程序要换成云端 TTS 或直接 no-op
+     net        kind() / base() / available() / request(path,opts) → Promise
+                —— 云存档（N8 ③）的通道；小程序换成 wx.request；**兜底不抛**（离线 reject
+                   `{off:true}`），业务侧一律当「离线」静默降级，不写「能力在不在」的守卫
 
    ⚠️ 上面只列**现行**接口。这里曾多列过 `storage.remove` 与 `sys.size()` 两个 ——
       2026-10-08 全项目 API 扫描实测它们**零消费**，已删（进了 `verify` 32-b 的 REMOVED 名单；
@@ -370,6 +373,60 @@ G.Platform = (function () {
     },
   };
 
+  /* ---------------- 网络（N8 ③；第 9+1 组能力） ----------------
+     「这个端**有没有**云端」由平台层回答，业务侧**不判断端**（N8 设计文档 §5/§95 行）。
+       · `base()`    云端地址；`null` = 本机没配后端 ⇒ 纯离线（当前就是这种）
+       · `available()` 这个端有没有网络能力**且**配了地址
+       · `request()` 发一次请求；**兜底不抛**（规范 §9.3）：拿不到能力 / 失败一律
+         **reject 一个可判定的离线错误**（`e.off === true`），调用方据此静默降级。
+       🔴 为什么放在这里而不是让业务代码直接 fetch：
+         a) 小程序（非小游戏）页面里没有全局 `fetch`，要换成 `wx.request`；
+         b) Electron 壳里走的是 `http://127.0.0.1`，**`file://` 下 fetch 直接被拦**
+            （N3-1 那轮实测过：fetch 被拦 + 画布被污染）；
+         c) 「离线静默降级」这条口径需要一个**唯一判据** —— 它不能散在业务代码里。
+       ⚠️ 判据由 `verify` 第 ㊱ 节盯着：src 下除本文件外不许出现 `fetch(` / `XMLHttpRequest`
+          / `WebSocket` / `navigator.onLine` 的直连用法。 */
+  var netBase = null;          // 云端地址；本机没配后端 ⇒ null（纯离线）
+  function netErr(msg, off) { var e = new Error(msg); e.off = !!off; return e; }
+  try {
+    /* 允许外壳（Electron / 小程序）在启动前塞一个地址进来；
+       读不到就当没配 —— 不抛。 */
+    if (window.__FISH_NET_BASE__) netBase = String(window.__FISH_NET_BASE__);
+  } catch (e) { netBase = null; }
+
+  var net = {
+    kind: function () { return net.available() ? 'online' : 'offline'; },
+    base: function () { return netBase; },
+    available: function () {
+      return !!netBase && typeof fetch === 'function';
+    },
+    request: function (path, opts) {
+      var o = opts || {};
+      if (!net.available()) {
+        return Promise.reject(netErr('云端未配置或本端无网络能力', true));
+      }
+      var url = netBase + path;
+      var init = { method: o.method || 'GET' };
+      try {
+        if (o.body !== undefined) {
+          init.headers = { 'Content-Type': 'application/json' };
+          init.body = JSON.stringify(o.body);
+        }
+      } catch (e) { return Promise.reject(netErr('请求体无法序列化：' + e.message, false)); }
+      return fetch(url, init).then(function (r) {
+        return r.text().then(function (t) {
+          var data = null;
+          try { data = t ? JSON.parse(t) : null; } catch (e) { /* 非 JSON 就当 null，交给调用方看 status */ }
+          if (!r.ok) throw netErr('HTTP ' + r.status, false);
+          return { status: r.status, data: data };
+        });
+      }, function (e) {
+        /* 网络层失败（断网 / DNS / 被拦）一律算「离线」，好让调用方走同一条降级路 */
+        throw netErr('网络不可达：' + (e && e.message ? e.message : e), true);
+      });
+    },
+  };
+
   return {
     storage: storage,
     audio: audio,
@@ -380,5 +437,6 @@ G.Platform = (function () {
     dialog: dialog,
     image: image,
     speech: speech,
+    net: net,
   };
 })();

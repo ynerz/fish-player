@@ -1881,6 +1881,33 @@ G.Panels = (function () {
         '<button class="btn-ghost" id="setProfile">管理</button>', function (c) {
         U.on(c.querySelector('#setProfile'), 'click', function () { G.Audio.click(); open('profile'); });
       });
+
+      /* 云存档（N8 ③）：**照实说 + 一次手动推送**。
+         🔴 两条口径写在这里，别改：
+           ① 本地优先 —— 存档始终落在本机，云端只是「多一份备份」，云不可用不影响可玩；
+           ② 离线**不是错误** —— 按钮离线时照样可点，点了给一条 warn 级提示并强调
+              「本机存档不受影响」。把它写成 bad / 弹窗，玩家会以为存档出了问题。
+         ⚠️ 别在按钮上加 `disabled`：那样离线时这条降级路永远跑不到，
+            而它正是「离线也能玩」这条口径唯一能被玩家看到的地方。 */
+      var cl = G.Cloud ? G.Cloud.status() : null;
+      row('云存档', cl ? (cl.label + ' · ' + cl.detail + '　本机存档始终有效，云端只是多存一份')
+                       : '云存档模块未启用',
+        '<button class="btn-ghost" id="setCloud">同步</button>', function (c) {
+        U.on(c.querySelector('#setCloud'), 'click', function () {
+          G.Audio.click();
+          /* 永远 resolve（见 src/core/cloud.js 的文件头）：离线也是 then 分支。 */
+          G.Cloud.push().then(function (r) {
+            if (r.ok) {
+              G.State.emit('toast', { text: '本机存档已推送到云端', kind: 'good' });
+            } else if (r.off) {
+              G.State.emit('toast', { text: '云端不可用，已跳过（本机存档不受影响）', kind: 'warn' });
+            } else {
+              G.State.emit('toast', { text: '推送失败：' + (r.err || '未知原因'), kind: 'bad' });
+            }
+            refresh();
+          });
+        });
+      });
     },
   };
 

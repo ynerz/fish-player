@@ -31,6 +31,7 @@ global.localStorage = {
  'src/data/goals.js', 'src/data/assistant.js', 'src/data/story.js',
  'src/core/util.js', 'src/core/platform.js', 'src/core/profile.js', 'src/core/assets.js', 'src/core/loot.js', 'src/core/fight.js', 'src/core/state.js',
  'src/core/integrity.js',
+ 'src/core/cloud.js',
  'src/core/goals.js', 'src/core/weather.js', 'src/core/fishing.js', 'src/core/assistant.js', 'src/core/story.js', 'src/core/track.js',
  'src/render/fishpaint.js', 'src/render/cardart.js',
  'src/ui/tutorial.js']
@@ -5203,6 +5204,50 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
     if (St.get().settings.idle) St.setIdle(false);
     Fish7.hardReset();
   }
+})();
+
+/* =========================================================
+   云存档（N8 ③）：平台层兜底不抛 + 离线静默降级
+   =========================================================
+   ⚠️ 本文件是**全同步**的（没有 async/await），所以这里只钉**同步**那部分：
+     status() 的判据、push() 同步不抛且返回 thenable、能力组齐备、存档键同源。
+   真正的异步行为（离线 resolve 成 {off:true} / 有云端时真的发请求）在**真浏览器**里验
+   —— 那是唯一能 await 的地方，见本轮台账与开发者文档 §17.33。 */
+G_('Cloud · 云存档（离线静默降级）');
+(() => {
+  const Cloud = G.Cloud, P = G.Platform;
+  ok(!!Cloud && typeof Cloud.status === 'function' && typeof Cloud.push === 'function',
+    'G.Cloud 挂上了 status / push 两个口子');
+  const realNet = P.net;
+
+  /* ① 本项目的现状：没有云端地址 ⇒ status 说离线、push() 同步不抛 */
+  const st0 = Cloud.status();
+  ok(st0.mode === 'offline' && typeof st0.label === 'string' && st0.label.length > 0,
+    '没有云端地址时 status() 说离线，并给出人话 label（' + st0.label + ' · ' + st0.detail + '）');
+  let p0 = null, threw0 = false;
+  try { p0 = Cloud.push(); } catch (e) { threw0 = true; }
+  ok(!threw0 && p0 && typeof p0.then === 'function',
+    '离线时 push() **同步不抛**、且返回 thenable（它必须永远 resolve —— reject 会喂给 sys.onRejection 弹错）');
+
+  /* ② 平台层兜底：四项能力齐备、没有地址时 available() = false */
+  ok(!!realNet && ['kind', 'base', 'available', 'request'].every(k => typeof realNet[k] === 'function'),
+    'Platform.net 四项能力齐备（kind / base / available / request）');
+  ok(realNet.available() === false && realNet.kind() === 'offline',
+    '本机没配后端 ⇒ available() false / kind() = offline（这就是「离线可玩」的唯一判据）');
+
+  /* ③ 平台层说有云端 ⇒ 业务侧立刻改口（界面的 status 不自己判端） */
+  P.net = {
+    kind: () => 'online', base: () => 'http://127.0.0.1:1', available: () => true,
+    request: () => Promise.resolve({ status: 200, data: null }),
+  };
+  const st1 = Cloud.status();
+  ok(st1.mode === 'online' && st1.label !== st0.label,
+    '平台层说有云端 ⇒ status() 改口（业务侧不判断端，判据只有一处）');
+  P.net = realNet;
+
+  /* ④ 推的必须是**当前账号**那份档：键走 St.saveKey()，不许自己拼 CFG.saveKey */
+  ok(typeof St.saveKey === 'function' && St.saveKey() === G.Profile.key(),
+    'St.saveKey() 暴露出来了、且等于当前档案的键（云存档推的就是这一份）');
 })();
 
 /* ---------- 汇总 ---------- */

@@ -956,6 +956,7 @@ G.State = (function () {
   return {
     SAVE_V: SAVE_V,          // 暴露给测试与调试用（断言「升档后写回的就是它」）
     load: load, save: save, scheduleSave: scheduleSave, reset: reset,
+    saveKey: saveKey,        // 消费方：src/core/cloud.js（云存档推的是**当前账号**那份档）
     loadNote: loadNoteText,
     importSave: importSave,
     get: get, on: on, emit: emit,

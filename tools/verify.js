@@ -3752,6 +3752,18 @@ let platBad = 0;
           注入 `window.speechSynthesis.cancel()` 时 ㊱ 全绿）。这里收紧成 `[^\w$]`。 */
     ['speechSynthesis（直连语音合成）', /(^|[^\w$])speechSynthesis\b/],
     ['SpeechSynthesisUtterance（直连语音合成）', /(^|[^\w$])SpeechSynthesisUtterance\b/],
+    /* 网络（N8 ③ 新增 `Platform.net`）也是平台能力：业务代码一律走
+       `G.Platform.net.request`，不许自己 fetch / new WebSocket。
+       ⚠️ 同样**按名枚举**：这几条既不碰 localStorage 也不碰 document，
+          上面任何一条都拦不住（与 performance.now / speechSynthesis 漏网同款）。
+       ⚠️ 小程序（非小游戏）页面里**没有全局 fetch**，要换 `wx.request`；
+          Electron 壳里走 `http://127.0.0.1`，`file://` 下 fetch 直接被拦（N3-1 实测过）。
+       ⚠️ 用 `[^\w$.]` 前缀（与 speechSynthesis 同理）：`prefetch(` 这类词不会被误伤，
+          而 `obj.fetch(` 这种真写法照样抓得到——除了平台层自己的包装。 */
+    ['fetch（直连网络）', /(^|[^\w$.])fetch\s*\(/],
+    ['XMLHttpRequest（直连网络）', /(^|[^\w$])XMLHttpRequest\b/],
+    ['WebSocket（直连网络）', /(^|[^\w$])WebSocket\b/],
+    ['navigator.onLine（直连网络状态）', /navigator\s*\.\s*onLine/],
   ];
   const rel = [];
   (function walk(dir) {
@@ -3840,6 +3852,104 @@ let docLitBad = 0;
   if (!docLitBad) ok(`裸 document.* 字面量只剩 util.js 的 ${live} 处（平台层之外无其他直连）`);
 })();
 
+
+/* ---------------- 36-c. `Platform.net` 的离线语义（N8 ③，2026-10-11） ----------------
+   新增第 10 组平台能力 `net`（网络）之后，真正容易烂掉的**不是**「请求怎么写」，
+   而是三条**静默**的口径（每条都对应一种「不报错但玩家会看出问题」）：
+
+   ① **兜底不抛**（规范 §9.3）：拿不到能力时 `request()` 要 reject 一个**可判定**的
+      离线错误（`off === true`），**不能**同步 `throw` —— 同步抛会让调用方在
+      「能力在不在」上写守卫，而那条边界早就拍定为「平台层兜底、调用方不写守卫」。
+   ② **`Cloud.push()` 永远 resolve**：`main.js` 订阅了 `sys.onRejection()`（未处理的
+      拒绝会 toast + 记 G.Track）⇒ `push()` 一旦在离线时 reject，玩家每点一次「同步」
+      都会看到一条「出错了」，而那是**预期内的离线**。所以：离线分支必须 `Promise.resolve`，
+      并且那条 `net.request(...)` 必须**接住拒绝**（`.then(ok, fail)` 或 `.catch`）。
+   ③ **界面不许把降级路堵死**：那一行按钮**不许加 `disabled`** —— 离线时禁用按钮 =
+      「离线静默降级」这条口径唯一能被玩家看到的地方永远跑不到（死代码）。
+      ⚠️ 反向看也成立：如果哪天真的加了云端，也要保留离线可点 + 如实提示。
+*/
+console.log('\n[36-c] Platform.net 的离线语义（兜底不抛 / 永远 resolve / 降级路可达）');
+let netSemBad = 0;
+(function () {
+  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const platSrc = strip(fs.readFileSync(path.join(ROOT, 'src/core/platform.js'), 'utf8'));
+  const netObj = (/var net = \{([\s\S]*?)\n  \};/.exec(platSrc) || [, ''])[1];
+  if (!netObj) { err('platform.js 里读不到 `var net = {…}` 块 —— 36-c 的判据会恒真，先修判据'); netSemBad++; return; }
+  /* ① 四项能力都必须在（少一项 = 调用方拿到 undefined，不报错） */
+  const keys = ['kind', 'base', 'available', 'request'];
+  const missK = keys.filter(k => !new RegExp('(^|[\\s{,])' + k + '\\s*:').test(netObj));
+  if (missK.length) { err(`platform.js 的 net 缺少：${missK.join(' / ')} —— 业务侧拿到 undefined 不会报错`); netSemBad++; }
+  if (!/net\s*:\s*net\b/.test(platSrc)) { err('platform.js 的 return 面里没有 `net: net`（能力组等于没加）'); netSemBad++; }
+  /* ② 兜底不抛：**不可用那一支**必须是「reject 且带可判定的 off」。
+     ⚠️ 判据要**切到那个 `if (!net.available()) { … }` 块**再查 —— 只看
+        「整个 net 对象里出现过 `Promise.reject(netErr(`」会被**别处**同类语句喂饱
+        （本文件另有两处 `Promise.reject(netErr(...))`：请求体序列化失败 / 网络不可达），
+        于是「把不可用那一支改成同步 throw」的坏样本照样绿（反向验证 V1 当场逮到）。 */
+  const offBlock = (/if\s*\(\s*!net\.available\(\)\s*\)\s*\{([\s\S]*?)\n      \}/.exec(netObj) || [, ''])[1];
+  if (!offBlock) {
+    err('在 net.request() 里找不到 `if (!net.available()) { … }` 块 —— 36-c 的离线判据会恒真，先修判据');
+    netSemBad++;
+  } else {
+    if (!/Promise\s*\.\s*reject\s*\(\s*netErr\(/.test(offBlock)) {
+      err('net.request() 的不可用分支没有走 `Promise.reject(netErr(...))` —— '
+        + '要么是同步 throw（调用方被迫写守卫），要么静默返回 undefined（调用方 then 崩）'); netSemBad++;
+    }
+    if (/(^|[^\w$.])throw\s/.test(offBlock)) {
+      err('net.request() 的不可用分支里有**同步** `throw` —— 边界是「平台层兜底、调用方不写守卫」，'
+        + '同步抛会逼调用方到处判「能力在不在」'); netSemBad++;
+    }
+    if (!/netErr\s*\([^)]*,\s*true\s*\)/.test(offBlock)) {
+      err('net.request() 的离线错误没带 `off = true` —— 调用方无法判定「这是预期内的离线」，'
+        + '只能把它当错误弹给玩家'); netSemBad++;
+    }
+  }
+  /* ③ Cloud.push() 永远 resolve */
+  const cloudP = path.join(ROOT, 'src/core/cloud.js');
+  if (!fs.existsSync(cloudP)) {
+    err('缺 `src/core/cloud.js` —— platform.net 没有消费方（㉜ 也会报）'); netSemBad++; return;
+  }
+  const cloudSrc = strip(fs.readFileSync(cloudP, 'utf8'));
+  const pushBody = (/function push\(\)\s*\{([\s\S]*?)\n  \}/.exec(cloudSrc) || [, ''])[1];
+  if (!pushBody) { err('读不到 `cloud.js` 的 push() 体 —— 判据会恒真，先修判据'); netSemBad++; return; }
+  /* ③ Cloud.push() 永远 resolve。
+     ⚠️ 同样要**切到那条离线分支**再查（push 里另有一处 `Promise.resolve(...)`
+        是「本机没有存档可推」；只看「整个函数里出现过 Promise.resolve」会被它喂饱，
+        「离线改 reject」的坏样本照样绿 —— 反向验证 V3 当场逮到）。 */
+  const pushOff = (/if\s*\(\s*!n\s*\|\|\s*!n\.available\(\)\s*\)\s*\{([\s\S]*?)\n    \}/.exec(pushBody) || [, ''])[1];
+  if (!pushOff) {
+    err('在 `Cloud.push()` 里找不到 `if (!n || !n.available()) { … }` 块 —— 36-c 的判据会恒真，先修判据');
+    netSemBad++;
+  } else if (!/Promise\s*\.\s*resolve\s*\(/.test(pushOff)) {
+    err('`Cloud.push()` 的离线分支不是 `Promise.resolve(...)` —— 离线时 reject 会让 '
+      + '`sys.onRejection()` 给玩家弹一条「出错了」，而那是预期内的离线'); netSemBad++;
+  }
+  /* 「接住了拒绝」要按**结构**判：`.then(onOk, onFail)` 的第二个参数 / `.catch(`。
+     ⚠️ 不能写成「`.then(` 后面哪儿出现过逗号」—— then 的回调体里本来就有逗号
+        （`{ v: …, text: … }`），那种写法恒真（反向验证 V4 当场逮到）。 */
+  if (!/\.then\([\s\S]*?\n\s*\},\s*function\s*\(/.test(pushBody) && !/\.catch\s*\(/.test(pushBody)) {
+    err('`Cloud.push()` 没有接住 `net.request()` 的拒绝（`.then` 缺第二个参数、也没有 `.catch`）—— '
+      + '离线或失败会变成未处理的 Promise 拒绝'); netSemBad++;
+  }
+  /* ③b 消费方：Cloud 的两个口子都要有真调用点（㉜ 抓导出面，这里盯「谁在调」） */
+  const panelsSrc = strip(fs.readFileSync(path.join(ROOT, 'src/ui/panels.js'), 'utf8'));
+  ['status', 'push'].forEach(k => {
+    if (!new RegExp('G\\.Cloud\\s*\\.\\s*' + k + '\\s*\\(').test(panelsSrc)) {
+      err(`没有人调 \`G.Cloud.${k}()\` —— ${k === 'status' ? '云端状态显示不出来' : '同步按钮点了没反应'}`); netSemBad++;
+    }
+  });
+  /* ④ 降级路必须可达：那一行的按钮不许带 disabled */
+  const cloudRow = (/id="setCloud"([^>]*)>/.exec(panelsSrc) || [, ''])[1];
+  if (!cloudRow && !/setCloud/.test(panelsSrc)) {
+    err('设置面板里没有 `#setCloud` 那一行 —— 云存档状态与同步入口都没了'); netSemBad++;
+  } else if (/\bdisabled\b/.test(cloudRow)) {
+    err('设置面板的云存档按钮带了 `disabled` —— 离线时那条「静默降级」的路永远跑不到（死代码）'); netSemBad++;
+  }
+  if (!netSemBad) {
+    ok('Platform.net 四项能力在册且在导出面；离线走 `Promise.reject(off=true)`（不抛同步异常）；'
+      + '`Cloud.push()` 永远 resolve（离线 Promise.resolve + 接住拒绝）；'
+      + 'status/push 都有界面调用点，且按钮不禁用（离线降级路可达）');
+  }
+})();
 
 /* ---------------- 37. 读 config 的键必须真的存在 ----------------
    踩过的（同一个根因的另一半）：`tools/gen-collect-time.js` 读 `cm.prob`

@@ -221,7 +221,7 @@ G.Panels = (function () {
   /* 图鉴筛选状态
      field:  null = 打开时自动定位到「当前钓场」（见 open()）
      sel:    当前展开的鱼种 id（鱼种详情页），null = 列表页 */
-  var bookFilter = { field: null, rarity: -1, sel: null, q: '', onlyNew: false };
+  var bookFilter = { field: null, rarity: -1, shape: 'ALL', sel: null, q: '', onlyNew: false };
 
   /* 某鱼种「单竿钓到」的基础概率（不含鱼饵/鱼竿加成）
      = 该档位在场内的权重占比 × 该鱼在本档鱼种池里的权重占比 */
@@ -536,6 +536,25 @@ G.Panels = (function () {
           rarRow.appendChild(c);
         });
 
+      /* 体型筛选（2026-10-10 用户口径：「筛选同一个条件下的所有鱼，
+         比如可以筛选同一个条件下的所有鱼，我来标记要重出」）。
+         中文名从 `CFG.shapeCn` 取 —— **与评审台（tools/review-cards.py）同一份**，
+         不在这里另写一套（第二份真相是本项目反复栽过的坑）。
+         ⚠️ 只列**鱼表里真出现过的**模板键：列一个筛不到 = 死选项；
+           标签带上条数，一眼就能看出「哪个体型挤得最厉害」。 */
+      var shapeRow = U.el('div', 'book-filters');
+      shapeRow.style.marginTop = '6px';
+      var shapeSeen = {};
+      G.FISH.forEach(function (f) { shapeSeen[f.shape] = (shapeSeen[f.shape] || 0) + 1; });
+      var shapeOpts = Object.keys(CFG.shapeCn).filter(function (k) { return shapeSeen[k]; })
+        .sort(function (a, b) { return shapeSeen[b] - shapeSeen[a]; })
+        .map(function (k) { return { k: k, n: CFG.shapeCn[k] + ' ' + shapeSeen[k] }; });
+      [{ k: 'ALL', n: '全部体型' }].concat(shapeOpts).forEach(function (o) {
+        var c = U.el('button', 'chip' + (bookFilter.shape === o.k ? ' active' : ''), o.n);
+        U.on(c, 'click', function () { bookFilter.shape = o.k; G.Audio.click(); refresh(); });
+        shapeRow.appendChild(c);
+      });
+
       head.appendChild(filters);
       root.appendChild(head);
 
@@ -550,6 +569,7 @@ G.Panels = (function () {
       root.appendChild(fk);
 
       root.appendChild(rarRow);
+      root.appendChild(shapeRow);
 
       /* ---- 搜索 + 只看未收集 ---- */
       var tools = U.el('div', 'book-tools');
@@ -583,6 +603,7 @@ G.Panels = (function () {
         var list = G.FISH.filter(function (f) {
           if (bookFilter.field !== 'ALL' && f.field !== bookFilter.field) return false;
           if (bookFilter.rarity >= 0 && f.rar !== bookFilter.rarity) return false;
+          if (bookFilter.shape !== 'ALL' && f.shape !== bookFilter.shape) return false;
           if (bookFilter.q && f.name.indexOf(bookFilter.q) < 0) return false;
           if (bookFilter.onlyNew && St.isCaught(f.id)) return false;
           return true;

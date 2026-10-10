@@ -543,6 +543,54 @@ def main():
     check(sorted(n for n, _ in fails4) == ["B33-shiny", "B33-shiny-2"],
           "同一档的多版**各占一槽** ⇒ 各自一行（与「同槽去重」互不冲突）：%r" % (fails4,))
 
+    print("\n[13] 条件筛选的数据口径：钓场 / 色相带 / 体型标签都必须同源")
+    # 为什么这条要有测试（2026-10-10 用户口径「筛选同一个条件下的所有鱼」）：
+    # 评审页给每条鱼补了 `field` / `hue` / `hueBand` 三个筛选维度，而它们的**真相都在别处**：
+    #   · `field` —— 游戏里是 `fish.js` 的 `F()` 用 `id.slice(0, id.search(/\d/))` 算的；
+    #     评审页是 `field_of()` 用正则算的 ⇒ **两处实现**，漂了不会报错，只会「筛出来的鱼不对」。
+    #   · 色相带 —— 分箱边界（30°）在 `HUE_BANDS`，页内 JS 不许再写一遍。
+    # 这里就钉这两件事。
+    # ⚠️ 钓场那条走**真身**（node 起 `fish.js` 读 `G.FISH[i].field`），不构造样本 ——
+    #    构造样本只能证明「我的正则与我自己一致」。
+    import json as _json
+    import subprocess as _sp
+    _node = "node"
+    # ⚠️ 必须挂**真全局**（`global.window` / `global.G`）：`fish.js` 里写的是裸 `G.FISH = …`，
+    #    它按作用域链找全局，`.call({...})` 传的那个 `this` 它**看不见**
+    #    （第一版就是这么写的，node 抛 ReferenceError，而我把它读成了「node 起不来」）。
+    _js = ("global.window={};global.G={};"
+           "new Function(require('fs').readFileSync('src/data/fish.js','utf8')).call(global);"
+           "var o={};global.G.FISH.forEach(function(f){o[f.id]=f.field;});"
+           "console.log(JSON.stringify(o));")
+    try:
+        _r = _sp.run([_node, "-e", _js], capture_output=True, text=True, cwd=ROOT,
+                     timeout=60, errors="replace")
+        _game = _json.loads((_r.stdout or "").strip().splitlines()[-1])
+    except Exception as e:
+        _game = None
+        print("   ✖ 真身交叉校验跑不起来：%s" % str(e)[:160])
+        print("     node stderr：%s" % str((_r.stderr or "").strip()[:200]))
+    if _game:
+        _mine = {f["id"]: f["field"] for f in R.load_fish()}
+        _bad = sorted(k for k in _game if _mine.get(k) != _game[k])
+        check(not _bad,
+              "`field_of()` 与游戏自己算的 field 逐条一致（%d 条；不一致 %d 条 %s）"
+              % (len(_game), len(_bad), _bad[:6]))
+    # 色相带：分箱边界只有一处（HUE_BANDS），且首尾必须接得上
+    check(len(R.HUE_BANDS) == 12 and R.HUE_BANDS[0][2] == 0
+          and [b[3] for b in R.HUE_BANDS] == [b[2] for b in R.HUE_BANDS[1:]] + [360],
+          "HUE_BANDS 是 12 档 30°、首尾相接（实得 %d 档）" % len(R.HUE_BANDS))
+    check(R.hue_of("#ff0000") == 0 and R.hue_of("#00ff00") == 120
+          and R.hue_of("") == -1 and R.hue_of("#zzzzzz") == -1,
+          "hue_of：红=0 / 绿=120 / 空与脏值=-1（实得 %s / %s / %s / %s）"
+          % (R.hue_of("#ff0000"), R.hue_of("#00ff00"), R.hue_of(""), R.hue_of("#zzzzzz")))
+    _fish = R.load_fish()
+    check(all(re.match(r"^#[0-9A-Fa-f]{6}$", f.get("body") or "") for f in _fish),
+          "每条鱼都解析出了主色 hex（%d 条）—— 色相带就是拿它算的" % len(_fish))
+    check(all(R.hue_of(f["body"]) >= 0 for f in _fish),
+          "每条鱼的主色都能算出色相（%d 条；算不出的会落进「全部色相」）"
+          % sum(1 for f in _fish if R.hue_of(f["body"]) < 0))
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

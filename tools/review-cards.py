@@ -30,6 +30,7 @@
    母版重出会顺带刷新它的 `<id>-normal.png`（原色档就是母版抠图）。
 """
 import argparse
+import colorsys
 import glob
 import io
 import json
@@ -62,12 +63,82 @@ MORPH_KEYS = ("master",) + tuple(k for k, _ in MORPH_CN if k != "normal")
 #   `shape=fish` 的八爪鱼，一眼就能对上病因）。
 # ⚠️ 键集必须与 `fishart.js` 的 `TPL.<键>` **逐个对上**（verify 第 ㊸ 节双向校验：
 #    少一个 / 多一个都报红）⇒ 将来新增一个模板，必须同时来这里补中文标签。
-SHAPE_CN = {
-    "fish": "通用鱼形", "shark": "鲨", "eel": "鳗", "ray": "鳐",
-    "squid": "鱿/章鱼", "jelly": "水母", "whale": "鲸",
-    "dragon": "龙", "oarfish": "带鱼",
-    "crustacean": "甲壳类", "star": "海蛇尾", "worm": "软体长形",
-}
+def load_shape_cn():
+    """体型键 → 中文标签。**唯一真相在 `src/data/config.js` 的 `CONFIG.shapeCn`**
+    （游戏内图鉴的体型筛选与这个评审页共用同一份）。
+
+    ⚠️ 这里是**读出来**的，不是抄一份 —— 抄一份两边必然漂开，而 `verify` 第 ㊸ 节
+       只能验「键集与 `fishart.TPL` 对齐」，**验不出「同一个键两边叫法不同」**。
+       2026-10-10 用户要求给图鉴也加体型筛选时，顺势把这份表提到了 config.js。
+    """
+    src = io.open(os.path.join(ROOT, "src", "data", "config.js"), encoding="utf-8").read()
+    m = re.search(r"shapeCn\s*:\s*\{([\s\S]*?)\}", src)
+    if not m:
+        raise SystemExit("❌ config.js 里找不到 CONFIG.shapeCn —— 评审台的体型标签从那儿读")
+    pairs = re.findall(r"([A-Za-z][A-Za-z0-9]*)\s*:\s*'([^']*)'", m.group(1))
+    if len(pairs) < 5:
+        raise SystemExit("❌ CONFIG.shapeCn 只解析出 %d 条 —— config.js 的写法改过就来更新这里"
+                         % len(pairs))
+    return dict(pairs)
+
+
+SHAPE_CN = load_shape_cn()
+
+# ---- 钓场键 → 中文标签（**唯一一处**）------------------------------------------
+# 用户 2026-10-10 口径：「你可以在图鉴和我的审图合格不合格上加条件赛选，
+#   比如可以筛选同一个条件下的所有鱼，我来标记要重出」。
+# 这是那个「条件」的第一个维度。**场名只在这里写一次** ——
+#   页内 JS 靠 Python 注入的 `<option>` 取文本，绝不在页里再抄一份中文表（第二份真相）。
+def load_fields():
+    """钓场 id → 中文名（**按 `fields.js` 自己的顺序**，即「由近及远」）。"""
+    src = io.open(os.path.join(ROOT, "src", "data", "fields.js"), encoding="utf-8").read()
+    out = []
+    for m in re.finditer(r"id:\s*'([A-Z]+)'([\s\S]{0,400}?)name:\s*'([^']*)'", src):
+        out.append((m.group(1), m.group(3)))
+    if len(out) < 5:
+        raise SystemExit("❌ fields.js 只解析出 %d 个钓场 —— 写法改过就来更新这个解析" % len(out))
+    return out
+
+
+# 🔴 钓场名的**唯一真相是 `src/data/fields.js`** —— 这里读它，不许手抄。
+#    手抄那张表我第一版就写了，而且**七条错了五条**：`fields.js` 的 id 是**倒着排**的
+#    （`D` 村口小池塘 → `C` 溪流浅滩 → `B` 湖心半岛 → `A` 深海断崖），
+#    我按「A 是第一个钓场」去猜，于是 A 写成「溪流浅滩」（其实是「深海断崖」）、
+#    B 写成「混合水域」（其实是「湖心半岛」）… 最要命的是**看上去完全正常**：
+#    下拉里有名字、筛出来也有鱼，只有对着游戏看一眼才会发现错了。
+FIELD_CN = dict(load_fields())
+
+# ---- 色相带（30° 一档，**唯一一处**）-------------------------------------------
+# 「同体型 + 同色相带」是**肉眼最容易觉得像**的那一格 —— 实测 SS 场的
+#   「通用鱼形 + 240~270°（蓝）」一格里就挤了 29 条（占该场鱼形的一半）。
+# ⚠️ 分箱边界（30°）与 `HUE_BANDS` 的条数必须同源，别在别处再写一遍。
+HUE_BANDS = (
+    (0, u"红", 0, 30), (1, u"橙", 30, 60), (2, u"金", 60, 90), (3, u"黄绿", 90, 120),
+    (4, u"绿", 120, 150), (5, u"青绿", 150, 180), (6, u"青", 180, 210), (7, u"天蓝", 210, 240),
+    (8, u"蓝", 240, 270), (9, u"紫", 270, 300), (10, u"洋红", 300, 330), (11, u"粉", 330, 360),
+)
+
+
+def hue_of(hexstr):
+    """十六进制色值 → 色相角 0~359（认不出来返回 -1）。走 rgb→hls，与游戏内同一套。"""
+    h = (hexstr or "").lstrip("#")
+    if len(h) != 6:
+        return -1
+    try:
+        r, g, b = (int(h[i:i + 2], 16) / 255.0 for i in (0, 2, 4))
+    except ValueError:
+        return -1
+    return int(colorsys.rgb_to_hls(r, g, b)[0] * 360) % 360
+
+
+def facet_options(items):
+    """拼 `<option>` 串 —— 中文名在**这里**算好，页内只读文本、不抄表。
+
+    ⚠️ **不生成空选项**：那个「全部钓场 / 全部体型…」由模板里写死（带各自的上下文词，
+    比一个笼统的「全部」好读）。两边都生成的话，下拉里会出现**两个空选项**（实测踩过）。
+    """
+    return u"".join(u'<option value="%s">%s</option>' % (v, cn) for v, cn in items)
+
 
 # ---- 名字 / 模板交叉提示（**只提示、不报错**）-----------------------------------
 # 含义：名字里出现了某个家族词，用的却是**别的**模板 ⇒ 在卡片上提一句，让人看一眼。
@@ -114,11 +185,24 @@ def shape_note(shape, name):
     return label, u""
 
 
+def field_of(fid):
+    """`id` → 钓场键。**与游戏同一条规则**（`fish.js` 的 `F()` 里就是这么算的：
+    `id.slice(0, id.search(/\\d/))` —— 数字之前的字母）。
+    ⚠️ 这是**第二处实现**，所以 `test-review-cards.py` 有一条交叉校验：
+    拿游戏自己跑出来的 `G.FISH[i].field` 与这里逐个对，对不上就报红（防漂移）。
+    """
+    m = re.match(r"[A-Za-z]+", fid or "")
+    return m.group(0) if m else ""
+
+
 def load_fish():
     src = io.open(os.path.join(ROOT, "src", "data", "fish.js"), encoding="utf-8").read()
     out = []
-    for i, n, r, sh in re.findall(r"F\('([A-Z0-9]+)', '([^']*)', (\d), '([a-z]+)'", src):
-        out.append({"id": i, "name": n, "rar": int(r), "shape": sh})
+    # 第 5 个参数就是主色（`body`），筛选「色相带」要用它
+    for i, n, r, sh, body in re.findall(
+            r"F\('([A-Z0-9]+)',\s*'([^']*)',\s*(\d),\s*'([a-z]+)',\s*'(#[0-9A-Fa-f]{6})'", src):
+        out.append({"id": i, "name": n, "rar": int(r), "shape": sh,
+                    "body": body, "field": field_of(i)})
     return out
 
 
@@ -208,10 +292,14 @@ def build_rows(only_ids=None):
             continue
         t = traits.get(f["id"]) or {}
         label, hint = shape_note(f["shape"], f["name"])
+        hue = hue_of(f.get("body"))
         rows.append({
             "id": f["id"], "name": f["name"], "lat": (t.get("species") or "").strip(),
             "rar": f["rar"], "shape": f["shape"], "shapeCn": label, "shapeHint": hint,
             "form": (t.get("form") or "").strip(), "fins": (t.get("fins") or "").strip(),
+            # 「条件筛选」的维度：钓场 / 体型（= shape + shapeCn）/ 稀有度 / 色相带
+            "field": f.get("field") or "", "hue": hue,
+            "hueBand": (hue // 30) if hue >= 0 else -1,
             "slots": morph_slots(f["id"], names),
         })
     rows.sort(key=lambda r: r["id"])
@@ -233,6 +321,14 @@ TEMPLATE = u"""<!DOCTYPE html>
            border-bottom:1px solid var(--line); padding:10px 16px; }
   h1 { font-size:15px; font-weight:500; margin:0 0 6px; }
   .bar { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  /* 条件筛选行（2026-10-10）：把 362 条按「条件」收窄，一次只看一组。
+     ⚠️ 选项的中文名全部由 Python 注入（`__FACET_*__`），页内不抄表。 */
+  .flt { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .flt select { background:#2a2d34; color:var(--fg); border:1px solid var(--line);
+                border-radius:6px; padding:4px 8px; font:inherit; cursor:pointer; }
+  .flt select.on { border-color:var(--accent); color:#fff; }
+  .flt .hit b { color:var(--accent); font-weight:600; }
+  .flt .warn2 { color:#d8a657; }
   .prog { flex:1; min-width:180px; height:6px; background:#2a2d34; border-radius:3px; overflow:hidden; }
   .prog i { display:block; height:100%; background:var(--accent); width:0; }
   button { background:#2a2d34; color:var(--fg); border:1px solid var(--line);
@@ -317,6 +413,16 @@ TEMPLATE = u"""<!DOCTYPE html>
     <button id="rst">清空</button>
     <span class="stat">快捷键：1=合格　2=重出　·　点图放大　·　<span id="runState">检查本地运行器…</span></span>
   </div>
+  <div class="flt">
+    <span class="stat">按条件筛：</span>
+    <select id="q-field"><option value="">全部钓场</option>__FACET_FIELD__</select>
+    <select id="q-shape"><option value="">全部体型</option>__FACET_SHAPE__</select>
+    <select id="q-rar"><option value="">全部稀有度</option>__FACET_RAR__</select>
+    <select id="q-hue"><option value="">全部色相</option>__FACET_HUE__</select>
+    <span class="hit">命中 <b id="flt-hit">0</b> / <b id="flt-all">0</b> 条</span>
+    <span class="stat" id="flt-note"></span>
+    <button id="f-clr">清空条件</button>
+  </div>
   <div id="warn"></div>
   <div class="stat" style="margin-top:4px">图片若显示不出来：请用「项目根目录起 http 服务」的方式打开本页（<code>python -m http.server 8765</code> → <code>127.0.0.1:8765/docs/卡片评审.html</code>）。
     想**点一下就直接重出**：双击 <code>tools\评审台.cmd</code>（起本地运行器并自动开浏览器，三种跑法都解锁）。</div>
@@ -388,6 +494,70 @@ try {
 } catch (e) { /* 老状态坏了不影响使用 */ }
 var filter = 'all';
 
+/* 🔴 条件筛选（2026-10-10，用户口径：「你可以在图鉴和我的审图合格不合格上加条件赛选，
+   比如可以筛选同一个条件下的所有鱼，我来标记要重出」）。
+   为什么要有它：出图跑完之后人肉一屏一屏翻，**看不出哪些鱼长得像** ——
+   实测 362 条里「通用鱼形」占 66%，而 SS 场「通用鱼形 + 蓝色相」那一格就挤了 29 条。
+   ⇒ 按 钓场 / 体型 / 稀有度 / 色相带 四个条件收窄，一次只比一组。
+   ⚠️ 选项中文名全部由 Python 侧注入（`__FACET_*__`）；页内**不抄中文表**
+      （那是第二份真相，本项目反复栽过），摘要文字直接读 `<option>` 的文本。 */
+var FLT = { field: '', shape: '', rar: '', hue: '' };
+function facetMatch(d) {
+  if (FLT.field && d.field !== FLT.field) return false;
+  if (FLT.shape && d.shape !== FLT.shape) return false;
+  if (FLT.rar !== '' && String(d.rar) !== FLT.rar) return false;
+  if (FLT.hue !== '' && String(d.hueBand) !== FLT.hue) return false;
+  return true;
+}
+function fltActive() {
+  return !!(FLT.field || FLT.shape || FLT.rar !== '' || FLT.hue !== '');
+}
+/* 状态（全部/未审/重出）与条件是**两条独立的轴**，两边都要过。 */
+function statusMatch(d) {
+  if (filter === 'pending' && isDone(d)) return false;
+  if (filter === 'bad' && !isBad(d)) return false;
+  return true;
+}
+function selText(id) {
+  var s = document.getElementById(id);
+  if (!s) return '';
+  return s.selectedIndex > 0 ? s.options[s.selectedIndex].text : '';
+}
+/* 条件写进 URL hash：可收藏、可贴给别人（`#f=SS,fish,,8`）。存不进去也不影响筛选本身。 */
+function syncFlt() {
+  try {
+    var next = fltActive() ? '#f=' + [FLT.field, FLT.shape, FLT.rar, FLT.hue].join(',') : '#';
+    if (location.hash !== next) history.replaceState(null, '', next);
+  } catch (e) { /* 沙箱里可能不让改 */ }
+}
+function readFlt() {
+  try {
+    var m = /(?:^|[#&])f=([^&]*)/.exec(location.hash || '');
+    if (!m) return;
+    var p = decodeURIComponent(m[1]).split(',');
+    FLT.field = p[0] || ''; FLT.shape = p[1] || ''; FLT.rar = p[2] || ''; FLT.hue = p[3] || '';
+  } catch (e) { /* hash 坏了就当没筛 */ }
+}
+function paintFlt() {
+  document.getElementById('q-field').value = FLT.field;
+  document.getElementById('q-shape').value = FLT.shape;
+  document.getElementById('q-rar').value = FLT.rar;
+  document.getElementById('q-hue').value = FLT.hue;
+  ['q-field', 'q-shape', 'q-rar', 'q-hue'].forEach(function (id) {
+    document.getElementById(id).classList.toggle('on', !!document.getElementById(id).value);
+  });
+  var parts = [selText('q-field'), selText('q-shape'), selText('q-rar'), selText('q-hue')]
+    .filter(function (x) { return x; });
+  document.getElementById('flt-note').textContent = parts.length
+    ? '只看：' + parts.join(' · ') : '';
+}
+function updateFilt() {
+  var hit = 0;
+  DATA.forEach(function (d) { if (facetMatch(d) && statusMatch(d)) hit++; });
+  document.getElementById('flt-hit').textContent = hit;
+  document.getElementById('flt-all').textContent = DATA.length;
+}
+
 /* 🔴 `save()` **绝不许抛**。
    踩过（2026-10-08 用户报「我点了重出后咋没用」）：预览面板把本页放在**沙箱 iframe** 里，
    那里 `localStorage.setItem` 会抛 SecurityError；而 save() 原来排在
@@ -436,8 +606,8 @@ function render() {
   g.innerHTML = '';
   var shown = 0;
   DATA.forEach(function (d) {
-    if (filter === 'pending' && isDone(d)) return;
-    if (filter === 'bad' && !isBad(d)) return;
+    if (!statusMatch(d)) return;      // 状态轴（全部 / 未审 / 重出）
+    if (!facetMatch(d)) return;       // 条件轴（钓场 / 体型 / 稀有度 / 色相带）
     shown++;
     var el = document.createElement('div');
     el.className = 'c' + (isDone(d) ? ' ok' : '') + (isBad(d) ? ' bad' : '');
@@ -473,9 +643,11 @@ function render() {
   if (!shown) {
     var e = document.createElement('div');
     e.className = 'empty';
-    e.textContent = '这个筛选下没有卡片。';
+    e.textContent = fltActive() ? '这个条件下没有卡片 —— 换个条件，或点「清空条件」。'
+                               : '这个筛选下没有卡片。';
     g.appendChild(e);
   }
+  updateFilt();
   updateStats();
 }
 
@@ -555,6 +727,20 @@ document.getElementById('grid').addEventListener('click', function (ev) {
     render();
   };
 });
+
+/* 条件筛选的四个下拉 + 「清空条件」。
+   ⚠️ 只重绘网格（条件变了整页要重排），并把条件同步进 URL hash。 */
+[['q-field', 'field'], ['q-shape', 'shape'], ['q-rar', 'rar'], ['q-hue', 'hue']]
+  .forEach(function (pair) {
+    document.getElementById(pair[0]).onchange = function () {
+      FLT[pair[1]] = this.value;
+      paintFlt(); syncFlt(); render();
+    };
+  });
+document.getElementById('f-clr').onclick = function () {
+  FLT.field = FLT.shape = FLT.rar = FLT.hue = '';
+  paintFlt(); syncFlt(); render();
+};
 
 document.getElementById('rst').onclick = function () {
   if (confirm('清空全部评审记录？')) { state = {}; save(); render(); }
@@ -816,6 +1002,8 @@ document.addEventListener('keydown', function (e) {
 });
 
 DATA.forEach(function (d) { d.rarCn = d.rarCn || ''; });
+readFlt();      // 先读 URL hash（可收藏 / 可贴给别人的那个「条件」）
+paintFlt();
 render();
 </script>
 </body>
@@ -862,7 +1050,25 @@ def build_page(only):
     for r in rows:
         r["rarCn"] = RAR_CN[min(3, r["rar"])]
     data = json.dumps(rows, ensure_ascii=False, separators=(",", ":"))
-    html = TEMPLATE.replace("__DATA__", data)
+    # 分面选项只列**本页真出现过**的取值：列出来却一条都筛不到 = 死选项（没人会去点）
+    # ⚠️ 钓场的顺序走 `fields.js` 自己的顺序（由近及远），不按字母排 ——
+    #    `A` 其实是**最深**的那个场，按字母排会把顺序整个讲反。
+    seen_f = set(r["field"] for r in rows if r["field"])
+    flds = [k for k, _n in load_fields() if k in seen_f]
+    shps = sorted(set(r["shape"] for r in rows if r["shape"] in SHAPE_CN))
+    bands = sorted(set(r["hueBand"] for r in rows if r["hueBand"] >= 0))
+    facets = {
+        "__FACET_FIELD__": facet_options([(x, FIELD_CN.get(x, x)) for x in flds]),
+        "__FACET_SHAPE__": facet_options([(k, SHAPE_CN[k]) for k in shps]),
+        "__FACET_RAR__": facet_options([(str(i), RAR_CN[i])
+                                        for i in sorted(set(r["rar"] for r in rows))]),
+        "__FACET_HUE__": facet_options([(str(b), u"%s %d~%d°" % (cn, lo, hi))
+                                        for b, cn, lo, hi in HUE_BANDS if b in bands]),
+    }
+    html = TEMPLATE
+    for k, v in facets.items():
+        html = html.replace(k, v)
+    html = html.replace("__DATA__", data)
     check_inline_js(html)
     return html, len(rows)
 

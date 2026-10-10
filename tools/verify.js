@@ -4774,11 +4774,26 @@ console.log('\n[43] 评审页：内部形态模板键必须带中文标签（表
   /* ---------- ① SHAPE_CN 的键集 == fishart.js 的 TPL 键集（双向） ---------- */
   const tplKeys = uniq((read('src/render/fishart.js').match(/\bTPL\.([A-Za-z][A-Za-z0-9]*)\s*=/g) || [])
     .map(s => /TPL\.([A-Za-z][A-Za-z0-9]*)/.exec(s)[1]));
-  const dict = /SHAPE_CN\s*=\s*\{([\s\S]*?)\}/.exec(py);
-  const labelKeys = dict ? uniq((dict[1].match(/"([A-Za-z][A-Za-z0-9]*)"\s*:/g) || [])
-    .map(s => /"([A-Za-z][A-Za-z0-9]*)"/.exec(s)[1])) : [];
+  /* 标签表的**唯一真相**是 `CONFIG.shapeCn`（2026-10-10 起：游戏内图鉴的体型筛选
+     与评审台共用同一份）。以前是 review-cards.py 里的一份字面 dict ——
+     给图鉴也加体型筛选时顺势提上来了：**两处叫法不同**这种漂移，键集对齐是验不出来的。 */
+  const labelKeys = Object.keys(CFG.shapeCn || {});
+  if (!/SHAPE_CN\s*=\s*load_shape_cn\(\)/.test(py)) {
+    err('review-cards.py 的 SHAPE_CN 不再由 `load_shape_cn()` 从 config.js 派生 —— '
+      + '体型中文表出现了第二份拷贝（唯一真相在 `CONFIG.shapeCn`）');
+  }
+  /* ---------- ①b 钓场名同理：**必须从 fields.js 读**，不许手抄 ------------------
+     实证（2026-10-10）：给评审页加「钓场」筛选时我手写了一张表，**七条错了五条**
+     —— `fields.js` 的 id 是**倒着排**的（`D` 村口小池塘 → `C` 溪流浅滩 →
+     `B` 湖心半岛 → `A` 深海断崖），而手抄时按「A 是第一个钓场」去猜。
+     最要命的是它**看上去完全正常**：下拉里有名字、筛出来也有鱼。
+     手抄一张「id → 中文名」的表就是会错，所以这里钉住「派生」这件事本身。 */
+  if (!/FIELD_CN\s*=\s*dict\(load_fields\(\)\)/.test(py)) {
+    err('review-cards.py 的钓场名不再由 `load_fields()` 从 `src/data/fields.js` 派生 —— '
+      + '手抄一张钓场名表**一定会错**（实测 id 是倒着排的，第一版七条错了五条）');
+  }
   if (!tplKeys.length || !labelKeys.length) {
-    err(`第 43 节键集抓不到（fishart 的 TPL ${tplKeys.length} 个 / SHAPE_CN ${labelKeys.length} 个）`
+    err(`第 43 节键集抓不到（fishart 的 TPL ${tplKeys.length} 个 / CONFIG.shapeCn ${labelKeys.length} 个）`
       + ' —— 空集会让下面的判断恒真，所以直接报错；改了写法就来更新本断言');
     return;
   }
@@ -4791,10 +4806,10 @@ console.log('\n[43] 评审页：内部形态模板键必须带中文标签（表
   const extraLabel = missingIn(tplKeys, labelKeys);
   if (missLabel.length) {
     err(`fishart.js 有模板键却没有中文标签：${missLabel.join('、')} ——`
-      + '评审页会把内部键裸印出来（去 review-cards.py 的 SHAPE_CN 补上）');
+      + '图鉴与评审页都会把内部键裸印出来（去 config.js 的 CONFIG.shapeCn 补上）');
   }
   if (extraLabel.length) {
-    err(`SHAPE_CN 里有 fishart.js 不存在的键：${extraLabel.join('、')} ——`
+    err(`CONFIG.shapeCn 里有 fishart.js 不存在的键：${extraLabel.join('、')} ——`
       + '死配置（模板改名 / 删掉了？）');
   }
   if (!missLabel.length && !extraLabel.length) {
@@ -4810,9 +4825,15 @@ console.log('\n[43] 评审页：内部形态模板键必须带中文标签（表
   const bare = t => (t.match(/d\.shape\b/g) || []).length;   // `\b` 保证不把 d.shapeCn / d.shapeHint 算进来
   /* 函数体切片走顶层共享的 `bodyOf()`（本节原来自带一份 `fnBody`，第 40 / 44 节各一份 ⇒ 提到顶层） */
   const tagBody = t => bodyOf(t, 'function shapeTag(');
-  const outside = t => bare(t) - bare(tagBody(t));
-  /* 判据自检：好样本（裸键在 shapeTag 里）与坏样本（裸键印在 render 里）必须被分开 */
-  const SYN_OK = "function shapeTag(d) { return d.shapeCn + '<code>' + d.shape + '</code>'; }\nfunction render() { return 1; }";
+  /* ⚠️ 第二处允许出现 `d.shape` 的地方：**条件筛选的比较**（2026-10-10 加）。
+     它把 `d.shape` 与下拉框的 value 比大小，**从不显示给用户** ——
+     「裸印」管的是「用户看到英文键」，比较不在此列。
+     ⇒ 只减掉**有名字的**这一处；`render()` 里再出现 `d.shape` 照样报红（负对照见下）。 */
+  const fmBody = t => bodyOf(t, 'function facetMatch(');
+  const outside = t => bare(t) - bare(tagBody(t)) - bare(fmBody(t));
+  /* 判据自检：好样本（裸键在 shapeTag / facetMatch 里）与坏样本（印在 render 里）必须被分开 */
+  const SYN_OK = "function shapeTag(d) { return d.shapeCn + '<code>' + d.shape + '</code>'; }\n"
+    + "function facetMatch(d) { return d.shape === 'eel'; }\nfunction render() { return 1; }";
   const SYN_BAD = "function shapeTag(d) { return d.shapeCn; }\nfunction render() { return ' · ' + d.shape; }";
   if (outside(SYN_OK) !== 0 || outside(SYN_BAD) !== 1) {
     err(`第 43 节判据自检不成立：分不出「裸键印在 shapeTag 之外」（好样本 ${outside(SYN_OK)}、坏样本 ${outside(SYN_BAD)}）`);

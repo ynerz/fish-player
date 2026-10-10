@@ -124,5 +124,97 @@
   out.dupSlotKeys = dupKeys;                  // 必须为空：同键两槽会共用一份结论
   out.slotsWithoutLabel = noLabel;            // 必须为空：没标签就不知道在审哪一档
   out.v2Slots = v2Slots;                      // 只报告：当前数据里哪些鱼有第 2 版
+
+  /* ⑧ 条件筛选（2026-10-10 加，用户口径：「筛选同一个条件下的所有鱼，我来标记要重出」）。
+        这里**真的改 select 的 value 并派发 change**，然后数网格里剩几张卡 ——
+        「控件在」不等于「筛得动」，只读 DOM 属性是看不出这件事的。
+        ⚠️ 判据只认**不变量**：筛完必须是「全量里该条件的子集」且**计数与网格一致**，
+           不写死任何具体条数（数据一变就会假红）。 */
+  var STEP = 'start';
+  try {
+  STEP = 'grid';
+  var all = q('#grid').querySelectorAll('.c').length;
+  STEP = 'ui';
+  out.filterUi = ['q-field', 'q-shape', 'q-rar', 'q-hue', 'f-clr'].every(function (id) { return !!q('#' + id); });
+  out.facetOptionCounts = ['q-field', 'q-shape', 'q-rar', 'q-hue'].map(function (id) {
+    return q('#' + id).options.length - 1;      // 减掉「全部…」那一条
+  });
+  var probeFlt = function (id, val) {
+    var sel = q('#' + id);
+    sel.value = val;
+    sel.dispatchEvent(new Event('change'));
+    var cards2 = q('#grid').querySelectorAll('.c');
+    var ids = [];
+    for (var z = 0; z < cards2.length; z++) ids.push(cards2[z].getAttribute('data-id'));
+    return { ids: ids, hit: parseInt(q('#flt-hit').textContent, 10),
+             label: sel.options[sel.selectedIndex].text,
+             note: q('#flt-note').textContent };
+  };
+  /* 复位四个下拉（每条单独测时互不干扰）。
+     ⚠️ 期望值一律**从 DATA 现算**，不写死条数 —— 数据一变就假红的断言等于没写。 */
+  var resetFlt = function () {
+    ['q-field', 'q-shape', 'q-rar', 'q-hue'].forEach(function (id) {
+      q('#' + id).value = '';
+      q('#' + id).dispatchEvent(new Event('change'));
+    });
+  };
+  var expect = function (fn) {
+    return DATA.filter(function (d) { return fn(d); }).length;
+  };
+  resetFlt();
+  STEP = 'field';
+  var byField = probeFlt('q-field', 'SS');
+  out.fieldHit = byField.hit;
+  out.fieldCells = byField.ids.length;
+  out.fieldExpect = expect(function (d) { return d.field === 'SS'; });
+  out.fieldCountsAgree = byField.hit === byField.ids.length;   // 计数与网格必须一致
+  out.fieldMatchesData = byField.hit === out.fieldExpect;      // 与 DATA 现算的一致
+  out.fieldAllSS = byField.ids.every(function (x) { return /^SS\d/.test(x); });
+  out.fieldNote = byField.note;
+  resetFlt();
+  var byShape = probeFlt('q-shape', 'eel');
+  out.shapeHit = byShape.hit;
+  out.shapeCells = byShape.ids.length;
+  out.shapeExpect = expect(function (d) { return d.shape === 'eel'; });
+  out.shapeCountsAgree = byShape.hit === byShape.ids.length;
+  out.shapeMatchesData = byShape.hit === out.shapeExpect;
+  resetFlt();
+  var byHue = probeFlt('q-hue', '8');
+  out.hueHit = byHue.hit;
+  out.hueCells = byHue.ids.length;
+  out.hueExpect = expect(function (d) { return d.hueBand === 8; });
+  out.hueCountsAgree = byHue.hit === byHue.ids.length;
+  out.hueMatchesData = byHue.hit === out.hueExpect;
+  /* 单条鱼都不该被算漏：四个条件**都不选**时必须等于全量 */
+  resetFlt();
+  out.resetBackToAll = parseInt(q('#flt-hit').textContent, 10) === all;
+  /* 组合条件（钓场 + 体型 + 色相）必须**同时生效**（不是最后一个覆盖前面） */
+  var combo = probeFlt('q-field', 'SSS');
+  var sel2 = q('#q-shape'); sel2.value = 'fish'; sel2.dispatchEvent(new Event('change'));
+  var sel3 = q('#q-hue'); sel3.value = '2'; sel3.dispatchEvent(new Event('change'));
+  out.comboHit = parseInt(q('#flt-hit').textContent, 10);
+  out.comboCells = q('#grid').querySelectorAll('.c').length;
+  out.comboAllSSS = Array.prototype.every.call(q('#grid').querySelectorAll('.c'), function (c) {
+    return /^SSS\d/.test(c.getAttribute('data-id'));
+  });
+  out.comboCustom = q('#flt-note').textContent;
+  /* hash 同步（可收藏 / 可贴给别人）*/
+  out.hashAfter = location.hash;
+  /* 清空条件 → 必须回到全量 */
+  q('#f-clr').click();
+  out.afterClearCells = q('#grid').querySelectorAll('.c').length;
+  out.afterClearHit = parseInt(q('#flt-hit').textContent, 10);
+  out.afterClearHash = location.hash;
+  out.allTotal = all;
+  /* 收尾：把上游步骤打开的「导出清单」弹窗关掉、滚回顶部 ——
+     否则视口截图拍到的全是那个弹窗，等于没留下「筛选行长什么样」的证据。 */
+  var dlg = q('#dlg');
+  if (dlg && dlg.open) { var cb = q('#close'); if (cb) cb.click(); }
+  window.scrollTo(0, 0);
+  } catch (e) {
+    /* 条件筛选这一段**自己兜底**：出错时返回「走到哪一步 + 什么错」，
+       而不是让整个探针抛掉 —— 抛掉的话前面 ①~⑦ 的结果也一起丢了（什么都诊断不了）。 */
+    out.facetError = STEP + ' → ' + String((e && e.message) || e).slice(0, 160);
+  }
   return out;
 })()

@@ -161,9 +161,21 @@ async function main() {
 
     if (probeFile) out.interact = await evalJs(fs.readFileSync(probeFile, 'utf8'));
 
-    const png = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
+    /* 🔴 全页截图要能**失败退回**（2026-10-10）：`docs/卡片评审.html` 装上 362 张卡之后
+       页面高达十几万像素，Chromium 直接回 `-32000 Page is too large.` ——
+       而这一步在探针**之后**，于是「探针跑得好好的」却整条命令报错、`interact` 也拿不到。
+       页会长大（鱼越多越长），工具不能跟着报废 ⇒ 全页失败就退回**视口截图**，
+       并在 `shotFallback` 里写明原因（别让人以为截图本来就是这样的）。 */
+    let png, shotFallback = null;
+    try {
+      png = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
+    } catch (e) {
+      shotFallback = String((e && e.message) || e).slice(0, 120);
+      png = await send('Page.captureScreenshot', { format: 'png' });
+    }
     fs.writeFileSync(shot, Buffer.from(png.data, 'base64'));
     out.screenshot = shot;
+    if (shotFallback) out.shotFallback = shotFallback;
     out.pageErrors = events.error;
     out.consoleErrors = events.console;
     ws.close();

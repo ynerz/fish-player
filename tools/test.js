@@ -348,44 +348,46 @@ ok(seenOpts && seenOpts.bait && seenOpts.bait.id === paid.id,
    ========================================================= */
 G_('Profile · 本机档案（uid / 存档键 / 老档迁移）');
 (function () {
-  const P = G.Profile;
-  ok(!!P, 'profile.js 已加载且导出 G.Profile');
-  if (!P) return;
+  /* ⚠️ 别名不叫 `P`：本文件里 `P` 被 `G.Platform` / `G.Platform.sys` 占着（多处），
+     按文件收别名会让 `P.任意名` 同时算作 Platform 与 Profile 的消费方（㉜ 的已知网眼）。 */
+  const PF = G.Profile;
+  ok(!!PF, 'profile.js 已加载且导出 G.Profile');
+  if (!PF) return;
 
   /* 干净起步：清空所有存储 */
   Object.keys(store).forEach(k => delete store[k]);
 
-  const uid1 = P.init();
-  ok(!!uid1 && P.current() && P.current().uid === uid1, '首次启动自动建出默认档案');
-  ok(P.key() === CFG.saveKey + '.' + uid1,
-     '存档键按 uid 分档（' + P.key() + '）—— 每个档案一份档');
-  ok(P.list().length === 1 && P.list()[0].locked === false, '默认档案是免密档');
-  ok(P.keyBak() === P.key() + '.bak' && P.keyRescue() === P.key() + '.rescue',
+  const uid1 = PF.init();
+  ok(!!uid1 && PF.current() && PF.current().uid === uid1, '首次启动自动建出默认档案');
+  ok(PF.key() === CFG.saveKey + '.' + uid1,
+     '存档键按 uid 分档（' + PF.key() + '）—— 每个档案一份档');
+  ok(PF.list().length === 1 && PF.list()[0].locked === false, '默认档案是免密档');
+  ok(PF.keyBak() === PF.key() + '.bak' && PF.keyRescue() === PF.key() + '.rescue',
      '备份键 / 救援键都跟着当前档案走（不再指向老的单档键）');
 
   /* 老档迁移：账号表没了但老键有内容 ⇒ 进度必须被搬进新档案键 */
   delete store['fishplayer.accounts.v1'];
   store[CFG.saveKey] = '{"v":5,"coin":1234}';
-  const uid2 = P.init();
+  const uid2 = PF.init();
   ok(uid2 !== uid1, '重新 init 会建一个新档案（uid 不重复）');
-  ok(store[P.keyFor(uid2)] === '{"v":5,"coin":1234}',
+  ok(store[PF.keyFor(uid2)] === '{"v":5,"coin":1234}',
      '🔴 老档被搬到新档案键下 —— 升级不丢进度',
-     '实际：' + store[P.keyFor(uid2)]);
+     '实际：' + store[PF.keyFor(uid2)]);
   ok(store[CFG.saveKey] === '{"v":5,"coin":1234}',
      '老键原样保留（迁移是复制不是剪切，出问题还能捞回来）');
 
   /* 最后一个档案不许删 */
-  const r = P.remove(uid2);
+  const r = PF.remove(uid2);
   ok(r.ok === false, '只剩一个档案时拒绝移除（否则玩家会把自己锁在门外）');
 
   /* 能力探测要如实回报 */
-  ok(typeof P.isSecure() === 'boolean', 'isSecure() 如实回报「有没有 crypto.subtle」');
-  ok(typeof P.NAME_MAX === 'number' && typeof P.PW_MIN === 'number',
+  ok(typeof PF.isSecure() === 'boolean', 'isSecure() 如实回报「有没有 crypto.subtle」');
+  ok(typeof PF.NAME_MAX === 'number' && typeof PF.PW_MIN === 'number',
      '昵称 / 密码的长度约束从这里出（界面文案与它同源）');
 
   /* 收尾：留一个干净档，别影响后面的用例 */
   Object.keys(store).forEach(k => delete store[k]);
-  P.init();
+  PF.init();
 })();
 
 G_('Fishing · 提前收杆不消耗鱼饵');
@@ -1452,6 +1454,27 @@ ok(oc.recent.every(x => x.fish && x.fish.name && x.color && x.color.name &&
 const ocCap = Fish.offlineCatchUp(999999, 30);
 ok(ocCap.seconds === CFG.idle.maxCatchUp, '离线补算按 idle.maxCatchUp 封顶', '实际 ' + (ocCap && ocCap.seconds));
 ok(ocCap.recent.length <= 5, '离线再久，代表渔获也不超过 5 条（播报栏不会刷屏）');
+
+/* ---- 两条「统计口径不对称」的实测锚点（待办 2026-10-09 那条的建议：先写成断言）----
+   ① 离线补算**只加** `catches` / `idleCatches`，**不加 `casts`** —— 人不在场，没有抛竿动作
+      ⇒ 「catches 与 casts 应当对得上」这类判据会被它打破（N2 因此砍掉过两条判据）；
+   ② 图鉴条数按 `max(1, round(gained[id] * scale))` **逐鱼种**折算，而 `scale = n / min(n, 4000)`
+      ⇒ 今天 `avgCycle() ≥ 8s` 时 `n ≤ 4000`、`scale` 恰好是 1，**但那是靠巧合成立**的。
+   哪天要按 `stats` 做运营统计，先看这两条；改口径时这两条会先红。 */
+(function () {
+  St.reset(); Fish.init({});
+  const s0 = St.get();
+  const casts0 = s0.stats.casts, cat0 = s0.stats.catches, idle0 = s0.stats.idleCatches;
+  const ocS = Fish.offlineCatchUp(3600, 30);
+  const s1 = St.get();
+  ok(!!ocS && s1.stats.casts === casts0,
+    `离线补算**不加抛竿数**（casts ${casts0} → ${s1.stats.casts}）—— 人不在场，没有抛竿动作`);
+  ok(s1.stats.catches - cat0 === ocS.count && s1.stats.idleCatches - idle0 === ocS.count,
+    `补算条数同时进 catches 与 idleCatches（各 +${ocS.count}）`);
+  const bookN = Object.keys(s1.book).length;
+  ok(bookN > 0 && bookN <= ocS.count,
+    `图鉴按鱼种落账：${bookN} 个鱼种 ≤ 补算条数 ${ocS.count}（逐鱼种折算，不是一条一条写）`);
+})();
 
 /* ---- 非数的秒数必须被拒之门外 ----
    lastSeen 是从存档里读出来的：脏档兜底扫不到的键可能不是数字，
@@ -3569,68 +3592,73 @@ G_('Weather · 背景音乐随条件换参数（修饰量单一来源）');
    ========================================================= */
 G_('Assets —— 键 → 地址（纯逻辑）');
 (function () {
-  const A = G.Assets;
+  /* 🔴 别名**不叫 `A`**：本文件里 `A` 早就被 `G.Audio` 占着（多处），而 `verify` 的 ㉜ 节
+     是**按文件**收别名的 ⇒ `A.任意名` 对 Audio 与 Assets 两个模块同时算数，
+     「Assets 的某个导出其实零调用」会被 Audio 那几处的同名成员访问**喂饱**（假通过）。
+     同族：`P`（Profile）与 `G.Platform` 的那些段。⇒ 单字母别名改成不重名的
+     （Assets = `AS`、Profile = `PF`），从源头去掉互串的可能 —— 比在 ㉜ 里追绑定位置省得多。 */
+  const AS = G.Assets;
 
-  ok(A.mode() === 'inline' || A.mode() === 'external',
-     `mode()：只可能是 inline / external（Node 没有 location ⇒ 实得「${A.mode()}」）`);
+  ok(AS.mode() === 'inline' || AS.mode() === 'external',
+     `mode()：只可能是 inline / external（Node 没有 location ⇒ 实得「${AS.mode()}」）`);
 
-  ok(A.resolve('fishcard:list:A01:golden') === 'assets/cards-ui/list/A01-golden.png',
+  ok(AS.resolve('fishcard:list:A01:golden') === 'assets/cards-ui/list/A01-golden.png',
      'resolve()：列表档 = assets/cards-ui/list/<id>-<档位>.png（Q8 派生物）');
-  ok(A.resolve('fishcard:detail:A01:golden') === 'assets/cards-ui/A01-golden.png',
+  ok(AS.resolve('fishcard:detail:A01:golden') === 'assets/cards-ui/A01-golden.png',
      'resolve()：详情档 = assets/cards-ui/<id>-<档位>.png');
 
   /* 档位（tier）写错必须**直接拦掉**：认不出来却照拼路径 = 全体静默 404 ⇒ 回退程序化绘制，
      画面上「看起来还行」，没人会发现卡面根本没接上。 */
-  ok(A.resolve('fishcard:big:A01:golden') === null && A.resolve('fishcard::A01:golden') === null,
+  ok(AS.resolve('fishcard:big:A01:golden') === null && AS.resolve('fishcard::A01:golden') === null,
      'resolve()：不在档位表里的档位 / 空档位 → null');
   /* ⚠️ 原型链不算「在表里」：写成 `p[1] in TIER_SUB` 时 `constructor` / `toString` /
      `hasOwnProperty` / `__proto__` 会让 `TIER_SUB[p[1]]` 取到一个**函数**，
      字符串一拼就是垃圾路径（而不是 null）—— 与本模块「认不出就返回 null」正好相反。 */
-  ok(A.resolve('fishcard:constructor:A01:golden') === null &&
-     A.resolve('fishcard:toString:A01:golden') === null &&
-     A.resolve('fishcard:hasOwnProperty:A01:golden') === null &&
-     A.resolve('fishcard:__proto__:A01:golden') === null,
+  ok(AS.resolve('fishcard:constructor:A01:golden') === null &&
+     AS.resolve('fishcard:toString:A01:golden') === null &&
+     AS.resolve('fishcard:hasOwnProperty:A01:golden') === null &&
+     AS.resolve('fishcard:__proto__:A01:golden') === null,
      'resolve()：原型链上的名字（constructor / toString / hasOwnProperty / __proto__）不是档位 → null');
 
   /* 档位名必须来自 config.colorMorphs —— 写错要**直接拦掉**，而不是拼出一个不存在的路径。
      这是本模块最容易出的静默失效：拼错了不会报错，只会 404。 */
-  ok(A.resolve('fishcard:detail:A01:noSuchMorph') === null,
+  ok(AS.resolve('fishcard:detail:A01:noSuchMorph') === null,
      'resolve()：不在 config.colorMorphs 里的颜色档 → null（拦掉拼错的路径）');
-  CFG.colorMorphs.forEach(cm => ok(!!A.resolve('fishcard:detail:A01:' + cm.key),
+  CFG.colorMorphs.forEach(cm => ok(!!AS.resolve('fishcard:detail:A01:' + cm.key),
      `resolve()：颜色档「${cm.name}」（${cm.key}）认得`));
 
   /* 🔴 颜色档**不许省**：省了拼出来的是灰底母版 `<id>.png`（它在派生目录里根本不存在，
      但「路径拼得出来」这件事本身就够危险 —— 母版贴到浅蓝底上是一块灰方块）。 */
-  ok(A.resolve('fishcard:detail:A01') === null && A.resolve('fishcard:list:A01') === null,
+  ok(AS.resolve('fishcard:detail:A01') === null && AS.resolve('fishcard:list:A01') === null,
      'resolve()：省略颜色档 → null（那会拼出灰底母版；这也是「母版不进游戏」的第二道防线）');
-  ok(A.resolve('fishcard:') === null, 'resolve()：没有 id → null');
-  ok(A.resolve('fishcard:detail:A01:golden:extra') === null, 'resolve()：键段数过多 → null');
-  ok(A.resolve('nope:A01') === null, 'resolve()：不认识的键前缀 → null');
-  ok(A.resolve('') === null && A.resolve(null) === null && A.resolve(undefined) === null,
+  ok(AS.resolve('fishcard:') === null, 'resolve()：没有 id → null');
+  ok(AS.resolve('fishcard:detail:A01:golden:extra') === null, 'resolve()：键段数过多 → null');
+  ok(AS.resolve('nope:A01') === null, 'resolve()：不认识的键前缀 → null');
+  ok(AS.resolve('') === null && AS.resolve(null) === null && AS.resolve(undefined) === null,
      'resolve()：空 / null / undefined 都不抛，返回 null');
-  ok(A.resolve('fishcard:detail:../etc/passwd:golden') === null &&
-     A.resolve('fishcard:list:a/b:golden') === null,
+  ok(AS.resolve('fishcard:detail:../etc/passwd:golden') === null &&
+     AS.resolve('fishcard:list:a/b:golden') === null,
      'resolve()：id 里的路径字符被拦掉（只允许字母数字，不许穿目录）');
 
-  ok(A.fishKey('list', 'A01', 'shiny') === 'fishcard:list:A01:shiny' &&
-     A.fishKey('detail', 'A01', 'shiny') === 'fishcard:detail:A01:shiny',
+  ok(AS.fishKey('list', 'A01', 'shiny') === 'fishcard:list:A01:shiny' &&
+     AS.fishKey('detail', 'A01', 'shiny') === 'fishcard:detail:A01:shiny',
      'fishKey()：拼键口径与 resolve() 一致（档位在最前，不许两处各拼一套）');
 
   /* 上云：把前缀换掉即可，业务代码一行都不用改 */
-  A.setBase('https://cdn.example.com/');
-  ok(A.resolve('fishcard:list:A01:golden') === 'https://cdn.example.com/assets/cards-ui/list/A01-golden.png',
+  AS.setBase('https://cdn.example.com/');
+  ok(AS.resolve('fishcard:list:A01:golden') === 'https://cdn.example.com/assets/cards-ui/list/A01-golden.png',
      'setBase()：上云前缀生效（路径拼接只有这一处真相）');
-  A.setBase('');
-  ok(A.resolve('fishcard:list:A01:golden') === 'assets/cards-ui/list/A01-golden.png',
+  AS.setBase('');
+  ok(AS.resolve('fishcard:list:A01:golden') === 'assets/cards-ui/list/A01-golden.png',
      'setBase(\'\')：还原回同目录');
 
-  const u = A.used();
+  const u = AS.used();
   ok(typeof u.ok === 'number' && typeof u.fail === 'number' && typeof u.cached === 'number',
      'used()：返回 { ok, fail, cached } 三个数（开发者面板读它显示家底）');
   ok(!!u.image && !!u.sfx &&
      u.ok === u.image.ok + u.sfx.ok && u.fail === u.image.fail + u.sfx.fail,
      'used()：图片与音效**分组记账**，总量由两组现算（不另存一份）');
-  ok(A.reset() === undefined && A.used().ok === 0, 'reset()：清空统计（自测之间不许互相污染）');
+  ok(AS.reset() === undefined && AS.used().ok === 0, 'reset()：清空统计（自测之间不许互相污染）');
 
   /* 分组家底的**行为**验证：手搓 thenable 把两组各落定一次。
      为什么必须有这一条 —— `file://` 形态下音效**必然**失败（fetch 被拦），
@@ -3641,34 +3669,34 @@ G_('Assets —— 键 → 地址（纯逻辑）');
     const pend = [];
     G.Platform.image = { load: () => ({ then(res) { pend.push(res); } }) };
     G.Platform.audio = { load: () => ({ then(res) { pend.push(res); } }) };
-    A.reset();
-    A.card('detail', 'A01', 'golden');   // 图片：稍后成功
-    A.sfx('cast');             // 音效：稍后失败（file:// 下的常态）
-    const z = A.used();
+    AS.reset();
+    AS.card('detail', 'A01', 'golden');   // 图片：稍后成功
+    AS.sfx('cast');             // 音效：稍后失败（file:// 下的常态）
+    const z = AS.used();
     ok(pend.length === 2 && z.ok === 0 && z.fail === 0,
        'used()：两组都还没落定时计数仍是 0（失败要在真拿到 null 时才记）');
     pend[0]({ width: 1 });
     pend[1](null);
-    const g = A.used();
+    const g = AS.used();
     ok(g.image.ok === 1 && g.image.fail === 0 && g.sfx.ok === 0 && g.sfx.fail === 1,
        `used()：图片成功 / 音效失败各记各的（实得 图片 ${g.image.ok}/${g.image.fail}`
        + ` · 音效 ${g.sfx.ok}/${g.sfx.fail}）`);
     ok(g.ok === 1 && g.fail === 1,
        'used()：总量是两组之和（1 ok + 1 fail），不是「某一类」的数');
-    A.reset();
+    AS.reset();
     G.Platform.image = realImg; G.Platform.audio = realAud;
   })();
 
   /* 音效键（2026-10-08 加）：与图片共用同一套 resolve，但音效名只许小写字母数字 */
-  ok(A.resolve('sfx:cast') === 'assets/audio/cast.mp3',
+  ok(AS.resolve('sfx:cast') === 'assets/audio/cast.mp3',
      'resolve()：音效键 = assets/audio/<名>.mp3');
-  ok(A.resolve('sfx:') === null && A.resolve('sfx:Cast') === null && A.resolve('sfx:has space') === null,
+  ok(AS.resolve('sfx:') === null && AS.resolve('sfx:Cast') === null && AS.resolve('sfx:has space') === null,
      'resolve()：音效名只许小写字母数字（空名 / 大写 / 空格都拦掉）');
-  ok(A.resolve('sfx:a:b') === null, 'resolve()：音效键只有两段');
-  A.setBase('https://cdn.example.com/');
-  ok(A.resolve('sfx:cast') === 'https://cdn.example.com/assets/audio/cast.mp3',
+  ok(AS.resolve('sfx:a:b') === null, 'resolve()：音效键只有两段');
+  AS.setBase('https://cdn.example.com/');
+  ok(AS.resolve('sfx:cast') === 'https://cdn.example.com/assets/audio/cast.mp3',
      'setBase()：音效同样吃 CDN 前缀（路径真相仍只有一处）');
-  A.setBase('');
+  AS.setBase('');
 })();
 
 /* =========================================================

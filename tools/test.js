@@ -5374,6 +5374,63 @@ G_('Diary · 本机钓鱼日记');
   }
 })();
 
+/* =========================================================
+   Panels · 本机「钓鱼日记」面板（N11 ④）：一页摘要必须**真画出来**
+   =========================================================
+   数据侧另有「Diary · 本机钓鱼日记」24 项；这一节只问一件事：
+   **端到端渲染出来的到底是什么**。源码断言盯不出「面板把 `best.f` 画成 undefined」
+   或者「零渔获那天写的是『今天』而那一行其实是前几天」—— 这两种都只有真渲染才看得见。
+   ========================================================= */
+G_('Panels · 钓鱼日记面板（N11 ④）');
+(function () {
+  var doc = global.document;
+  global.document = { createElement: mkEl, querySelector: function () { return null; },
+                      querySelectorAll: function () { return []; } };
+  var s = St.get();
+  var real = s.diary;
+  try {
+    /* ① 空态：没有记录时不能是一片空白 */
+    s.diary = { list: [] };
+    var r0 = mkEl('div');
+    Panels.VIEWS.diary.render(r0);
+    var t0 = panelText(r0);
+    ok(t0.indexOf('还没有记录') >= 0 && t0.indexOf(String(G.Diary.maxDays())) >= 0,
+       '空态画得出来（有「还没有记录」，天数上限从 `G.Diary.maxDays()` 现算 = '
+       + G.Diary.maxDays() + '）');
+
+    /* ② 两天：今天（有渔获）/ 昨天（空手） */
+    var today = U.dayKey();
+    var d1 = new Date(); d1.setDate(d1.getDate() - 1);
+    var yest = U.dayKey(d1);
+    s.diary = { list: [
+      { d: today, n: 3, kg: 1.5, idle: 1, nf: 2, flds: { D: 3 }, npcs: ['chen'],
+        best: { f: G.FISH[0].id, kg: 0.9, c: 'golden' } },
+      { d: yest, n: 0, kg: 0, idle: 0, nf: 0, flds: {}, npcs: ['hai'], best: null },
+    ] };
+    var r1 = mkEl('div');
+    Panels.VIEWS.diary.render(r1);
+    var t1 = panelText(r1);
+    ok(t1.indexOf('今天') >= 0 && t1.indexOf('昨天') >= 0, '日期标签认得出「今天 / 昨天」');
+    ok(t1.indexOf('钓到 3 条') >= 0 && t1.indexOf(G.FISH[0].name) >= 0 && t1.indexOf('黄金') >= 0,
+       '摘要写出了条数 / 最大那一尾的名字与颜色档');
+    ok(t1.indexOf('碰上：老陈') >= 0 && t1.indexOf('去过') >= 0,
+       '「碰上过谁」与「去过哪儿」都画了（NPC 名与钓场名都从内容表现取）');
+    ok(t1.indexOf('没有渔获') >= 0 && t1.indexOf('今天还没上鱼') < 0,
+       '零渔获那天用**中性**文案（写「今天」会在往前翻的那几天上是错的）');
+
+    /* ③ 脏档：假鱼种 / 假邻居 / 假钓场 id ⇒ 不抛、也不把 undefined 画到页面上 */
+    s.diary = { list: [{ d: '2020-01-02', n: 1, kg: 1, idle: 0, nf: 0,
+      flds: { nope: 1 }, npcs: ['nobody'], best: { f: 'NOPE', kg: 1, c: 'bogus' } }] };
+    var r2 = mkEl('div'), derr = null;
+    try { Panels.VIEWS.diary.render(r2); } catch (e) { derr = e; }
+    var t2 = panelText(r2);
+    ok(!derr, '脏档（假鱼种 id / 假邻居 id / 假钓场 id）不抛', derr && derr.message);
+    ok(t2.indexOf('undefined') < 0 && t2.indexOf('null') < 0,
+       '也没有把 `undefined` / `null` 画到页面上（玩家会直接看到这两个词）');
+    ok(t2.indexOf('2020-01-02') >= 0, '跨年的老日子显示完整日期（只有同一年才缩成 MM-DD）');
+  } finally { s.diary = real; global.document = doc; }
+})();
+
 /* ---------- 汇总 ---------- */
 console.log('\n' + '='.repeat(52));
 if (fail) { console.log(`\u2716 测试未通过：${pass} 通过 / ${fail} 失败\n`); process.exit(1); }

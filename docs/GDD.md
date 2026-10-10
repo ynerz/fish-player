@@ -497,7 +497,7 @@ node tools/build.js --check    # 只跑断言不写盘
   story: { fired{}, at{}, talk{}, pick{}, duel{ id, end, name, target, best, casts, wins, losses } },
 
   stats: {
-    casts, catches, escapes, snaps, idleCatches, maxKg, maxKgFish, totalValue, days,
+    casts, catches, escapes, misses, snaps, idleCatches, maxKg, maxKgFish, totalValue, days,
     byRar[4], byField{}, byBait{}, byWx{}, byTm{},   // 分维计数，Goals 取数用
     netKept, released, netMax, tankMax,
     streak, maxStreak,

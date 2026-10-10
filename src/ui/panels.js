@@ -1341,10 +1341,20 @@ G.Panels = (function () {
         box('累计卖鱼收入', U.coin(st.totalValue)) +
         box('断线次数', U.num(st.snaps)) +
         box('脱钩次数', U.num(st.escapes)) +
+        /* 🔴 Q44（2026-10-10 用户拍板 A）：错过咬口与脱钩**分开两行** ——
+           以前两者共用 `escapes`，这一格叫「脱钩次数」，于是每次没提竿都被算成脱钩。
+           ⚠️ 老档两者已混、补不回来 ⇒ 这一行下面那句小字必须留着（口径要说明）。 */
+        box('错过咬口', U.num(st.misses)) +
         box('挂机钓获', U.num(st.idleCatches)) +
         box('鱼护 / 容量', St.netCount() + ' / ' + s.netCap) +
         box('水族箱 / 容量', St.tankCount() + ' / ' + s.tankCap);
       root.appendChild(g2);
+      /* 口径说明 —— 用户拍板 Q44 时明确要求「面板与文档都要注明老档不准」：
+         老档里 escapes 把两件事混在一起过，迁移时**拆不开**（没有当时的明细）⇒
+         与其悄悄给一个错的数，不如把口径写在玩家看得见的地方。 */
+      root.appendChild(U.el('div', 'hint-text',
+        '「脱钩」＝张力贴地太久（松线跑鱼）；「错过咬口」＝鱼咬钩了但没提竿。'
+        + '两者自 v0.6.0 起分开记 —— 更早的存档里它们是混在一起的，拆不开。'));
 
       root.appendChild(U.el('div', 'section-title', '各钓场进度'));
       var g3 = U.el('div', 'shop-list');

@@ -91,7 +91,10 @@ G.State = (function () {
          上次我选了什么 / 比过几场」都不会变。 */
       story: { fired: {}, at: {}, talk: {}, pick: {}, duel: {} },
       stats: {
-        casts: 0, catches: 0, escapes: 0, snaps: 0, idleCatches: 0,
+        casts: 0, catches: 0, escapes: 0, misses: 0, snaps: 0, idleCatches: 0,
+        /* ⚠️ `misses` = **错过咬口**（咬钩了但没提竿），与 `escapes`（张力贴地脱钩）
+           是两件事 —— 2026-10-10 用户拍板 Q44 分开记（以前共用 escapes，
+           面板叫「脱钩次数」，玩家看到的数偏大）。老档两者已混，**自 v0.6.0 起才准**。 */
         maxKg: 0, maxKgFish: '', totalValue: 0, days: 0,
         /* 分维计数：供每日任务 / 成就取数（不要删，Goals 依赖它们） */
         byRar: [0, 0, 0, 0],           // 各稀有度的钓获条数
@@ -307,7 +310,8 @@ G.State = (function () {
     d.playTime = Math.max(0, safeNum(d.playTime, 0));
     d.stats.maxKg = Math.max(0, safeNum(d.stats.maxKg, 0));
     d.stats.totalValue = Math.max(0, safeNum(d.stats.totalValue, 0));
-    ['casts', 'catches', 'escapes', 'snaps', 'idleCatches', 'days'].forEach(function (k) {
+    // ⚠️ 新增的计数键**必须**加进这张表：漏了的话脏档（NaN / 负数 / 字符串）会被原样带进游戏
+    ['casts', 'catches', 'escapes', 'misses', 'snaps', 'idleCatches', 'days'].forEach(function (k) {
       d.stats[k] = Math.max(0, Math.round(safeNum(d.stats[k], 0)));
     });
     if (!G.FIELD_MAP[d.field] || !d.unlocked[d.field]) d.field = 'D';

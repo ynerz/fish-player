@@ -235,7 +235,17 @@ G.Fishing = (function () {
         fee = Math.min(fee, Math.floor(st.coin));
         if (fee > 0) St.spend(fee);
       } else {
-        st.stats.escapes++; G.Audio.escape(); G.Scene.splash(0.8);
+        /* 🔴 **Q44（用户 2026-10-10 拍板 A）：错过咬口与脱钩分开记。**
+           以前这两件事共用 `st.stats.escapes++`，而统计面板把它显示成「脱钩次数」
+           ⇒ **每一次没提竿都被算成脱钩**，玩家看到的数偏大（而且没人看得出来）。
+           ⚠️ 老存档里两者已经混在一起、**补不回来** ⇒ 面板与 GDD 都注明「自 v0.6.0 起才准」。
+           声音与溅水的表现**保持不变**：鱼确实咬过钩又跑了，观感上就是「跑鱼」。 */
+        if (result === 'miss') {
+          st.stats.misses++;
+        } else {
+          st.stats.escapes++;
+        }
+        G.Audio.escape(); G.Scene.splash(0.8);
       }
       if (cb.onMiss) cb.onMiss(result, pending, fee);
     }

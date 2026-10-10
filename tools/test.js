@@ -587,6 +587,98 @@ G_('Fishing · 渔获归因用抛竿时的鱼饵与环境');
 }
 
 /* =========================================================
+   5a-2. 脱钩 / 错过咬口 / 断线：三个计数必须各记各的（Q44）
+   =========================================================
+   用户 2026-10-10 拍板：「分开记」（新增 `stats.misses`）。
+   以前 `resolve()` 里 `escape` 与 `miss` **共用同一个 else 分支**都写 `escapes++`，
+   而统计面板把它显示成「脱钩次数」⇒ 每一次没提竿都被算成脱钩，玩家看到的数偏大。
+   ⚠️ 本节的每一竿都是**真驱动**出来的（cast → update → strike / 错过窗口），
+      不去手写 `stats.misses++` —— 否则测的是我自己写的那一行，不是接线。
+   ========================================================= */
+G_('Stats · 脱钩 / 错过咬口 / 断线分开记（Q44）');
+(function () {
+  const origFight = G.Fight, origScene = G.Scene, origAudio = G.Audio;
+  G.Scene = sceneStub;
+  G.Audio = audioStub;
+
+  /** 真的抛一竿，并按 `end` 指定的结局把它走完；返回这一竿之后的 stats。 */
+  function oneCast(end) {
+    St.reset();
+    G.Goals.init();
+    if (end === 'miss') {
+      /* 错过咬口走的是**另一条**状态机：bite 状态里 biteLeft 归零 → `resolve('miss')`，
+         所以这里不 strike，而是把 bite 窗口耗尽。 */
+      G.Fight = { begin() {}, end() {}, update() {}, drainEvents() { return []; },
+                  get() { return null; }, snapshot() { return {}; } };
+    } else {
+      G.Fight = { begin() {}, end() {}, update() {}, drainEvents() { return []; },
+                  get() { return { over: true, result: end, tensionMax: 100, tension: 0,
+                                   struggle: 0, warn: 0, dashing: false, elapsed: 1 }; },
+                  snapshot() { return {}; } };
+    }
+    const F = newFishing();
+    F.cast();
+    F.update(1.0);                                  // flying → waiting
+    F.update(F.getPending().wait + 0.001);          // → bite
+    if (end === 'miss') {
+      F.update(999);                                // 咬口窗口耗尽 = 没提竿
+    } else {
+      F.strike();                                   // → fight
+      F.update(0.05);                               // 桩判 over → resolve(end)
+    }
+    ok(F.getState() === 'idle', `这一竿走完并回到 idle（end=${end}，实得 ${F.getState()}）`);
+    return St.get().stats;
+  }
+
+  const m = oneCast('miss');
+  ok(m.misses === 1, `错过咬口记进 misses（实得 ${m.misses}）`);
+  ok(m.escapes === 0 && m.snaps === 0,
+     `🔴 且**没有**被算成脱钩 / 断线（escapes=${m.escapes} / snaps=${m.snaps}）—— 这就是 Q44 要修的那件事`);
+
+  const e = oneCast('escape');
+  ok(e.escapes === 1, `张力贴地跑鱼记进 escapes（实得 ${e.escapes}）`);
+  ok(e.misses === 0 && e.snaps === 0,
+     `且没有混进 misses / snaps（misses=${e.misses} / snaps=${e.snaps}）`);
+
+  const sn = oneCast('snap');
+  ok(sn.snaps === 1 && sn.escapes === 0 && sn.misses === 0,
+     `断线只记 snaps（snaps=${sn.snaps} / escapes=${sn.escapes} / misses=${sn.misses}）`);
+
+  const su = oneCast('success');
+  ok(su.catches === 1 && su.escapes === 0 && su.misses === 0 && su.snaps === 0,
+     `上鱼只记 catches（catches=${su.catches}）`);
+
+  /* 老档迁移：缺 `misses` 的存档必须补成 0（而不是 undefined —— 面板直接 U.num() 显示它），
+     脏值（负数 / 字符串）也必须被那张归一化表纠正。
+     ⚠️ 走**真存档路径**（写进 storage 桩再 St.load()），不手工调归一化 ——
+        否则测的是我抄的那一行，不是 state.js 里那条链。 */
+  function loadWithStats(stats) {
+    const d = { v: 6, coin: 500, playTime: 3600, field: 'D', unlocked: { D: true },
+                book: {}, baits: { worm: -1 }, rods: ['bamboo'], lines: ['n2'], decors: [],
+                net: [], tank: [], netCap: 30, tankCap: 6, netEx: 0, tankEx: 0,
+                stats: stats, settings: { sound: true, volume: 0.5, ambient: true, idle: false } };
+    store[G.Profile.key()] = JSON.stringify(d);
+    St.load();
+    return St.get().stats;
+  }
+  const noMiss = { casts: 3, catches: 4, escapes: 9, snaps: 1, idleCatches: 0,
+                   maxKg: 2, maxKgFish: 'x', totalValue: 100, days: 0 };
+  const a = loadWithStats(noMiss);
+  ok(a.misses === 0, `老档（没有 misses）补齐成 0（实得 ${JSON.stringify(a.misses)}）`);
+  ok(a.escapes === 9, '老档里已有的 escapes 原样保留（历史数据不动）');
+  const bad = Object.assign({}, noMiss, { misses: -7 });
+  ok(loadWithStats(bad).misses === 0, '脏值负数（-7）被归一化成 0');
+  const bad2 = Object.assign({}, noMiss, { misses: 'x' });
+  ok(loadWithStats(bad2).misses === 0, '脏值字符串被归一化成 0');
+  const bad3 = Object.assign({}, noMiss, { misses: 3.6 });
+  ok(loadWithStats(bad3).misses === 4, '小数被四舍五入（3.6 → 4）');
+
+  G.Fight = origFight;
+  G.Scene = origScene;
+  G.Audio = origAudio;
+})();
+
+/* =========================================================
    5b. 鱼护 / 水族箱
    ========================================================= */
 G_('State · 鱼护与水族箱');

@@ -1,0 +1,14 @@
+{
+  "name": "fish-player-shell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "钓鱼人生 · Steam 版外壳（Electron 最小验证壳）—— 只负责「把游戏装进一个原生窗口」，不含任何游戏逻辑",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "check": "electron . --selfcheck"
+  },
+  "devDependencies": {
+    "electron": "^44.7.0"
+  }
+}

@@ -17,6 +17,7 @@
                                                # （会闪一个控制台，几秒后自己关）
 """
 import argparse
+import hashlib
 import importlib.util
 import io
 import os
@@ -24,6 +25,8 @@ import re
 import subprocess
 import sys
 import time
+
+from PIL import Image, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -76,6 +79,15 @@ def load_check():
     """
     spec = importlib.util.spec_from_file_location(
         "check_cards", os.path.join(HERE, "check-cards.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def load_prep():
+    """按路径加载 `tools/prep-cards.py`（第 [16] 节：卡面后处理）。"""
+    spec = importlib.util.spec_from_file_location(
+        "prep_cards", os.path.join(HERE, "prep-cards.py"))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -704,6 +716,91 @@ def main():
           "form_profile 体内确实调了 size_band(f)（取不到函数体就报这里的红）")
     check("SIZE_BANDS" not in _code,
           "form_profile 体内不再出现 SIZE_BANDS —— 大小档只有 size_band() 一处实现")
+
+    print("\n[16] 卡面后处理：补边几何 / 母版拦截 / 两档规格 / 锐化只打 RGB / 确定性（Q8）")
+    P = load_prep()
+    # ① 补边几何（纯函数，**绝不裁切 / 绝不拉伸**）
+    check(P.pad_canvas(1152, 768) == (1536, 768, 192, 0),
+          "1152×768（3:2）→ 左右各补 192，中置（实得 %r）" % (P.pad_canvas(1152, 768),))
+    check(P.pad_canvas(1024, 512) == (1024, 512, 0, 0),
+          "已经是 2:1 ⇒ **零补边**（幂等：再跑一次不该再长一层）")
+    _w, _h, _ox, _oy = P.pad_canvas(500, 500)
+    check((_w, _h) == (1000, 500) and _ox == 250 and _oy == 0, "1:1 太窄 ⇒ 左右补到 2:1")
+    _w, _h, _ox, _oy = P.pad_canvas(1200, 300)
+    check((_w, _h) == (1200, 600) and _ox == 0 and _oy == 150, "4:1 太宽 ⇒ 上下补到 2:1")
+    _cases = [(1152, 768), (1024, 512), (500, 500), (1200, 300), (37, 401)]
+    check(all(P.pad_canvas(a, b)[0] >= a and P.pad_canvas(a, b)[1] >= b for a, b in _cases),
+          "五种尺寸都不裁切（画布绝不小于源图）")
+    check(all(abs(P.pad_canvas(a, b)[0] / float(P.pad_canvas(a, b)[1]) - P.SPEC["padAspect"]) < 0.01
+              for a, b in _cases), "补出来的画布宽高比都落到 padAspect（±1% 取整误差内）")
+    # ② 源守卫：母版（无 `-`）必须被拦掉 —— 它是灰底不透明图（实测四角 alpha = 255）
+    check(P.is_cutout("A01-normal") and P.is_cutout("A01-shiny-2") and P.is_cutout("SS07-bright"),
+          "透明抠图（带 -档[-N]）被判为可派生")
+    check(not P.is_cutout("A01") and not P.is_cutout("SS07"),
+          "母版 `<id>` 被拦掉（垫透明边会在两侧留两条灰棒）")
+    _sl = P.plan_slots(["A01"])
+    check(_sl and all("-" in s["name"] for s in _sl),
+          "真数据：plan_slots 排出来的 %d 张**全**是抠图（含 -normal）" % len(_sl))
+    # ③ 行为：造一张已知图，真渲染一遍到 _tmp（不碰 assets/cards/）
+    TMPDIR = os.path.join(TMP, "q8")
+    if not os.path.isdir(TMPDIR):
+        os.makedirs(TMPDIR)
+    _im = Image.new("RGBA", (1152, 768), (0, 0, 0, 0))
+    ImageDraw.Draw(_im).rectangle([300, 250, 900, 520], fill=(100, 100, 100, 255))
+    _src = os.path.join(TMPDIR, "syn-normal.png")
+    _im.save(_src)
+    _slot = {"id": "SYN", "slot": "normal", "morph": "normal", "name": "syn-normal", "src": _src}
+    _det, _lst, _pad = P.render(_slot)
+    check(_det.size == tuple(P.SPEC["detail"]) and _lst.size == tuple(P.SPEC["list"]),
+          "两档尺寸 = 规格现算值（实得 %r / %r）" % (_det.size, _lst.size))
+    check(_pad["padSize"] == [1536, 768] and _pad["padOffset"] == [192, 0],
+          "补边信息随图返回（写进 index.json 的就是它，不在别处再算一遍）")
+    check(_det.getpixel((0, 0))[3] == 0 and _lst.getpixel((0, 0))[3] == 0,
+          "补出来的是**透明**边（贴在任何底色上都不留痕）")
+    _al = _det.getchannel("A").getbbox()
+    # 期望值现算：源 (300,250)-(900,520) → 补边 +192 → 缩放 1024/1536 = 2/3
+    _exp = (int(492 * 2 / 3.0), int(250 * 2 / 3.0), int(1092 * 2 / 3.0), int(520 * 2 / 3.0))
+    check(all(abs(_al[i] - _exp[i]) <= 5 for i in range(4)),
+          "主体包围盒落在预期位置（现算 %r / 实得 %r；±5px 容 LANCZOS 振铃）" % (_exp, _al))
+    # ④ 度量入口唯一：index.json 的那些数只能从 stats_of() 出来
+    _dp = os.path.join(TMPDIR, "syn-normal-detail.png")
+    _det.save(_dp)
+    _st = P.stats_of(_dp)
+    check(_st and set(("area", "wh", "cx", "cy", "bbox", "long")) <= set(_st),
+          "stats_of() 给全了 index.json 要的六个度量（缺一个 = Q9 那边会读不到）")
+    check(_st and _st["long"] == max(_st["bbox"][2] - _st["bbox"][0], _st["bbox"][3] - _st["bbox"][1]),
+          "long 就是包围盒的长边（不是另算一个数）")
+    check(_st and 0.0 <= _st["cx"] <= 1.0 and 0.0 <= _st["cy"] <= 1.0,
+          "重心是归一化到 0~1 的（不要像素坐标 —— 换档位尺寸就失效）")
+    # ④ 锐化只打 RGB：**alpha 必须与未锐化的那一份逐字节相同**
+    _nw, _nh, _ox, _oy = P.pad_canvas(1152, 768)
+    _canvas = Image.new("RGBA", (_nw, _nh), (0, 0, 0, 0))
+    _canvas.paste(_im, (_ox, _oy))
+    _small = _canvas.resize(P.SPEC["list"], Image.LANCZOS)
+    check(_lst.getchannel("A").tobytes() == _small.getchannel("A").tobytes(),
+          "列表档的 alpha 用**未锐化**的那一份（锐化 alpha 会在边缘振出半透明光晕）")
+
+    def _hf(img):
+        """高频能量：与左 / 上邻居的绝对差之和 ÷ 采样数。锐化会把它顶上去。"""
+        px = img.convert("L").load()
+        w, h = img.size
+        s = 0
+        for y in range(1, h, 2):
+            for x in range(1, w, 2):
+                s += abs(px[x, y] - px[x - 1, y]) + abs(px[x, y] - px[x, y - 1])
+        return s / float((w // 2) * (h // 2))
+
+    _plain, _sharp = _hf(_small), _hf(_lst)
+    check(_sharp > _plain * 1.05,
+          "列表档确实锐化了（高频能量 %.2f > 未锐化 %.2f）" % (_sharp, _plain))
+    # ⑤ 确定性（同进程两次；跨进程的逐字节对拍是收尾那次真跑）
+    _det2, _lst2, _ = P.render(_slot)
+    check(hashlib.md5(_det.tobytes()).hexdigest() == hashlib.md5(_det2.tobytes()).hexdigest()
+          and hashlib.md5(_lst.tobytes()).hexdigest() == hashlib.md5(_lst2.tobytes()).hexdigest(),
+          "同一输入渲染两次逐字节相同（无随机 / 无时间戳）")
+    # ⑥ 索引按**现状**枚举：喂一个「盘上有、本次没写」的名字，必须沿用上一份而不是丢掉
+    check(callable(getattr(P, "on_disk", None)) and callable(getattr(P, "load_index", None)),
+          "索引有两个入口：on_disk()（按现状枚举）/ load_index()（沿用上一份）")
 
     print("\n" + "=" * 52)
     if fails:

@@ -29,6 +29,11 @@ assets/cards/_superseded/
 # 生图中间产物：五档出图先落 RGB 到 _tmp/，抠完即删（中途被打断就会留在盘上）
 assets/cards/_tmp/
 
+# UI 用的卡面派生物（tools/prep-cards.py 出：补边到 2:1 的详情档 + 锐化的列表档 + index.json）。
+# 同样是「体积大、可由脚本复现」⇒ 不进版本库；⚠️ 目录名与 prep-cards.py 的 OUT_DIR **同源**，
+# verify 第 53 节会把两边对拍（改一处忘另一处就报红）。
+assets/cards-ui/
+
 # Python 字节码缓存
 __pycache__/
 *.pyc

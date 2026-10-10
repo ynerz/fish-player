@@ -198,6 +198,14 @@ def analyze(path):
         "wh": (r - l) / float(b - t) if b > t else 0,
         "clipped": clipped,
         "cx": (sx / float(n) / w) if n else 0.5,          # 0=最左 1=最右
+        # ⚠️ 下面三个是 2026-10-10（Q8）**补出来的既有量**，不是新算法：
+        #    `bbox` / `sy` 本来就在上面算着，只是没往外给。`tools/prep-cards.py`
+        #    要把「主体在哪」落进 `assets/cards-ui/index.json`（N3-3 的体型比例要用），
+        #    而**主体在哪只许有一个口径** ⇒ 直接在这里露出来，不许它自己按 alpha 再算一遍
+        #    （那会与这里「与四角中位色差 > MASK_THRESH」的口径漂开，且不报错）。
+        "cy": (sy / float(n) / h) if n else 0.5,          # 0=最上 1=最下
+        "bbox": [l, t, r, b],                             # 主体紧包围盒（像素，左上-右下）
+        "long": max(r - l, b - t),                        # 主体最长边（像素）
         "lit": (up / float(un)) - (dn / float(dn_n)) if (un and dn_n) else 0,
         "rgb": tuple(c // cn for c in col) if cn else (0, 0, 0),
         "ok": True,

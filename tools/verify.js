@@ -7005,6 +7005,122 @@ console.log('\n[52] 传说档配色：色相必须铺开（不许再挤在同一
   }
 }
 
+/* ===== 第 53 节：卡面后处理的规格必须单源（Q8）======================
+   这一步（`tools/prep-cards.py`）把生图的 1152×768 抠图派生成 UI 直接能贴的两档。
+   它有四处**改一处忘另一处就不报错**的地方，本节把它们钉在一起：
+     · 规格常量（补边比例 / 两档尺寸）—— 只许一处，文档只描述、不抄出一份独立真相；
+     · 派生物目录名 —— 脚本里的 `OUT_DIR` 与 `.gitignore` 必须同名（否则 `git add -A`
+       会把 GB 级派生物卷进版本库，那是规范 §4 里唯一的高危动作）；
+     · 目录名在 `src/` 里必须**零出现** —— Q8 与 Q9 之间有顺序依赖（待办明写「顺序反了
+       就要返工」），提前在游戏侧写死派生物路径 = 绕过 Q9 那条回退链；
+     · 主体度量（占比 / 包围盒 / 重心）只许经 `stats_of()` 出来，不许第二处按 alpha 再算。
+   ⚠️ 判据取不到东西时**直接报错**（空集会让断言恒真 —— 本项目反复栽过的形态）。 */
+console.log('\n[53] 卡面后处理：规格单源 + 派生物已 ignore + 文档数字现算（Q8）');
+(function () {
+  const bad = [];
+  const prepSrc = fs.readFileSync(path.join(ROOT, 'tools', 'prep-cards.py'), 'utf8');
+  /* 剥注释 / docstring（硬规矩 ①：只扫代码不扫注释）。本脚本的散文里点了几次
+     `analyze()` 与目录名，不剥的话判据会被注释喂饱 —— 那是本项目反复栽过的假通过。 */
+  const stripPy = t => String(t)
+    .replace(/"""[\s\S]*?"""/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '').replace(/#[^\n]*/g, '');
+  const prepCode = stripPy(prepSrc);
+  /* ① 规格常量从此处现算（别处不许再写一遍） */
+  let spec = null;
+  const si = at(prepSrc, 'SPEC = {');
+  if (si < 0) {
+    bad.push('tools/prep-cards.py 里找不到 `SPEC = {`');
+  } else {
+    const ob = prepSrc.indexOf('{', si);
+    const ce = closeOf(prepSrc, ob);
+    const raw = (ob >= 0 && ce > 0) ? prepSrc.slice(ob, ce) : '';
+    const mAsp = /"padAspect"\s*:\s*([0-9.]+)/.exec(raw);
+    const mDet = /"detail"\s*:\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)/.exec(raw);
+    const mLst = /"list"\s*:\s*\(\s*(\d+)\s*,\s*(\d+)\s*\)/.exec(raw);
+    if (mAsp && mDet && mLst) {
+      spec = { asp: parseFloat(mAsp[1]), det: [+mDet[1], +mDet[2]], lst: [+mLst[1], +mLst[2]] };
+    } else {
+      bad.push('SPEC 里读不出 padAspect / detail / list 三个值（取不到就报错，不许静默跳过）');
+    }
+    if (spec && (Math.abs(spec.det[0] / spec.det[1] - spec.asp) > 1e-9
+      || Math.abs(spec.lst[0] / spec.lst[1] - spec.asp) > 1e-9)) {
+      bad.push('SPEC 自相矛盾：两档尺寸的宽高比不等于 padAspect');
+    }
+  }
+  /* ② 模块级自校验必须在（规格写错时 import 就该炸，而不是安静地派生一整批）。
+     ⚠️ 判据认的是「**这个函数在 + 它真的被调用**」两件事，不是「文本里出现过 raise」——
+       认后者会被同一个文件里**另一处** `raise` 喂饱（本轮反向验证当场所见：把宽高比那道
+       guard 整段删掉，剩下的「源/输出目录不许相同」那条照样让判据变绿 = 假通过）。 */
+  const guardDef = (prepCode.match(/def assert_spec\(/g) || []).length;
+  /* ⚠️ 数「被调用」不能拿 `assert_spec()` 直接 match：`def assert_spec():` 这个**定义行**
+     本身就含这个子串 ⇒ 恒得 2、判据永远假通过（本轮反向验证当场逮到）。改成数
+     **整行就是那句调用**的行。 */
+  const guardCall = prepCode.split('\n').filter(l => l.trim() === 'assert_spec()').length;
+  const ratioGuard = has(prepCode, 'SPEC["padAspect"]) > 1e-9');
+  if (!ratioGuard || guardDef !== 1 || guardCall !== 1) {
+    bad.push('prep-cards.py 的规格自校验不完整（宽高比 guard '
+      + (ratioGuard ? '在' : '缺') + '；assert_spec 定义 ' + guardDef + ' 次 / 模块级调用 '
+      + guardCall + ' 次，应为 1 / 1）');
+  }
+  /* ③ 目录名：源 ≠ 输出，且派生物目录已进 .gitignore */
+  const mOut = /OUT_DIR = os\.path\.join\(ROOT, "assets", "([^"]+)"\)/.exec(prepSrc);
+  const mSrc = /SRC_DIR = os\.path\.join\(ROOT, "assets", "([^"]+)"\)/.exec(prepSrc);
+  if (!mOut || !mSrc) {
+    bad.push('读不出 SRC_DIR / OUT_DIR（目录名只能有一处，别在别处重写）');
+  } else {
+    if (mOut[1] === mSrc[1]) bad.push('源目录 == 输出目录（会把源图覆盖掉）');
+    const gi = fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8');
+    if (!has(gi, 'assets/' + mOut[1] + '/')) {
+      bad.push('.gitignore 里没有 `assets/' + mOut[1] + '/` —— 派生物会被 git add -A 卷进库');
+    }
+    /* ④ 第二处写者 / 游戏侧提前接线：目录名只许出现在本脚本的**代码**里。
+       ⚠️ 先剥注释（开发者文档 §8 硬规矩 ①：只扫代码不扫注释）—— 散文里提一句目录名
+          是正常的（`check-cards.py` 的字段注释就点了名）；注释能把判据喂饱 = 假通过。
+       ⚠️ 一律按 latin1 读（`.cmd` 可能是别的编码，用 utf8 读会抛）—— 要抓的是 ASCII 目录名。 */
+    const stripAll = t => String(t)
+      .replace(/"""[\s\S]*?"""/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/[^\n]*/g, '').replace(/#[^\n]*/g, '');
+    const dup = [];
+    const scan = (dir, re) => fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+      const rel = dir + '/' + n, p = path.join(ROOT, rel);
+      if (fs.statSync(p).isDirectory()) return scan(rel, re);
+      if (!re.test(n) || rel === 'tools/prep-cards.py') return;
+      if (stripPy(fs.readFileSync(p, 'latin1')).indexOf(mOut[1]) >= 0) dup.push(rel);
+    });
+    scan('src', /\.(js|html)$/);
+    scan('tools', /\.(js|py|cmd)$/);
+    if (dup.length) {
+      bad.push('这些文件里也出现了派生物目录名（' + dup.join('、') + '）—— src/ 里出现 = 绕过 Q9 的回退链直接接线');
+    }
+  }
+  /* ⑤ 文档数字必须与 SPEC 现算值相等（§18 第 1 步「找反向陈述」的机器版） */
+  if (spec) {
+    const doc = fs.readFileSync(path.join(ROOT, 'docs', '开发者文档.md'), 'utf8');
+    const wantD = spec.det[0] + '\u00d7' + spec.det[1], wantL = spec.lst[0] + '\u00d7' + spec.lst[1];
+    if (!has(doc, wantD) || !has(doc, wantL)) {
+      bad.push('docs/开发者文档.md 里找不到现算的档位尺寸 ' + wantD + ' / ' + wantL + '（改了常量忘改文档）');
+    }
+  }
+  /* ⑥ 主体度量入口唯一：`analyze(` 只许在 stats_of() 体内出现一次
+     ⚠️ 两份都**先剥注释 / docstring**（硬规矩 ①）：本脚本的散文里点了几次 `analyze()`，
+        不剥的话计数全是注释，判据等于没写。 */
+  const stBody = stripPy(bodyOf(prepSrc, 'def stats_of('));
+  const anaAll = (prepCode.match(/analyze\(/g) || []).length;
+  const anaIn = (stBody.match(/analyze\(/g) || []).length;
+  if (!stBody || anaAll !== 1 || anaIn !== 1) {
+    bad.push('主体度量入口不唯一：全脚本 `analyze(` 共 ' + anaAll + ' 次、stats_of() 体内 '
+      + anaIn + ' 次（应为 1 / 1）—— 第二处按 alpha 再算一遍就是两个「主体在哪」的口径');
+  }
+  if (bad.length) {
+    err('卡面后处理规格不一致：' + bad.join('；'));
+  } else {
+    ok('卡面后处理：规格单源（补边 ' + spec.asp + ':1、详情 ' + spec.det.join('\u00d7')
+      + '、列表 ' + spec.lst.join('\u00d7') + '）、派生物目录 `assets/' + mOut[1]
+      + '/` 已进 .gitignore 且 src/ 与 tools/ 其余文件里零出现（Q9 才接线）、'
+      + '文档数字与常量现算一致、主体度量只有 stats_of() 一处');
+  }
+})();
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

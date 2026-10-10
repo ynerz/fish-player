@@ -6157,6 +6157,82 @@ let storyBad = 0;
   }
   if (outBad.length) { err('「上一竿的结局」这道门 / 链路不对：' + outBad.join('；')); storyBad++; }
 
+  /* ⑦-h 🔴 图鉴门（N7 七期）：`cond` 里那道「这几条里**任意一条**已经钓到过」。
+     四种坏法**全是静默的**：
+       · 值不是非空数组 ⇒ 门恒关（那条事件永远不出现）；
+       · 写错鱼种 id ⇒ 同上，而且没有任何提示；
+       · 引擎那一侧没把这道门读进 `condOk()` ⇒ 内容表白写（事件在任意时刻冒出来）；
+       · 判定绕过 `G.State.isCaught()` 自己去翻存档 ⇒ 「钓到过没有」多出第二份真相
+         （图鉴字段口径改一次，两边就开始各说各话，而且不报错）。
+     键名与值域**都现算**（键 = 「值是真实鱼种 id 组成的数组」的那个 cond 键；
+     值域 = `G.FISH_ID`）—— 理由同 ⑦-f / ⑦-g：写死了，verify.js 自己就成了 32-g 眼里的
+     一个「消费方」，真读它的那处被删也不报红。
+     ⚠️ 与 ⑦-g 一样吃**剥过行尾注释**的那一份源码（注释里写同样的词必须仍能报红）。 */
+  const coreCode2 = stripAll(coreSrc);
+  const FISH_T = (sandbox.G && sandbox.G.FISH_ID) || null;
+  const gateBad = [];
+  let gateKey = '';
+  let withGate = 0;
+  if (!FISH_T || !Object.keys(FISH_T).length) {
+    gateBad.push('拿不到 G.FISH_ID —— 图鉴门的判据抓不到鱼种表（抓不到就报错，先修本节判据本身）');
+  } else {
+    const fishIds = Object.keys(FISH_T);
+    const litKeys = [];
+    EVS.forEach(ev => Object.keys(ev.cond || {}).forEach(k => {
+      const v = (ev.cond || {})[k];
+      if (Array.isArray(v) && v.length
+        && v.every(x => typeof x === 'string' && fishIds.indexOf(x) >= 0)) {
+        if (litKeys.indexOf(k) < 0) litKeys.push(k);
+      }
+    }));
+    if (!litKeys.length) {
+      gateBad.push('没有任何事件用「图鉴门」—— 引擎里那条通路没有内容喂它（整条是死的）');
+    } else if (litKeys.length > 1) {
+      /* 两个键都「长得像图鉴门」⇒ 本节只认得出一个，另一条会从网里漏出去（静默漏网）。
+         与其猜哪个是，不如报红让人把内容表说清楚。 */
+      gateBad.push('有多个 cond 键的值都是「真实鱼种 id 的数组」（' + litKeys.join(' / ')
+        + '）—— 本节只认得出一个，另一条会漏出网；请把内容表写清楚');
+    } else {
+      gateKey = litKeys[0];
+      EVS.forEach(ev => {
+        const c = ev.cond || {};
+        if (!(gateKey in c)) return;
+        withGate++;
+        const v = c[gateKey];
+        if (!Array.isArray(v) || !v.length) {
+          gateBad.push('事件 ' + ev.id + ' 的 cond.' + gateKey
+            + ' 不是非空数组 —— 这道门永不匹配（事件永不出现）');
+          return;
+        }
+        v.forEach(x => {
+          if (typeof x !== 'string' || fishIds.indexOf(x) < 0) {
+            gateBad.push('事件 ' + ev.id + ' 的 cond.' + gateKey + ' 里写了不存在的鱼种 id「' + x
+              + '」—— 这条事件永远不会触发');
+          }
+        });
+      });
+      const okBody2 = bodyOf(coreCode2, 'function condOk(');
+      if (!readsField(okBody2, 'c\\.' + gateKey)) {
+        gateBad.push('condOk() 没读 cond.' + gateKey + ' —— 内容表写了这道门，引擎不当回事'
+          + '（事件会在任意时刻冒出来）');
+      }
+      const gateBody = bodyOf(coreCode2, 'function caughtOne(');
+      if (!gateBody) {
+        gateBad.push('core/story.js 没有 caughtOne() —— 图鉴门的判定没有唯一入口'
+          + '（抓不到就报错，先修本节判据本身）');
+      } else {
+        if (!has(gateBody, 'G.State.isCaught')) {
+          gateBad.push('图鉴门的判定没走 G.State.isCaught() —— 「钓到过没有」会出现第二份真相'
+            + '（图鉴字段口径改一次，两边就开始各说各话）');
+        }
+        if (!has(okBody2, 'caughtOne(')) {
+          gateBad.push('condOk() 没经过 caughtOne() —— 这道门可能只读了字段、没真查图鉴（门恒开）');
+        }
+      }
+    }
+  }
+  if (gateBad.length) { err('「图鉴门」这道门 / 链路不对：' + gateBad.join('；')); storyBad++; }
+
   /* ⑧ 存档：字段要在 blank() 里，migrate() 要纠正**每一个**容器类型（脏档兜底）
      ⚠️ 判据必须认**字段声明 / 赋值本身**，不能只认「这段文字里出现过 story 这个词」——
         第一版写成 `has(body, 'story')`，反向验证当场假通过：把 `story:` 那一行删掉之后，
@@ -6222,6 +6298,8 @@ let storyBad = 0;
         : '没有办比试的事件') + '、'
       + (withAfter ? withAfter + ' 条事件认「上一竿的结局」（值域现算 ' + outcomes.length
         + ' 个、门与链路都在，且丢竿回调早于状态收尾）' : '没有认得上一竿结局的事件') + '、'
+      + (gateKey ? withGate + ' 条事件认「图鉴门」（值域现算 ' + Object.keys(FISH_T).length
+        + ' 条鱼、门与链路都在，且判定只走 G.State.isCaught()）' : '没有认图鉴门的事件') + '、'
       + '存档 story 的 ' + contKeys.length + ' 个容器两边对得上且有迁移纠正、'
       + '奖励白名单为空（纯剧情）、引擎不用 Math.random');
   }

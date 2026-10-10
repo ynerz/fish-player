@@ -3657,6 +3657,7 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
 (function () {
   var S7 = G.Story, PL = G.Platform, Fish7 = G.Fishing;
   var realSnap = G.Weather.snapshot, realPanels = G.Panels;
+  var realBook = St.get().book;              /* 图鉴门那组会换掉它，收尾要还回去 */
   /* 三组受控条件：分别命中「借线」（傍晚）/「旧靴子」（有雾）/ 谁都不命中。
      ⚠️ 场地必须是**那一位真站得住的钓场**（N7 五期起事件过一道 NPC 门：`ev.npc`
         跟「当前钓场站着的那位」对不上就整条跳过）。老陈在内陆（D / C / B），
@@ -3709,9 +3710,14 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
     /* ---------- ② 条件门 ---------- */
     clean();
     ok(firstHit(DRY) === null, '条件都不满足时（隐藏钓场 + 大晴天正午）一条事件都不触发');
+    /* ⚠️ 傍晚这一组要**先把别的候选推进冷却里**：N7 七期起老陈多了一条**图鉴门**事件
+       （只要求「村口那三条里钓到过一条」，而测试跑到这儿图鉴早就有了），它对时段与天气
+       都没有要求 ⇒ 不隔离的话就变成「谁先过概率门谁赢」的运气题，
+       这条断言的**意图**（傍晚无雨 ⇒ 借线能过门）也就守不住了。 */
     clean();
+    coolExcept('borrow');
     var h1 = firstHit(DUSK);
-    ok(h1 && h1.ev.id === 'borrow', '傍晚无雨 ⇒ 命中「借线」（条件门 + 概率门都过）'
+    ok(h1 && h1.ev.id === 'borrow', '傍晚无雨 ⇒ 命中「借线」（其余事件都在冷却里，只剩它一个候选）'
       + (h1 ? '（第 ' + h1.seq + ' 次结算）' : ''));
     /* 「旧靴子」只认雨天 / 雾天，而这两个时段里「借线」也满足 —— 把其余事件推进冷却里，
        让候选只剩它一个（否则断言会变成「谁先过概率门谁赢」的运气题）。 */
@@ -3721,13 +3727,19 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
     ok(h2 && h2.ev.id === 'boot', '有雾 ⇒ 命中「旧靴子」（其余事件都在冷却里，只剩它一个候选）');
 
     /* ---------- ③ 冷却 ---------- */
+    /* ⚠️ 同样要隔离（理由见 ②），而且这里 `now` 不是 0 —— `coolExcept()` 写进去的
+       `at = 1` 早就过期了，挡不住别的候选：得把它们的 `at` 推到**远未来**。
+       留下的那一条是 `h1` 自己：断言问的是「冷却能不能挡住它」，不是「这一刻轮到谁」。 */
     clean();
     St.get().story.fired[h1.ev.id] = 1;
     St.get().story.at[h1.ev.id] = 1000000;
     var half = 1000000 + Math.round(h1.ev.cooldownMs / 2);
+    var past = 1000000 + h1.ev.cooldownMs + 1;
+    G.STORY_EVENTS.forEach(function (e) {
+      if (e.id !== h1.ev.id) St.get().story.at[e.id] = past + 1e12;
+    });
     ok(S7.tryFire({ field: 'D', wx: 'clear', tm: 'dusk', npc: h1.ev.npc, seq: h1.seq, now: half }) === null,
        '冷却期内同一条不再触发');
-    var past = 1000000 + h1.ev.cooldownMs + 1;
     var again = S7.tryFire({ field: 'D', wx: 'clear', tm: 'dusk', npc: h1.ev.npc, seq: h1.seq, now: past });
     ok(again && again.id === h1.ev.id, '冷却过去之后又能触发（同一序号 ⇒ 同一掷点）');
 
@@ -4090,8 +4102,12 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
 
     /* 开赛要**扫**序号（内容表的 chance < 1 ⇒ 单次 consider() 多半不中，
        而「没中就当成没开赛」会让下面一堆断言**因为错误的原因**通过）。
-       ⚠️ 从 seq=1 往下扫，不写死数字：改一次概率 / 台词都不会让这组用例失效。 */
+       ⚠️ 从 seq=1 往下扫，不写死数字：改一次概率 / 台词都不会让这组用例失效。
+       ⚠️ N7 七期起先**把别的候选推进冷却里**：老陈多了一条图鉴门事件，它对时段与天气
+       都没有要求、白天也满足 ⇒ 不隔离的话那一条会先把「开赛」这件事抢走，
+       「条件合适时真的会开一场比试」就变成了运气题（隔离只针对**谁赢**，不比试本身）。 */
     function fireDuel() {
+      coolExcept(duelEv.id);
       for (var n2 = 0; n2 < 600; n2++) { var e2 = S7.consider(); if (e2) return e2; }
       return null;
     }
@@ -4156,6 +4172,7 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
     /* ⑥ 🔴 一次只比一场：已有**未结算**的比试时，`tryFire` 必须跳过办比试的事件。
        **双向**验（只验一边会让「守卫写成恒真」也通过）—— 门是数据上的，不是注释。 */
     function seqHitDuel() {
+      coolExcept(duelEv.id);
       for (var s2 = 1; s2 <= 600; s2++) {
         var got3 = S7.tryFire({ field: 'D', wx: 'clear', tm: 'day', npc: duelEv.npc, seq: s2, now: 0 });
         if (got3 && got3.id === duelEv.id) return s2;
@@ -4380,13 +4397,154 @@ G_('隔壁钓鱼佬 · 事件引擎的可复现与四道门（N7）');
 
     clean();
     S7.init({});
+
+    /* ---------- ⑭ 图鉴门（N7 七期）：`cond` 里那道「这几条里任意一条已经钓到过」----------
+       三件事必须钉住：① 门真的按**图鉴**开（空图鉴恒关、有任一条就开）；
+       ② 语义是「任意一条」而不是「全都要」（写成 `every` 必须在这里红）；
+       ③ 它是**门**不是条件指纹（开不开都不改别的事件的掷点）。
+       ⚠️ 「图鉴门」那个键**动态认**（值是「真实鱼种 id 的数组」的那个 cond 键）——
+          与 §50 / 32-g 同一个理由：把键名写死在这里，test.js 自己就成了那个键的
+          「消费方」，引擎那一侧真被删掉也照样是绿的。 */
+    var bookSnap = St.get().book;
+    function fishIdArr(v) {
+      if (!(v instanceof Array) || !v.length) return false;
+      for (var fi = 0; fi < v.length; fi++) {
+        if (typeof v[fi] !== 'string' || !G.FISH_ID[v[fi]]) return false;
+      }
+      return true;
+    }
+    function mkCond(key, v) { var o = {}; o[key] = v; return o; }
+    var gateList = [];
+    G.STORY_EVENTS.forEach(function (e) {
+      Object.keys(e.cond || {}).forEach(function (k) {
+        if (fishIdArr(e.cond[k])) gateList.push({ ev: e, key: k });
+      });
+    });
+    ok(gateList.length > 0, '内容表里至少有一条事件带图鉴门（引擎那条通路有内容喂它）');
+    ok(gateList.every(function (x) { return x.ev.cond[x.key].length > 0; }),
+      '带图鉴门的事件都列了非空数组（空数组 = 永远不匹配 = 白写一条）');
+    ok(gateList.every(function (x) {
+      return x.ev.cond[x.key].every(function (id) { return !!G.FISH_ID[id]; });
+    }), '图鉴门里列的鱼种 id 都真实存在（写错 id 只会静默地永不触发）');
+
+    var gateChen = null, gateHai = null;
+    gateList.forEach(function (x) { if (!gateChen && x.ev.npc === 'chen') gateChen = x; });
+    gateList.forEach(function (x) { if (!gateHai && x.ev.npc === 'hai') gateHai = x; });
+    ok(!!gateChen, '老陈有一条带图鉴门的事件（内陆那条「开张」）');
+    ok(!!gateHai, '阿海有一条带图鉴门的事件（海里那条「服气」）');
+
+    var D_G = { field: 'D', wx: 'clear', tm: 'day', npc: 'chen' };
+    /* 扫序号找一个真能命中的点（不写死数字：改概率 / 台词都不会让这组用例失效）。
+       隔离走 `coolExcept()`（其余候选的 `at = 1`；这里 `now` 一律是 0，够用）。 */
+    function gateHit(base, isoId) {
+      clean(); coolExcept(isoId);
+      for (var gs = 1; gs <= 600; gs++) {
+        var gg = S7.tryFire({ field: base.field, wx: base.wx, tm: base.tm, npc: base.npc,
+                              seq: gs, now: 0 });
+        if (gg) return { seq: gs, ev: gg };
+      }
+      return null;
+    }
+    var gateKey = gateChen.key;                  /* 引擎读的那一个键（动态认出来的） */
+    var gateFish = gateChen.ev.cond[gateKey][0];
+
+    /* ① 空图鉴 ⇒ 这道门恒关 */
+    St.get().book = {};
+    ok(gateHit(D_G, gateChen.ev.id) === null,
+      '图鉴空着 ⇒ 带图鉴门的事件一次都不出现（门恒关，不是「条件碰上了就冒出来」）');
+
+    /* ② 钓到过列表里的一条 ⇒ 门开 */
+    St.get().book = {};
+    St.get().book[gateFish] = { n: 1, maxKg: 1, colors: {}, first: 0 };
+    ok(St.isCaught(gateFish), '这条鱼在图鉴里（门要看的就是这一份事实）');
+    var gHit = gateHit(D_G, gateChen.ev.id);
+    ok(!!gHit && gHit.ev.id === gateChen.ev.id, '图鉴里有那一条之后 ⇒ 它真会开口');
+
+    /* ③ 「任意一条」语义：用**临时探针**（内容表将来只列一条，这条断言也不会失效） */
+    var twoFish = [];
+    G.FISH_BY_FIELD.D.forEach(function (f) {
+      if (twoFish.length < 2 && twoFish.indexOf(f.id) < 0) twoFish.push(f.id);
+    });
+    ok(twoFish.length === 2, '§⑭ 能从鱼种表里取两条真实鱼 id（抓不到就报错，不许空过）');
+    var gateProbe = { id: 'zzz-gate-probe', npc: D_G.npc, title: '探测', once: false,
+                      cooldownMs: 1, chance: 1, cond: mkCond(gateKey, [twoFish[0], twoFish[1]]),
+                      reward: {}, lines: ['探测用'] };
+    G.STORY_EVENTS.push(gateProbe);
+    try {
+      St.get().book = {};
+      ok(gateHit(D_G, gateProbe.id) === null, '两条都不在图鉴里 ⇒ 门不开（不是「列表里写了就算」）');
+      St.get().book = {};
+      St.get().book[twoFish[0]] = { n: 1, maxKg: 1, colors: {}, first: 0 };
+      var hitA = gateHit(D_G, gateProbe.id);
+      ok(!!hitA && hitA.ev.id === gateProbe.id, '列表里的**第一条**钓到过 ⇒ 门开');
+      St.get().book = {};
+      St.get().book[twoFish[1]] = { n: 1, maxKg: 1, colors: {}, first: 0 };
+      var hitB = gateHit(D_G, gateProbe.id);
+      ok(!!hitB && hitB.ev.id === gateProbe.id,
+        '只钓到过**第二条**也开 —— 门是「任意一条」不是「全都要」（判据写成 every 会在这里红）');
+    } finally { G.STORY_EVENTS.pop(); }
+
+    /* ④ 脏值：图鉴里**有**鱼（门本该开），但门里那几个值全是脏的 ⇒ 一律当门不开、也不抛 */
+    var dirtyVals = ['这不是数组', [], ['ZZZ-没有这条鱼'], [123], [null]];
+    var dirtyBad = [];
+    dirtyVals.forEach(function (dv, dvi) {
+      var pr = { id: 'zzz-gate-dirty-' + dvi, npc: D_G.npc, title: '探测', once: false,
+                 cooldownMs: 1, chance: 1, cond: mkCond(gateKey, dv), reward: {}, lines: ['探测用'] };
+      G.STORY_EVENTS.push(pr);
+      try {
+        St.get().book = {};
+        St.get().book[twoFish[0]] = { n: 1, maxKg: 1, colors: {}, first: 0 };
+        if (gateHit(D_G, pr.id)) dirtyBad.push('第 ' + (dvi + 1) + ' 种');
+      } catch (e) {
+        dirtyBad.push('第 ' + (dvi + 1) + ' 种抛了 ' + e.message);
+      } finally { G.STORY_EVENTS.pop(); }
+    });
+    ok(dirtyBad.length === 0, '图鉴门的脏值（非数组 / 空数组 / 假鱼 id / 数字 / null）一律当门不开，也不抛'
+      + (dirtyBad.length ? ' —— ' + dirtyBad.join('、') : ''));
+
+    /* ⑤ 掷点与图鉴无关：它是门，不是条件指纹（否则加一道门会挪动别的事件的掷点） */
+    var rollG1 = S7.rollFor(gateChen.ev, { field: 'D', wx: 'clear', tm: 'day', seq: 9, now: 0 });
+    St.get().book = {};
+    St.get().book[gateFish] = { n: 1, maxKg: 1, colors: {}, first: 0 };
+    var rollG2 = S7.rollFor(gateChen.ev, { field: 'D', wx: 'clear', tm: 'day', seq: 9, now: 0 });
+    ok(rollG1 === rollG2, '掷点不看图鉴（它是门，不是条件指纹 —— 加这门不会改掉别的事件的掷点）');
+
+    /* ⑥ 走**真正的那条路**（`consider()`）：空图鉴不开口 / 有鱼就开口 */
+    G.Weather.snapshot = function () { return { wx: { key: 'clear' }, tm: { key: 'day' } }; };
+    St.get().field = 'D';
+    G.Panels = { isOpen: function () { return false; }, isCatchOpen: function () { return false; } };
+    Fish7.hardReset();
+    St.setIdle(false);
+    St.get().book = {};
+    clean(); coolExcept(gateChen.ev.id); S7.reset();
+    var noGate = null;
+    for (var q12 = 0; q12 < 600 && !noGate; q12++) noGate = S7.consider();
+    ok(noGate === null, '图鉴空着时 consider() 一直不开口（这道门在真链路上也生效）');
+
+    St.get().book = {};
+    St.get().book[gateFish] = { n: 1, maxKg: 1, colors: {}, first: 0 };
+    clean(); coolExcept(gateChen.ev.id); S7.reset();
+    var gateFired = null;
+    for (var q13 = 0; q13 < 600 && !gateFired; q13++) gateFired = S7.consider();
+    ok(!!gateFired && gateFired.id === gateChen.ev.id
+      && Array.isArray(gateFired.lines) && gateFired.lines.length > 0,
+      '图鉴里有那一条之后 consider() 真能触发，而且带得出台词（面板不会弹空卡）');
+
+    /* ⑦ 存档往返：图鉴是**存档里的事实**，读回来门还得是开的 */
+    St.save(true); St.load();
+    ok(St.isCaught(gateFish), '存档往返之后那条鱼还在图鉴里（门不会被一次读盘关掉）');
+
+    St.get().book = bookSnap;
+    clean();
+    S7.init({});
   } finally {
-    /* 恢复现场：引擎内存态、天气桩、面板层、存档里的触发记录、idle 开关 */
+    /* 恢复现场：引擎内存态、天气桩、面板层、存档里的触发记录、图鉴、idle 开关 */
     G.Weather.snapshot = realSnap;
     G.Panels = realPanels;
     S7.init({});
     S7.reset();
     St.get().story = { fired: {}, at: {} };
+    St.get().book = realBook;
     if (St.get().settings.idle) St.setIdle(false);
     Fish7.hardReset();
   }

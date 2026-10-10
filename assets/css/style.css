@@ -662,6 +662,9 @@ input[type=range]{ width:130px; accent-color:var(--c-primary); }
 .cc-btn:hover{ background:var(--c-primary-d); }
 .cc-btn.ghost{ background:#fff; color:var(--c-text); border:1px solid var(--c-line-2); }
 .cc-btn.ghost:hover{ border-color:var(--c-primary); color:var(--c-primary-d); }
+/* 「存图」（N11 ⑤）：窄一号 —— 它与「卖出 / 收进鱼护」不是同一档动作
+   （那两个会结束待决状态，这个只是导出一张图），宽度上就该让出来。 */
+.cc-btn.slim{ flex:0 0 auto; padding:12px 14px; background:var(--c-primary-d); letter-spacing:0; }
 
 /* ================= 工具类 ================= */
 .hidden{ display:none !important; }

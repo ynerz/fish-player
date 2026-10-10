@@ -325,17 +325,25 @@ G.Panels = (function () {
         分开传就会出现「框是网格的、图要的是详情档」这种没人拦得住的组合。
      `onReady`：图**后来**才到时要做的重画（**只重画这一张画布**，
      不 `refresh()` 整个面板 —— 图鉴一屏 362 项，整面板重渲染会闪，而且搜索框会失焦）。
+     `noCard`（**可选**，默认 falsy）：true = **只画程序化，不贴卡面**。
+     唯一的消费方是渔获分享卡的**第二趟导出**（N11 ⑤）：`file://` 双击打开时，
+     把本地图片贴进画布会把它标记成「被污染」⇒ `toBlob` 必然失败（`getImageData` 抛
+     `SecurityError`，`toBlob` 回调收到 null）。那时只能换一张**新**画布、用程序化绘制
+     重画一遍再导 —— 那条路不贴任何外部图片，画布是干净的。
+     ⚠️ 它是**绘制口径**而不是「能不能画」，所以走这个入口而不是让调用方自己去取图：
+         `G.CardArt.held(` 这个取用口只许留在入口里（第 ㊼ 节 ③ 盯着）。
+     ⚠️ 传 true 时**不发 `want()`**：这一趟要的是「干净」，等图回来重画反而会把画布弄脏。
      返回这次到底画的是哪一种（自测与排查用）。
      ⚠️ `cm` 传 null 表示「这条鱼一种颜色都没收集到」→ 只走程序化（不带色）。
         没收集到颜色时**不取图**：AI 卡面是「某一种颜色」的实物图，没有收集就没有这一档。*/
-  function paintFish(ctx, f, cm, box, t, onReady) {
-    if (cm) {
+  function paintFish(ctx, f, cm, box, t, onReady, noCard) {
+    if (cm && !noCard) {
       var img = G.CardArt.held(box.tier, f.id, cm.key);
       if (img) { G.CardArt.blit(ctx, img, box.cx, box.cy, box.w, box.h); return 'card'; }
     }
     var amt = cm && cm.tint ? 0.75 : 0;
     G.FishArt.draw(ctx, f, box.cx, box.cy, box.len, { tint: cm && cm.tint, tintAmt: amt, t: t });
-    if (cm) G.CardArt.want(box.tier, f.id, cm.key, onReady);   // 图到了再重画；拿不到就不动
+    if (cm && !noCard) G.CardArt.want(box.tier, f.id, cm.key, onReady);   // 图到了再重画；拿不到就不动
     return 'art';
   }
 
@@ -2417,6 +2425,9 @@ G.Panels = (function () {
     }
     U.on(U.$('#ccSell'), 'click', function () { fire('sell'); });
     U.on(U.$('#ccKeep'), 'click', function () { fire('keep'); });
+    /* 存图（N11 ⑤）：**不关卡片** —— 玩家可能想先存一张再决定卖还是留。
+       卡面留着也正好当「导出的是哪一竿」的即时反馈（导出的内容与卡上一致）。 */
+    U.on(U.$('#ccShot'), 'click', function () { G.Audio.click(); exportShare(); });
   }
 
   /* 空格 / 点画面把结算卡收掉时，默认按「卖出」处理，
@@ -2427,6 +2438,115 @@ G.Panels = (function () {
     G.Audio.coin();
     hideCatch();
     if (onDone) onDone('sell', info);
+  }
+
+  /* =========================================================
+     渔获分享卡（N11 ⑤）—— 把「这一竿那条鱼」导出一张 PNG
+     =========================================================
+     口径（改之前先读，每条都对应一种「不报错但玩家会用出问题」）：
+       ① **单向导出**：玩家拿一张图自己去发。游戏里**没有任何**上传 / 好友 / 留言的入口
+          ⇒ 它不是 UGC、不碰版号那条线。⚠️ 与日记那条「不许导出」是**两条线**：
+          日记是本机流水（`verify [50-c] ⑤` 盯着它不许出现导出能力），
+          分享卡是**玩家主动**把**这一竿**交出去 —— 别把两条口径混成一条。
+       ② **两趟导出 + 换画布**（本条目最容易踩的一处）：`file://` 双击打开时，
+          AI 卡面是**本地图片**，贴进画布会把它标记成「被污染」⇒ 第一趟必然失败。
+          🔴 **实测（2026-10-11）**：Chromium 下被污染的画布调 `toBlob` 是**同步抛**
+          `SecurityError`（不是「回调收 null」，那条是另一条路）——平台层已经兜住，
+          这里只管「失败了就换一张**新**画布用程序化绘制重画一遍再导」。
+          ⚠️ 必须是**新画布**：污染标记是画布自己的属性，在同一张上重画洗不掉
+             （改 width 才能重置 —— 那是「靠副作用」，读代码的人看不出来）。
+          ✅ 真浏览器实测（`file://`）：第一趟 `CardArt` 命中 1 张（说明真贴过图）、
+             `save` 被调 2 次、最终 toast 是「已导出」且真的落了文件。
+       ③ **画面先于导出**：画完立刻导，中间不许 await —— 否则玩家看到的是上一张卡。
+       ④ **失败如实说**：两趟都不成 ⇒ toast 说清楚「这个环境导不出来」，
+          **不许**静默什么都不发生（那是本项目最典型的坑型），也**不许**谎报「已保存」。
+       ⑤ 进度数字**从存档现算**（`St.globalProgress()`）—— 不在文案里写死分母。
+     ========================================================= */
+  var SHARE_W = 600, SHARE_H = 400;
+
+  /* 文件名：`钓鱼人生-<鱼名>-<重量>.png`。去字符由平台层做
+     （`Platform.image.save()` 里 `safeName()`，路径分隔符 / 引号都换掉）。 */
+  function shareName(info) {
+    var kg = Math.round((info && info.kg ? info.kg : 0) * 100) / 100;
+    return '钓鱼人生-' + ((info && info.fish && info.fish.name) || '渔获') + '-' + kg + 'kg.png';
+  }
+
+  /* 把分享卡画到 `ctx` 上。`noCard` = 只画程序化（第二趟，见口径 ②）。
+     尺寸口径写在这里一处：调用方只负责把画布开成 `SHARE_W × SHARE_H`（乘 dpr）。 */
+  function paintShare(ctx, info, noCard) {
+    var rar = (info && typeof info.rar === 'number' && CFG.rarity[info.rar]) ? CFG.rarity[info.rar] : CFG.rarity[0];
+    var f = info.fish, cm = info.color;
+    /* 底：与结算卡同一套水色（同一个观感只写一处 —— 这里只有色值，没有第二套规则） */
+    var grad = ctx.createLinearGradient(0, 0, 0, SHARE_H);
+    grad.addColorStop(0, '#eaf7ff'); grad.addColorStop(1, '#c6e9fb');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, SHARE_W, SHARE_H);
+    /* 顶条 = 稀有度色（取自 `CFG.rarity[].color`，CSS 的 `--r0..3` 是它的镜像） */
+    ctx.fillStyle = rar.color; ctx.fillRect(0, 0, SHARE_W, 6);
+    /* 水波 */
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 2;
+    for (var i = 0; i < 6; i++) {
+      ctx.beginPath();
+      for (var x = 0; x <= SHARE_W; x += 12) {
+        var y = 268 + i * 22 + Math.sin(x * 0.03 + i) * 4;
+        if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    /* 鱼：**走同一个回退链入口**（档位取 detail —— 这一块 560×230 是分享卡上最大的绘制面） */
+    var L = U.clamp(Math.min(300, 120 + Math.log(1 + (info.kg || 0)) * 30), 130, 310);
+    paintFish(ctx, f, cm,
+      { cx: SHARE_W / 2, cy: 150, len: L, w: 560, h: 230, tier: 'detail' }, 0.8, null, noCard);
+
+    /* 文字区 */
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#12384f';
+    ctx.font = 'bold 30px sans-serif';
+    ctx.fillText(f.name, 32, 340);
+    ctx.font = 'bold 17px sans-serif';
+    ctx.fillStyle = '#3a6f8f';
+    var tags = rar.name + '　·　' + ((cm && cm.name) || '原色') + '　·　' + U.kg(info.kg || 0);
+    ctx.fillText(tags, 32, 368);
+    /* 图鉴进度：**现算**（分母来自鱼种表，不写死） */
+    var gp = (St.globalProgress && St.globalProgress()) || { got: 0, total: 0 };
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.fillStyle = '#3a6f8f';
+    ctx.fillText('图鉴 ' + gp.got + ' / ' + gp.total, SHARE_W - 32, 368);
+    ctx.font = '13px sans-serif';
+    ctx.fillStyle = '#6a93ab';
+    ctx.fillText('钓鱼人生 · 本机记录', SHARE_W - 32, 340);
+    ctx.textAlign = 'left';
+  }
+
+  /* 开一张分享卡用的离屏画布：逻辑尺寸 `SHARE_W×SHARE_H`，像素尺寸按 dpr
+     （高 dpi 屏上导出的图才不糊）。**两趟各开一张**（口径 ②：污染标记洗不掉），
+     所以它必须是「开新的」而不是「复用一张」——抽成函数正好让这件事一眼看得见。 */
+  function newShareCanvas(dpr) {
+    var cv = G.Platform.canvas.create(SHARE_W * dpr, SHARE_H * dpr);
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { cv: cv, ctx: ctx };
+  }
+
+  /* 导出（按钮点一下走这里）。返回 Promise<boolean>（自测用；界面侧不看它）。 */
+  function exportShare() {
+    var info = pendingCatch;
+    if (!info || !info.fish) return Promise.resolve(false);    /* 没有待决渔获：安静收场，不猜一条鱼 */
+    var dpr = Math.min(G.Platform.sys.dpr(), 2);
+    var name = shareName(info);
+    var a = newShareCanvas(dpr);
+    paintShare(a.ctx, info, false);                       /* 第一趟：卡面优先（好看） */
+    return G.Platform.image.save(a.cv, name).then(function (ok) {
+      if (ok) return true;
+      var b = newShareCanvas(dpr);                        /* 第二趟：**新**画布 + 程序化（口径 ②） */
+      paintShare(b.ctx, info, true);
+      return G.Platform.image.save(b.cv, name);
+    }).then(function (done) {
+      G.State.emit('toast', done
+        ? { text: '已导出分享卡：' + name, kind: 'good' }
+        : { text: '这个环境导不出图片（用 http:// 打开或桌面版再试）', kind: 'warn' });
+      return done;
+    });
   }
   /* ⚠️ `getPendingCatch()` 已删：全项目零调用（结算卡的 payload 只有本模块用）。 */
   return {

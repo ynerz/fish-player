@@ -14,6 +14,8 @@
                 —— 小程序要换成 wx.createInnerAudioContext
      canvas     create(w,h)              —— 小程序要换成 wx.createOffscreenCanvas
      image      create() / load(url) → Promise<Image|null>   —— 小程序换成 wx.createImage
+                save(canvas, name) → Promise<boolean>  —— 把一张画布交出去（分享卡导出）；
+                   小程序换成 wx.canvasToTempFilePath + wx.saveImageToPhotosAlbum
      sys        dpr() / now() / raf(fn) / cancelRaf(h) / isVisible() / reload()
                 onReady(fn) / onResize(fn) / onVisibility(fn) / onFocus(fn) / onBlur(fn)
                 onError(fn) / onRejection(fn) / isFile()
@@ -268,6 +270,16 @@ G.Platform = (function () {
   /* ---------------- 图像 ---------------- */
   /* 图片加载的**唯一**口径。业务代码不许写 `new Image()`（第 ㊱ 节按字面量拦）。
      小程序端换成 `wx.createImage()` —— 同名 API，src / onload / onerror 都在。 */
+
+  /* 下载文件名去字符：路径分隔符 / 引号 / 通配符 / 控制字符一律换成 `_`。
+     写成独立小函数是为了**只有一份实现**（`save()` 里内联一份、将来别处再内联一份
+     就是同一件事的第二份真相）。空名给一个兜底名，免得浏览器存成 `download`。 */
+  function safeName(name) {
+    var s = String(name == null ? '' : name).replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_');
+    s = s.replace(/^\.+/, '').trim();
+    return s || 'fish-player.png';
+  }
+
   var image = {
     create: function () { return new Image(); },
     /* 加载一张图。成功给 Image 对象、失败给 **null**（不抛、不 reject）。
@@ -280,6 +292,61 @@ G.Platform = (function () {
         im.onload = function () { res(im); };
         im.onerror = function () { res(null); };
         im.src = url;
+      });
+    },
+    /* 把一张画布**交出去**（渔获分享卡 N11 ⑤）：浏览器 = 下载一个 PNG，
+       小程序端 = `wx.canvasToTempFilePath` + `wx.saveImageToPhotosAlbum`。
+       ⇒ 它确实是**宿主相关**的：Web 端这条路的每一步（`toBlob` / `createObjectURL` /
+       `<a download>`）在小程序里都不存在，所以按硬约束第 5 条收进平台层。
+
+       🔴 四条边界（每条都对应一种「不报错但玩家会用出问题」）：
+         ① **兜底不抛，返回 `Promise<boolean>`**（与 `clipboard.write` 同款）——
+            拿不到能力 / 画布被污染 / 浏览器拦了下载 ⇒ 一律 `resolve(false)`。
+            ⚠️ **不许 reject**：`main.js` 订阅了 `sys.onRejection()`，而「这个环境导不出来」
+              是**预期内**的（双击 `file://` 打开时必然如此），让玩家每点一次「存图」
+              就看到一条「出错了」是错的。
+         ② **画布被污染时必须给 false** —— `file://` 双击打开时，AI 卡面（本地图片）
+            贴上去就会把画布标记为「被污染」。🔴 **实测（2026-10-11，Chromium headless，
+            真页面真图片）**：被污染的画布调 `toBlob` 是**同步抛**
+            `SecurityError: Failed to execute 'toBlob' on 'HTMLCanvasElement':
+            Tainted canvases may not be exported.` —— **不是**「回调收到 null」
+            （那条是规格里另一条路：内存不足之类；两条都得兜）。
+            本仓库的踩坑记录原来的写法与实测相反，改这里时别照抄旧说法。
+            ⇒ 兜住同步抛是第一要务（下面那个 catch），`!blob` 那一支是第二道网。
+            调用方据此**换一张新画布**用程序化绘制重画一遍（那条路不贴外部图片）。
+            ⚠️ 注意是**新画的画布**，不是同一张重画：污染标记是画布属性，重画洗不掉。
+         ③ 参数形状不对（不是画布 / 没有 `toBlob`）⇒ `false`，不抛。
+         ④ 文件名在这里做**去字符**处理：路径分隔符与引号会让下载名变成怪东西
+            （Win 下甚至会去别的目录）。空名给个兜底名。 */
+    save: function (cv, name) {
+      return new Promise(function (res) {
+        if (!cv || typeof cv.toBlob !== 'function') { res(false); return; }
+        var U_ = window.URL || null;
+        var doc = null;
+        try { doc = window.document; } catch (e) { doc = null; }
+        if (!doc || !U_ || typeof U_.createObjectURL !== 'function') { res(false); return; }
+        try {
+          cv.toBlob(function (blob) {
+            if (!blob) { res(false); return; }        /* ②：被污染的画布走到这儿 */
+            var url = null;
+            try {
+              url = U_.createObjectURL(blob);
+              var a = doc.createElement('a');
+              a.href = url;
+              a.download = safeName(name);
+              /* 必须在文档里才点得动（Firefox 要求元素在文档中） */
+              if (doc.body) doc.body.appendChild(a);
+              a.click();
+              if (a.parentNode) a.parentNode.removeChild(a);
+              res(true);
+            } catch (e) {
+              res(false);
+            } finally {
+              /* 立刻 revoke 会让部分浏览器下的下载**半途断掉** ⇒ 延后一拍再回收 */
+              if (url) { try { setTimeout(function () { U_.revokeObjectURL(url); }, 30000); } catch (e2) {} }
+            }
+          }, 'image/png');
+        } catch (e) { res(false); }                  /* ①：同步抛（老实现 / 跨域画布）也兜住 */
       });
     },
   };

@@ -2356,6 +2356,211 @@ G_('Panels · 结算卡待决时底栏只禁左半（catch-open 的挂载与摘�
 })();
 
 /* =========================================================
+   Panels · 渔获分享卡（N11 ⑤）：两趟导出 + **换画布** + 画布被污染
+   =========================================================
+   为什么这一节非有不可：分享卡的失败态**在真浏览器里很难碰**——
+   `http://` 下第一趟就成功，`file://` 下才走第二趟，而本项目两种形态都要能用
+   （双击即玩是开发期形态）。手工验证只能覆盖其中一条，剩下那条会在发布后才暴露。
+   本文件是**全同步**的（没有 async/await），所以 `Platform.image.save()` 的 Promise
+   在这里不 await：断言全部落在它**同步做掉的那些副作用**上（建不建 `<a>` / 文件名 /
+   点没点），而「失败必须是 resolve(false) 而不是 reject」由 `verify [36-d]` 静态钉住。
+   ⚠️ `toBlob` 的桩**同步回调**（真实浏览器也是「回调」而不是抛）—— 这一节的全部观察
+      都建立在这个同步性上；桩改成异步回调会让断言静默失效（每一句都变成「没发生」）。
+   ========================================================= */
+G_('Panels · 渔获分享卡（两趟导出 / 换画布 / 画布被污染）');
+(function () {
+  const noop = () => {};
+  function mkCtx(ops) {
+    return {
+      setTransform: noop, fillRect: (...a) => ops.push(['fillRect', a[2], a[3]]),
+      beginPath: noop, moveTo: noop, lineTo: noop, stroke: noop,
+      createLinearGradient: () => ({ addColorStop: noop }),
+      fillText: (...a) => ops.push(['fillText', a[0]]),
+      drawImage: (...a) => ops.push(['drawImage', a[1]]),
+      fillStyle: '', strokeStyle: '', lineWidth: 1, font: '', textAlign: '',
+    };
+  }
+  function mkCanvas(w, h) {
+    const ops = [];
+    return { width: w, height: h, ops: ops, getContext: () => mkCtx(ops) };
+  }
+  /* 会记账的 `<a>`：分享卡导出的**唯一可见后果**就是「建了链接 + 点了它」 */
+  function mkAnchor() { return { tagName: 'a', href: '', download: '', click() { this.clicked = (this.clicked || 0) + 1; } }; }
+
+  const realDoc = global.document, realURL = global.URL;
+  const realCreate = G.Platform.canvas.create;
+  const realFishArt = G.FishArt, realAudio = G.Audio, realCardArt = G.CardArt;
+  const realEmit = G.State.emit;
+  const realSave = G.Platform.image.save;      /* ② 会把它换掉，finally 里还原 */
+  const P = G.Platform;
+  const anchors = [];
+
+  try {
+    /* ---------- ① 平台层：三条「导不出去」的路都必须**不建链接**（也就不会误报成功） ---------- */
+    function host(blobFactory, withUrl) {
+      global.URL = withUrl ? { createObjectURL: () => 'blob:fake', revokeObjectURL: noop } : undefined;
+      global.document = {
+        createElement: tag => { const a = mkAnchor(); if (tag === 'a') anchors.push(a); return a; },
+        body: { appendChild: noop }, querySelector: () => null, querySelectorAll: () => [], addEventListener: noop,
+      };
+      const cv = mkCanvas(8, 8);
+      if (blobFactory) cv.toBlob = blobFactory;
+      return cv;
+    }
+    function trySave(cv, name) {
+      const n = anchors.length;
+      let threw = '';
+      try { P.image.save(cv, name); } catch (e) { threw = e.message; }
+      return { threw: threw, newAnchors: anchors.length - n };
+    }
+
+    let r = trySave(host(null, true), 'x.png');
+    ok(!r.threw && r.newAnchors === 0,
+       '宿主没有 toBlob（小程序占位 / 老实现）→ 不建下载链接、不抛', r.threw);
+    r = trySave(host(cb => cb({ size: 1 }), false), 'x.png');
+    ok(!r.threw && r.newAnchors === 0,
+       '宿主没有 URL.createObjectURL → 不建下载链接、不抛', r.threw);
+    /* 🔴 这一条就是 `file://` 双击打开时的真实情形：画布贴过本地图片 ⇒ 被污染。
+       ⚠️ 真浏览器实测（2026-10-11）：被污染的画布调 `toBlob` 是**同步抛** SecurityError，
+          **不是**回调收 null —— 下面那条「同步抛」的用例才是真形态，这条是规格里的
+          另一条路（内存不足之类）。两条都得兜，所以两条都测。 */
+    r = trySave(host(cb => cb(null), true), 'x.png');
+    ok(!r.threw && r.newAnchors === 0,
+       '画布被污染、toBlob 回调给 null → 不建链接、不抛', r.threw);
+    r = trySave(host(() => { throw new Error('SecurityError'); }, true), 'x.png');
+    ok(!r.threw && r.newAnchors === 0,
+       '画布被污染、toBlob **同步抛** SecurityError → 不建链接、不抛'
+       + '（✅ 真浏览器实测的 `file://` 形态就是这一条）', r.threw);
+
+    /* 正常一趟：建链接 + 点它 + 文件名去字符 */
+    anchors.length = 0;
+    const cvOk = host(cb => cb({ size: 42 }), true);
+    const ro = trySave(cvOk, '钓鱼人生-鲫鱼/a"b\\c.png');
+    ok(!ro.threw && ro.newAnchors === 1 && anchors[0].clicked === 1,
+       '正常画布 → 建一个 `<a>` 并点它一次（导出这件事只有这一个可观察后果）', JSON.stringify(ro));
+    ok(!/[\\/:*?"<>|]/.test(anchors[0].download) && /\.png$/.test(anchors[0].download),
+       '文件名里的路径分隔符 / 引号被换掉（Win 下会存到别的目录去）', anchors[0].download);
+
+    /* ---------- ② 端到端：真渲染结算卡 → 真触发「存图」 ---------- */
+    const handlers = [];
+    function mkNode(tag) {
+      return {
+        tagName: tag, className: '', innerHTML: '', textContent: '', value: '', checked: false,
+        children: [], style: {}, disabled: false, width: 0, height: 0,
+        classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
+        appendChild(c) { this.children.push(c); return c; },
+        removeChild(c) { this.children = this.children.filter(x => x !== c); return c; },
+        insertBefore(c) { this.children.unshift(c); return c; },
+        get lastChild() { return this.children[this.children.length - 1] || null; },
+        addEventListener(type, fn) { handlers.push({ type: type, fn: fn, el: this }); },
+        setAttribute() {}, getAttribute() { return null; },
+        querySelector() { return null; }, querySelectorAll() { return []; },
+        getContext() { return mkCtx([]); },
+      };
+    }
+    const els = {};
+    ['#app', '#modal', '#modalTitle', '#modalBody', '#modalClose', '#catchCard',
+     '#catchCanvas', '#ccName', '#ccTags', '#ccRows', '#ccSell', '#ccKeep', '#ccShot']
+      .forEach(s => { els[s] = mkNode(s === '#catchCanvas' ? 'canvas' : 'div'); });
+    global.document = {
+      createElement: tag => mkNode(tag),
+      body: { appendChild: noop },
+      querySelector: s => els[s] || null, querySelectorAll: () => [], addEventListener: noop,
+    };
+    global.URL = { createObjectURL: () => 'blob:fake', revokeObjectURL: noop };
+    G.FishArt = { draw: noop, drawSilhouette: noop };
+    G.Audio = { coin: noop, click: noop, deny: noop, splash: noop };
+    const heldCalls = [];
+    G.CardArt = {
+      /* 一律「没有卡面」：这一节问的是**问了几次**，不是画什么 */
+      held: (tier, id, morph) => { heldCalls.push([tier, id, morph]); return null; },
+      blit: noop, want: noop, used: () => ({ hit: 0, miss: 0, ask: 0 }), setLoader: noop, reset: noop,
+    };
+    const toasts = [];
+    G.State.emit = (ev, p) => { if (ev === 'toast') toasts.push(p); };
+
+    /* 「按第几趟决定成败」的画布桩 + **同步 thenable** 的导出桩：
+       `exportShare()` 的两趟是一条 Promise 链，而同步 thenable 让它整条同步跑完
+       —— 本文件必须保持全同步（见文件头）。
+       ⚠️ `then` 必须**摊平**（回调返回 thenable 时就跟着它走），否则链上的
+          `done ? 成功 : 失败` 会拿到一个**恒真**的对象 ⇒ 失败也被报成「已导出」，
+          而那正好会把本节③要抓的坏法遮掉。 */
+    function syncThen(v) {
+      function T(val) {
+        return {
+          then(onOk) {
+            const out = onOk ? onOk(val) : val;
+            if (out && typeof out.then === 'function') return out;   // 摊平（与真 Promise 同语义）
+            return T(out);
+          },
+        };
+      }
+      return T(v);
+    }
+    const saves = [];
+    let pass = 0;
+    P.canvas.create = (w, h) => { const c = mkCanvas(w, h); pass++; return c; };
+    P.image.save = (cv, name) => {
+      saves.push({ cv: cv, name: name });
+      /* 第一趟模拟「被污染」，第二趟成功 —— 正是 `file://` 下的时序 */
+      return syncThen(saves.length === 1 ? false : true);
+    };
+
+    Panels.init();
+    Panels.initCatchButtons(noop);        /* main.js 的接线（第 75 行）—— 不调它就没有任何回调 */
+    Panels.showCatch({
+      rar: 1, fish: { id: 'D01', name: '测试鱼', maxKg: 2 },
+      color: { name: '原色', valueMul: 1, tint: '#9bb' }, kg: 1.234, price: 10,
+      isNew: false, isRecord: false,
+    });
+    const shot = handlers.filter(h => h.el === els['#ccShot']);
+    ok(shot.length === 1,
+       '结算卡上「存图」按钮注册了 1 个 click 回调（没绑上 = 点了没反应）', String(shot.length));
+
+    toasts.length = 0;
+    heldCalls.length = 0;               /* 清掉 showCatch() 自己那次绘制问的，只数「存图」这一趟 */
+    let cerr = null;
+    try { shot[0].fn(); } catch (e) { cerr = e; }
+    ok(!cerr, '点「存图」不抛', cerr && cerr.message);
+    ok(saves.length === 2,
+       '第一趟失败后**真的跑第二趟**（共 2 次 save）—— 少一趟 = `file://` 下永远导不出来',
+       'save 次数 ' + saves.length);
+    ok(saves.length === 2 && saves[0].cv !== saves[1].cv,
+       '第二趟用的是**新画布** —— 污染标记是画布自己的属性，在同一张上重画洗不掉');
+    ok(heldCalls.length === 1 && heldCalls[0][0] === 'detail',
+       '只有第一趟问过卡面（detail 档），第二趟一次都没问 —— 贴图会把画布又弄脏一次',
+       JSON.stringify(heldCalls));
+    ok(toasts.length === 1 && toasts[0].kind === 'good' && /已导出/.test(toasts[0].text),
+       '两趟里有一次成功 ⇒ 一条「已导出」toast（不许静默，也不许谎报失败）',
+       JSON.stringify(toasts));
+    ok(pass === 2, '导出用的画布只开了 2 张（不许多开 —— 每张都是一次全尺寸位图）', '画布 ' + pass);
+
+    /* ③ 两趟都失败：如实说「导不出来」，kind 不许是 good */
+    saves.length = 0; toasts.length = 0; pass = 0;
+    P.image.save = (cv, name) => { saves.push({ cv: cv, name: name }); return syncThen(false); };
+    shot[0].fn();
+    ok(saves.length === 2 && toasts.length === 1 && toasts[0].kind === 'warn' && /导不出/.test(toasts[0].text),
+       '两趟都失败 ⇒ 如实提示「这个环境导不出图片」（不许静默什么都不发生）',
+       JSON.stringify(toasts));
+
+    /* ④ 待决卡被关掉之后再点「存图」：没有 payload 时必须安静收场（不许抛、不许发假 toast） */
+    Panels.dismissCatch(noop);
+    saves.length = 0; toasts.length = 0;
+    shot[0].fn();
+    ok(saves.length === 0 && toasts.length === 0,
+       '没有待决渔获时点「存图」：一次 save 都不发、也不发 toast（不猜一条鱼去导）',
+       'save ' + saves.length + ' toast ' + toasts.length);
+  } finally {
+    P.image.save = realSave;
+    G.State.emit = realEmit;
+    G.FishArt = realFishArt; G.Audio = realAudio; G.CardArt = realCardArt;
+    global.document = realDoc; global.URL = realURL;
+    P.canvas.create = realCreate;
+  }
+})();
+
+
+/* =========================================================
    Panels · 旁观对话（N11 二期）：两位说话人必须真画出来
    引擎那一侧（`arrive()` / `duo` 载荷）另有 ⑭ 那组行为用例；这一节只问一件事：
    **端到端渲染出来的是不是「谁说了什么」** —— 引擎给对了载荷、面板画不出来，

@@ -3951,6 +3951,137 @@ let netSemBad = 0;
   }
 })();
 
+/* ---------------- 36-d. `Platform.image.save` 的导出语义（N11 ⑤ 渔获分享卡） ----------------
+   新增第 10 组能力 `image` 的第三项：`save(canvas, name)` —— 把一张画布**交出去**
+   （浏览器 = 下载 PNG；小程序端 = `wx.canvasToTempFilePath` + `wx.saveImageToPhotosAlbum`）。
+   它和 `net` 同一个道理：真正容易烂掉的不是「怎么导」，而是几条**静默**口径：
+
+   ① **失败必须是 `resolve(false)`，不许 `reject`** —— `main.js` 订阅了
+      `sys.onRejection()`，而「这个环境导不出来」是**预期内**的（`file://` 双击打开时
+      本地图片会把画布污染 ⇒ `toBlob` 回调收 null，必然导不出来）。reject 会让玩家
+      每点一次「存图」就看到一条「出错了」。⇒ 判据：`save()` 体里**一处 `reject(` 都不许有**。
+      ⚠️ 这条只有**静态**判得干净：单测里 `save()` 的 Promise 不 await（`tools/test.js`
+         是全同步的），「它到底是 resolve 还是 reject」在那边看不出来。
+   ② **污染的画布不许走到「建下载链接」那一步** —— 拿不到 blob 时必须直接返回，
+      否则会点开一个**空文件**（玩家拿到 0 字节的 PNG，还以为存好了）。
+      🔴 实测（2026-10-11，真浏览器 `file://`）：被污染的画布调 `toBlob` 是**同步抛**
+         `SecurityError`（不是回调收 null）⇒ 所以 `catch → res(false)` 这条**才是**
+         这条路的真判据，`if (!blob) res(false)` 是第二道网。两条都要在。
+      行为侧在 `test.js`「渔获分享卡」一节真验过（两种形态各一条），这里钉它的**结构**。
+   ③ **两趟 + 换画布**：分享卡第一趟可能因为污染而失败，必须换一张**新**画布用
+      程序化绘制重画再导（在同一张上重画洗不掉污染标记）。
+      ⇒ 判据：`panels.js` 里 `paintFish()` 有一个函数收 `noCard` 形参、
+        且 `Platform.image.save(` 在 panels.js 里出现**两次**（两趟各一次）。
+   ④ **入口可达**：结算卡上真有「存图」按钮、`panels.js` 真给它绑了回调
+      （画出来却点不动 = 这功能等于没做，而且不报错）。
+*/
+console.log('\n[36-d] Platform.image.save：导出语义（不 reject / 污染不建链接 / 两趟换画布 / 入口可达）');
+let shareBad = 0;
+(function () {
+  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const platSrc = strip(fs.readFileSync(path.join(ROOT, 'src/core/platform.js'), 'utf8'));
+  const imgObj = (/var image = \{([\s\S]*?)\n  \};/.exec(platSrc) || [, ''])[1];
+  if (!imgObj) { err('platform.js 里读不到 `var image = {…}` 块 —— 36-d 的判据会恒真，先修判据'); shareBad++; return; }
+  const saveBody = (/save:\s*function\s*\(([^)]*)\)\s*\{([\s\S]*?)\n    \},/.exec(imgObj) || [, '', ''])[2];
+  if (!saveBody) {
+    err('platform.js 的 image 组里读不到 `save: function (…) { … }` —— 分享卡的导出能力没了'); shareBad++; return;
+  }
+  /* ① 不 reject（这条是本节的主判据，写在最前） */
+  if (/(^|[^\w$.])reject\s*\(/.test(saveBody)) {
+    err('`Platform.image.save()` 里出现了 `reject(` —— 失败必须是 resolve(false)：'
+      + '`main.js` 的 `sys.onRejection()` 会把预期内的「导不出来」弹成一条报错'); shareBad++;
+  }
+  /* ①-b 三条「导不出去」的路**各自**都要给 `res(false)`。
+     ⚠️ 判据**不许**写成「整个函数里出现过 `res(false)`」—— 那样只要还有任一支留着，
+        把别的那一支删掉照样绿（反向验证 V4 当场逮到）。⇒ 逐支绑住守卫与它的返回。 */
+  const FELLBACK = [
+    ['参数不是画布 / 没有 toBlob',
+      /if\s*\(\s*!cv\s*\|\|\s*typeof\s+cv\.toBlob\s*!==\s*'function'\s*\)\s*\{\s*res\s*\(\s*false\s*\)\s*;\s*return\s*;\s*\}/],
+    ['宿主没有 URL / document',
+      /if\s*\(\s*!doc\s*\|\|\s*!U_\s*\|\|\s*typeof\s+U_\.createObjectURL\s*!==\s*'function'\s*\)\s*\{\s*res\s*\(\s*false\s*\)\s*;\s*return\s*;\s*\}/],
+    ['拿不到 blob（第二道网）',
+      /if\s*\(\s*!\s*blob\s*\)\s*\{\s*res\s*\(\s*false\s*\)\s*;\s*return\s*;\s*\}/],
+  ];
+  FELLBACK.forEach(([cn, re]) => {
+    if (!re.test(saveBody)) {
+      err('`Platform.image.save()` 的「' + cn + '」那一条路没有 `res(false)` 直接退出 —— '
+        + '它要么会继续往下建链接（玩家拿到一个空文件），要么什么都不返回（调用方只能猜）'); shareBad++;
+    }
+  });
+  /* 🔴 **被污染的画布**（`file://` 双击打开时的真形态）：实测 `toBlob` 是**同步抛**
+     `SecurityError` ⇒ 那个 `catch … res(false)` 才是这条路的真判据，少了它玩家点了没反应。 */
+  if (!/catch\s*\([^)]*\)\s*\{\s*res\s*\(\s*false\s*\)\s*;/.test(saveBody)) {
+    err('`Platform.image.save()` 里没有「同步抛也兜成 `res(false)`」的 catch —— '
+      + '真浏览器实测：`file://` 下被污染的画布调 `toBlob` 是**同步抛** SecurityError，'
+      + '少了这条兜底，玩家点「存图」就是**点了没反应**'); shareBad++;
+  }
+  /* ② 污染（回调收到 null）那一支必须退出，不建链接 */
+  const blobCb = (/toBlob\s*\(\s*function\s*\(\s*(\w+)\s*\)\s*\{([\s\S]*?)\n\s*\},\s*'image\/png'\s*\)/.exec(saveBody) || [, '', ''])[2];
+  if (!blobCb) {
+    err('读不到 `image.save()` 里 `toBlob(function (blob) { … }, \'image/png\')` 那一段 —— '
+      + '36-d 的判据会恒真（写法变了就来更新本节）'); shareBad++;
+  } else if (!new RegExp('if\\s*\\(\\s*!\\s*' + (/toBlob\s*\(\s*function\s*\(\s*(\w+)/.exec(saveBody) || [, 'blob'])[1]
+    + '\\s*\\)\\s*\\{[^}]*res\\s*\\(\\s*false\\s*\\)').test(blobCb)) {
+    err('`toBlob` 的回调里没有「拿不到 blob 就 `res(false)` 退出」这一支 —— '
+      + '污染的画布会走到建链接那一步，玩家下到一个 0 字节的 PNG 还以为存好了'); shareBad++;
+  }
+  if (!/createObjectURL/.test(saveBody) || !/download/.test(saveBody)) {
+    err('`image.save()` 里没有 `createObjectURL` / `download` —— 这条路到底有没有真把图交出去？'); shareBad++;
+  }
+  /* ③ 两趟 + 换画布（面板侧）。
+     ⚠️ 判据**不许写成「整个文件里出现过」。** 第一版就栽在这儿：`if (cm && !noCard)`
+        在本文件里有**两处**（贴图那一处 + 图下方那句 `want()`），只把贴图那处的守卫
+        去掉，全文件搜索照样命中另一处 ⇒ 坏样本**假绿**（反向验证 V5 当场逮到）。
+        ⇒ 必须把守卫**绑在它守的那次调用上**，并且把计数收进 `exportShare()` 的体内。 */
+  const panelsSrc = strip(fs.readFileSync(path.join(ROOT, 'src/ui/panels.js'), 'utf8'));
+  const pf = (/function paintFish\(([^)]*)\)/.exec(panelsSrc) || [, ''])[1];
+  if (pf.indexOf('noCard') < 0) {
+    err('`paintFish()` 没有 `noCard` 形参 —— 分享卡的第二趟没法「只画程序化」，'
+      + '而污染标记在同一张画布上重画洗不掉'); shareBad++;
+  } else {
+    /* 守卫必须**真守着**那两次取图口：贴图（`held`）+ 请图（`want`） */
+    if (!/if\s*\(\s*cm\s*&&\s*!\s*noCard\s*\)\s*\{[^}]*G\.CardArt\.held\(/.test(panelsSrc)) {
+      err('`paintFish()` 里 `G.CardArt.held(` 没有被 `if (cm && !noCard)` 守着 —— '
+        + '第二趟照样会去取卡面（取不到也算问过了，而它要的是「干净」）'); shareBad++;
+    }
+    if (!/if\s*\(\s*cm\s*&&\s*!\s*noCard\s*\)\s*G\.CardArt\.want\(/.test(panelsSrc)) {
+      err('`paintFish()` 里的 `G.CardArt.want(` 没有被 `!noCard` 挡着 —— '
+        + '第二趟把图请回来重画会把刚洗干净的画布又弄脏'); shareBad++;
+    }
+  }
+  /* 计数一律**收进 `exportShare()` 体内**：写在整个文件上会被别处喂饱（见上） */
+  const expBody = bodyOf(panelsSrc, 'function exportShare(');
+  if (!expBody) {
+    err('`panels.js` 里找不到 `function exportShare(` —— 分享卡的导出入口改名 / 挪走了，'
+      + '本节判据必须跟着改'); shareBad++;
+  } else {
+    const nCanvas = (expBody.match(/newShareCanvas\s*\(/g) || []).length;
+    const nSave = (expBody.match(/Platform\s*\.\s*image\s*\.\s*save\s*\(/g) || []).length;
+    const nPaint = (expBody.match(/paintShare\s*\(/g) || []).length;
+    if (nCanvas !== 2 || nPaint !== 2) {
+      err('`exportShare()` 里开了 ' + nCanvas + ' 张画布、画了 ' + nPaint + ' 趟（都应为 2）—— '
+        + '少一趟 = `file://` 双击打开的玩家永远导不出来；复用同一张 = 污染标记洗不掉'); shareBad++;
+    }
+    if (nSave !== 2) {
+      err('`exportShare()` 里只调了 ' + nSave + ' 次 `Platform.image.save(`（应为 2：两趟各一次）'
+        + ' —— 只导一趟的话被污染的画布会静默失败（玩家点了没反应）'); shareBad++;
+    }
+  }
+  /* ④ 入口可达：按钮 + 绑定 */
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  if (!/id="ccShot"/.test(html)) {
+    err('index.html 的结算卡里没有 `id="ccShot"` —— 分享卡的入口没有画出来'); shareBad++;
+  }
+  if (!/U\s*\.\s*on\s*\(\s*U\s*\.\s*\$\s*\(\s*'#ccShot'\s*\)/.test(panelsSrc)) {
+    err('`panels.js` 没有给 `#ccShot` 绑 click —— 按钮画出来了却点不动（不报错）'); shareBad++;
+  }
+  if (!shareBad) {
+    ok('Platform.image.save：失败一律 `res(false)`（体里零 `reject(`）、拿不到 blob 就退出不建链接、'
+      + '真走 `createObjectURL` + `download`；`paintFish()` 的 `noCard` 真守着取图口与请图口；'
+      + '`exportShare()` 恰好两趟 × 两张画布；结算卡有 `#ccShot` 且绑上了回调');
+  }
+})();
+
 /* ---------------- 37. 读 config 的键必须真的存在 ----------------
    踩过的（同一个根因的另一半）：`tools/gen-collect-time.js` 读 `cm.prob`
    —— 那个字段早改了名，于是比较器拿到 `undefined`、排序静默失效，

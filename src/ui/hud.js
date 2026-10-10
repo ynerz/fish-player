@@ -65,7 +65,12 @@ G.Hud = (function () {
     });
     G.Panels.setOnClose(function () { setActiveTab(null); });
 
-    /* 底栏槽位 */
+    /* 底栏槽位
+       ⚠️ 这里**故意不写**「面板/结算卡开着就别开」的守卫 —— 底栏的可用性是**一条声明式规则**：
+          `#app` 上挂 `modal-open`（面板）或 `catch-open`（结算卡待决）时，
+          style.css 用 `pointer-events:none` 把该禁的那部分画出来（面板 = 整条底栏；
+          结算卡 = 只禁 `.deck-left`，`#btnAction` 保持可用）。逐个 click 点补守卫 =
+          同一个口径写 N 遍，漏一处不报错（Q22 / Q23，判据见 verify [19]/[19-b] 与 test.js）。 */
     U.on(el.slotBait, 'click', function () { G.Panels.open('pickerBait'); });
     U.on(el.slotRod,  'click', function () { G.Panels.open('pickerRod'); });
     U.on(el.slotLine, 'click', function () { G.Panels.open('pickerLine'); });

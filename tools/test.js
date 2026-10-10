@@ -2105,6 +2105,97 @@ G_('Panels · 底栏禁用态的类名挂载与摘除');
 })();
 
 /* =========================================================
+   Panels · 结算卡待决时底栏只禁左半（`#app` 上的 `catch-open`）
+   =========================================================
+   由来（Q23，2026-10-08 实测）：`.catch-card` 是**居中卡片**、**不盖底栏** ——
+   结算卡待决时三个槽位仍然可点，点一下真的会**在结算卡上面**再叠一个面板
+   （`z-index` card 60 > modal 50，两层叠着谁都不完整）。
+   拍板口径（2026-10-10 用户，方案 A）= **只把槽位 + 挂机开关变灰**，
+   `#btnAction` **保持可用**（main.js 的 `handlePress()` 里 `P.isCatchOpen()` 那一支：
+   点它 = `dismissCatch()` = 收下），**禁掉就改了手感**；结算卡**不加**遮罩。
+   这一节盯**最容易坏的那一半**：`showCatch()` / `hideCatch()` 的类名挂 / 摘必须对称 ——
+   漏摘一次，底栏左半就**永久压暗且永久不可点**（玩家只能重开页面）。
+   （真正的压暗与「抛竿键仍可点」的命中测试在真浏览器里做，见规范 §6「收尾」。）
+   ⚠️ `hideCatch()` 不导出（内部实现）⇒ 只能走它唯一的外部通路 `dismissCatch()` 触发，
+      这样测的正好是玩家真会走的那条路（点「卖出」/ 点抛竿键都会到这儿）。
+   ========================================================= */
+G_('Panels · 结算卡待决时底栏只禁左半（catch-open 的挂载与摘除）');
+(function () {
+  const mkCls = set => ({
+    add: c => set.add(c), remove: c => set.delete(c),
+    toggle: (c, on) => { if (on) set.add(c); else set.delete(c); },
+    contains: c => set.has(c),
+  });
+  const node = (tag, set) => { const e = mkEl(tag); if (set) e.classList = mkCls(set); return e; };
+
+  const appSet = new Set(), cardSet = new Set(['hidden']);
+  const noop = () => {};
+  const fakeCtx = {
+    setTransform: noop, beginPath: noop, moveTo: noop, lineTo: noop, stroke: noop,
+    fillRect: noop, createLinearGradient: () => ({ addColorStop: noop }),
+    fillStyle: '', strokeStyle: '', lineWidth: 1,
+  };
+  const cv = node('canvas');
+  cv.getContext = () => fakeCtx;
+  const els = {
+    '#app': node('div', appSet), '#modal': node('div', new Set(['hidden'])),
+    '#modalTitle': node('div'), '#modalBody': node('div'), '#modalClose': node('button'),
+    '#catchCard': node('div', cardSet), '#catchCanvas': cv,
+    '#ccName': node('div'), '#ccTags': node('div'), '#ccRows': node('div'),
+    '#ccSell': node('button'), '#ccKeep': node('button'),
+  };
+  const realDoc = global.document, realFishArt = G.FishArt, realAudio = G.Audio;
+  global.document = {
+    createElement: mkEl, querySelector: s => els[s] || null, querySelectorAll: () => [],
+    addEventListener() {},
+  };
+  G.FishArt = { draw: noop };
+  G.Audio = { coin: noop, click: noop, deny: noop, splash: noop };
+
+  const f0 = G.FISH_BY_FIELD.D[0];
+  const info = {
+    rar: 0, fish: { id: f0.id, name: f0.name, maxKg: f0.maxKg },
+    color: { name: '原色', valueMul: 1, tint: '#9bb' },
+    kg: 1.0, price: 10, isNew: false, isRecord: false,
+  };
+
+  Panels.init();
+  ok(appSet.size === 0 && cardSet.has('hidden'),
+     '初始态：结算卡隐藏、`#app` 上没有任何类（底栏正常可用）');
+
+  Panels.showCatch(info);
+  ok(!cardSet.has('hidden') && appSet.has('catch-open') && !appSet.has('modal-open'),
+     'showCatch() 显示结算卡并给 #app 挂上 catch-open（底栏左半进入禁用态，且不许顺手挂 modal-open）');
+
+  Panels.dismissCatch(noop);
+  ok(cardSet.has('hidden') && !appSet.has('catch-open'),
+     'dismissCatch() → hideCatch() 摘掉 catch-open（底栏左半恢复）—— 漏一次就永久压暗且不可点');
+
+  for (let i = 0; i < 3; i++) { Panels.showCatch(info); Panels.dismissCatch(noop); }
+  ok(appSet.size === 0, '连开连关 3 次后 #app 的类名集合为空（不许残留状态）',
+     Array.from(appSet).join(','));
+
+  /* 面板与结算卡同时开着：两个类可以并存，谁都不许把对方摘掉 */
+  Panels.showCatch(info);
+  Panels.open('offline');
+  ok(appSet.has('catch-open') && appSet.has('modal-open'),
+     '结算卡 + 面板同时开着时两个类并存（open() 不许把 catch-open 摘掉）');
+  Panels.close();
+  Panels.dismissCatch(noop);
+  ok(appSet.size === 0, '两个都关掉后类名集合回到空（两个类各自摘干净）',
+     Array.from(appSet).join(','));
+
+  /* 没有待决结算卡时调 dismissCatch()：既不许抛，也不许把类名搅乱 */
+  let dismissThrew = '';
+  try { Panels.dismissCatch(noop); } catch (e) { dismissThrew = e.message; }
+  ok(!dismissThrew && appSet.size === 0, '没有待决卡时 dismissCatch() 不抛、也不留残影', dismissThrew);
+
+  G.FishArt = realFishArt;
+  G.Audio = realAudio;
+  global.document = realDoc;
+})();
+
+/* =========================================================
    Panels · 设置键必须能从界面改（真渲染 + 真触发注册上来的回调）
    =========================================================
    由来（2026-10-08，Q26）：`state.js` 的 `blank().settings` 是设置键的唯一真相，

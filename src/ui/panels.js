@@ -2090,6 +2090,11 @@ G.Panels = (function () {
     pendingCatch = info;
     catchCard.className = 'catch-card r' + info.rar;
     catchCard.classList.remove('hidden');
+    /* 结算卡待决 ⇒ 底栏**左半**（三槽位 + 挂机开关）进禁用态；`#btnAction` 保持可用
+       （点它 = 收下这张卡，见 main.js 的 handlePress() 里 `P.isCatchOpen()` 那一支）。
+       ⚠️ 只挂一个类、样式只在 style.css 的 `#app.catch-open #deck .deck-left` 写一处 ——
+          别在槽位的 click 回调上逐个补守卫（那是「同一个口径写 N 遍」，漏一处不会报错）。 */
+    if (appEl) appEl.classList.add('catch-open');
     U.$('#ccName').textContent = info.fish.name;
 
     var tags = U.$('#ccTags');
@@ -2156,6 +2161,8 @@ G.Panels = (function () {
 
   function hideCatch() {
     catchCard.classList.add('hidden');
+    /* 与 showCatch() 成对：漏摘一次，底栏左半就**永久压暗且永久不可点**（玩家只能重开页面）。 */
+    if (appEl) appEl.classList.remove('catch-open');
     pendingCatch = null;
   }
   function isCatchOpen() { return !catchCard.classList.contains('hidden'); }

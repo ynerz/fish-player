@@ -1127,6 +1127,97 @@ if (!/G\.Panels\.isOpen\(\)\s*&&\s*G\.Panels\.current\(\)\s*===\s*p/.test(hudSrc
 }
 if (!layerBad) ok('弹层从顶栏下方开始；点标签页可直接切换/收起面板');
 
+/* ---- [19-b] 结算卡待决时底栏只禁左半（`#btnAction` 保持可用）----
+   由来（Q23）：`.catch-card` 是**居中卡片**、**不盖底栏**（实测：待决时 `elementFromPoint`
+   在槽位中心命中的就是槽位本身），所以结算卡弹出时三个槽位仍然可点 —— 点一下真的会
+   **在结算卡上面**再叠一个面板（`z-index` card 60 > modal 50，两层叠着谁都不完整）。
+   拍板口径（2026-10-10 用户）：**只把槽位 + 挂机开关变灰**（`#app.catch-open #deck .deck-left`），
+   `#btnAction` **保持可用**（`main.js` 的 `handlePress()` 里 `P.isCatchOpen()` 那一支：
+   点它 = `dismissCatch()` = 收下），**禁掉就改了手感**；结算卡**不加**遮罩。
+   本节钉三件事（行为侧的「挂 / 摘对称」由 `test.js` 的 catch-open 一节兜住）：
+     ① 禁用**外观**只有一处声明（与面板那条共用同一段），且带 `pointer-events:none`
+        —— 少了它只是「看起来灰」，槽位其实仍可点（口径要显式，见第 ⑲ 节同款理由）；
+     ② `catch-open` 只许**限定到 `.deck-left`** —— 冒出「把整条 `#deck` 禁掉」的规则就报红
+        （那样抛竿键也点不动了，与口径正好相反）；
+     ③ `panels.js` 的 `showCatch()` / `hideCatch()` 必须分别挂上 / 摘掉**同一个**类，
+        且那个词与样式里那个逐字相同（类名单源）。
+   ⚠️ 判据都先剥注释再判（硬规矩 ①）：否则本段说明里写的 `catch-open` 会把断言喂饱。 */
+console.log('\n[19-b] 结算卡待决时只禁底栏左半（#btnAction 保持可用）');
+let deckBad = 0;
+(function () {
+  const CSS = fs.readFileSync(path.join(ROOT, 'assets/css/style.css'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  /* 剥掉注释后逐块取「选择器 { 声明 }」（只取最内层块；本项目没有 @media 里再套选择器的写法） */
+  const one = s => s.replace(/\s+/g, ' ').trim();
+  const rules = [];
+  CSS.replace(/([^{}]+)\{([^{}]*)\}/g, (all, sel, decl) => {
+    rules.push({ parts: one(sel).split(',').map(one), decl: one(decl) });
+    return all;
+  });
+  if (!rules.length) { err('第 19-b 节：style.css 一条规则都解析不出来（判据会恒真，先修解析）'); deckBad++; return; }
+
+  /* 面板那条（Q22 的旧规则）——顺带补上它一直没被网盯住的事实。
+     ⚠️ 选择器存成变量再 indexOf：含空格的字面量会被第 ㊳ 节当「散文式裸比」拦下。 */
+  const PANEL_SEL = '#app.modal-open #deck';
+  const panelRule = rules.filter(r => r.parts.indexOf(PANEL_SEL) >= 0)[0] || null;
+  /* 结算卡那条：**类名从选择器里现推**，不写死 —— 这样「两端一起改名」是绿的，
+     只有「一端改了 / 少了 `.deck-left` 限定」才红（否则断言会拿死字面量卡住合法重构）。 */
+  const CATCH_RE = /^#app\.([a-z][\w-]*) #deck \.deck-left$/;
+  const catchRule = rules.filter(r => r.parts.some(p => CATCH_RE.test(p)))[0] || null;
+  if (!panelRule) {
+    err('style.css 里找不到管面板禁用态的 `#app.modal-open #deck` 规则（底栏压暗的基准没了）');
+    deckBad++;
+  }
+  if (!catchRule) {
+    err('style.css 里找不到「结算卡待决时只禁 `.deck-left`」的规则 —— '
+      + '形状必须是 `#app.<某类名> #deck .deck-left`（少了 `.deck-left` 会连抛竿键一起禁）；'
+      + '这也是 Q23 要落地的那条口径');
+    deckBad++;
+  }
+  let cls = '';
+  if (catchRule) {
+    cls = (catchRule.parts.map(p => (p.match(CATCH_RE) || [])[1]).filter(Boolean)[0]) || '';
+    if (!/pointer-events\s*:\s*none/.test(catchRule.decl)) {
+      err('结算卡禁用态那条规则丢了 `pointer-events:none` —— 那样只是「看起来灰」，'
+        + '槽位其实仍然可点（Q23 要修的正是这个）');
+      deckBad++;
+    }
+    if (panelRule && panelRule.decl !== catchRule.decl) {
+      err('面板与结算卡的「禁用外观」声明不一致 —— 同一个观感两份真相，改一处忘一处不会报错；'
+        + `\n      面板：\`${panelRule.decl}\`\n      结算卡：\`${catchRule.decl}\``);
+      deckBad++;
+    }
+    /* ② 不许有规则把整条 #deck 在同一个类下禁掉（那会连 #btnAction 一起禁） */
+    const WHOLE_NEEDLE = '#app.' + cls + ' #deck';   /* 存成变量再 indexOf：字面量含空格会被第 ㊳ 节拦下 */
+    if (rules.some(r => r.parts.indexOf(WHOLE_NEEDLE) >= 0)) {
+      err(`style.css 里有 \`${WHOLE_NEEDLE}\`（少了 \`.deck-left\` 限定）—— 它会把 \`#btnAction\` 一起禁掉，`
+        + '而口径是「抛竿键保持可用」（点它 = 收下结算卡）');
+      deckBad++;
+    }
+  }
+  /* ③ 类名单源：panels.js 的挂 / 摘必须用的正是样式里那个词 */
+  const stripC = t => String(t).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const showB = stripC(bodyOf(panelsSrc, 'function showCatch('));
+  const hideB = stripC(bodyOf(panelsSrc, 'function hideCatch('));
+  if (!showB || !hideB) {
+    err('panels.js 里找不到 showCatch() / hideCatch() 的函数体（按缩进切）'); deckBad++;
+  } else if (cls) {
+    const addNeedle = "classList.add('" + cls + "')";
+    const rmNeedle = "classList.remove('" + cls + "')";
+    if (showB.indexOf(addNeedle) < 0) {
+      err(`showCatch() 没有给 #app 挂 \`${cls}\`（或挂的是别的词）—— 结算卡弹出时底栏左半照旧可点`
+        + '（Q23 就是修这个）');
+      deckBad++;
+    }
+    if (hideB.indexOf(rmNeedle) < 0) {
+      err(`hideCatch() 没有摘 \`${cls}\`（或摘的是别的词）—— 漏摘一次，底栏左半永久压暗**且永久不可点**`
+        + '（玩家只能重开页面）');
+      deckBad++;
+    }
+  }
+})();
+if (!deckBad) ok('结算卡待决时只禁 .deck-left（含槽位 + 挂机开关）；禁用外观与面板同款、类名从样式现推、与 panels.js 同源');
+
 /* ---- [21] 一个 tick 里最多重绘一次面板 ----
    一次点击里 refresh() 会被喊 2~3 遍（点击回调一次 + St 的 'net'/'eco' 事件各一次），
    整面板 DOM 就被重建 2~3 遍。refresh() 必须改成「排队到本 tick 末尾」再画。 */

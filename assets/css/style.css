@@ -337,8 +337,16 @@ html,body{
         而口径早就定了 —— 那种失效不会报错、也没人会发现。
      ② 刻意**不动顶栏**：顶栏在遮罩之上是有意的（面板开着时能就地切标签页，
         见 .modal 上面那段注释），所以禁用态只落在底栏这一个元素上。
-   类名 `modal-open` 挂在 `#app` 上，由 panels.js 的 open() / close() 维护。 */
-#app.modal-open #deck{
+   类名 `modal-open` 挂在 `#app` 上，由 panels.js 的 open() / close() 维护。
+   🔴 **结算卡待决（`catch-open`）也进禁用态，但只禁左边那一半**（三个槽位 + 挂机开关）：
+     `.catch-card` 是**居中卡片**、不盖底栏（Q23 实测），待决时槽位照旧可点
+     ⇒ 点一下会在结算卡**上面**再叠一个面板（`z-index` card 60 > modal 50，两层都不完整）。
+     口径 = 只禁 `.deck-left`；`#btnAction` **保持可用**（点它 = 收下这张卡，
+     见 main.js 的 `handlePress()` 里 `P.isCatchOpen()` 那一支），**禁掉就改了手感**。
+     与上面面板那条**共用同一段声明** —— 同一个观感只许写一处。
+   类名 `catch-open` 同样挂在 `#app` 上，由 panels.js 的 showCatch() / hideCatch() 维护。 */
+#app.modal-open #deck,
+#app.catch-open #deck .deck-left{
   opacity:.45;
   filter:saturate(.45);
   pointer-events:none;

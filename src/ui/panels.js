@@ -1555,6 +1555,14 @@ G.Panels = (function () {
   };
 
   /* 面板里所有来自数据的文本都要过一遍，避免鱼名/称号名把 HTML 结构撕开 */
+  /* 🔴 Q43（2026-10-10 用户拍板 C）：音色下拉要**分组**。
+     判「中文系」只看 `lang` 前缀（`zh-CN` / `zh-TW` / `zh_CN` 都算），
+     **不看名字**：名字是厂商自己起的（`Microsoft Huihui` 这种），拿它猜语言必错。
+     ⚠️ `lang` 缺失 / 为空 ⇒ 归进「其它语言」（宁可折叠，也不要凭名字瞎猜）。 */
+  function isZhVoice(v) {
+    return /^zh([-_]|$)/i.test(String((v && v.lang) || '').trim());
+  }
+
   function esc(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -1695,19 +1703,37 @@ G.Panels = (function () {
       var voiceMissing = !!s.settings.voice && voices.length > 0 && !voices.some(function (v) {
         return v.id === s.settings.voice;
       });
+      /* 🔴 Q43（用户拍板 C）：**中文系排在前、其它语言折叠进第二组**。
+         动机：这台机器报了 23 个音色、平铺成一长条，想找一个中文的要在里面翻半天。
+         ⚠️ 三条纪律：
+           ① 外语那一组**照样可选**（不是过滤 / 不是 disabled）——「用外语音色念中文」
+              是保留的玩法，折叠只是让它别挡路；
+           ② **空组不画**（画一个空的「中文」组看着像坏了）；
+           ③ 组标签带条数 —— 折叠起来的东西不写数量，玩家不知道里面还有多少。
+         ⚠️ `settings.voice` 存的仍是 `voiceURI`（不是索引）：声音顺序会变，索引比 id 更不稳。 */
+      var zhVoices = voices.filter(isZhVoice);
+      var otherVoices = voices.filter(function (v) { return !isZhVoice(v); });
+      function voiceOption(v) {
+        return '<option value="' + esc(v.id) + '"'
+          + (!voiceMissing && s.settings.voice === v.id ? ' selected' : '') + '>'
+          + esc(v.name || v.id) + (v.lang ? '（' + esc(v.lang) + '）' : '') + '</option>';
+      }
+      function voiceGroup(label, arr) {
+        return arr.length
+          ? '<optgroup label="' + esc(label) + '（' + arr.length + '）">'
+            + arr.map(voiceOption).join('') + '</optgroup>'
+          : '';
+      }
       var voiceOpts = '<option value="">系统默认</option>'
         + (voiceMissing
           ? '<option value="' + esc(s.settings.voice) + '" selected>（上次选的音色 · 这台设备上没有）</option>'
           : '')
-        + voices.map(function (v) {
-          return '<option value="' + esc(v.id) + '"' + (!voiceMissing && s.settings.voice === v.id ? ' selected' : '') + '>'
-            + esc(v.name || v.id) + (v.lang ? '（' + esc(v.lang) + '）' : '') + '</option>';
-        }).join('');
+        + voiceGroup('中文', zhVoices) + voiceGroup('其它语言', otherVoices);
       row('语音音色', !spOk
         ? '这台设备没有可用的合成语音'
         : (voiceMissing
           ? '⚠️ 上次选的音色在这台设备上没有 —— 现在按「系统默认」念，重新选一个就会覆盖它'
-          : '用哪种声音（列表来自这台设备，不同机器差别很大）'),
+          : '用哪种声音 —— 中文系排在前，其它语言折在下面那一组里（照样能选，用来念中文很邪道但能用）'),
         '<select class="set-sel" id="setVoice"' + (spOk ? '' : ' disabled') + '>' + voiceOpts + '</select>',
         function (c) {
           U.on(c.querySelector('#setVoice'), 'change', function (e) {

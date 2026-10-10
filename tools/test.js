@@ -2396,6 +2396,48 @@ G_('Panels · 设置键必须能从界面改（真渲染 + 真触发注册的回
   const pending = fetchVoiceRow('gone-machine-id', []);
   ok(pending && pending.desc.indexOf('这台设备上没有') < 0,
      '声音列表还没拿到（`getVoices()` 第一次返回空）⇒ **不**警示：那是异步加载中，不是「没有」');
+
+  /* ---- ③ 音色下拉**分组**（队列 Q43，用户拍板选 C）----
+     背景：这台机器报了 23 个音色，平铺成一长条，想找中文的要在里面翻。
+     口径：**中文系在前、其它语言折叠进第二组**；外语那一组**照样可选**
+     （不是过滤、不是 disabled ——「用外语音色念中文」是保留的玩法）。 */
+  const MIXED = [
+    { id: 'en-1', name: 'English One', lang: 'en-US' },
+    { id: 'zh-1', name: '中文一号', lang: 'zh-CN' },
+    { id: 'ja-1', name: '日本語', lang: 'ja-JP' },
+    { id: 'zh-2', name: '中文二号', lang: 'zh-TW' },
+    { id: 'nolang', name: '没有语言标记的', lang: '' },
+  ];
+  const grouped = fetchVoiceRow('zh-2', MIXED);
+  ok(!!grouped, '分组之后设置面板照样画出音色下拉');
+  const html = (grouped && grouped.ctl) || '';
+  ok(html.indexOf('<optgroup label="中文（2）">') >= 0,
+     '画出了「中文」组，且**标签带条数**（折叠起来的东西不写数量，玩家不知道里面还有多少）');
+  ok(html.indexOf('<optgroup label="其它语言（3）">') >= 0,
+     '画出了「其它语言」组（英语 / 日语 / 没有语言标记的都归这里）');
+  ok(html.indexOf('label="中文（2）"') < html.indexOf('label="其它语言（3）"'),
+     '🔴 中文系排在**前**面（这就是 Q43 要的「中文系在前」）');
+  const zhGroup = html.slice(html.indexOf('label="中文（2）"'), html.indexOf('label="其它语言（3）"'));
+  ok(zhGroup.indexOf('value="zh-1"') >= 0 && zhGroup.indexOf('value="zh-2"') >= 0,
+     '两个中文音色都落在「中文」组里');
+  const otherGroup = html.slice(html.indexOf('label="其它语言（3）"'));
+  ok(otherGroup.indexOf('value="en-1"') >= 0 && otherGroup.indexOf('value="ja-1"') >= 0,
+     '外语落在「其它语言」组里');
+  ok(otherGroup.indexOf('value="nolang"') >= 0,
+     '**没有语言标记**的音色归进「其它语言」（不凭名字瞎猜它是中文）');
+  ok(otherGroup.indexOf('value="en-1"') >= 0 && otherGroup.indexOf(' disabled') < 0,
+     '🔴 外语那一组**照样可选**（不是过滤 / 不是禁用）——「用外语音色念中文」这条玩法还留着');
+  ok(html.indexOf('value="zh-2" selected') >= 0,
+     '选中的那一项仍在它自己那一组里带着 selected（分组不改「界面与数据同源」）');
+  const zhOnly = fetchVoiceRow('', [{ id: 'zh-1', name: '中文一号', lang: 'zh-CN' }]);
+  ok(zhOnly && zhOnly.ctl.indexOf('其它语言') < 0,
+     '一个外语都没有 ⇒ **不画空的「其它语言」组**（空组看着像坏了）');
+  const noneZh = fetchVoiceRow('', [{ id: 'en-1', name: 'English One', lang: 'en-US' }]);
+  ok(noneZh && noneZh.ctl.indexOf('label="中文') < 0,
+     '一个中文都没有 ⇒ **不画空的「中文」组**');
+  const zhUnderscore = fetchVoiceRow('', [{ id: 'u-1', name: '下划线写法', lang: 'zh_CN' }]);
+  ok(zhUnderscore && zhUnderscore.ctl.indexOf('label="中文（1）"') >= 0,
+     '`zh_CN` 这种下划线写法也算中文系（不同厂商的写法不统一）');
   G.Platform.speech = realSpeech;
 
   /* 还原成触发前的值 —— 后面还有一大堆断言在用同一份存档 */

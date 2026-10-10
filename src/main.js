@@ -481,19 +481,22 @@
     if (G.Story) G.Story.consider(result);
   }
 
+  /* 解锁了新钓场：只播报 —— **故意不自动切场**（2026-10-11 清理，队列：待办「自动化发现」那条）。
+     这里原来还有一段 `if (!s.unlocked[s.field]) { …自动切到刚解锁的场… }`，
+     它是**死代码**，而且门禁够不着（不报任何错的那种）：
+       · `checkUnlocks()` 返回的是**刚解锁**的场，而当前场必然是**早就解锁**的
+         （`state.js` 的 `load()` 会把 `field` 纠正成已解锁的场：`if (!unlocked[field]) field = 'D'`；
+         `St.setField()` 本身也有 `if (!S.unlocked[fid]) return false;` 这道门）
+         ⇒ 那个 `if` 的条件恒为假；
+       · 而且它要的兜底**已经有人做了**：真出现「当前场没解锁」的脏档，`load()` 那一步就纠正完了，
+         轮不到这里。
+     ⇒ 按「不留看不见的死分支」删掉（判据 = 名字只出现在定义 / 导出两行那种死代码有网，
+        **走不到的分支没有网** —— 所以这里用注释把理由钉住，别再被加回来）。 */
   function onUnlock(list) {
     G.Audio.unlock();
     list.forEach(function (f) {
       Hud.toast({ text: '🎉 解锁新钓场：' + f.name + '（' + f.rank + ' 级）', kind: 'good' });
     });
-    var s = St.get();
-    if (!s.unlocked[s.field]) {
-      St.setField(list[0].id);
-      G.Fishing.setField(list[0]);
-      S.setField(list[0]);
-      Hud.setField(list[0]);
-      Hud.syncAll();
-    }
     if (P.isOpen()) P.refresh();
   }
 

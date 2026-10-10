@@ -13,6 +13,9 @@
      node tools/browser-probe.js <url> [截图.png] [探针.js] [--exe <浏览器路径>] [--wait 2500]
        · 探针.js：一段**页面内求值的表达式**（可以是 `(async function(){…})()`），
          返回值会挂在结果的 `interact` 里 —— 用来点按钮 / 读 DOM / 走一遍交互。
+         🔴 工具会先往页面里注入 **`__raf1()`**（等一帧的助手）：凡是「刚触发了面板渲染 /
+            refresh 就立刻读 DOM」的地方，一律 `await __raf1()` 再读 ——
+            同步读会**漏掉刚画上去的那一行**，而且每次漏的行还不一样（见下面那条实测）。
    例：
      node tools/browser-probe.js "file:///D:/fish%20player/docs/%E5%8D%A1%E7%89%87%E8%AF%84%E5%AE%A1.html" _tmp/a.png
      node tools/browser-probe.js http://127.0.0.1:8770/ _tmp/b.png _tmp/probe-review.js
@@ -159,6 +162,16 @@ async function main() {
       };
     })()`);
 
+    /* 🔴 探针求值**之前**先往页面里塞一个「等一帧」的助手（2026-10-11，队列：待办 2252）：
+       探针最常见的坑是「刚触发渲染就同步读 DOM ⇒ 漏掉刚画上去的那一行」
+       （实测：`G.Panels.open('shop')` 之后立刻 `querySelectorAll('.shop-item')`
+       只拿到 12 行、唯独少了刚渲染的那一行，连跑三次还不一样；同一段逻辑 await 一帧就正常）。
+       ⇒ 与其在每个探针文件里各写一遍 `new Promise(r => requestAnimationFrame(...))`，
+         不如由工具注入一个：探针里 `await __raf1()` 即可（**它总是存在**，不必判空）。
+       ⚠️ 名字特意起得不像业务代码（`__raf1`），免得和页面自己的全局撞名。
+       ⚠️ 它只等**一帧**：渲染如果是「等数据回来再画」那种异步链，还得再等（多 await 几次）。 */
+    await evalJs('window.__raf1 = function () { return new Promise(function (r) { requestAnimationFrame(function () { r(true); }); }); }; "ok"');
+
     if (probeFile) out.interact = await evalJs(fs.readFileSync(probeFile, 'utf8'));
 
     /* 🔴 全页截图要能**失败退回**（2026-10-10）：`docs/卡片评审.html` 装上 362 张卡之后
@@ -181,6 +194,17 @@ async function main() {
     ws.close();
     return out;
   } finally {
+    /* ⚠️ 收尾**保持 `kill()`**（2026-10-11 重新核实过，报障 ⑨ 的陈述不成立）：
+       曾经想把它改成「先 `Browser.close` 优雅退出、等进程自己结束、再兜底 kill」——
+       理由写在报障 ⑨ 里（「硬杀让浏览器来不及把 localStorage 落盘」）。**实测证不出收益**：
+         · 「落盘也读不到」这件事本文件的 `main()` 注释（2026-10-09）早就写明了 ——
+           profile 每次都是**新建的一次性目录**，跨次保留存档根本不可能；
+         · 本机对照实测（同一台机器、同一份页面，A/B 各跑两次）：
+           旧写法 `kill()` ⇒ 临时 profile 目录数 34 → 34 → 34、探针进程 0 残留；
+           新写法优雅关闭 ⇒ 同样 34 → 34、0 残留 ⇒ **两种收尾没有可观察差异**。
+       ⇒ 不为一个证不出的收益改代码（§9.1 第 3 条「留证据」）。真要跨次保留存档，
+          正确姿势是**同一次页面求值里先 `setItem` 再 `G.State.load()`**（见 `main()` 注释）。
+       ⚠️ 这条**不是**「留着不管」：报障 ⑨ 已按「陈述不成立」结案（队列 §1 报障板）。 */
     child.kill();
     /* 一次性 profile 用完整删掉，别在临时目录里越堆越多。
        删不掉也无所谓（下一轮本来就用新目录），所以整段吞掉异常。 */

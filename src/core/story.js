@@ -3,7 +3,7 @@
    =========================================================
    它**只有判定：没有界面、不画场景、不碰游戏数据**。
      · 内容（NPC / 事件 / 台词）在 `src/data/story.js`
-     · 画面（他站在哪）由 `G.Scene.setNeighbor(G.Story.neighbor())` 消费
+     · 画面（他站在哪）由 `G.Scene.setNeighbors(G.Story.neighbors())` 消费
      · 对话由 UI 层负责（`main.js` 拿 `init({ onEvent })` 给的回调去开面板）
    （与 `G.Fishing` 的 `cb.onCatch / cb.onMiss`、`G.Assistant` 的 `cb.toast` 同一套写法。）
 
@@ -69,17 +69,26 @@
         · 🔴 **一次只比一场**：`tryFire()` 里有一道守卫（已有未结算的比试时跳过 `duel` 事件）。
           没有它会让第二场把第一场的窗口整个覆盖掉 —— 第一场就凭空消失了。
 
-     ⑧ **「现在站在这里的是谁」只有一个回答处**（N7 五期）：`curNpcId()` 拿**当前钓场**
-        去查 NPC 表里的 `fields`（站位表）—— 内容表写「他站哪几片」，引擎负责挑。
-        它同时服务三件事：`neighbor()`（画谁）、`talk()`（跟谁说）、`tryFire()`（谁的事会发生）。
-        · 🔴 **事件过一道 NPC 门**：`tryFire()` 跳过 `ev.npc !== p.npc` 的事件。
+     ⑧ **「现在站在这里的有谁」只有一个回答处**（N7 五期 / **N11 一期改口径**）：
+        `curNpcIds()` 拿**当前钓场**去查 NPC 表里的 `spots`（站位表）—— 内容表写
+        「他站哪几片、站在哪」，引擎负责挑。它给的是**在场集合**（0 / 1 / 2 人），
+        同时服务三件事：`neighbors()`（画谁，连站位一起算好交出去）、`talk(id)`
+        （跟**被点到的那位**说）、`tryFire()`（谁的事会发生）。
+        · 🔴 **一片水里可以有两位**（N11 一期改的就是这条）：原来「一个钓场只许一位」
+          的写法靠的是「取列表里第一个」—— 加第三个人时那个人**永远不出现**，
+          而且**不报错**（只会觉得这人怎么老不来）。现在是集合 ⇒ 同场的两位
+          各自的**事件与台词**都还在（`verify` 第 50 节另按阈值现算「同场两人的
+          站位必须拉开」，挨在一起的两张脸认不出点的是谁）。
+        · 🔴 **事件过一道 NPC 门**：`tryFire()` 跳过 `ev.npc` **不在场**的事件。
           少了它，海边会跳出老陈的「借线」—— 画面上站着阿海、弹窗里却是老陈在说话，
           **不报任何错**（`verify` 第 50 节从内容表这一侧盯着「事件的人必须在那条事件
           列出的每个钓场都在场」）。
-        · **没人在的钓场** ⇒ `curNpcId()` 给 `''` ⇒ `neighbor()` 给 `null`（场景不画人）、
-          一条事件都不参与抽签（`p.npc === ''` 谁都对不上）。这不报错，是**有意**的。
-        · ⚠️ 与 `cond.field` 是**两件事**，不重复：`fields` 说「这个人站哪几片」，
+        · **没人在的钓场** ⇒ `curNpcIds()` 给 `[]` ⇒ `neighbors()` 给 `[]`（场景不画人）、
+          一条事件都不参与抽签（`p.npcs` 里谁都对不上）。这不报错，是**有意**的。
+        · ⚠️ 与 `cond.field` 是**两件事**，不重复：`spots` 说「这个人站哪几片」，
           `cond.field` 说「这件事在哪几片能发生」（同一个人也可以只在其中一片办某一件事）。
+        · ⚠️ 「谁在场」**不进 `ctxKey`**：它完全由 `field` 推得（这一条没变），
+          所以「换了个人」这件事仍然只通过「换了钓场」影响条件指纹与掷点。
      ⑨ **「上一竿的结局」也是条件**（N7 六期）：事件可以带 `cond.after: ['snap','escape',…]`,
         意思是**只在刚丢了鱼之后**才开口（值 = `fishing.js` 丢竿回调给的那几个结局）。
         它是**门**不是条件指纹 —— 与 `npc` 同款：
@@ -225,10 +234,13 @@ G.Story = (function () {
     var list = evs();
     for (var i = 0; i < list.length; i++) {
       var ev = list[i];
-      /* 🔴 NPC 门（口径 ⑧）：只让「当前钓场站着的那一位」的事参与抽签。
+      /* 🔴 NPC 门（口径 ⑧）：只让「当前钓场**在场的那些位**」的事参与抽签。
          少了这一条，海边会跳出老陈的「借线」（画面上是阿海、弹窗里是老陈），且不报错。
-         `p.npc` 由 `probeOf()` 从 `curCtx()` 带下来 —— 「谁在场」只有 `curNpcId()` 一处回答。 */
-      if (ev.npc !== p.npc) continue;
+         `p.npcs` 由 `probeOf()` 从 `curCtx()` 带下来 —— 「谁在场」只有 `curNpcIds()`
+         一处回答。⚠️ `p.npcs` 不是数组（手搓探针 / 脏值）时按**空场**处理：
+         门宁可关着，也不该在一次残缺的入参上意外打开。 */
+      var here = Array.isArray(p.npcs) ? p.npcs : [];
+      if (here.indexOf(ev.npc) < 0) continue;
       if (!condOk(ev, p)) continue;
       if (!needOk(ev, st)) continue;
       if (ev.once && (st.fired[ev.id] || 0) > 0) continue;
@@ -261,14 +273,14 @@ G.Story = (function () {
      在这条链路上真的被看见，而不是写进内容表就没人管。 */
   function rewardOf(ev) { return (ev && ev.reward) || {}; }
 
-  /* 当前条件（钓场 / 天气 / 时段 / 站着的是谁）。抽成函数是为了让「条件指纹」只有一处拼法，
+  /* 当前条件（钓场 / 天气 / 时段 / 站着的都有谁）。抽成函数是为了让「条件指纹」只有一处拼法，
      `consider()` 与测试都走它。
      ⚠️ 顺带一个硬约束：**返回块里不许出现 `键: 值` 形态的对象字面量** ——
         `verify` 的 `exportKeys()` 是把返回块里所有 `x:` 都当导出名收的，
         写成内联字面量会让 `field` / `wx` 这种普通字段被当成「零调用的死导出」报红。
         （这不是哪个门禁的怪癖：模块的对外面本来就该只有一份清单，字段写在函数体外面更清楚。）
-     ⚠️ 这里的 `npc` **不是**「条件」而是「谁在场」（口径 ⑧）：`tryFire()` 拿它过 NPC 门。
-        它由 `curNpcId()` 按**当前钓场**现算 ⇒ `seq` 归零那套（条件变了就重掷）不受影响，
+     ⚠️ 这里的 `npcs` **不是**「条件」而是「谁在场」（口径 ⑧）：`tryFire()` 拿它过 NPC 门。
+        它由 `curNpcIds()` 按**当前钓场**现算 ⇒ `seq` 归零那套（条件变了就重掷）不受影响，
         「换了个钓场」本来就会换指纹。 */
   function curCtx() {
     var s = (G.State && G.State.get) ? G.State.get() : null;
@@ -278,42 +290,70 @@ G.Story = (function () {
       field: s.field,
       wx: (sn && sn.wx) ? sn.wx.key : '',
       tm: (sn && sn.tm) ? sn.tm.key : '',
-      npc: curNpcId(),
+      npcs: curNpcIds(),
     };
   }
   /* `tryFire()` 要的那份入参（纯数值，不含对象引用）—— 同样是为了把字面量挪出返回块。
      `after` = **这一竿的结局**（口径 ⑨）：只有丢竿那条路带得进来，空串 = 没带。 */
   function probeOf(c, n, t, after) {
-    return { field: c.field, wx: c.wx, tm: c.tm, npc: c.npc, after: after, seq: n, now: t };
+    return { field: c.field, wx: c.wx, tm: c.tm, npcs: c.npcs, after: after, seq: n, now: t };
   }
 
   /* ---------------- 对外动作 ---------------- */
-  /* 「现在该站在钓场里的那一位」是谁 —— **只有这一处**回答这个问题。
-     `neighbor()`（给场景画）与 `talk()`（给玩家点）都走它，`tryFire()` 也吃它的结果
-     （口径 ⑧）。
-     🔴 判据是**内容表里的 `fields`（站位表）**，不是「取列表里第一个」——
-        写成取第一个的话，加第 2 个 NPC 时那个人**永远不出现**，而且不报错。
-     ⚠️ 没人在的钓场（没被任何 NPC 列进去 / 钓场 id 是脏值）⇒ 给 `''`：
-        场景不画人、一条事件都不参与抽签。这是有意留的空位，不是兜底失败。 */
-  function curNpcId() {
-    var all = G.STORY_NPCS;
-    if (!all || typeof all !== 'object') return '';
+  /* 当前钓场 —— **只读这一处**：`idsAt()` 与 `neighbors()` 都从它取。
+     两处各读一遍 `s.field` 的话，中间万一钓场变了就会各说各话（一个按新钓场挑人、
+     另一个按旧钓场算站位），而且**不报错**。 */
+  function fieldNow() {
     var s = (G.State && G.State.get) ? G.State.get() : null;
-    var f = (s && s.field) ? s.field : '';
-    var keys = Object.keys(all);
-    for (var i = 0; i < keys.length; i++) {
-      var npc = all[keys[i]];
-      if (npc && npc.fields && npc.fields.indexOf(f) >= 0) return keys[i];
-    }
-    return '';
+    return (s && s.field) ? s.field : '';
   }
 
-  /* 当前该站在钓场里的那个 NPC。场景层直接吃这个对象：
-     `x` 是站位比例、其余是绘制参数。表为空时返回 null（场景层据此不画人）。
-     ⚠️ 每次返回**同一个对象**（内容表里的那个），场景每帧都会拿它，别在这儿新建。 */
-  function neighbor() {
-    var id = curNpcId();
-    return id ? (G.STORY_NPCS[id] || null) : null;
+  /* 「这一片水里站着谁」—— **只有这一处**回答这个问题（口径 ⑧）。
+     `neighbors()`（给场景画）、`talk(id)`（给玩家点）、`tryFire()`（谁的事会发生）
+     都吃它的结果。
+     🔴 判据是**内容表里的 `spots`（站位表）**，不是「取列表里第一个」——
+        写成取第一个的话，同场的第二位邻居**永远不出现**，而且**不报错**。
+     ⚠️ 判「他在这一片」看的是**站位表里那个值是不是数字**：写错钓场 id、或者把站位
+        写成字符串，都等于「他没站这一片」⇒ 那个人凭空消失，同样不报错
+        （`verify` 第 50 节从内容表这一侧按类型现算，抓的就是这个）。
+     ⚠️ 没人站的钓场（没被任何 NPC 列进去 / 钓场 id 是脏值）⇒ 给**空数组**：
+        场景不画人、一条事件都不参与抽签。这是有意留的空位，不是兜底失败。
+     ⚠️ 顺序 = 内容表里的顺序（`Object.keys`）⇒ 画面上谁压谁由内容表的先后决定。 */
+  function idsAt(f) {
+    var all = G.STORY_NPCS;
+    if (!all || typeof all !== 'object' || !f) return [];
+    var keys = Object.keys(all);
+    var out = [];
+    for (var i = 0; i < keys.length; i++) {
+      var npc = all[keys[i]];
+      if (npc && npc.spots && typeof npc.spots[f] === 'number') out.push(keys[i]);
+    }
+    return out;
+  }
+  function curNpcIds() { return idsAt(fieldNow()); }
+
+  /* 当前该站在钓场里的那几位，**连站位一起**交给场景层：
+     每一项 = { id, x, npc }（`npc` 就是内容表里的那个对象，别在这儿复制一份 ——
+     复制出来的副本与内容表迟早分家）。
+     ⚠️ 站位 `x` 由引擎现算，场景层**不去查内容表**：站位与「他在哪几片」是**同一张表**，
+        两边各查一次就是两份真相（改一处忘一处，人只会站到别处去）。
+     ⚠️ 每次调用**新建一个小数组**（场上有几位就几个元素）：它的调用点是「换钓场」那一处，
+        不是每帧 ⇒ 不值得为它缓存一份会过期的状态。 */
+  function neighbors() {
+    var f = fieldNow();
+    var ids = idsAt(f);
+    var all = G.STORY_NPCS;
+    var out = [];
+    for (var i = 0; i < ids.length; i++) {
+      var npc = all[ids[i]];
+      if (!npc) continue;
+      var o = {};
+      o.id = ids[i];
+      o.x = npc.spots[f];
+      o.npc = npc;
+      out.push(o);
+    }
+    return out;
   }
 
   /* 对话面板要的那份载荷。**写成函数而不是在 `talk()` 里直接 `return {…}`** ——
@@ -329,14 +369,18 @@ G.Story = (function () {
   }
 
   /* 玩家**主动点他**（N7 二期）→ 返回对话面板要的载荷，没有可聊的人 / 没有闲聊池时给 null。
-     🔴 三条设计口径：
+     🔴 四条设计口径：
+       · **点的是谁就谁说话**（N11 一期）：`id` 由场景层的命中框给（`hitNeighbor()`
+         返回被点到的那个 id）—— 同场两位时不再有「画一个、说另一个」的余地。
+         `id` 不在场（没传 / 传了个不存在的人 / 他刚被从站位表里删掉）⇒ `null`：
+         调用方据此落回「抛竿」，而不是弹一张张冠李戴的对话卡。
        · **不走概率门**（口径 ⑤）：点了就该有回应；轮到哪句由 `s.story.talk` 计数决定。
        · **只给一句**：搭话是顺手的动作，弹一大段会挡住钓鱼。
        · **不返回空台词**：池子里那条不是非空字符串时给 null（调用方据此落回「抛竿」），
          而不是弹一张空对话卡 —— 「点了没反应」比「弹张空白卡」好排查得多。 */
-  function talk() {
-    var id = curNpcId();
-    if (!id) return null;
+  function talk(id) {
+    if (typeof id !== 'string' || !id) return null;
+    if (curNpcIds().indexOf(id) < 0) return null;
     var npc = npcOf(id);
     var pool = (npc && npc.talk) || null;
     if (!pool || !pool.length) return null;
@@ -590,7 +634,7 @@ G.Story = (function () {
   return {
     init: init,
     consider: consider,
-    neighbor: neighbor,
+    neighbors: neighbors,
     talk: talk,
     choose: choose,
     noteCatch: noteCatch,

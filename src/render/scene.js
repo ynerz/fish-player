@@ -27,7 +27,8 @@ G.Scene = (function () {
     stars: [],
     clouds: [],
     decor: {},
-    neighbor: null,   // 隔壁钓鱼佬（N7）：{ x, skin, shirt, shirtD, pants, hat } 或 null
+    neighbor: [],     // 隔壁钓鱼佬（N7/N11）：[{ id, x, npc }, …]（可能 0 / 1 / 2 位）
+                      //   站位 x 与身份都来自引擎的 neighbors()（「谁在场」只有那一处回答）
     rocks: [],         // 浅滩石头 [{x, y, rx, ry, sub, wy, body, top}]
     rain: [],          // 雨丝 [{x, y, len, v, a}]
     wxKey: null,       // 上一帧的天气 key，用来在变天时重建雨丝
@@ -193,9 +194,12 @@ G.Scene = (function () {
     S.decor = {};
     (list || []).forEach(function (id) { S.decor[id] = true; });
   }
-  /* 隔壁钓鱼佬（N7）。传 null 就不画人 —— 内容表为空 / 以后换「钓场里有没有人」
-     都走这一条口，不要在别处偷偷往 S.decor 里塞标记。 */
-  function setNeighbor(n) { S.neighbor = n || null; }
+  /* 隔壁钓鱼佬（N7 / N11）。传空数组就不画人 —— 内容表为空 / 这一片没人 /
+     以后换「钓场里有没有人」都走这一条口，不要在别处偷偷往 S.decor 里塞标记。
+     ⚠️ 收的是**数组**（一片水里可以有两位，N11 一期）：每一项 `{ id, x, npc }`，
+        由 `G.Story.neighbors()` 现算 —— 场景层**不查内容表**（站位与「他在哪几片」
+        是同一张表，两边各查一次就是两份真相）。 */
+  function setNeighbors(list) { S.neighbor = (list && list.length) ? list : []; }
 
   function cast() {
     S.floatState = 'flying';
@@ -1282,84 +1286,102 @@ G.Scene = (function () {
     ctx.beginPath(); ctx.arc(hx, hy, Hh * 0.048, 0, 6.3); ctx.fill();
   }
 
-  /* 隔壁钓鱼佬：站位与配色全部来自内容表（`src/data/story.js`），画法复用上面那段。
+  /* 隔壁钓鱼佬：站位与配色全部来自引擎交过来的那几项（`G.Story.neighbors()` →
+     `setNeighbors()`；内容表的原始出处是 `src/data/story.js`），画法复用上面那段。
      竿是**靠在身边的一根斜杆**而不是抛出去的手竿 —— 画的目的是「这里还站着一个人」，
-     不是「他也在钓」；他真在钓这件事发生在对话里。 */
+     不是「他也在钓」；他真在钓这件事发生在对话里。
+     🔴 **一片水里可能有两位**（N11 一期）：这里逐个画，顺序就是引擎给的顺序
+        （内容表的先后 ⇒ 后画的压在**上面**，与 `hitNeighbor()` 从后往前找同一套顺序）。 */
   function drawNeighbor(th) {
-    var nb = S.neighbor;
-    if (!nb) return;
+    var list = S.neighbor;
     var Hh = neighborH();
-    var x = W * nb.x, y = dockY() - 13;
+    var y = dockY() - 13;
+    for (var k = 0; k < list.length; k++) {
+      var nb = list[k];
+      var x = W * nb.x;
 
-    ctx.save();
-    /* 靠着的竿先画（在人身后） */
-    ctx.strokeStyle = '#7a5a33';
-    ctx.lineWidth = Math.max(2, H * 0.0045);
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(x + Hh * 0.30, y - Hh * 0.02);
-    ctx.lineTo(x - Hh * 0.10, y - Hh * 1.05);
-    ctx.stroke();
-    /* 脚边的鱼桶 */
-    ctx.fillStyle = '#4b6b7a';
-    ctx.fillRect(x + Hh * 0.26, y - Hh * 0.24, Hh * 0.20, Hh * 0.24);
-    ctx.fillStyle = '#3b5866';
-    ctx.fillRect(x + Hh * 0.26, y - Hh * 0.265, Hh * 0.20, Hh * 0.05);
-    ctx.restore();
-
-    drawAnglerBody(th, {
-      x: x, y: y, Hh: Hh,
-      skin: nb.skin, shirt: nb.shirt, shirtD: nb.shirtD, pants: nb.pants,
-      hat: !!nb.hat,
-    });
-
-    /* 「可以搭话」的小提示（一个气泡 + 三个点）—— 现在他能被点了（N7 二期），
-       而**看不出能点的按钮等于没有**：不画这个，玩家永远不会去点那撮像素。
-       位置贴着头顶、随呼吸轻微起伏（幅度按身高缩放，窗口大小变了不会飘开）。
-       ⚠️ 只有他真有闲聊池时才画 —— 没话可说的邻居不该挂个气泡骗玩家点。 */
-    if (nb.talk && nb.talk.length) {
-      var bw = Hh * 0.40, bh = Hh * 0.24;
-      var bx = x, by = y - Hh * 1.22 + Math.sin(time * 2.1) * Hh * 0.03;
-      var dot = Math.max(1, bh * 0.115);
       ctx.save();
-      ctx.globalAlpha = 0.85;
-      ctx.fillStyle = 'rgba(255,255,255,.94)';
+      /* 靠着的竿先画（在人身后） */
+      ctx.strokeStyle = '#7a5a33';
+      ctx.lineWidth = Math.max(2, H * 0.0045);
+      ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.moveTo(bx - bw / 2 + bh / 2, by - bh / 2);
-      ctx.arcTo(bx + bw / 2, by - bh / 2, bx + bw / 2, by + bh / 2, bh / 2);
-      ctx.arcTo(bx + bw / 2, by + bh / 2, bx - bw / 2, by + bh / 2, bh / 2);
-      ctx.arcTo(bx - bw / 2, by + bh / 2, bx - bw / 2, by - bh / 2, bh / 2);
-      ctx.arcTo(bx - bw / 2, by - bh / 2, bx + bw / 2, by - bh / 2, bh / 2);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = '#5a6a78';
-      for (var i = -1; i <= 1; i++) {
-        ctx.beginPath();
-        ctx.arc(bx + i * bh * 0.30, by, dot, 0, 6.3);
-        ctx.fill();
-      }
+      ctx.moveTo(x + Hh * 0.30, y - Hh * 0.02);
+      ctx.lineTo(x - Hh * 0.10, y - Hh * 1.05);
+      ctx.stroke();
+      /* 脚边的鱼桶 */
+      ctx.fillStyle = '#4b6b7a';
+      ctx.fillRect(x + Hh * 0.26, y - Hh * 0.24, Hh * 0.20, Hh * 0.24);
+      ctx.fillStyle = '#3b5866';
+      ctx.fillRect(x + Hh * 0.26, y - Hh * 0.265, Hh * 0.20, Hh * 0.05);
       ctx.restore();
+
+      drawAnglerBody(th, {
+        x: x, y: y, Hh: Hh,
+        skin: nb.npc.skin, shirt: nb.npc.shirt, shirtD: nb.npc.shirtD,
+        pants: nb.npc.pants, hat: !!nb.npc.hat,
+      });
+
+      /* 「可以搭话」的小提示（一个气泡 + 三个点）—— 现在他能被点了（N7 二期），
+         而**看不出能点的按钮等于没有**：不画这个，玩家永远不会去点那撮像素。
+         位置贴着头顶、随呼吸轻微起伏（幅度按身高缩放，窗口大小变了不会飘开）。
+         ⚠️ 只有他真有闲聊池时才画 —— 没话可说的邻居不该挂个气泡骗玩家点。
+         ⚠️ 两位同场时气泡会各挂各的：那正是「两个人各说各的」的可见提示。 */
+      if (nb.npc.talk && nb.npc.talk.length) {
+        var bw = Hh * 0.40, bh = Hh * 0.24;
+        var bx = x, by = y - Hh * 1.22 + Math.sin(time * 2.1) * Hh * 0.03;
+        var dot = Math.max(1, bh * 0.115);
+        ctx.save();
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = 'rgba(255,255,255,.94)';
+        ctx.beginPath();
+        ctx.moveTo(bx - bw / 2 + bh / 2, by - bh / 2);
+        ctx.arcTo(bx + bw / 2, by - bh / 2, bx + bw / 2, by + bh / 2, bh / 2);
+        ctx.arcTo(bx + bw / 2, by + bh / 2, bx - bw / 2, by + bh / 2, bh / 2);
+        ctx.arcTo(bx - bw / 2, by + bh / 2, bx - bw / 2, by - bh / 2, bh / 2);
+        ctx.arcTo(bx - bw / 2, by - bh / 2, bx + bw / 2, by - bh / 2, bh / 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#5a6a78';
+        for (var i = -1; i <= 1; i++) {
+          ctx.beginPath();
+          ctx.arc(bx + i * bh * 0.30, by, dot, 0, 6.3);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
     }
   }
 
   /* 邻居的身高 —— 画他与**判断他站在哪一块**共用这一处（见 hitNeighbor()）。 */
   function neighborH() { return Math.min(H * 0.155, 72); }
 
-  /* 玩家点在画布上的一点，落没落在那位邻居身上（N7 二期：点他主动搭话）。
+  /* 玩家点在画布上的一点，落在**哪一位**邻居身上（N7 二期：点他主动搭话）。
      🔴 口径：命中框与 `drawNeighbor()` **同源** —— 两处都从 `neighborH()` + `nb.x` +
         `dockY()` 现算，绝不在这里再抄一份「他大概在画面左边」。抄一份的后果是
         「画在这儿、点在那儿」，而且**不报任何错**（玩家只会觉得这游戏点了没反应）。
      框比身体略宽一点（手 / 触屏都点得到）：横向覆盖影子与鱼桶、纵向**从头顶的气泡一路到脚边**
      （点那个气泡也该算数 —— 它就是给玩家看的「点我」）。
-     `px / py` = 相对画布左上角的**逻辑像素**（由调用方从 clientX 减去画布矩形换算）。 */
+     🔴 **返回被点到的那个 NPC 的 id**（N11 一期：一片水里可以有两位）——
+        一个布尔量在这里不够用：调用方要拿它去问「跟**这位**说话」。
+        没人被点中 / 参数是脏值 ⇒ 给**空字符串**（调用方按 falsy 回落到「抛竿」）。
+     ⚠️ 两位的框可能挨着 ⇒ **从后往前找**（后画的在上面）：点重叠处应该算最上面那一位，
+        与玩家所见的次序一致。`px / py` = 相对画布左上角的**逻辑像素**
+        （由调用方从 clientX 减去画布矩形换算）。 */
   function hitNeighbor(px, py) {
-    var nb = S.neighbor;
-    if (!nb || typeof px !== 'number' || typeof py !== 'number') return false;
-    if (!isFinite(px) || !isFinite(py)) return false;
+    var list = S.neighbor;
+    if (!list || !list.length) return '';
+    if (typeof px !== 'number' || typeof py !== 'number') return '';
+    if (!isFinite(px) || !isFinite(py)) return '';
     var Hh = neighborH();
-    var x = W * nb.x, y = dockY() - 13;
-    return px >= x - Hh * 0.30 && px <= x + Hh * 0.46
-      && py >= y - Hh * 1.40 && py <= y + Hh * 0.10;
+    var y = dockY() - 13;
+    for (var k = list.length - 1; k >= 0; k--) {
+      var nb = list[k];
+      var x = W * nb.x;
+      if (px >= x - Hh * 0.30 && px <= x + Hh * 0.46
+        && py >= y - Hh * 1.40 && py <= y + Hh * 0.10) return nb.id;
+    }
+    return '';
   }
 
   function handPos() {
@@ -1653,7 +1675,7 @@ G.Scene = (function () {
 
   return {
     init: init, render: render,
-    setField: setField, setDecor: setDecor, setNeighbor: setNeighbor,
+    setField: setField, setDecor: setDecor, setNeighbors: setNeighbors,
     hitNeighbor: hitNeighbor,
     cast: cast, beginWait: beginWait, bite: bite, floatNudge: floatNudge,
     beginFight: beginFight, endFight: endFight,

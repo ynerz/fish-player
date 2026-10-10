@@ -2337,13 +2337,13 @@ console.log('\n[32-g] 数据文件的字段必须有消费方（零出现 = 死�
        （`fishing.js`：`CFG.misc.biteWindow[CFG.rarity[pending.rar].key]`），
        键名 `common` / `rare` / … 只是表里的行名，静态扫描看不到这层间接 —— 属于「分析不了」。 */
     'src/data/config.js': ['common', 'rare', 'epic', 'legend'],
-    /* `story.js` 的 **NPC 表键 = NPC id**（`G.STORY_NPCS` 的 `chen` / `hai`）：
-       引擎拿到的是一串 id 字符串，靠 `Object.keys()` + 内容表里的 `fields`（站位表）
-       动态挑人（`core/story.js` 的 `curNpcId()`）—— 静态扫看不到这层间接，
+    /* `story.js` 的 **NPC 表键 = NPC id**（`G.STORY_NPCS` 的 `chen` / `hai` / `chuan`）：
+       引擎拿到的是一串 id 字符串，靠 `Object.keys()` + 内容表里的 `spots`（站位表）
+       动态挑人（`core/story.js` 的 `idsAt()`）—— 静态扫看不到这层间接，
        与上面那行「按 key 动态取值表的行名」是同一类。
        ⚠️ 这里**不是**放行「随便加个人名」：第 50 节另有两道更硬的闸门 ——
        每个 NPC 必须有**非空站位表**，且必须有**事件或闲聊池**（不然他就是个站着不动的空壳）。 */
-    'src/data/story.js': ['chen', 'hai'],
+    'src/data/story.js': ['chen', 'hai', 'chuan'],
     /* ⚠️ fields.js 的 `rocks` 曾在这里（「未实现的表现」）—— 2026-10-08 用户拍板补绘制，
        `scene.js` 现在真的读 `th.rocks` 了，所以它**不在白名单里**：
        哪天绘制代码被删掉，本节会立刻报红（另见第 ⑨ 节的「theme 开关必须有绘制分支」）。 */
@@ -6099,8 +6099,12 @@ let storyBad = 0;
     if (!has(coreCode, 'ev.' + k) && !has(mainSrc, 'ev.' + k)) unread.push('事件 ' + ev.id + '.' + k);
   }));
   npcIds.forEach(id => Object.keys(NPCS[id]).forEach(k => {
-    /* 场景层用 `nb.` 接这份数据（`var nb = S.neighbor`）；UI 层用 `npc.` 显示名字 / 身份 */
-    const inScene = new RegExp('nb\\.' + k + '(?![A-Za-z0-9_$])').test(sceneSrc);
+    /* 🔴 N11 一期起场景层拿的是**引擎算好的那一项**：NPC 字段一律经 `nb.npc.<字段>`
+       （`nb` 是 `{ id, x, npc }` 那一项，站位 x 由引擎从同一张表里取）。
+       ⇒ 判据只认 `nb.npc.<字段>` **与** UI 侧的 `npc.<字段>`；
+          写回 `nb.<字段>`（场景层自己查内容表）**不再算数** —— 那正是这一轮要拆掉的
+          「站位与‘他在哪几片’两处各查一次」的第二份真相。 */
+    const inScene = new RegExp('nb\\.npc\\.' + k + '(?![A-Za-z0-9_$])').test(sceneSrc);
     const inUi = new RegExp('npc\\.' + k + '(?![A-Za-z0-9_$])').test(panelSrc)
       || new RegExp('npc\\.' + k + '(?![A-Za-z0-9_$])').test(mainSrc)
       || new RegExp('npc\\.' + k + '(?![A-Za-z0-9_$])').test(coreCode);
@@ -6112,7 +6116,7 @@ let storyBad = 0;
   const wires = [
     [mainSrc, 'G.Story.init(', 'main.js 没初始化事件引擎 —— 事件表配得再好也永远不触发'],
     [mainSrc, 'G.Story.consider(', 'main.js 没在「一竿结算完」之后调 consider() —— 事件永远不触发'],
-    [mainSrc, 'G.Story.neighbor()', 'main.js 没把 NPC 交给场景层 —— 隔壁钓鱼佬画不出来'],
+    [mainSrc, 'G.Story.neighbors()', 'main.js 没把 NPC 交给场景层 —— 隔壁钓鱼佬画不出来'],
     [panelSrc, 'VIEWS.dialog', 'panels.js 没有对话面板 —— 他的话说不出来'],
     [sceneSrc, 'function drawNeighbor(', 'scene.js 没有 drawNeighbor() —— NPC 画不出来'],
     [sceneSrc, 'drawNeighbor(th)', 'scene.js 的渲染流程里没调 drawNeighbor() —— NPC 不会出现'],
@@ -6139,21 +6143,24 @@ let storyBad = 0;
     [mainSrc, 'Hud.setDuel(', 'main.js 没调 setDuel() —— 比试进行中界面上一点痕迹都没有'],
     [hudSrc, "'#duelChip'", 'hud.js 没抓比试芯片的元素'],
     [htmlSrc, 'id="duelChip"', 'index.html 里没有 #duelChip 容器 —— 芯片无处安放'],
-    /* ⬇ N7 五期：第二位邻居 + 按钓场挑人 —— 少一个入口，「现在站着的是谁」就没处回答。 */
-    [coreCode, 'function curNpcId(', 'core/story.js 没有 curNpcId() —— 「现在站着的是谁」没有唯一回答处'],
+    /* ⬇ N7 五期 / N11 一期：按钓场挑人（一片水里可以有两位）—— 少一个入口，
+       「现在站着的有谁」就没处回答。 */
+    [coreCode, 'function curNpcIds(', 'core/story.js 没有 curNpcIds() —— 「现在站着的有谁」没有唯一回答处'],
+    [coreCode, 'function idsAt(', 'core/story.js 没有 idsAt() —— 「这一片里站着谁」没有一个按钓场查表的实现'],
   ];
   const miss = wires.filter(w => !has(w[0], w[1]));
   if (miss.length) { err('隔壁钓鱼佬的接线缺了 ' + miss.length + ' 处：\n     ' + miss.map(w => w[2]).join('\n     ')); storyBad++; }
 
-  /* ⑦-a-2 🔴 切钓场要**换人**（N7 五期）：`main.js` 里必须两处把邻居交给场景层 ——
-     一处是启动（第一次画他）、一处是切钓场（换人）。只留启动那处的话，画面会一直画着
-     开局那一位（不报错，像鬼影），而对话里的人早就换了。
+  /* ⑦-a-2 🔴 切钓场要**换人**（N7 五期 / N11 一期：还可能要换站位、由一位变两位）：
+     `main.js` 里必须两处把邻居交给场景层 —— 一处是启动（第一次画他们）、
+     一处是切钓场（换人）。只留启动那处的话，画面会一直画着开局那几位
+     （不报错，像鬼影），而对话里的人早就换了。
      ⚠️ 认的是**调用次数**：同一个调用式出现两次才算接上（写成别的形态会被判红，
         这是有意收紧的 —— 这条本身就要求「两处都走同一个入口」）。 */
-  const nbWires = (mainSrc.match(/S\.setNeighbor\(G\.Story\.neighbor\(\)\)/g) || []).length;
+  const nbWires = (mainSrc.match(/S\.setNeighbors\(G\.Story\.neighbors\(\)\)/g) || []).length;
   if (nbWires < 2) {
     err('main.js 只有 ' + nbWires + ' 处把邻居交给场景层 —— 少了「切钓场换人」那一处，'
-      + '画面会一直画着上一个钓场那一位（对话里的人却已经换了，而且不报错）');
+      + '画面会一直画着上一个钓场那几位（对话里的人却已经换了，而且不报错）');
     storyBad++;
   }
 
@@ -6247,36 +6254,60 @@ let storyBad = 0;
   }
   if (duelChain.length) { err('比试的链路没接上：' + duelChain.join('、')); storyBad++; }
 
-  /* ⑦-f 🔴 「现在站着的是谁」= 一处回答（N7 五期，第二位邻居）：内容表用 `fields`（站位表）
-     说「他站哪几片」，引擎的 `curNpcId()` 拿当前钓场去查。四种坏法**全是静默的**：
+  /* ⑦-f 🔴 「现在站着的有谁」= 一处回答（N7 五期 / **N11 一期改口径：一片水里可以有两位**）：
+     内容表用一张**站位表**说「他站哪几片、站在哪儿」（钓场 id → 站位比例），
+     引擎的 `idsAt()` 拿当前钓场去查。五种坏法**全是静默的**：
        · 钓场 id 写错 ⇒ 那个人从那一钓场**凭空消失**（不画人、不触发、点不到）；
-       · 同一片被两位认领 ⇒ 「现在是谁」有歧义（画一个、说另一个）；
-       · 有人没站位表 / 表是空的 ⇒ 他永远不出现（等于白写一个 NPC）；
-       · 事件列的钓场里**没有**它自己那位 NPC ⇒ 那条事件永远不触发（引擎按当前钓场挑人）。
+       · 有人没站位表 / 表是空的 ⇒ 他永远不出现（等于白写一位 NPC）；
+       · 站位不是正数（写成字符串 / null）⇒ 引擎按类型判「他没站这一片」⇒ 同上，凭空消失；
+       · 事件列的钓场里**没有**它自己那位 NPC ⇒ 那条事件永远不触发（引擎按当前钓场挑人）；
+       · 🔴 **同场两位的站位挨太近 / 站到玩家右边**（N11 一期新立的）⇒ 两张脸叠在一起
+         （认不出点的是谁、命中框也互相压住）或者两根竿交叉 —— 画面上很糟，
+         但**没有任何报错**（只有真拿眼睛看才发现）。
      判据拿内容表**现算**（不写死任何钓场 id / NPC id），并带空集自检。 */
   const fieldIds = FIELDS_T ? FIELDS_T.map(f => f.id) : null;
   if (!fieldIds) { err('拿不到 G.FIELDS，第 50 节的站位表判据抓不到钓场表（先修本节判据本身）'); storyBad++; }
   /* ⚠️ 站位表的**键名动态认**（本节头注的自指防线）：本文件的**代码**里不写死那个键名 ——
      写死了，verify.js 自己就成了第 32-g 眼里的一个「消费方」，真读它的那处被删也不报红。
-     认法：某个 NPC 身上「值是**真钓场 id** 组成的数组」的那个键（句池那种字符串数组不会命中）。
-     认出来之后所有 NPC 用同一个键名读 ⇒ 单个 NPC 把 id 写错也能被如实报出来。 */
+     认法：某个 NPC 身上「值是**对象**、且它的键里至少有一个是**真钓场 id**」的那个键
+     （闲聊池是字符串数组，不会命中）。
+     认出来之后所有 NPC 用同一个键名读 ⇒ 单个 NPC 把钓场写错 / 把站位写成字符串，
+     也能被如实报出来（换形态不换键名）。 */
   let placeKey = '';
   npcIds.some(id => Object.keys(NPCS[id]).some(k => {
     const v = NPCS[id][k];
-    if (Array.isArray(v) && v.some(x => fieldIds && fieldIds.indexOf(x) >= 0)) { placeKey = k; return true; }
-    return false;
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
+    if (!Object.keys(v).some(x => fieldIds && fieldIds.indexOf(x) >= 0)) return false;
+    placeKey = k; return true;
   }));
   if (!placeKey) {
-    err('§50 没能从 NPC 对象上认出站位表（值是「真钓场 id 的数组」那个键）—— 抓不到就报错，不许空过');
+    err('§50 没能从 NPC 对象上认出站位表（键是**真钓场 id**、值是站位比例的那个对象）'
+      + ' —— 抓不到就报错，不许空过');
     storyBad++;
   }
-  const npcFields = {};                 /* NPC → 它的站位表（现算） */
-  const claim = {};                     /* 钓场 → 认领它的人（现算） */
+  /* 玩家钓位（比例）—— **从 scene.js 现算**，不写死数字：邻居得站得比他靠左，
+     否则两根竿在画面上交叉。读不到就报错（抓不到就空过等于没这条判据）。 */
+  let playerX = null;
+  const fxM = /fisherX\(\)\s*\{\s*return W\s*\*\s*([\d.]+)/.exec(sceneSrc);
+  if (fxM) playerX = parseFloat(fxM[1]);
+  if (playerX === null || !isFinite(playerX)) {
+    err('§50 没能从 scene.js 的 fisherX() 里读出玩家钓位 —— 「邻居站在玩家左边」这条判据没基准');
+    storyBad++;
+  }
+  /* 同场两位的**最小站位间距**（画布宽度比例）。口径是「实测松一点、但叠住了必报红」：
+     现状最近的一对是 0.078 / 0.124（相距 0.046）⇒ 阈值取 0.04（不锁死现值，改站位不必改这里），
+     而「两张脸叠住」那个量级（≤0.02）必报红。 */
+  const MIN_GAP = 0.04;
+  /* 一片水里最多几位（N11 一期定的口径：可以两位，第三位就要重新谈站位了）。 */
+  const MAX_PER_FIELD = 2;
+  const npcFields = {};                 /* NPC → 它站得住的钓场 id 数组（现算） */
+  const claim = {};                     /* 钓场 → 认领它的那几位（现算） */
   const placeBad = [];
   let npcWithFields = 0;
   npcIds.forEach(id => {
-    const fs2 = placeKey ? NPCS[id][placeKey] : null;
-    if (!Array.isArray(fs2) || !fs2.length) {
+    const sp = placeKey ? NPCS[id][placeKey] : null;
+    const fs2 = (sp && typeof sp === 'object' && !Array.isArray(sp)) ? Object.keys(sp) : [];
+    if (!fs2.length) {
       placeBad.push('NPC ' + id + ' 没有非空的站位表（' + (placeKey || '站位表') + '）'
         + ' —— 他永远不出现，等于白写一位邻居');
       npcFields[id] = [];
@@ -6289,13 +6320,50 @@ let storyBad = 0;
         placeBad.push('NPC ' + id + ' 的站位表里有不存在的钓场「' + f + '」—— 他会从那个钓场凭空消失');
         return;
       }
-      if (claim[f]) {
-        placeBad.push('钓场「' + f + '」被 ' + claim[f] + ' 和 ' + id
-          + ' 同时认领 —— 「现在站着的是谁」有歧义（画一个、说另一个）');
-      } else claim[f] = id;
+      /* 站位必须是**正数**：引擎那一句判据是 `typeof … === 'number'` —— 写成字符串 /
+         null 时它会判「他没站这一片」，人凭空消失，而且不报错。 */
+      const x = sp[f];
+      if (typeof x !== 'number' || !isFinite(x) || x <= 0) {
+        placeBad.push('NPC ' + id + ' 在钓场「' + f + '」的站位不是正数（现算得到 '
+          + JSON.stringify(x) + '）—— 引擎按类型判「他在不在场」，这位会凭空消失');
+        return;
+      }
+      if (playerX !== null && x >= playerX) {
+        placeBad.push('NPC ' + id + ' 在钓场「' + f + '」站到了玩家右边（站位 ' + x
+          + ' ≥ 玩家钓位 ' + playerX + '）—— 两根竿在画面上会交叉');
+      }
+      if (!claim[f]) claim[f] = [];
+      claim[f].push(id);
     });
   });
   if (!npcWithFields) placeBad.push('没有任何 NPC 有站位表（判据抓不到东西，先修本节判据本身）');
+  /* 🔴 同场那几位的站位必须拉开（N11 一期）。阈值口径见上面 `MIN_GAP` 的注释。 */
+  let pairCount = 0;
+  Object.keys(claim).forEach(f => {
+    const who = claim[f];
+    if (who.length > MAX_PER_FIELD) {
+      placeBad.push('钓场「' + f + '」站着 ' + who.length + ' 位（' + who.join(' / ') + '）'
+        + ' —— 一片水里最多 ' + MAX_PER_FIELD + ' 位（再多就得重新谈站位与画面了）');
+    }
+    for (let a = 0; a < who.length; a++) {
+      for (let b = a + 1; b < who.length; b++) {
+        pairCount++;
+        const xa = NPCS[who[a]][placeKey][f], xb = NPCS[who[b]][placeKey][f];
+        if (typeof xa === 'number' && typeof xb === 'number' && Math.abs(xa - xb) < MIN_GAP) {
+          placeBad.push('钓场「' + f + '」上的 ' + who[a] + ' 与 ' + who[b] + ' 站得太近（'
+            + xa + ' / ' + xb + '，相距 ' + Math.abs(xa - xb).toFixed(3) + ' < ' + MIN_GAP
+            + '）—— 两张脸会叠在一起，玩家认不出点的是谁');
+        }
+      }
+    }
+  });
+  /* ⚠️ **空集自检**：一处共场都没有 ⇒ 「一片水里可以有两位」这条口径被改回去了
+     （有人把某处站位表退回一对一）—— 那正是本轮要立的规矩，得报出来。
+     要是**有意**改回一対一，就一并把这条判据改掉（不许让它自己空过）。 */
+  if (!pairCount) {
+    placeBad.push('没有任何钓场站着两位 —— 口径退回了「一片只许一位」'
+      + '（N11 一期定的是一片水里可以有两位；真要改回去就一并改掉这条判据）');
+  }
   /* 每一位至少得有点事做：一条以他为说话人的事件，或者一个闲聊池。
      两样都没有 ⇒ 他只是一撮挡在岸边的像素（点了没反应、也永远不会开口）。 */
   npcIds.forEach(id => {
@@ -6327,21 +6395,29 @@ let storyBad = 0;
   });
   if (placeBad.length) { err('站位表配得不对：' + placeBad.join('；')); storyBad++; }
 
-  /* 🔴 `curNpcId()` 必须真的**按钓场挑人**：读站位表 + 读当前钓场。
-     这两种坏法同样是静默的 —— 退回「取列表里第一个」的话，第二位邻居永远不出现，
-     而「有人没人」这件事在画面上看不出来（只会觉得这人怎么老不来）。
-     ⚠️ 与 ⑦-d / ⑦-e 同款：认标识符边界（`npc.fields` 不能靠 `npc.fieldset` 糊过去）。 */
+  /* 🔴 「谁在场」必须真的**按钓场挑人**（N11 一期拆成三跳，每一跳都盯住）：
+       ① `fieldNow()` 读当前钓场；② `idsAt(f)` 按站位表挑人（用它**传进来的**那个钓场）；
+       ③ `curNpcIds()` 把两者接起来。
+     三跳里任何一跳退回旧写法，坏法都是静默的：
+       · 退回「取列表里第一个」⇒ 同场的第二位永远不出现（只会觉得这人怎么老不来）；
+       · `idsAt()` 不按传进来的钓场查 ⇒ 换钓场还是原来那位；
+       · `curNpcIds()` 绕过 `idsAt()` 自己查一份 ⇒ 场景层与事件门可能各查一份（两份真相）。
+     ⚠️ 与 ⑦-d / ⑦-e 同款：认标识符边界（`npc.fieldset` 之类糊不过去）。 */
   const curChain = [];
-  const curBody = bodyOf(coreCode, 'function curNpcId(');
+  const fieldBody = bodyOf(coreCode, 'function fieldNow(');
+  const idsBody = bodyOf(coreCode, 'function idsAt(');
+  const curBody = bodyOf(coreCode, 'function curNpcIds(');
   /* ⚠️ 判据的 needle 用**拼接**造（不把那个键名写成本文件里的一个字面量）—— 见上面那条注释。
      认不出键名时上面已经报过错了，这里不再重复报。 */
   const placeNeedle = 'npc\\.' + placeKey;
-  if (placeKey && !readsField(curBody, placeNeedle)) {
-    curChain.push('curNpcId() 没读站位表（NPC.' + placeKey + '）—— 它多半还在「取列表里第一个」，'
-      + '第二位邻居永远不出现');
+  if (placeKey && !readsField(idsBody, placeNeedle)) {
+    curChain.push('idsAt() 没读站位表（NPC.' + placeKey + '）—— 「谁站这一片」就不可能按钓场挑');
   }
-  if (!readsField(curBody, 's\\.field')) {
-    curChain.push('curNpcId() 没看当前钓场 —— 「谁在场」就不可能随钓场变（换钓场还是原来那一位）');
+  if (!readsField(fieldBody, 's\\.field')) {
+    curChain.push('fieldNow() 没读当前钓场 —— 「谁在场」就不可能随钓场变（换钓场还是原来那位）');
+  }
+  if (!has(curBody, 'idsAt(')) {
+    curChain.push('curNpcIds() 没走 idsAt() —— 「谁在场」可能被两处各答一次（两份真相）');
   }
   if (curChain.length) { err('「谁在场」没按钓场挑：' + curChain.join('、')); storyBad++; }
 
@@ -6558,7 +6634,8 @@ let storyBad = 0;
     ok('隔壁钓鱼佬在位：' + npcIds.length + ' 个 NPC / ' + EVS.length + ' 条事件，'
       + '字段全有人读、接线齐全（含点他搭话、分支选项与限时比试三条通路）、命中框与画法同源、'
       + '站位表齐全（' + npcWithFields + ' 位邻居 / ' + Object.keys(claim).length
-      + ' 片钓场各只有一位，事件的人与钓场对得上）、'
+      + ' 片钓场，其中 ' + pairCount + ' 片站着两位且站位相距 ≥ ' + MIN_GAP
+      + '、人人都在玩家钓位左边，事件的人与钓场对得上）、'
       + withPool + ' 个闲聊池结构合法、'
       + (withChoices ? withChoices + ' 条事件带分支（其中 ' + withNeed + ' 条按先前的选择开门）'
         : '没有带分支的事件') + '、'

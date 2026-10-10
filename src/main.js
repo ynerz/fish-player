@@ -115,7 +115,7 @@
          都在「一竿已经结算完、回到 idle」之后，绝不在 wait / fight 中途插进来。 */
     if (G.Story) {
       G.Story.init({ onEvent: onStoryEvent });
-      S.setNeighbor(G.Story.neighbor());
+      S.setNeighbors(G.Story.neighbors());
     }
 
     /* ---------- 钓鱼 ---------- */
@@ -143,11 +143,12 @@
        钓场能从钓场列表 / 鱼种面板 / 重置存档好几处切换，
        逐个接线迟早漏一处（而漏了的表现是「音乐还是上一个湖的」，很难被发现）。 */
     St.on('field', function (fid) {
-      /* 邻居是**按钓场**站的人（N7 五期）：切了钓场就可能换一位 —— 少了这一句，
-         画面会一直画着上一个钓场那一位（不报错，像鬼影），而对话里的人已经换了。
-         ⚠️ 放在 `FIELD_MAP` 那道守卫**之前**：钓场 id 不认时也该把人撤掉（`neighbor()` 给 null），
+      /* 邻居是**按钓场**站的人（N7 五期 / N11 一期：一片可以有两位）：
+         切了钓场就可能换人 / 换站位 / 由一位变两位 —— 少了这一句，画面会一直画着
+         上一个钓场那几位（不报错，像鬼影），而对话里的人已经换了。
+         ⚠️ 放在 `FIELD_MAP` 那道守卫**之前**：钓场 id 不认时也该把人撤掉（`neighbors()` 给空数组），
             而不是把上一位留在画面上。 */
-      if (G.Story && S.setNeighbor) S.setNeighbor(G.Story.neighbor());
+      if (G.Story && S.setNeighbors) S.setNeighbors(G.Story.neighbors());
       if (!G.FIELD_MAP[fid]) return;
       var se = St.get().settings;
       if (se.sound && se.music) G.Audio.startBgm(bgmOf());
@@ -404,8 +405,12 @@
     var host = el.parentElement || el;
     if (!host.getBoundingClientRect) return false;
     var r = host.getBoundingClientRect();
-    if (!S.hitNeighbor(ev.clientX - r.left, ev.clientY - r.top)) return false;
-    var d = G.Story.talk();
+    /* 命中框给的是**被点到的那一位的 id**（N11 一期：同一片水里可能有两位）——
+       拿它去问「跟这位说话」。少了这一步，同场两位时会退化成「画一个、说另一个」，
+       而且**不报错**（玩家只会觉得点错了人）。 */
+    var hitNpc = S.hitNeighbor(ev.clientX - r.left, ev.clientY - r.top);
+    if (!hitNpc) return false;
+    var d = G.Story.talk(hitNpc);
     if (!d) return false;          /* 他没话可说 ⇒ 落回「抛竿」，不弹空白对话卡 */
     P.open('dialog', d);
     return true;

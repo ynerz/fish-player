@@ -45,6 +45,33 @@ G.CONFIG = {
     crab      : '蟹',
     shell     : '螺/贝',
     turtle    : '龟',
+    crinoid   : '海百合',
+    siphonophore: '管水母',
+    anemone   : '海葵',
+    /* ── 2026-10-10 细分「通用鱼形」新增的 19 个（用户口径：同一个体型最好不超过 20 个）──
+       ⚠️ 顺序即图鉴里 chip 的排序依据；`panels.js` 会按**实际条数降序**再排一遍，
+          所以这里按「鱼 → 其他水生」的直觉顺序写就行。
+       ⚠️ 标签写的是**画法**的名字，不是分类学 —— `puffer` 里含翻车鲀、`bottom` 里含鲶，
+          所以写「鲀形」「底栖鱼形」而不是「河鲀」「鲶」。 */
+    slender   : '细长鱼形',
+    minnow    : '溪流小鱼形',
+    deep      : '高体鱼形',
+    carp      : '鲤形',
+    reef      : '礁岩鱼形',
+    perch     : '鲈形',
+    bottom    : '底栖鱼形',
+    catfish   : '鲶形',
+    fangfish  : '深海巨口形',
+    flatfish  : '比目形',
+    sturgeon  : '鲟形',
+    mackerel  : '鲭形',
+    billfish  : '旗剑形',
+    anglerfish: '鮟鱇形',
+    puffer    : '鲀形',
+    seahorse  : '海马形',
+    pomfret   : '鲳形',
+    salmon    : '鲑形',
+    manta     : '蝠鲼形',
   },
 
   /* 是否把「设计时长」也当作硬性解锁门槛。

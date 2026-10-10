@@ -539,8 +539,12 @@ SHAPES = {
                 "fin": "fins", "finSafe": "fins"},
     "whale":   {"d": "a bulky rounded body with a broad horizontal tail fluke and a small set-back dorsal fin",
                 "fin": "fluke", "finSafe": "fluke"},
-    "dragon":  {"d": "a long sinuous serpentine body with a spiny dorsal ridge and whisker barbels",
-                "fin": "fins", "finSafe": "fins"},
+    # 🔴 2026-10-10 用户口径：「**龙之类的提示词可以让其完全不像鱼，显得炫酷一点就好**」
+    #    ⇒ 从「有须的蛇」改成「脊柱 + 冠 + 从肩后掠出的长鳍翼」——
+    #    三个都是**一眼不像鱼**的部件，且都只写构造、不点物种名。
+    #    ⚠️ 改这一条会让**全部 13 条龙**的提示词变化（卡会过期）—— 用户要的就是这个。
+    "dragon":  {"d": "a long sinuous serpentine body that coils through the water, a tall crest of spines standing along the whole back, long fin-wings sweeping back from behind the head",
+                "fin": "fin-wings", "finSafe": "fin-wings"},
     # ⚠️ 下面 3 条的 `d` **只写构造、不写动物名**（写了就是给模型下物种指令）
     "crustacean": {"d": "a jointed body under a hard segmented shell, a row of small jointed legs beneath it and a fan-shaped tail",
                 "fin": "claws", "finSafe": "limbs"},
@@ -557,7 +561,92 @@ SHAPES = {
                 "fin": "shell ridge", "finSafe": "shell ridge"},
     "turtle":  {"d": "a domed armoured shell over a flattened body, four broad paddle-shaped limbs and a small head on a short neck",
                 "fin": "flippers", "finSafe": "flippers"},
+    # ── 2026-10-10 再加 3 个（用户口径：「甲壳类、沙蚕、蟹是不是太多了…改成深海中那种奇形怪状的水生生物」） ──
+    # 三个**固着 / 漂浮**的深海奇形：既不是水母（没有伞盖）也不是沙蚕（有柄有冠）。
+    "crinoid": {"d": "a long jointed stalk rising from a holdfast, topped by a crown of feathery arms that fan out like a flower",
+                "fin": "feathery arms", "finSafe": "arms"},
+    "siphonophore": {"d": "a small gas-filled float at the top with a long chain of small swimming bells and trailing threads hanging beneath it",
+                "fin": "trailing threads", "finSafe": "trailing threads"},
+    "anemone": {"d": "a squat muscular column fixed at the base, topped by one wide crown of thick tapering tentacles",
+                "fin": "tentacle crown", "finSafe": "tentacles"},
+    # ══════════════════════════════════════════════════════════════════════
+    # 🔴 2026-10-10 把「通用鱼形」细分成 17 个体型
+    #    用户口径：「通用鱼这个分类也有点大，可以体型再细分画风，例如鲟鱼和普通鱼
+    #    长得就不一样。我希望同一个体型的生物最好不要超过 20 个」
+    #
+    # 为什么非拆不可：`fish` 一个键压着 **185 条**（占全鱼表 51%），而里面既有鲟鱼、
+    #   比目鱼、海马、鮟鱇、旗鱼，也有鲤鱼和沙丁鱼 —— 图鉴按体型筛选时「通用鱼形」
+    #   一屏 185 条，等于没有分类；程序化剪影也只能全画成「卵圆 + 叉尾」那一种。
+    #
+    # ⚠️ 三条纪律（改这张表前先读）：
+    #   ① 每条 `d` **只写构造、不点自己的名**（`verify §33-c ⑤e` 按词边界扫键名）。
+    #      `slender` / `deep` / `bottom` 这几个键本身是常用词，句子要绕开它们。
+    #   ② `fin` / `finSafe` 一律写 **"fins"**（`puffer` / `seahorse` 也是 "fins"）——
+    #      `finSafe` 只在有查证 `form` 时用，而 `RARITY[rar]` 会把它拼进「加长某个部件」。
+    #      写成 `fins` 的唯一好处是：**这 185 条的稀有度句逐字不变**，已出的卡不算过期。
+    #   ③ 不往 `SHAPE_WORDS` 里加条目（除 `flatfish` / `manta` 两处**措辞确实错了**的）。
+    #      新体型全部走 `COLOR_TOKEN_DEFAULTS` ⇒ 前面五个钓场的提示词**一个字节都不变**，
+    #      改的只是「分类」与 SS/SSS 的锚点句。
+    # ══════════════════════════════════════════════════════════════════════
+    # ── 普通鱼按体深与头部构型分（6 个）──
+    "slender": {"d": "a long narrow body tapered at both ends, with a small forked tail and the fins set far back",
+                "fin": "fins", "finSafe": "fins"},
+    "minnow":  {"d": "a small compact body with a blunt rounded head and a short soft tail",
+                "fin": "fins", "finSafe": "fins"},
+    "deep":    {"d": "a tall laterally flattened body almost as high as it is long, with a small narrow tail",
+                "fin": "fins", "finSafe": "fins"},
+    "carp":    {"d": "a heavy thick-set body with large scales, a long dorsal fin and short barbels at the mouth",
+                "fin": "fins", "finSafe": "fins"},
+    "reef":    {"d": "a stout big-headed body with a heavy jaw, thick lips and a rounded tail",
+                "fin": "fins", "finSafe": "fins"},
+    "perch":   {"d": "a forward-leaning body with two separate dorsal fins and sharp spiny fin rays",
+                "fin": "fins", "finSafe": "fins"},
+    # ── 底栖与深海奇形（2 个）──
+    "bottom":  {"d": "a broad flattened head with eyes set high on top and wide pectoral fins spread out sideways",
+                "fin": "fins", "finSafe": "fins"},
+    "fangfish": {"d": "a gaunt narrow body with an enormous gaping jaw of needle teeth and a small tapering tail",
+                 "fin": "fins", "finSafe": "fins"},
+    # ── 一眼可辨的独立体型（9 个）──
+    "flatfish": {"d": "a flat oval body lying on one side, both eyes crowded onto the upper side, a fin fringe running all the way round it",
+                 "fin": "fins", "finSafe": "fins"},
+    "sturgeon": {"d": "an armoured body with rows of bony plates down the back and flanks, a long pointed snout with barbels beneath it, and a tail that sweeps up into the upper lobe",
+                 "fin": "fins", "finSafe": "fins"},
+    "mackerel": {"d": "a sleek spindle body with a row of small finlets behind the back and tail fins, and a deeply forked tail",
+                 "fin": "fins", "finSafe": "fins"},
+    "billfish": {"d": "a long rigid spear-like snout, a tall stiff sail standing on the back, and a slender body",
+                 "fin": "fins", "finSafe": "fins"},
+    "anglerfish": {"d": "a huge gaping jaw on a short rounded body, with a stalked lure hanging above the head",
+                   "fin": "fins", "finSafe": "fins"},
+    "puffer":  {"d": "a round inflated body covered in small plates, with tiny fins and almost no tail",
+                "fin": "fins", "finSafe": "fins"},
+    "seahorse": {"d": "an upright body balanced on a curled grasping tail, with a long tube snout and a small fin at the back",
+                 "fin": "fins", "finSafe": "fins"},
+    "catfish": {"d": "a wide flat head with long thin barbels trailing from the mouth and a smooth scaleless body",
+                "fin": "fins", "finSafe": "fins"},
+    # 鲳与鲑单列：鲳是「短圆无叉尾」，鲑是「流线 + 背鳍后一枚小脂鳍」——
+    # 两者都常在搜索里被当成通用鱼形，但剪影都各有辨识点（见 `fishart.js` 的 `FISH_VARIANTS`）
+    "pomfret":  {"d": "a short deep body with a blunt rounded head and a small tail that is barely forked",
+                 "fin": "fins", "finSafe": "fins"},
+    "salmon":   {"d": "a streamlined muscular body with a small fleshy fin set far back behind the dorsal fin",
+                 "fin": "fins", "finSafe": "fins"},
+    "manta":   {"d": "a vast flattened body spread into two wide wings, a pair of horn-like fins before the mouth and a long thin tail",
+                "fin": "wings", "finSafe": "wings"},
 }
+
+# ────────────────────────────────────────────────────────────────────────────
+# 🔴 **「鱼形家族」**（2026-10-10 加）—— 所有「有鳍、有背腹、侧视成立」的鱼形体型。
+#
+# 为什么要有这张表：把 `fish` 拆成 17 个体型之后，代码里那些 `shape == "fish"` 的门禁
+#   全部**静默失效** —— 177 条鱼的比例句 / 科属特征 / 花纹 / 棘 / 须 / 牙齿当场消失，
+#   而且不报错（提示词只是「短了一句」）。所以门禁一律改成**按集合判**：
+#   比例句、名字族、花纹族、`FEATURE` 的七个特征位、`SPINE_SHAPES`、`TORSO_SHAPES`。
+#
+# ⚠️ 判据：`verify §33-c` 会静态扫「`== "fish"` 这种写法还在不在 gen-art.py 里」——
+#    再加体型时**只改这一张表**，别回去写单键比较。
+# ⚠️ `manta` **不在**这里面：它来自 `ray`，走的是鳐的措辞（`SHAPE_WORDS["manta"]`）。
+FISH_SHAPES = ("fish", "slender", "minnow", "deep", "carp", "reef", "perch", "bottom",
+               "catfish", "fangfish", "flatfish", "sturgeon", "mackerel", "billfish",
+               "anglerfish", "puffer", "seahorse", "pomfret", "salmon")
 # `fin` 与 `finSafe` 的区别（2026-10-08 加）：
 #   · `fin`     —— **没有查证过的 `form` 时**用，可以点具体部位（"side fins" / "crest fin"）；
 #   · `finSafe` —— **有查证过的 `form` 时**用，必须是**不点名物种的通用部件词**。
@@ -670,6 +759,65 @@ SHAPE_WORDS = {
         "light": "strong rim light along the carapace and the flippers",
         "scope": "the whole creature including the head and the flippers",
     },
+    # ── 2026-10-10 再加 3 个（用户口径：「甲壳类、沙蚕、蟹是不是太多了…改成深海中那种奇形怪状的水生生物」） ──
+    # 三个都**没有眼**（海百合 / 管水母 / 海葵都不长眼睛），朝向也各不相同：
+    #   海百合「冠朝上」、管水母「竖直垂挂」、海葵「坐在底上」。
+    "crinoid": {
+        "tokens": {"part": "feathery arms", "partsg": "arm", "sides": "stalk",
+                   "head": "crown", "under": "lower stalk", "over": "upper stalk",
+                   "surface": "plates"},
+        "no_eye": True,
+        "frame": "full side view, whole creature visible, the crown held up",
+        "light": "strong rim light along the crown and the stalk",
+        "scope": "the whole creature including the crown and the stalk",
+    },
+    "siphonophore": {
+        "tokens": {"part": "trailing threads", "partsg": "thread", "sides": "chain",
+                   "head": "float", "under": "lower chain", "over": "upper chain",
+                   "surface": "bells"},
+        "no_eye": True,
+        "frame": "full side view, whole creature visible, hanging vertically",
+        "light": "strong rim light along the float and the chain",
+        "scope": "the whole creature including the float and the chain",
+    },
+    "anemone": {
+        "tokens": {"part": "tentacles", "partsg": "tentacle", "sides": "column",
+                   "head": "crown", "under": "base", "over": "upper column",
+                   "surface": "column"},
+        "no_eye": True,
+        "frame": "full side view, whole creature visible, seated on the bottom",
+        "light": "strong rim light along the crown and the column",
+        "scope": "the whole creature including the crown and the column",
+    },
+    # 龙（2026-10-10 用户口径：完全不像鱼、炫酷）—— 之前它走的是 `fish` 的默认值（"fins"）
+    "dragon": {
+        "tokens": {"part": "fin-wings", "partsg": "fin-wing", "sides": "flanks",
+                   "head": "head", "under": "belly", "over": "back",
+                   "surface": "scales"},
+        "light": "strong rim light along the crest and the fin-wings",
+        "scope": "the whole creature including the head, the crest and the fin-wings",
+    },
+    # ── 2026-10-10 新增：**只有措辞确实错了的**两条才覆写（其余 17 个新体型走默认值，
+    #    这样前面五个钓场的 185 条提示词逐字不变，已出的卡不算过期）──
+    # 比目鱼：它**躺在海底**，朝上那面是「有眼面」、贴地那面是「盲面」；
+    # 默认的「浅腹 + 深背」对它是错的 —— 实测这类句子会让模型画成一条立着的鱼。
+    # ⚠️ 措辞里**不许出现 `eye` 这个词**：`check_shape_words()` 会把任何 `… eye` 的句子
+    #    当成「无眼物种照抄了一只鱼眼睛」而报错（那条判据管的是 `EYE_CLAUSE_RE` 的粉眼句）。
+    #    所以这里用「upper side / lower side」表达同一件事。
+    "flatfish": {
+        "tokens": {"part": "fin fringe", "partsg": "fin ray", "sides": "upper side",
+                   "head": "head", "under": "lower side", "over": "upper side",
+                   "surface": "plates"},
+        "shade": "a clearly lighter lower side and a darker upper side",
+        "light": "strong rim light along the upper side and the fin fringe",
+        "scope": "the whole creature including the head and the fin fringe",
+    },
+    # 蝠鲼：从 `ray` 拆出来的翼状版，措辞与 `ray` 同源（不是「盘」而是「翼」）
+    "manta": {
+        "tokens": {"part": "wings", "partsg": "wing", "sides": "body",
+                   "under": "lower surface", "surface": "skin"},
+        "scope": "the whole creature including the head and the wings",
+    },
 }
 
 # 颜色句里的占位符默认值 —— **`fish` / `shark` / `eel` / `oarfish` / `dragon` 全走默认值**，
@@ -695,7 +843,7 @@ COLOR_TOKEN_DEFAULTS = {"part": "fins", "partsg": "fin", "sides": "flanks", "hea
 #
 # ⚠️ 覆写是**逐键合并**：没写的键继续吃体型层与默认值（所以不必把 7 个占位符抄全）。
 # ⚠️ 每一条的覆写理由都写在自己那行上面：**这是「按物种的解剖事实」改，不是为了好看**。
-# ⚠️ 它**不许**覆盖 `shape == "fish"` 的条目（`verify §33-c` 的 ⑤b3 盯着）——
+# ⚠️ 它**不许**覆盖「鱼形家族」（`FISH_SHAPES`）里的条目（`verify §33-c` 的 ⑤b3 盯着）——
 #    鱼族的提示词逐字不变是「已出的卡不被误判成过期」的前提。
 SPECIES_WORDS = {
     # 🔴 2026-10-09 第二轮：这 5 条**已经有了自己的体型**（`crustacean` / `star` / `worm`），
@@ -834,20 +982,27 @@ def check_shape_words():
 # —— 尾型：**只对有独立尾鳍、且 tail 字段说得通的体型成立** ——
 #    eel 无独立尾鳍 / ray 是鞭尾且已在体型描述里 / squid 是三角鳍 / jelly 没有 /
 #    whale 的 tail 字段给不出 fluke 的正确说法（所以鲸的尾写在形态句里）。
-TAIL_SHAPES = ("fish", "shark", "dragon", "oarfish")
+# ⚠️ 2026-10-10 起按 `FISH_SHAPES` **集合**取（原先只写 `"fish"`）——
+#    细分体型后单键比较会把 180 条鱼的尾型判断整体绕过。海马没有尾鳍，单独排除。
+TAIL_SHAPES = tuple(s for s in FISH_SHAPES if s != "seahorse") + ("shark", "dragon", "oarfish")
 TAIL = {"fan": "fan-shaped", "fork": "deeply forked", "lunate": "crescent-shaped",
         "round": "rounded", "whip": "long whip-like"}
 
 # —— 特征位：**按体型过滤**（水母不长背棘、鲸没有须）——
 #    glow 是通用的「边缘发光」，其余都要看体型。
+# ⚠️ 2026-10-10 起「鱼形家族」一律写 `FISH_SHAPES` 而不是 `"fish"`：
+#    细分体型后写单键 ⇒ 鲶鱼的须、鲤鱼的棘、比目鱼的斑点会**静默消失**（不报错）。
+#    `FINNED` 就是「有鳍、能有背棘」的那批（鱼形 + 鳗 + 龙 + 鲨 + 皇带）。
+FINNED = FISH_SHAPES + ("eel", "dragon", "shark", "oarfish")
 FEATURE = {
-    "spiny":   ("sharp spines along the back", ("fish", "eel", "dragon", "shark", "oarfish")),
-    "barbels": ("long thin whisker barbels", ("fish", "eel", "dragon")),
+    "spiny":   ("sharp spines along the back", FINNED),
+    "barbels": ("long thin whisker barbels", FISH_SHAPES + ("eel", "dragon")),
     "glow":    ("a soft glowing edge along the outer silhouette", tuple(SHAPES)),
-    "teeth":   ("small sharp visible teeth", ("fish", "shark")),
-    "lure":    ("a glowing lure on a stalk above the head", ("fish", "dragon")),
-    "stripes": ("vertical stripes down the body", ("fish", "shark", "eel")),
-    "spots":   ("round spots on the body", ("fish", "shark", "ray")),
+    "teeth":   ("small sharp visible teeth", FISH_SHAPES + ("shark",)),
+    "lure":    ("a glowing lure on a stalk above the head", FISH_SHAPES + ("dragon",)),
+    "stripes": ("vertical stripes down the body", FISH_SHAPES + ("shark", "eel")),
+    # ⚠️ `manta` 要跟着 `ray` 一起加上：从鳐拆出去之后，斑点句只认 `ray` 会把蝠鲼的斑点丢掉
+    "spots":   ("round spots on the body", FISH_SHAPES + ("shark", "ray", "manta")),
 }
 
 # —— 稀有度：只改**某个部件的长度**，绝不用「精细词」（坑 3）——
@@ -861,7 +1016,7 @@ RARITY = [
     "long swept-back {fin}",
     "long layered overlapping {fin}{extra}",
 ]
-SPINE_SHAPES = ("fish", "eel", "dragon", "shark", "oarfish")
+SPINE_SHAPES = FINNED
 
 # ────────────────────────────────────────────────────────────────────────────
 # 🔴 **传说级（rar == 3）的「点题奇幻元素」**（2026-10-09，用户口径：
@@ -984,7 +1139,7 @@ DEEP_LINES = {
     'SS18': 'A stony tube-worm plated like a meteorite crust. Its crown of gills is made of thick slabs of stone with dark metal packed into the seams.',
     'SS19': 'A night-sheen ragworm, a long polished line of night. Its back runs matte black with a slate sheen and its underside stays pale.',
     'SS20': 'A broken-star ray whose disk has splintered. Its wing plates are cracked and chipped, several pieces broken clean away.',
-    'SS21': 'A still shell, an unnaturally quiet thing. Its surface is ghost-pale and almost entirely unmarked.',
+    'SS21': 'A still anemone, an unnaturally quiet thing. Its column is ghost-pale and almost entirely unmarked.',
     'SS22': 'A rime-scaled salmon, cold to the touch. A frost-white film creeps over its whole body, every plate sealed under rime.',
     'SS23': 'A phantom brittle star, more suggestion than body. Its arms are pale and soft-edged, the pattern barely present at all.',
     'SS24': 'A star-fragment seahorse, brittle as a dried crumb of light. Its ridged plates are pale and crumbly, flecked with tiny bright chips.',
@@ -1002,14 +1157,14 @@ DEEP_LINES = {
     'SS36': 'A fallen-lantern shell, dulled and dented by its descent. Dented plates are jammed together around the whole coil.',
     'SS37': 'A star-eclipse crab, the dark where a star used to be. A wide dark patch eats into one side of the shell, swallowing the colour as it spreads.',
     'SS38': 'A hollow-hour pomfret, old before its own shape was settled. Its whole surface is dulled and ancient, the plates worn down to soft bevels.',
-    'SS39': 'A shattered-meteor ragworm, its long body broken in places. Long cracks cross its papery segments with raw dark ore showing along them.',
+    'SS39': 'A shattered-meteor sea lily, its long stalk broken in places. Long cracks cross its papery stem with raw dark ore showing along them.',
     'SS40': 'A star-gauze jelly, a veil of thin colour. Its dome is made of layered pale sheets with colour suspended between them.',
     'SS41': 'A dim sea-dragon, a long cold thing of the deep. Its body is deep dull blue, darkening along the spine.',
     'SS42': 'A flat meteor-core flounder with its heavy centre exposed. A dark stone core sits in the middle of its body and the flat plates radiate outward from it.',
     'SS43': 'A void-light anglerfish carrying a thin splinter of emptiness. A narrow cold band runs down its flank and its skin is grey and empty.',
     'SS44': 'A dark-matter ray made of what nothing else is made of. Its disc is matte black with a cold grey edge and no pattern at all.',
     'SS45': 'A fallen-star ray, gliding as if it were still dropping. Its disk is layered dark stone and the edge plates are bent back.',
-    'SS46': 'A void coil whose whorls do not quite hold together. Its outline dissolves at the edges into colourless grey.',
+    'SS46': 'A void siphonophore whose long chain does not quite hold together. Its outline dissolves at the edges into colourless grey.',
     'SS47': 'An armoured meteor-sturgeon, ridged and plated along the whole back. Ranks of stone scutes run down its spine, each one chipped at the edge.',
     'SS48': 'A star-fragment octopus wrapped in a mantle of debris. Pale chips of stone are stuck all over its mantle in irregular rows.',
     'SS49': 'A falling-star sailfish whose bill is a splinter of meteor. The bill is one long shard of dark stone and its body is plated in chips.',
@@ -1017,7 +1172,7 @@ DEEP_LINES = {
     'SS51': 'A sky-tearing ragworm with a single long split down its back. The split widens toward the rear and its edges are bared as raw stone.',
     'SS52': 'The trench-eyed giant crab, one eye opening into depth. A deep hollow is set behind the front edge of the shell, opening into black.',
     'SS53': 'A fallen leviathan that landed once and never quite recovered. Its hide is crushed stone, roughly layered with dark ore packed into the creases.',
-    'SS54': 'A first-age ragworm, older than the sea it crawls in. Its hide is rough weathered stone with the grain running along its length.',
+    'SS54': 'A first-age sea lily, older than the sea it stands in. Its hide is rough weathered stone with the grain running along its length.',
     'SS55': 'A fallen-star colossal squid. Its mantle is a single dark slab of stone and its arms are layered pale metal.',
     'SS56': 'The void-jelly sovereign, drifting as a hollow crown. Its dome is bare grey, emptied of colour from the crown to the edge.',
     'SS57': 'An iron-meteor shark whose jaws are set with slabs of ore. Metal-stone slabs are wedged along its jawline and dark chips break out across its hide.',
@@ -1030,18 +1185,18 @@ DEEP_LINES = {
     'SS64': 'A star-fragment herring that swims in loose shoals of light. Its scales are pale flecks, gathered thickest along the belly.',
     'SS65': 'A grit-meteor seabass with sand fused into its scales. Ground mineral grit is welded over its flanks in rough plates.',
     'SS66': 'A faint-glimmer pomfret barely holding its own light. Only a thin wash of pale flecks remains on its flanks.',
-    'SS67': 'A dark-reef shell, stone-coloured and still. Its shell is rough dark stone with the coils held tight together.',
+    'SS67': 'A dark-reef anemone, stone-coloured and still. Its column is rough dark stone with the plates held tight together.',
     'SS68': 'A fallen-star eel, a thin dark seam of the sky. Broken facet edges run down its whole length.',
     'SS69': 'A fallen ray, heavy and grounded. Its disc is packed with dark ore and chipped at the rims.',
     'SS70': 'A void-pomfret, weightless and colourless. Its body thins away at the edges until only bare grey remains.',
-    'SS71': 'A small eclipse-crab, half of it gone dark. One side of the shell is swallowed by a black patch that thins toward the belly.',
+    'SS71': 'A small eclipse-anemone, half of it gone dark. One side of the column is swallowed by a black patch that thins toward the base.',
     'SS72': 'The iron-meteor shark-king, a single mass of fused metal. Its whole body is one dark ore mass and the outer slabs split into hard chips.',
     'SS73': 'A star-core oarfish, a long ribbon with a hard centre. A single bright polygon is set deep in its chest and the ribbon body runs past it.',
     'SS74': 'A colossal deep blue ray, gliding very slowly. Its wings are matte deep blue with the colour thickening outward.',
     'SS75': 'A fallen-star leviathan carrying the end of the sky inside it. Its hide is polished star-stone and long dark seams of dead metal run its full length.',
     'SS76': 'The scaled sovereign of the fallen stars, crowned along the spine. Every plate of its hide is a slab of dark sky-stone laid in overlapping ranks.',
     'SS77': 'A pale moon-deity gliding on wide wings over the trench floor. Its wings are thin silver stone veined with cold mineral seams.',
-    'SS78': 'A crown-worm of the fallen sky, its long body split by one long crack. The crack runs the whole length of it with the break bared as raw dark ore.',
+    'SS78': 'A crown-anemone of the fallen sky, its column split by one long crack. The crack runs the whole length of it with the break bared as raw dark ore.',
     'SS79': 'The last chapter of the abyss, wearing a hide of swallowed stars. Clusters of pale points are packed into its chest plates, fading toward the tail.',
     'SS80': 'A ray that rules the endless night, half its mass given to emptiness. Its skin is matte void-black stone, cooling to a grey edge along the wings.',
     # ── SSS 100 ────────────────────────────────────────────────────────────
@@ -1050,23 +1205,23 @@ DEEP_LINES = {
     'SSS03': 'A zero-degree butterflyfish, cold past freezing. A pale frost-white film lies across its body with every plate sealed.',
     'SSS04': 'A yesterday shell, worn by the day that has just ended. Great patches of its coil are rubbed smooth and pale.',
     'SSS05': 'A relic killifish, small and worn down. Its surface is rubbed pale in patches from nose to tail.',
-    'SSS06': 'An empty-hour shell whose whorls never filled in. Its middle never took any colour, leaving a coil of bare grey stone.',
+    'SSS06': 'An empty-hour anemone whose column never filled in. Its middle never took any colour, leaving a column of bare grey stone.',
     'SSS07': 'A single-instant bitterling, caught mid-motion. Its whole surface is held still, frozen in the middle of a move.',
     'SSS08': 'A fleeting-moment brittle star. Its arms are frozen mid-turn with the surface held unnaturally still.',
     'SSS09': 'A blink jelly. Its whole bell is caught mid-motion and held perfectly still.',
-    'SSS10': 'A single-quarter-hour crab. Its shell is held still, as if time had stopped inside it.',
+    'SSS10': 'A single-quarter-hour siphonophore. Its whole chain is held still, as if time had stopped inside it.',
     'SSS11': 'A passing-time ray. Long slow bands of light lie along its flat disc.',
     'SSS12': 'An amber bream holding something inside it. A deep amber core lies within its plates, thick and slowly deepening.',
     'SSS13': 'A relic grouper, heavy with age. Whole regions of its hide are worn away to smooth pale stone.',
-    'SSS14': 'A last-echo ragworm still carrying a sound that has ended. Widening pale bands ripple back along its segments.',
+    'SSS14': 'A last-echo siphonophore still carrying a sound that has ended. Widening pale bands ripple back down its chain.',
     'SSS15': 'A silent shell with its markings held back. Its surface is still and almost unmarked.',
     'SSS16': 'A dust-hour ragworm packed with the fine grit of passing time. Grey sand-grain is packed over its segments in even layers.',
     'SSS17': 'A first-snow trout. A pale frost-white film covers its body, cleaner along the back.',
     'SSS18': 'An hourglass jelly, narrow at the waist. Pale grain runs through its bell, pinched thinner in the middle.',
     'SSS19': 'An echo bass answering itself. Pale bands repeat down its body and weaken with every return.',
-    'SSS20': 'An old-day shell. Its coil is worn smooth and pale in broad patches.',
+    'SSS20': 'An old-day sea lily. Its feathery crown is worn smooth and pale in broad patches.',
     'SSS21': 'A bream carved out of its own years. Deep age-bands are cut straight through its whole body, band after band.',
-    'SSS22': 'An unfinished-hour crab with its last band still forming. The bands on its shell fade out before they reach the rim.',
+    'SSS22': 'An unfinished-hour anemone with its last band still forming. The bands on its column fade out before they reach the crown.',
     'SSS23': 'A star-track brittle star whose arms are a line of travel. A long pale line runs the whole length of every arm and fades at the tips.',
     'SSS24': 'A void jelly. Its outline fades at the edges into empty grey.',
     'SSS25': 'A yesterday ragworm, already faded though its day has just passed. Pale worn patches cover much of its hide in broad soft shapes.',
@@ -1090,7 +1245,7 @@ DEEP_LINES = {
     'SSS43': 'An empty-hour anglerfish whose bright lure went out long ago. The rod above its eyes hangs slack with a pinched grey thread at the end.',
     'SSS44': 'A thousand-faced octopus with no two parts alike. Every plate on its mantle holds a different tone from its neighbours.',
     'SSS45': 'A reverse-void shark. Pale lines reverse along its flanks into flat grey.',
-    'SSS46': 'A light-tracing ragworm following light back to its source. Pale lines run back along its segments and thin out at the rear.',
+    'SSS46': 'A light-tracing anemone following light back to its source. Pale lines run back down its column and thin out at the base.',
     'SSS47': 'An old-day jelly. Its dome is worn thin and pale, fraying along one side.',
     'SSS48': 'A shadow-hour brittle star. A soft shadow band drifts slowly along its arms.',
     'SSS49': 'A loop-time shell whose years close into a circle. A thick pale loop is wound round the middle of its coil and the two ends meet in a seam.',
@@ -1103,48 +1258,48 @@ DEEP_LINES = {
     'SSS56': 'A first-source shelled swimmer that has not yet formed. Its surface is pale and almost colourless, a shape without a pattern.',
     'SSS57': 'A colossal star-dust ray. Pale dust is held in thick layers inside its wings.',
     'SSS58': 'A time-folded leviathan with centuries creased into it. Its hide is stacked in hundreds of thin plates, one for every age.',
-    'SSS59': 'An era-folded abyssal shell, its whole coil layered. Hundreds of thin plates pile along the whorls, each one pressed under the last.',
+    'SSS59': 'An era-folded abyssal sea lily, its whole stalk layered. Hundreds of thin plates pile along the stem, each one pressed under the last.',
     'SSS60': 'A colossal reverse-entropy squid. Its mantle is layered pale stone and the layers reverse direction midway.',
     'SSS61': 'A last-echo sea-dragon, still carrying the sound of something finished. Pale wave-lines run back along its long body and weaken toward the tail.',
     'SSS62': 'A void-winged ray. Its wings are bare grey with the colour gone from them.',
-    'SSS63': 'A passing-time giant-mouth crab. Slow bands of light run across its shell in order.',
+    'SSS63': 'A passing-time wide-mouthed anemone. Slow bands of light run across its column in order.',
     'SSS64': 'A time-scarred flounder, marked where the years crossed it. Thin pale grit-lines cross its flat body in long scored bands.',
     'SSS65': 'A reverse-light cod with its light running the wrong way. Thin light-lines travel backwards along its flanks from tail to head.',
     'SSS66': 'A year-reckoning ragworm. Fine even bands are cut across its segments from front to rear.',
     'SSS67': 'A time-tracing mullet following the years upstream. Pale back-running lines are cut into its sides.',
     'SSS68': 'A torn-page bream with its history half rubbed away. Its flat flanks are worn smooth in large pale patches.',
-    'SSS69': 'A blank-page shell with everything erased from it. Its whole surface is rubbed down to bare pale stone.',
+    'SSS69': 'A blank-page sea lily with everything erased from it. Its whole crown is rubbed down to bare pale stone.',
     'SSS70': 'A forgotten shell, worn where nobody has looked at it. Patches of pale worn stone cover its coil in uneven shapes.',
-    'SSS71': 'A dust-of-the-past ragworm. Fine pale grit lies over its segments in drifts.',
-    'SSS72': 'A late-hour crab. Its shell is worn pale at the front and darkens toward the rear.',
+    'SSS71': 'A dust-of-the-past siphonophore. Fine pale grit lies over its bells in drifts.',
+    'SSS72': 'A late-hour siphonophore. Its float is worn pale at the front and darkens toward the end of the chain.',
     'SSS73': 'A light-gathering brittle star hoarding what others left behind. Thin pale light is caught along its arms, thickest near the disc.',
     'SSS74': 'A reverse-journey flounder travelling back the way it came. Pale lines run backwards across its flat body in even rows.',
-    'SSS75': 'A flowing-year shell. Pale bands flow around its coil one after another.',
-    'SSS76': 'A hollow-coil shell. Its whorls are bare grey stone, worn through in places to show what lies under.',
+    'SSS75': 'A flowing-year siphonophore. Pale bands flow down its long chain one after another.',
+    'SSS76': 'A hollow-stemmed sea lily. Its stem is bare grey stone, worn through in places to show what lies under.',
     'SSS77': 'A hush-hour ragworm. Almost no marking crosses its segments, only a still grey surface.',
     'SSS78': 'A time-sturgeon. Long deep bands run the length of its plated body.',
     'SSS79': 'A back-current ragworm, the longest ribbon of returning water. Back-running pale lines score its whole body.',
     'SSS80': 'A reverse-entropy ray whose own order is running down. Pale lines reverse outward across its wings and fade at the tips.',
-    'SSS81': 'A hollow-hour crab. Its shell is colourless grey, the plates worn down to soft bevels.',
+    'SSS81': 'A hollow-hour sea lily. Its crown is colourless grey, the plates worn down to soft bevels.',
     'SSS82': 'A thousand-year ray whose disk is a record of ages. Deep age-bands are cut across the whole disk, one inside the next.',
     'SSS83': 'A time-gauze jelly, a thin drifting veil. Fine pale grain is suspended in its dome like cloth.',
     'SSS84': 'An empty-year octopus. Its mantle fades at the edges and its arms thin away into grey.',
     'SSS85': 'A reverse-journey crab. Pale back-running lines cross its shell and its front limbs end in dull stone knobs.',
     'SSS86': 'An era-giant shark. Deep bands run along its flanks with dark metal packed between them.',
-    'SSS87': 'A passing-time great dragon. Slow light-bands run the whole length of its body and thin at the tail.',
+    'SSS87': 'A passing-time candle-dragon, its body a long wick of slow years. Light-bands travel the whole length of it and gather in one band behind the head.',
     'SSS88': 'A thousand-year shell grown older than its sea. Deep bands run the whole length of its coil, band after band.',
-    'SSS89': 'A counter-current ragworm. Long pale lines run backwards the full length of its body.',
-    'SSS90': 'A shell folded out of empty time. Its surface is layered pale grey stone and the folds widen toward the rear.',
-    'SSS91': 'An era-dragon. Bands of advancing years are cut down its long body.',
+    'SSS89': 'A counter-current sea lily. Long pale lines run backwards the full length of its stalk.',
+    'SSS90': 'A siphonophore folded out of empty time. Its float is layered pale grey stone and the folds widen toward the tail of the chain.',
+    'SSS91': 'An era-ribbon worm, older than the count it carries. Bands of advancing years are cut down its long soft body, one behind the next.',
     'SSS92': 'The final point of time, vast and shapeless. Its mass is one unbroken slab of dark stone, blank from end to end.',
     'SSS93': 'The shadow of the first source, a serpent of raw chaos. Its hide is broken into irregular plates that do not fit together.',
-    'SSS94': 'An era of endings, crawling in the river of forgetting. Its shell is layered grey stone worn pale in long bands.',
+    'SSS94': 'An era of endings, standing in the river of forgetting. Its stalk is layered grey stone worn pale in long bands.',
     'SSS95': 'The end of time, drifting alone as a vast shapeless mass. Its body is one mass of stacked pale plates with light held between them.',
     'SSS96': 'The first scale of creation, still hardening. Its hide is hardening out of colourless primordial stone with faint light moving inside it.',
-    'SSS97': 'The shadow of the last fisherman, still holding its line. Its body is pale layered stone thinned into a long shadow.',
+    'SSS97': 'The shadow of the last fisherman, still holding its line. Its body is pale layered stone thinned into one long drifting shadow.',
     'SSS98': 'The shell at the end of all eras. Its whorls are layered grey stone and the hollow of the coil shows through.',
     'SSS99': 'The first scale born out of chaos. Its plates never settle into a pattern, each one a different shape.',
-    'SSS100': 'The shadow of the end crossing the river of forgetting. Its shell is worn grey stone faded to pale bands along the upper edge.',
+    'SSS100': 'The shadow of the end crossing the river of forgetting. Its chain is worn grey stone faded to pale bands along the upper edge.',
 }
 
 
@@ -1168,7 +1323,7 @@ DEEP_ANCHOR = {
     "eel": "a long eel-bodied serpent",
     "shark": "a heavy shark-bodied beast",
     "whale": "a colossal leviathan",
-    "dragon": "a colossal coiling sea-serpent",
+    "dragon": "a colossal coiling sea-serpent, all spine and crest, with long fin-wings sweeping back from its shoulders",
     "squid": "a many-armed creature of the deep",
     "ray": "a broad winged ray-like being",
     "jelly": "a drifting jelly-mass",
@@ -1179,6 +1334,31 @@ DEEP_ANCHOR = {
     "crab": "a broad armoured bottom-crawler",
     "shell": "a coiled shell-creature",
     "turtle": "an armoured shelled swimmer",
+    "crinoid": "a feathered stalk-creature of the deep",
+    "siphonophore": "a long drifting chain-creature",
+    "anemone": "a rooted flower-beast of the deep",
+    # ── 2026-10-10 细分「通用鱼形」后新增的 17 条（口径见 `SHAPES` 的注释）──
+    # 每条都要**短而具体**：它进的是 SS/SSS 提示词的第三句（体型锚点），太长会盖过风格句。
+    # ⚠️ `manta` 是鳐的翼状版，锚点里要说「翼」而不是「盘」—— 那是它唯一与 `ray` 的区别。
+    "slender": "a long narrow-bodied fish of the open water",
+    "minnow": "a small compact-bodied fish",
+    "deep": "a tall flat-sided fish, as high as it is long",
+    "carp": "a heavy thick-bodied bottom-feeder",
+    "reef": "a stout big-headed dweller of the rocks",
+    "perch": "a spiny-finned hunting fish",
+    "bottom": "a broad-headed fish resting on the seabed",
+    "catfish": "a whiskered flat-headed bottom-feeder",
+    "fangfish": "a gaunt wide-jawed creature of the abyss",
+    "flatfish": "a flat one-sided creature that lies on the seabed",
+    "sturgeon": "an armoured plated creature with a long snout and barbels",
+    "mackerel": "a sleek swift-bodied fish of the open water",
+    "billfish": "a long-billed racer with a tall sail on its back",
+    "anglerfish": "a huge-jawed creature with a lure hung over its head",
+    "puffer": "a round inflated creature with tiny fins",
+    "seahorse": "an upright creature with a curled tail and a tube snout",
+    "manta": "a vast winged ray-like being with horns before its mouth",
+    "pomfret": "a short deep-bodied fish with a tiny tail",
+    "salmon": "a sleek muscular fish with a small fleshy fin behind its back",
 }
 
 # 🔴 用词纪律（机器强制，判据在 `check_deep_motifs()` 与 `verify` 第 ㊾ 节，按词边界扫）
@@ -1432,7 +1612,10 @@ def palette_color(f):
 # **没有「躯干」这回事**（实测踩过：鳐鱼提示词里冒出 `deep-bodied build`）。
 # ⚠️ `eel` / `oarfish` 也要排除：**它们是细长形，`body_ratio` 对它们没有意义**，
 #    实测海鳗（eel）被写成「deep-bodied build」、裂空皇带（oarfish）同样 —— 荒谬。
-TORSO_SHAPES = ("fish", "shark", "whale", "squid", "dragon")
+# ⚠️ 2026-10-10：按 `FISH_SHAPES` 集合取（原先只有 `"fish"`）；海马没有「体深」，
+#    `pomfret` / `flatfish` 的体深也不是「躯干胖瘦」的意思 —— 三个都排除。
+TORSO_SHAPES = tuple(s for s in FISH_SHAPES
+                     if s not in ("seahorse", "flatfish")) + ("shark", "whale", "squid", "dragon")
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -1445,8 +1628,9 @@ TORSO_SHAPES = ("fish", "shark", "whale", "squid", "dragon")
 #
 # ⚠️ 匹配规则是**表序即优先级**，长串必须排在短串前面
 #    （「鮟鱇」要在「鲇」前、「皇带」要在「带」前），否则会被短串截胡。
-# ⚠️ 只在 `shape == "fish"` 时生效 —— 鳐 / 鲸 / 鲨 / 水母 等已有专属模板，
-#    名字族再去描述形态会打架。
+# ⚠️ 只在**鱼形家族**（`FISH_SHAPES`，含细分出来的 19 个新体型）时生效 ——
+#    鳐 / 鲸 / 鲨 / 水母 等已有专属模板，名字族再去描述形态会打架。
+#    ⚠️ 判据是集合不是单键：写 `== "fish"` 会让 180 条鱼的科属特征句静默消失（2026-10-10）
 # ────────────────────────────────────────────────────────────────────────────
 NAME_HINTS = [
     # —— 多字专名（必须先匹配）——
@@ -1560,7 +1744,7 @@ def stable_pick(fid, salt, options):
 
 def name_hint(f):
     """按鱼名匹配合适的形态描述。找不到返回空串（由 body_ratio 兜底）。"""
-    if f.get("shape") != "fish":       # 其他体型有专属模板，不掺和
+    if f.get("shape") not in FISH_SHAPES:   # 其他体型有专属模板，不掺和
         return ""
     name = f.get("name", "")
     for key, desc in NAME_HINTS:
@@ -1756,16 +1940,18 @@ def species_tag(f):
 def proportion_line(f):
     """由 `body_ratio`（≈ 体深 / 体长）生成显式比例句。返回空串表示不写。
 
-    ⚠️ **只对 `shape == "fish"` 生效**。比例句的引导词写的是「a slender elongated **fish**」，
+    ⚠️ **只对「鱼形家族」`FISH_SHAPES` 生效**。比例句的引导词写的是「a slender elongated **fish**」，
        所以对**非鱼**的体型用它会造成两个错误：
        ① **类别错误** —— 章鱼 / 鱿鱼 / 水母 / 鲸 都不是鱼（实测拼出过「章鱼 = a moderately
           slender fish」）；
        ② **框架不成立** —— 鳐是扁盘、水母没有「体深」、鳗 / 皇带是长带，
           「体深占体长几分之几」对它们没有意义。
-       非 `fish` 体型的鱼靠**物种名 + 已清洗的 form** 描述即可（它们的名字本身就带形态线索：
+       非鱼形体型的鱼靠**物种名 + 已清洗的 form** 描述即可（它们的名字本身就带形态线索：
        「鲨」「鲸」「鳐」「水母」「皇带」「章鱼」）。
+    🔴 判据是**集合**不是单键（2026-10-10）：原先写的是 `!= "fish"`，把通用鱼形拆成 19 个
+       体型之后，那 180 条的比例句会**当场全部消失**且不报错（提示词只是少一句）。
     """
-    if f.get("shape", "fish") != "fish":
+    if f.get("shape", "fish") not in FISH_SHAPES:
         return ""
     r = f.get("body_ratio")
     if not r or r <= 0:
@@ -1837,7 +2023,8 @@ def build_prompt(f, morph=None):
     if name_tag:
         subject, bits = "a " + name_tag + ", ", []
     elif verified:
-        subject, bits = ("a fish, " if shape == "fish" else ""), []
+        # ⚠️ 类目词只给**鱼形家族**（判集合，别判单键 —— 见 `FISH_SHAPES` 的注释）
+        subject, bits = ("a fish, " if shape in FISH_SHAPES else ""), []
     elif prop:
         # 比例句自带冠词（"a slender elongated fish…"），此时不能再写 "a single"
         subject, bits = "", [spec["d"]]
@@ -1895,7 +2082,7 @@ def build_prompt(f, morph=None):
 
     # ④ 体表花纹 —— 查证过的逐条特征最优先，其次按科属字给**真实倾向**，
     #    两者都没有就**不写**（⛔ 不许随机抽，见 MARK_BY_FAMILY 的注释）
-    if shape == "fish" and not any(f.get(k) for k in MARKING_KEYS):
+    if shape in FISH_SHAPES and not any(f.get(k) for k in MARKING_KEYS):
         mark = trait_of(f["id"], "markings") or mark_by_family(f.get("name", ""))
         if mark:
             bits.append(mark)

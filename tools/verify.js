@@ -2668,7 +2668,7 @@ let shapeBad = 0;
   }
 
   /* ③ 🔴 2026-10-09 加：**还有两份「体型清单」会跟着漂，而且都不报错** ——
-     ① `docs/画风与颜色标准.md` §7.3「十五种体型句」表：加一个体型就得加一行，
+     ① `docs/画风与颜色标准.md` §7.3「三十七种体型句」表：加一个体型就得加一行，
         原先只有 prose 里的数字被现算比对，**表格行本身没人管**；
      ② `docs/图鉴文案.md` 每条鱼的标题里带 `（稀有度 · shape）` —— 改 `fish.js` 的 shape
         而不重跑 `tools/gen-captions.py`，那张表就静默留着旧键
@@ -2683,7 +2683,7 @@ let shapeBad = 0;
   if (!stdKeys.length) {
     err('读不到「画风与颜色标准 §7.3 体型句表」的键列 —— 表被改名/改格式了？'); shapeBad++;
   } else if (missStd.length) {
-    err(`docs/画风与颜色标准.md §7.3「十五种体型句」表漏了 ${missStd.length} 种体型：${missStd.join(' / ')}`
+    err(`docs/画风与颜色标准.md §7.3「三十七种体型句」表漏了 ${missStd.length} 种体型：${missStd.join(' / ')}`
       + ' —— 它是对外说「这 12 种体型长什么样」的表，缺行 = 标准参考图会漏做');
     shapeBad++;
   }
@@ -2703,6 +2703,19 @@ let shapeBad = 0;
     err(`docs/图鉴文案.md 的体型标签与 fish.js 不一致（${capBad.length} 条）：${capBad.slice(0, 8).join('；')}`
       + ' —— 改 shape 之后忘了重跑 `python tools/gen-captions.py`');
     shapeBad++;
+  }
+  /* ④ 🔴 2026-10-10 用户口径：「我希望同一个体型的生物最好不要超过 20 个」。
+     为什么要有这条：体型一旦超过 20，图鉴按体型筛出来的那一屏就跟没分一样
+     （拆之前 `fish` 一个键压着 185 条 = 全鱼表 51%），而这**不会**触发任何现有判据。
+     ⚠️ 口径是「最好**不要**」⇒ 这里是 `warn` 不是 `err`：真超了由人来决定
+        「改派到别的体型」还是「再拆一个新的」，门禁不该替人拍这个板。 */
+  const over = Object.keys(G.FISH.reduce((a, f) => (a[f.shape] = (a[f.shape] || 0) + 1, a), {}))
+    .filter(k => G.FISH.filter(f => f.shape === k).length > 20)
+    .map(k => `${k}=${G.FISH.filter(f => f.shape === k).length}`);
+  if (over.length) {
+    warn(`有 ${over.length} 个体型超过 20 条（${over.join('、')}）—— 用户口径是`
+      + '「同一个体型最好不要超过 20 个」：要么把其中几条改派到别的体型，'
+      + '要么再拆一个新体型（改法见 `tools/gen-fish.py` 的 FIELD_FISH 表第三列）');
   }
 })();
 if (!shapeBad) ok(`文档里的体型数量与出图工具的覆盖都等于代码里的 ${Object.keys(G.FISH.reduce((a, f) => (a[f.shape] = 1, a), {})).length} 种`);
@@ -2869,17 +2882,43 @@ console.log('\n[33-c] 五档提示词必须复用母版骨架，只换颜色句'
     err(`SPECIES_WORDS 里有不存在的鱼 id：${ghostIds.join('、')}`
       + ' —— id 打错 = 覆写永远读不到，那条鱼照旧收到不属于自己的部件词'); return;
   }
-  /* ⑤b3 物种层只许落在**非 fish 的兜底条目**上 —— 往鱼身上加物种覆写会让
-     「301 条鱼族逐字不变」这条保证悄悄失效（图上什么都看不出来）。 */
-  const onFish = spIds.filter(i => allIds[i].shape === 'fish');
+  /* ⑤b3 物种层只许落在**非鱼形家族**的兜底条目上 —— 往鱼身上加物种覆写会让
+     「鱼族逐字不变」这条保证悄悄失效（图上什么都看不出来）。
+     🔴 2026-10-10：判据从「`shape === 'fish'`」改成「在 `FISH_SHAPES` 里」——
+        通用鱼形拆成 20 个体型之后，写单键会让这条判据**只看得到 1/20 的鱼**
+        （旧写法：把覆写加到「鲤形」的鱼上照样全绿）。集合从 gen-art.py **现算**。 */
+  const fishShapes = ((src.match(/^FISH_SHAPES = \(([\s\S]*?)\)/m) || [, ''])[1].match(/"([a-z_]+)"/g) || [])
+    .map(s => s.slice(1, -1));
+  if (fishShapes.length < 10) {
+    err(`读不到 gen-art.py 的 \`FISH_SHAPES\`（实得 ${fishShapes.length} 个）—— `
+      + '空集会让下面这条判据恒真，所以直接报错；改了写法就来更新本断言'); return;
+  }
+  const onFish = spIds.filter(i => fishShapes.indexOf(allIds[i].shape) >= 0);
   if (onFish.length) {
-    err(`SPECIES_WORDS 覆盖了 fish 体型的条目：${onFish.join('、')}`
+    err(`SPECIES_WORDS 覆盖了鱼形家族的条目：${onFish.join('、')}`
       + ' —— 物种层的用途是救「体型兜底救不回的非鱼类」，加到鱼身上只会让口径漂、且不报错'); return;
   }
   /* ⑤c 自检必须真被调用（「记得手动跑一下」在本项目反复栽跟头） */
   if (!/def check_shape_words\(/.test(src) || !/^check_shape_words\(\)\s*$/m.test(src)) {
     err('check_shape_words() 没定义或**没在模块加载时被调用** —— '
       + '占位符打错 / 不存在的体型名 / 没人替换的 `{xxx}` 会静默写进提示词'); return;
+  }
+  /* ⑤c2 🔴 2026-10-10：**不许再按单键 `== "fish"` 判体型**。
+     通用鱼形拆成 20 个体型之后，任何一处 `shape == "fish"` 都会让 180 条鱼的门禁
+     （比例句 / 名字族 / 花纹族 / 特征位 / 背棘 / 躯干）**静默失效** ——
+     提示词只是「短了一句」，出图照跑、图鉴照显示。
+     判据：gen-art.py 的可执行代码里（注释已剥）`== "fish"` / `!= "fish"` 必须 0 处；
+     改用集合 `FISH_SHAPES`。 */
+  const liveFish = (src.match(/(?:==|!=)\s*"fish"/g) || []).length;
+  if (liveFish) {
+    err(`gen-art.py 里有 ${liveFish} 处按单键比较体型（\`== "fish"\` / \`!= "fish"\`）——`
+      + '改成 `in FISH_SHAPES`（见 `FISH_SHAPES` 的注释：写单键会让 180 条鱼的门禁静默失效）');
+    return;
+  }
+  if (!/^FISH_SHAPES = \(/m.test(src) || !/shape(?:\(\))? .{0,30}in FISH_SHAPES|in FISH_SHAPES/.test(src)) {
+    err('gen-art.py 里没有 `FISH_SHAPES` 这张集合表（或定义了没人用）—— '
+      + '它是「鱼形家族」的唯一真相，加了新体型就该往它里面放');
+    return;
   }
   /* ⑤d 传说级点题只许挂在 `rar == 3` 上，且只许有一处调用 */
   const motHits = (src.match(/fantasy_motif/g) || []).length;
@@ -5673,12 +5712,17 @@ let deepBad = 0;
       + leadMap.slice(0, 80));
     deepBad++;
   }
-  /* 体型锚点：12 个体型一个都不能漏（不点体型时「无相巨鲲」会被画成一条普通大鱼），
+  /* 体型锚点：**每一个真出现过的体型都不能漏**（不点体型时「无相巨鲲」会被画成一条普通大鱼），
      且 `dragon` 的锚点必须是**正面物种词** —— 实测 `dragon` 这个词直接画出四条腿的西方龙，
-     而 `with no legs` 这种否定式反而让它长腿（见 `DEEP_ANCHOR` 的注释）。 */
+     而 `with no legs` 这种否定式反而让它长腿（见 `DEEP_ANCHOR` 的注释）。
+     🔴 2026-10-10：这张清单原来是**手抄的 12 个键**，加了新体型它照样全绿 ——
+        改成从 `fish.js` **现算**（`G.FISH` 里真出现过的 shape），手抄这一步彻底删掉。 */
   const anchorMap = dictBlock('DEEP_ANCHOR');
-  const SHAPE_KEYS = ['fish', 'eel', 'shark', 'whale', 'dragon', 'squid', 'ray', 'jelly',
-    'oarfish', 'crustacean', 'star', 'worm'];
+  const SHAPE_KEYS = Object.keys(G.FISH.reduce((m, f) => { m[f.shape] = 1; return m; }, {})).sort();
+  if (SHAPE_KEYS.length < 10) {
+    err(`第 ㊾ 节的体型清单现算出 ${SHAPE_KEYS.length} 个 —— 空集会让下面这条判据恒真`);
+    deepBad++;
+  }
   const missShape = SHAPE_KEYS.filter(k => !has(anchorMap, '"' + k + '":'));
   if (missShape.length) {
     err('`DEEP_ANCHOR` 少了 ' + missShape.join('、') + ' —— 这几种体型会退回 fish 锚点，'
@@ -5692,7 +5736,8 @@ let deepBad = 0;
   }
 
   if (!deepBad) {
-    ok('SS / SSS 逐条点题在位：' + lits.length + ' 句、12 个体型锚点齐全、模块级加载即校验、'
+    ok('SS / SSS 逐条点题在位：' + lits.length + ' 句、' + SHAPE_KEYS.length + ' 个体型锚点齐全（现算，不手抄）、'
+      + '模块级加载即校验、'
       + '提前 return 且只此一处入口、句子满足用词纪律与 ≥12 词');
   }
 })();

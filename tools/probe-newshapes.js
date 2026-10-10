@@ -1,15 +1,30 @@
 /* 新体型剪影的真浏览器复核（2026-10-10）。
    交给 tools/browser-probe.js 在页面里求值：
      node tools/browser-probe.js "file:///D:/fish%20player/index.html?dev" docs/images/新体型-蟹螺龟.png tools/probe-newshapes.js
-   为什么要有它：本轮新增了 crab / shell / turtle 三个体型，它们的**程序化剪影是人手画的
+   为什么要有它：本轮新增了 19 个体型（通用鱼形细分），它们的**程序化剪影是人手画的
    Bézier**——只看「语法通过」等于没验。这里把 15 个体型各画一张放在页面上，
    连同「有没有画出东西 / 有没有抛错」一起返回，顺便留一张截图给人看。 */
 (async function () {
   var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
   var out = {};
   try {
-    var SHAPES = ['fish', 'eel', 'shark', 'ray', 'squid', 'jelly', 'oarfish',
-                  'whale', 'dragon', 'crustacean', 'star', 'worm', 'crab', 'shell', 'turtle'];
+    /* ⚠️ 体型清单**现算**（`CONFIG.shapeCn` 的键 ∩ 数据里真出现的）——
+       写死的话每加一个体型就要回来改探针，而探针正是「加体型时最该跑」的那个。 */
+    var seenSh = {};
+    G.FISH.forEach(function (f) { seenSh[f.shape] = 1; });
+    var SHAPES = Object.keys(G.CONFIG.shapeCn).filter(function (k) { return seenSh[k]; });
+    /* 🔴 分页（2026-10-10 加）：体型涨到 37 之后，5 列 × 8 行 = 900+px 的板子
+       **一张视口截图拍不全**（`browser-probe` 的全页截图在这个尺寸上会退回视口截图），
+       而下半截恰好是「新加的 19 个」—— 最容易画坏的那批反而看不见。
+       ⇒ URL 上加 `&probe=N` 取第 N 页（每页 20 个），两页都留图。 */
+    var PAGE = (function () {
+      var m = /(?:^|[?&#])probe=(\d+)/.exec(location.search + '&' + (location.hash || ''));
+      return m ? parseInt(m[1], 10) : 0;
+    })();
+    var PER = 20;
+    out.shapeTotal = SHAPES.length;
+    out.page = PAGE;
+    SHAPES = SHAPES.slice(PAGE * PER, PAGE * PER + PER);
     /* 每个体型挑一条代表鱼（现算，不写死：拿数据里第一条该体型的鱼） */
     var pick = {};
     G.FISH.forEach(function (f) { if (!pick[f.shape]) pick[f.shape] = f; });

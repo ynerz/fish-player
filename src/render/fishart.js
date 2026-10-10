@@ -361,6 +361,366 @@ G.FishArt = (function () {
     eye(ctx, L, h, 0.33 * L, -0.13 * h, Math.max(1.4, L * 0.048), p);
   };
 
+  /* =========================================================
+     鱼形家族的 19 个细分体型（2026-10-10）
+     =========================================================
+     用户口径：「通用鱼这个分类也有点大，可以体型再细分画风，例如鲟鱼和普通鱼
+     长得就不一样。我希望同一个体型的生物最好不要超过 20 个」。
+
+     ⚠️ 为什么是**参数化**而不是 19 份手写剪影：
+        `TPL.fish` 已经把「身体 + 尾 + 背鳍 + 胸鳍 + 臀鳍 + 花纹 + 明暗 + 眼 + 须 + 牙 + 诱饵」
+        都写好了，19 个体型里有 14 个只是**比例与部件不同**（细长/高体/鲭/鲑…），
+        重画一遍等于把同一段代码抄 14 次 —— 那正是本项目最忌讳的「第二份真相」。
+        只有**轮廓真的换了原型**的 5 个（圆钝盘 / 扁盘 / 直立 / 翼状 / 巨口）才另写 hull。
+     ⚠️ 每个变体都落在与基准鱼同一量级的外接框里 —— 否则图鉴里大小差一截。
+     ⚠️ 顺序纪律同 `TPL.crab`：**主体先画、外露部件后画**
+        （蟹/龟那轮的教训：附肢先画会被壳整片盖住，语法与门禁全都查不出来）。 */
+
+  // ── 替换用轮廓 ──
+  // 圆钝盘（河鲀 / 翻车鲀）：没有尾柄，体高被封顶（不然 body_ratio 0.78 会画成一根柱子）
+  function hullRound(ctx, L, h) {
+    var ry = Math.min(0.30 * L, 0.56 * h);
+    ctx.beginPath();
+    ctx.ellipse(-0.02 * L, 0, 0.34 * L, ry, 0, 0, Math.PI * 2);
+    ctx.closePath();
+  }
+  // 扁盘（比目鱼）：横宽、竖扁，整体像一片躺着的叶子
+  function hullDisc(ctx, L, h) {
+    var ry = Math.max(0.16 * L, 0.34 * h);
+    ctx.beginPath();
+    ctx.moveTo(-0.46 * L, 0);
+    ctx.bezierCurveTo(-0.40 * L, -ry, 0.14 * L, -ry * 1.16, 0.44 * L, -ry * 0.30);
+    ctx.bezierCurveTo(0.52 * L, 0, 0.52 * L, 0, 0.44 * L, ry * 0.30);
+    ctx.bezierCurveTo(0.14 * L, ry * 1.16, -0.40 * L, ry, -0.46 * L, 0);
+    ctx.closePath();
+  }
+  // 直立（海马）：竖向的 S 形躯干，尾向下卷
+  function hullUpright(ctx, L, h) {
+    ctx.beginPath();
+    ctx.moveTo(0.10 * L, -0.40 * L);
+    ctx.bezierCurveTo(0.22 * L, -0.20 * L, 0.18 * L, 0.06 * L, 0.06 * L, 0.22 * L);
+    ctx.bezierCurveTo(-0.02 * L, 0.34 * L, -0.10 * L, 0.30 * L, -0.12 * L, 0.20 * L);
+    ctx.bezierCurveTo(-0.14 * L, 0.10 * L, -0.06 * L, 0.06 * L, -0.04 * L, -0.10 * L);
+    ctx.bezierCurveTo(-0.02 * L, -0.26 * L, -0.04 * L, -0.36 * L, 0.02 * L, -0.42 * L);
+    ctx.closePath();
+  }
+  // 翼状盘（蝠鲼）：两片大翼 + 头前一对「角」
+  function hullWing(ctx, L, h) {
+    ctx.beginPath();
+    ctx.moveTo(0.30 * L, 0.02 * L);
+    ctx.quadraticCurveTo(0.10 * L, -0.34 * L, -0.34 * L, -0.40 * L);
+    ctx.quadraticCurveTo(-0.52 * L, -0.20 * L, -0.30 * L, -0.02 * L);
+    ctx.quadraticCurveTo(-0.10 * L, 0.06 * L, -0.06 * L, 0.30 * L);
+    ctx.quadraticCurveTo(0.10 * L, 0.22 * L, 0.30 * L, 0.02 * L);
+    ctx.closePath();
+  }
+  // 巨口（鮟鱇 / 深海巨口）：短圆躯干 + 一张开到身长一半的嘴
+  function hullJaw(ctx, L, h) {
+    var ry = Math.min(0.30 * L, 0.62 * h);
+    ctx.beginPath();
+    ctx.moveTo(0.44 * L, -0.06 * L);
+    ctx.bezierCurveTo(0.30 * L, -0.26 * L, 0.02 * L, -ry, -0.18 * L, -ry * 0.86);
+    ctx.bezierCurveTo(-0.36 * L, -ry * 0.60, -0.44 * L, -ry * 0.20, -0.44 * L, 0);
+    ctx.bezierCurveTo(-0.44 * L, ry * 0.22, -0.34 * L, ry * 0.60, -0.16 * L, ry * 0.88);
+    ctx.bezierCurveTo(0.06 * L, ry, 0.30 * L, 0.20 * L, 0.44 * L, -0.06 * L);
+    ctx.closePath();
+  }
+
+  // ── 外露部件（都在主体之后画）──
+  function scutes(ctx, L, h, p) {          // 鲟：背上一列骨板
+    ctx.fillStyle = U.rgba(p.accent, 0.92);
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.5, L * 0.006);
+    for (var i = 0; i < 6; i++) {
+      var x = (0.34 - i * 0.13) * L, y = -0.52 * h * (1 - Math.abs(i - 1.6) * 0.06);
+      ctx.beginPath();
+      ctx.moveTo(x - 0.045 * L, y + 0.03 * h);
+      ctx.lineTo(x, y - 0.10 * h);
+      ctx.lineTo(x + 0.045 * L, y + 0.03 * h);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+  }
+  function fringe(ctx, L, h, p, ry) {      // 比目鱼：周缘一圈连续鳍
+    ctx.save();
+    ctx.strokeStyle = U.rgba(p.accent, 0.9);
+    ctx.lineWidth = Math.max(1.4, ry * 0.30);
+    ctx.beginPath();
+    ctx.moveTo(-0.46 * L, 0);
+    ctx.bezierCurveTo(-0.40 * L, -ry, 0.14 * L, -ry * 1.16, 0.44 * L, -ry * 0.30);
+    ctx.bezierCurveTo(0.52 * L, 0, 0.52 * L, 0, 0.44 * L, ry * 0.30);
+    ctx.bezierCurveTo(0.14 * L, ry * 1.16, -0.40 * L, ry, -0.46 * L, 0);
+    ctx.stroke();
+    ctx.restore();
+  }
+  function sail(ctx, L, h, p) {            // 旗鱼 / 剑鱼：高而挺的背帆
+    ctx.beginPath();
+    ctx.moveTo(0.20 * L, -0.52 * h);
+    ctx.quadraticCurveTo(-0.06 * L, -1.34 * h, -0.34 * L, -0.46 * h);
+    ctx.closePath();
+    ctx.fillStyle = U.rgba(p.accent, 0.92); ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.6, L * 0.008); ctx.stroke();
+  }
+  function snout(ctx, L, h, p, len) {      // 长吻（旗剑 / 鲟）
+    ctx.beginPath();
+    ctx.moveTo(0.44 * L, -0.10 * h);
+    ctx.lineTo(len * L, -0.015 * h);
+    ctx.lineTo(0.44 * L, 0.06 * h);
+    ctx.closePath();
+    ctx.fillStyle = U.rgba(p.accent, 0.95); ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.5, L * 0.007); ctx.stroke();
+  }
+  function finlets(ctx, L, h, p) {         // 鲭：背鳍 / 臀鳍后面那一排小鳍
+    ctx.fillStyle = U.rgba(p.accent, 0.88);
+    for (var i = 0; i < 4; i++) {
+      var x = (-0.16 - i * 0.062) * L;
+      [-0.52 * h, 0.50 * h].forEach(function (y) {
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - 0.02 * L, y + (y < 0 ? -0.11 : 0.11) * h);
+        ctx.lineTo(x - 0.045 * L, y);
+        ctx.closePath(); ctx.fill();
+      });
+    }
+  }
+  function adipose(ctx, L, h, p) {         // 鲑：背鳍后那枚小脂鳍
+    ctx.beginPath();
+    ctx.moveTo(-0.12 * L, -0.54 * h);
+    ctx.quadraticCurveTo(-0.18 * L, -0.76 * h, -0.26 * L, -0.50 * h);
+    ctx.closePath();
+    ctx.fillStyle = U.rgba(p.accent, 0.85); ctx.fill();
+  }
+  function curledTail(ctx, L, p) {         // 海马：向下卷的尾
+    ctx.strokeStyle = p.body === undefined ? p.line : p.body;
+    ctx.lineWidth = Math.max(2.4, L * 0.055);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-0.04 * L, 0.20 * L);
+    ctx.quadraticCurveTo(-0.10 * L, 0.40 * L, -0.24 * L, 0.34 * L);
+    ctx.quadraticCurveTo(-0.34 * L, 0.28 * L, -0.24 * L, 0.20 * L);
+    ctx.stroke();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.6, L * 0.008);
+    ctx.stroke();
+  }
+  function tubeSnout(ctx, L, h, p) {       // 海马：管状吻
+    ctx.beginPath();
+    ctx.moveTo(0.10 * L, -0.30 * L);
+    ctx.lineTo(0.36 * L, -0.36 * L);
+    ctx.lineTo(0.10 * L, -0.20 * L);
+    ctx.closePath();
+    ctx.fillStyle = U.rgba(p.accent, 0.95); ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.5, L * 0.007); ctx.stroke();
+  }
+  function horns(ctx, L, h, p) {           // 蝠鲼：口前那一对「角」
+    ctx.strokeStyle = U.rgba(p.bodyDark || p.line, 0.95);
+    ctx.lineWidth = Math.max(1.6, L * 0.030);
+    ctx.lineCap = 'round';
+    [-1, 1].forEach(function (s) {
+      ctx.beginPath();
+      ctx.moveTo(0.28 * L, 0.02 * L + s * 0.05 * L);
+      ctx.quadraticCurveTo(0.42 * L, s * 0.05 * L, 0.46 * L, (0.02 + s * 0.16) * L);
+      ctx.stroke();
+    });
+  }
+  function fangs(ctx, L, h, p, n, scale) { // 巨口形：针状牙
+    ctx.fillStyle = '#fffdf5';
+    for (var i = 0; i < n; i++) {
+      var x = (0.36 - i * 0.052) * L;
+      ctx.beginPath();
+      ctx.moveTo(x, 0.02 * L);
+      ctx.lineTo(x - 0.014 * L, 0.02 * L + (scale || 1) * 0.20 * L);
+      ctx.lineTo(x - 0.028 * L, 0.02 * L);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+  function smallTail(ctx, L, h, p) {       // 鲳：短圆身体后面一枚很小的尾
+    ctx.beginPath();
+    ctx.moveTo(-0.44 * L, 0);
+    ctx.lineTo(-0.56 * L, -0.22 * h);
+    ctx.lineTo(-0.50 * L, 0);
+    ctx.lineTo(-0.56 * L, 0.22 * h);
+    ctx.closePath();
+    ctx.fillStyle = U.rgba(p.accent, 0.92); ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.5, L * 0.007); ctx.stroke();
+  }
+
+  // ── 变体表：一个细体型一行（提示词侧的对应句在 `tools/gen-art.py` 的 `SHAPES`）──
+  var FISH_VARIANTS = {
+    // 普通鱼按体深与头部构型（6）
+    /* ⚠️ `slender` 的系数要**压到 0.72**、`minnow` 抬到 1.20 —— 第一版 0.80 / 0.94
+       只差 17%，而这两类鱼本身的 `body_ratio` 又一样（都是 0.26~0.28），
+       截图上两条几乎一模一样（`slender` 与 `minnow` 是「细分」里最需要拉开的一对）。 */
+    slender:  { h: 0.72, tail: 'fork',   dorsal: 'low' },
+    minnow:   { h: 1.20, tail: 'round',  dorsal: 'normal' },
+    deep:     { h: 1.28, tail: 'fork',   dorsal: 'long' },
+    carp:     { h: 1.10, tail: 'round',  dorsal: 'long' },
+    reef:     { h: 1.14, tail: 'round',  dorsal: 'spiny' },
+    perch:    { h: 1.04, tail: 'fork',   dorsal: 'two' },
+    // 底栖与深海奇形（2）
+    /* 底栖 / 鲶：**眼睛挪到头顶**（贴底的鱼都是这样）+ 鲶有长须（须由  标记画）。
+       ⚠️ 曾经想用「吻端鼓出一块宽头」来表现，实测画出来像脑袋前贴了一块砖
+          （那块必然压在主体上，接缝/色差在截图里一目了然）—— 已撤掉，改用眼位。 */
+    bottom:   { h: 0.90, tail: 'round',  dorsal: 'low', eyeUp: true },
+    catfish:  { h: 0.88, tail: 'round',  dorsal: 'low', eyeUp: true },
+    fangfish: { hull: 'jaw',  h: 0.74, fangs: 7 },
+    // 一眼可辨（9）
+    flatfish: { hull: 'disc', h: 0.52 },
+    sturgeon: { h: 0.84, tail: 'hetero', dorsal: 'low', snout: 0.62, scutes: true, barbels: true },
+    mackerel: { h: 0.84, tail: 'lunate', dorsal: 'finlets' },
+    billfish: { h: 0.76, tail: 'lunate', dorsal: 'sail', snout: 0.86 },
+    anglerfish: { hull: 'jaw', h: 0.86, lure: true, fangs: 4 },
+    puffer:   { hull: 'round', h: 0.66 },
+    seahorse: { hull: 'upright', h: 0.66 },
+    pomfret:  { h: 1.34, tail: 'small',  dorsal: 'low' },
+    salmon:   { h: 0.96, tail: 'fork',   dorsal: 'normal', adipose: true },
+    manta:    { hull: 'wing', h: 0.60 },
+  };
+
+  /* 变体绘制：主体先画，外露部件后画（口径见本节开头的注释）。
+     ⚠️ `h` 统一由 `body_ratio` 派生再乘变体系数，cap 到 0.68L ——
+        河鲀的 `body_ratio` 是 0.78，不封顶会画成一根竖柱子。 */
+  function drawVariant(ctx, fish, L, opt, p, rand, v) {
+    /* ⚠️ 高度上限分两档：换了轮廓原型的那几个（圆盘 / 巨口）**必须**封顶 ——
+       河鲀的 `body_ratio` 是 0.78，不封顶会画成一根竖柱子；而普通鱼形不封顶，
+       否则「高体鱼形」（body 0.52）反而比基准鱼矮一截，图鉴里看着反而更小。 */
+    var h = Math.min(L * (v.hull ? 0.66 : 1.05),
+                     Math.max(L * 0.18, L * fish.body_ratio * 1.55 * (v.h || 1)));
+    var hull = v.hull || 'oval';
+    var ry = Math.max(0.16 * L, 0.34 * h);
+
+    // ① 尾（圆钝盘与直立形没有尾柄，交给各自的 hull 处理）
+    if (!v.hull && v.tail !== 'small') tail(ctx, v.tail === 'hetero' ? 'fork' : (v.tail || fish.tail), L, h, p);
+    // ② 背鳍
+    if (v.dorsal === 'sail') sail(ctx, L, h, p);
+    else if (v.dorsal === 'two') {
+      dorsal(ctx, fish, L, h, p);
+      ctx.beginPath();
+      ctx.moveTo(-0.06 * L, -0.54 * h);
+      ctx.lineTo(-0.20 * L, -0.82 * h);
+      ctx.lineTo(-0.30 * L, -0.50 * h);
+      ctx.closePath();
+      ctx.fillStyle = U.rgba(p.accent, 0.9); ctx.fill();
+    } else if (v.dorsal === 'spiny') { dorsal(ctx, { spiny: true }, L, h, p); }
+    else if (v.dorsal === 'low') { dorsal(ctx, fish, L, h * 0.78, p); }
+    else if (v.dorsal !== 'finlets' && v.dorsal !== 'small') dorsal(ctx, fish, L, h, p);
+    // ③ 胸鳍（巨口 / 直立 / 翼状形的胸鳍位置不同，跳过通用位）
+    if (!v.hull || hull === 'jaw') pectoral(ctx, L, h, p, opt.phase);
+
+    // ④ 主体
+    if (hull === 'round') hullRound(ctx, L, h);
+    else if (hull === 'disc') { hullDisc(ctx, L, h); }
+    else if (hull === 'upright') hullUpright(ctx, L, h);
+    else if (hull === 'wing') hullWing(ctx, L, h);
+    else if (hull === 'jaw') hullJaw(ctx, L, h);
+    else fishBody(ctx, L, h, 1);
+    var g = ctx.createLinearGradient(0, -0.62 * h, 0, 0.62 * h);
+    g.addColorStop(0, p.bodyDark);
+    g.addColorStop(0.42, p.body);
+    g.addColorStop(1, p.belly);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.7, L * 0.009); ctx.stroke();
+
+    // ⑤ 外露部件（全部在主体之后）
+    if (v.scutes) scutes(ctx, L, h, p);
+    if (v.snout) snout(ctx, L, h, p, v.snout);
+    if (v.dorsal === 'finlets') finlets(ctx, L, h, p);
+    if (v.adipose) adipose(ctx, L, h, p);
+    if (v.tail === 'small') smallTail(ctx, L, h, p);
+    if (hull === 'disc') fringe(ctx, L, h, p, ry);
+    if (hull === 'wing') horns(ctx, L, h, p);
+    if (hull === 'upright') { curledTail(ctx, L, p); tubeSnout(ctx, L, h, p); }
+    if (v.fangs) fangs(ctx, L, h, p, v.fangs, v.fangs > 5 ? 1.25 : 1);
+    if (v.lure || fish.lure) {
+      ctx.strokeStyle = p.accentDark; ctx.lineWidth = LWM(0.9, L * 0.014);
+      ctx.beginPath();
+      ctx.moveTo(0.10 * L, -0.50 * h);
+      ctx.quadraticCurveTo(0.34 * L, -1.05 * h, 0.56 * L, -0.72 * h);
+      ctx.stroke();
+      ctx.beginPath(); ctx.arc(0.58 * L, -0.70 * h, L * 0.030, 0, Math.PI * 2);
+      ctx.fillStyle = '#fff9b0';
+      ctx.shadowColor = '#ffe86a'; ctx.shadowBlur = L * 0.22;
+      ctx.fill(); ctx.shadowBlur = 0;
+    }
+    patterns(ctx, fish, L, h, p, rand);
+    shading(ctx, L, h, p);
+    if (hull === 'oval' && v.dorsal !== 'finlets') analFin(ctx, L, h, p);
+
+    // ⑥ 须 / 牙（与基准鱼同款，只是位置跟着头型走）
+    if (fish.barbels || v.barbels) {
+      ctx.strokeStyle = p.accentDark;
+      ctx.lineWidth = LWM(0.8, L * 0.012); ctx.lineCap = 'round';
+      [0.18, 0.34].forEach(function (a, i) {
+        ctx.beginPath();
+        ctx.moveTo(0.40 * L, 0.06 * h);
+        ctx.quadraticCurveTo(0.46 * L, (0.35 + i * 0.22) * h, 0.32 * L, (0.62 + i * 0.30) * h);
+        ctx.stroke();
+      });
+    }
+    if (fish.teeth && !v.fangs) {
+      ctx.fillStyle = '#fffdf5';
+      for (var i2 = 0; i2 < 4; i2++) {
+        var x2 = (0.36 - i2 * 0.055) * L;
+        ctx.beginPath();
+        ctx.moveTo(x2, 0.03 * h);
+        ctx.lineTo(x2 - 0.018 * L, 0.16 * h);
+        ctx.lineTo(x2 - 0.036 * L, 0.03 * h);
+        ctx.closePath(); ctx.fill();
+      }
+    }
+
+    // ⑦ 嘴 + 眼
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.7, L * 0.010);
+    ctx.beginPath();
+    ctx.moveTo(0.44 * L, 0.02 * h);
+    ctx.quadraticCurveTo(0.36 * L, 0.14 * h, 0.26 * L, 0.12 * h);
+    ctx.stroke();
+    if (hull === 'upright') {
+      eye(ctx, L, h, 0.04 * L, -0.28 * L, Math.max(1.4, L * 0.042), p);
+    } else if (hull === 'disc') {
+      // 比目鱼：两只眼都挤在朝上一侧
+      eye(ctx, L, h, 0.26 * L, -0.16 * ry, Math.max(1.4, L * 0.040), p);
+      eye(ctx, L, h, 0.08 * L, -0.20 * ry, Math.max(1.4, L * 0.036), p);
+    } else if (hull === 'wing') {
+      eye(ctx, L, h, 0.16 * L, -0.14 * L, Math.max(1.4, L * 0.038), p);
+    } else if (v.eyeUp) {
+      eye(ctx, L, h, 0.32 * L, -0.32 * h, Math.max(1.4, L * 0.044), p);
+    } else {
+      eye(ctx, L, h, 0.30 * L, -0.13 * h, Math.max(1.4, L * 0.046), p);
+    }
+  }
+
+  /* 19 个薄壳 —— 键集必须与 `CONFIG.shapeCn` 双向相等（verify 第 ㊸ 节）。
+     ⚠️ **必须一个个写出来，不许 `Object.keys(FISH_VARIANTS).forEach`** ——
+        第 ㊸ 节是按源码里的 `TPL.<键> =` 字面去抓键集的，动态赋值会让它一条都抓不到，
+        于是「中文标签表 = 模板键集」这条判据**当场失去判据能力**（还不会报错）。 */
+  TPL.slender = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.slender); };
+  TPL.minnow = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.minnow); };
+  TPL.deep = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.deep); };
+  TPL.carp = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.carp); };
+  TPL.reef = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.reef); };
+  TPL.perch = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.perch); };
+  TPL.bottom = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.bottom); };
+  TPL.catfish = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.catfish); };
+  TPL.fangfish = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.fangfish); };
+  TPL.flatfish = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.flatfish); };
+  TPL.sturgeon = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.sturgeon); };
+  TPL.mackerel = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.mackerel); };
+  TPL.billfish = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.billfish); };
+  TPL.anglerfish = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.anglerfish); };
+  TPL.puffer = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.puffer); };
+  TPL.seahorse = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.seahorse); };
+  TPL.pomfret = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.pomfret); };
+  TPL.salmon = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.salmon); };
+  TPL.manta = function (ctx, fish, L, opt, p, rand) { drawVariant(ctx, fish, L, opt, p, rand, FISH_VARIANTS.manta); };
+
+  /* 存在性自检：防的是「变体表里删了一行、19 个薄壳少一个」——
+     第 ㊸ 节只比键集，键在、画法没了它查不出来。 */
+  ['slender', 'minnow', 'deep', 'carp', 'reef', 'perch', 'bottom', 'catfish', 'fangfish',
+   'flatfish', 'sturgeon', 'mackerel', 'billfish', 'anglerfish', 'puffer', 'seahorse',
+   'pomfret', 'salmon', 'manta'].forEach(function (k) {
+    if (typeof TPL[k] !== 'function' || !FISH_VARIANTS[k]) {
+      throw new Error('fishart.js：细体型 ' + k + ' 的薄壳或变体没建全');
+    }
+  });
+
   TPL.eel = function (ctx, fish, L, opt, p, rand) {
     var h = Math.max(L * 0.14, L * fish.body_ratio * 0.75);
     var N = 22, pts = [];
@@ -1041,6 +1401,143 @@ G.FishArt = (function () {
     ctx.fillStyle = U.rgba(p.body, 0.98); ctx.fill();
     ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.6, L * 0.007); ctx.stroke();
     eye(ctx, L, h, L * 0.68, -h * 0.18, Math.max(1.3, L * 0.030), p);
+  };
+
+  /* ── 海百合：分节长柄 + 顶上羽状腕冠（固着的「花」）────────────────────────
+     与 `jelly` 的分工：水母是**伞盖 + 短触手**（漂着），海百合是**柄 + 羽冠**（站着）。
+     与 `worm` 的分工：沙蚕是一整条软身，海百合有一根硬柄。 */
+  TPL.crinoid = function (ctx, fish, L, opt, p, rand) {
+    var t = (opt.t || 0);
+    var h = L * Math.max(0.20, Math.min(0.34, (fish.body_ratio || 0.34) * 1.00));
+    /* 柄：从右下往左上斜着升起来（固着端在右下） */
+    var bx = L * 0.40, by = h * 1.10, tx = -L * 0.16, ty = -h * 0.34;
+    ctx.beginPath();
+    ctx.moveTo(bx - L * 0.07, by);
+    ctx.quadraticCurveTo(L * 0.16, h * 0.36, tx - L * 0.045, ty);
+    ctx.lineTo(tx + L * 0.045, ty);
+    ctx.quadraticCurveTo(L * 0.30, h * 0.38, bx + L * 0.07, by);
+    ctx.closePath();
+    var g = ctx.createLinearGradient(0, by, 0, ty);
+    g.addColorStop(0, p.bodyDark); g.addColorStop(0.55, p.body); g.addColorStop(1, p.belly);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.7, L * 0.008); ctx.stroke();
+    /* 柄上的环节（海百合的柄就是一圈圈骨板） */
+    ctx.strokeStyle = U.rgba(p.bodyDark, 0.60); ctx.lineWidth = LWM(0.7, L * 0.009);
+    for (var i = 1; i <= 6; i++) {
+      var u = i / 7;
+      var sx = bx + (tx - bx) * u, sy = by + (ty - by) * u;
+      ctx.beginPath();
+      ctx.moveTo(sx - L * 0.055, sy + h * 0.03);
+      ctx.lineTo(sx + L * 0.055, sy - h * 0.02);
+      ctx.stroke();
+    }
+    /* 固着端（根） */
+    ctx.beginPath();
+    ctx.ellipse(bx, by, L * 0.10, h * 0.12, 0, 0, 6.3);
+    ctx.fillStyle = U.rgba(p.accentDark, 0.9); ctx.fill();
+    /* 羽状腕冠：从顶端往两侧扇开的一排细腕（**画在柄之后**，露在外面） */
+    ctx.lineCap = 'round';
+    for (var k = 0; k < 11; k++) {
+      var a = (-0.5 + k / 10) * 2.30 - Math.PI / 2;     /* 以顶端为心向上扇开 */
+      var len = L * (0.34 - Math.abs(k - 5) * 0.016);
+      var wob = Math.sin(t * 1.6 + k * 0.7) * h * 0.06;
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.quadraticCurveTo(tx + Math.cos(a) * len * 0.55 - L * 0.03,
+                           ty + Math.sin(a) * len * 0.55,
+                           tx + Math.cos(a) * len, ty + Math.sin(a) * len + wob);
+      ctx.strokeStyle = U.rgba(k % 2 ? p.accent : p.bodyLight, 0.92);
+      ctx.lineWidth = LWM(1.0, L * (0.013 - Math.abs(k - 5) * 0.0008));
+      ctx.stroke();
+    }
+  };
+
+  /* ── 管水母：顶端一个浮囊 + 下面一长串泳钟与垂丝（竖着挂）──────────────────
+     ⚠️ 与水母最大的区别是**形状是「一串」而不是「一个」** ——
+     所以这里刻意把浮囊画小、把链条拉长（占满整个高度）。 */
+  TPL.siphonophore = function (ctx, fish, L, opt, p, rand) {
+    var t = (opt.t || 0);
+    var h = L * Math.max(0.30, Math.min(0.46, (fish.body_ratio || 0.34) * 1.5));
+    var fx = L * 0.10, fy = -h * 1.16;                   /* 浮囊位置 */
+    /* 链条（竖轴）+ 泳钟：从上往下一串 */
+    for (var i = 0; i < 9; i++) {
+      var u = i / 8;
+      var cy = fy + h * 1.05 + u * h * 1.95 + Math.sin(t * 1.4 + i * 0.6) * h * 0.035;
+      var w = L * (0.15 - u * 0.055);
+      ctx.beginPath();
+      ctx.ellipse(fx + Math.sin(i * 0.9) * L * 0.03, cy, w, h * 0.075, 0, 0, 6.3);
+      var gg = ctx.createLinearGradient(0, cy - h * 0.08, 0, cy + h * 0.08);
+      gg.addColorStop(0, U.lighten(p.body, 0.26)); gg.addColorStop(1, p.bodyDark);
+      ctx.fillStyle = gg; ctx.fill();
+      ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.5, L * 0.006); ctx.stroke();
+    }
+    /* 浮囊（画在之后，压在最上面） */
+    ctx.beginPath();
+    ctx.ellipse(fx, fy, L * 0.17, h * 0.20, 0, 0, 6.3);
+    var g = ctx.createLinearGradient(fx - L * 0.17, fy - h * 0.20, fx + L * 0.17, fy + h * 0.20);
+    g.addColorStop(0, U.lighten(p.accent, 0.30)); g.addColorStop(1, p.accentDark);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.6, L * 0.007); ctx.stroke();
+    /* 垂丝：几条细长线随水摆 */
+    ctx.lineCap = 'round';
+    for (var k = 0; k < 5; k++) {
+      var sx = fx + (k - 2) * L * 0.045;
+      var sy = fy + h * 0.14;
+      var wob = Math.sin(t * 1.9 + k * 1.1) * L * 0.05;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.quadraticCurveTo(sx - L * 0.04, sy + h * 1.4, sx + wob, sy + h * 2.5);
+      ctx.strokeStyle = U.rgba(p.bodyLight, 0.75);
+      ctx.lineWidth = LWM(0.6, L * 0.007);
+      ctx.stroke();
+    }
+  };
+
+  /* ── 海葵：矮柱身 + 顶上一圈粗触手冠（**坐在底上**，不漂）──────────────────
+     与水母的分工：水母是「伞盖 + 细长触手」，海葵是「柱 + 一圈粗触手冠」，
+     而且底端是**平贴底面的基盘**（一眼看出它是固着的）。 */
+  TPL.anemone = function (ctx, fish, L, opt, p, rand) {
+    var t = (opt.t || 0);
+    var h = L * Math.max(0.26, Math.min(0.42, (fish.body_ratio || 0.34) * 1.3));
+    var base = h * 1.10;
+    /* 柱身（下宽上略窄） */
+    ctx.beginPath();
+    ctx.moveTo(-L * 0.26, base);
+    ctx.quadraticCurveTo(-L * 0.22, -h * 0.30, -L * 0.15, -h * 0.62);
+    ctx.lineTo(L * 0.15, -h * 0.62);
+    ctx.quadraticCurveTo(L * 0.22, -h * 0.30, L * 0.26, base);
+    ctx.closePath();
+    var g = ctx.createLinearGradient(-L * 0.26, 0, L * 0.26, 0);
+    g.addColorStop(0, p.bodyDark); g.addColorStop(0.45, p.body); g.addColorStop(1, p.bodyLight);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.7, L * 0.008); ctx.stroke();
+    /* 基盘（贴底那一圈） */
+    ctx.beginPath();
+    ctx.ellipse(0, base, L * 0.32, h * 0.09, 0, 0, 6.3);
+    ctx.fillStyle = U.rgba(p.accentDark, 0.92); ctx.fill();
+    ctx.strokeStyle = p.line; ctx.lineWidth = LWM(0.6, L * 0.007); ctx.stroke();
+    /* 柱身纵纹 */
+    ctx.strokeStyle = U.rgba(p.bodyDark, 0.42); ctx.lineWidth = LWM(0.6, L * 0.008);
+    [-0.14, 0, 0.14].forEach(function (u) {
+      ctx.beginPath();
+      ctx.moveTo(u * L, -h * 0.56);
+      ctx.quadraticCurveTo(u * L * 1.25, h * 0.20, u * L * 1.45, base - h * 0.12);
+      ctx.stroke();
+    });
+    /* 触手冠：一圈**粗**触手向上扇形张开（画在柱身之后） */
+    ctx.lineCap = 'round';
+    for (var k = 0; k < 13; k++) {
+      var a = (-0.5 + k / 12) * 2.55 - Math.PI / 2;
+      var len = L * (0.40 - Math.abs(k - 6) * 0.014);
+      var wob = Math.sin(t * 2.0 + k * 0.8) * h * 0.07;
+      ctx.beginPath();
+      ctx.moveTo(0, -h * 0.58);
+      ctx.quadraticCurveTo(Math.cos(a) * len * 0.5, -h * 0.58 + Math.sin(a) * len * 0.55,
+                           Math.cos(a) * len * 0.95, -h * 0.58 + Math.sin(a) * len + wob);
+      ctx.strokeStyle = U.rgba(k % 2 ? p.accent : p.bodyLight, 0.94);
+      ctx.lineWidth = LWM(2.0, L * (0.024 - Math.abs(k - 6) * 0.0012));
+      ctx.stroke();
+    }
   };
 
   /* =========================================================

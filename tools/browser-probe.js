@@ -10,7 +10,14 @@
    实现：直接用 node 22 内置的 `WebSocket` 连无头 Chromium 的 DevTools 协议，
      **不装 playwright / puppeteer**（本项目零依赖；本机也没有落地这两个包）。
    用法：
-     node tools/browser-probe.js <url> [截图.png] [探针.js] [--exe <浏览器路径>] [--wait 2500]
+     node tools/browser-probe.js <url> [截图.png] [探针.js] [--exe <浏览器路径>] [--wait 2500] [--port 9333] [--size 1440,900]
+       · 截图.png 省略 ⇒ 写系统临时目录；探针.js 省略 ⇒ 只截图不交互。
+       · `--size W,H`：**默认 headless 窗口只有 800×600**，而本项目的面板布局对高度很敏感
+         （实测：同一个图鉴在 800×600 下 52 个筛选 chip 把网格顶出可视区、首屏一条鱼都不画）
+         ⇒ 量「首屏 / 视口内」这类结论**必须**指定尺寸。形如 `1440,900`（`1440x900` 也认）。
+       · `--port N`：DevTools 调试端口（默认 9333）。同一时刻只能有一个探针用它 ⇒ 撞了就换一个。
+       ⚠️ 这两个开关是 2026-10-11 补进这一行的（此前只写在报错文案里）—— 工具自己的用法行
+          与实际参数面**不一致**属于本项目反复栽的那一类，改参数面时顺手看一眼这里。
        · 探针.js：一段**页面内求值的表达式**（可以是 `(async function(){…})()`），
          返回值会挂在结果的 `interact` 里 —— 用来点按钮 / 读 DOM / 走一遍交互。
          🔴 工具会先往页面里注入 **`__raf1()`**（等一帧的助手）：凡是「刚触发了面板渲染 /
@@ -59,7 +66,7 @@ const CANDIDATES = [
 const EXE = opt.exe || CANDIDATES.find(p => { try { return fs.existsSync(p); } catch (e) { return false; } });
 
 if (!url) {
-  console.error('用法：node tools/browser-probe.js <url> [截图.png] [探针.js] [--exe 浏览器] [--wait ms] [--size 1440,900]');
+  console.error('用法：node tools/browser-probe.js <url> [截图.png] [探针.js] [--exe 浏览器] [--wait ms] [--port 9333] [--size 1440,900]');
   process.exit(2);
 }
 if (!EXE) {

@@ -2987,6 +2987,105 @@ console.log('\n[32-l] `tools/*.py` 的命令行开关必须有消费方（零消
 })();
 
 
+/* ---------------- 32-m. `tools/*.js` 的**命令行开关**必须有消费方（零消费网第七张，第 46 轮）----
+   零消费这条线此前六张网：导出面 ㉜ · 模块内部状态 32-d · 数据字段 32-g · 存档键 32-h ·
+   `tools/*.py` 的配方表 32-j · `tools/*.py` 的命令行开关 32-l。本轮补**第七张**：
+   32-l 只扫 `tools/*.py`，而 `tools/` 里的 js 工具是**手写 argv 解析**
+   （`const DRY = argv.indexOf('--dry') >= 0` / `opt.size = argv[++i]`），
+   同一件事在 js 侧一张网都没有（这正是 §1「下一轮起点」里那条「还没查过的面」）。
+   2026-10-11 实测：**10 条声明 / 4 个文件、0 条零消费** —— 负结果也值得留网，形态与 py 侧一模一样。
+
+   ⚠️ 判据必须排除 `a === b` / `a == b` / `a => b`：探针第一版把
+      `if (require.main === module) main(process.argv.slice(2))` 里的 `require.main`
+      误报成「碰了 argv 却没人读」—— **先量后改**逮到的，写死在这里防复发。
+   ⚠️ 本条**只判「有没有人读」**，判不了「读得对不对」（同 32-l 的口径）。 */
+console.log('\n[32-m] `tools/*.js` 的命令行开关必须有消费方（零消费网第七张）');
+(function () {
+  const stripCode = t => String(t)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[ \t])\/\/[^\n]*/gm, '$1');
+  let mBad = 0;
+
+  /* 两种形态（手写解析就这两种写法）：
+       ① `const X = …argv….indexOf('--flag') >= 0` → 变量 X 必须在别处被读
+       ② `obj.key = …argv…`                        → `obj.key` 必须在别处被读
+     ⚠️ `=(?!=)` 与 `(?!>)`：不排除 `==` / `===` / `=>` 就会误报（见上面的实据）。 */
+  const declsOf = (code) => {
+    const out = [];
+    let m;
+    const reA = /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*[^;\n]*\bargv\b[^;\n]*indexOf\s*\(\s*['"]--([\w-]+)['"]/g;
+    while ((m = reA.exec(code))) out.push({ kind: 'const', id: m[1], flag: m[2] });
+    const reB = /([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)\s*=(?!=)[ \t]*(?!>)[^;\n]*\bargv\b[^;\n]*/g;
+    while ((m = reB.exec(code))) out.push({ kind: 'assign', id: m[1] + '.' + m[2], flag: null });
+    return out;
+  };
+  /* ⚠️ 出现次数**必须排除选项串本身**：`const ghost = argv.indexOf('--ghost')` 里的
+     `--ghost` 会让「变量名」这个词出现两次 ⇒ 第一版把**注入的零消费声明**判成了
+     「有人读」（**反向验证 C 组当场逮到**，不是想出来的）。所以要求名字前面那个字符
+     不是 `-` —— 这样 `--ghost` 里的 `ghost` 就不算一次读。 */
+  const usesOf = (code, id) => {
+    const esc = id.replace(/[.$]/g, m => '\\' + m);
+    return (code.match(new RegExp('(?:^|[^-\\w$])' + esc + '\\b', 'g')) || []).length;
+  };
+  const deadOf = (code) => declsOf(code).filter(d => usesOf(code, d.id) <= 1);
+
+  /* 判据自检（合成样本五种形态）。⚠️ 样本里的 `argv` 用**拼接**造（`@AV@` 占位符）——
+     不这么做，本节自己的样本会被上面那段扫描当成「真声明」并报红（㊳ 的 NEEDLE 老坑：
+     验证脚本自己把门禁喂饱）。`===` 那一条是探针第一版踩过的坑：
+     不排除比较运算符就会把 `require.main` 误报成「碰了 argv 却没人读」。 */
+  const AV = 'arg' + 'v';
+  const mk = s => s.split('@AV@').join(AV);
+  const S_A_LIVE = mk("const DRY = process.@AV@.indexOf('--dry') >= 0;\nif (!DRY) write();");
+  const S_A_DEAD = mk("const WET = process.@AV@.indexOf('--wet') >= 0;\nwrite();");
+  const S_B_LIVE = mk('opt.size = @AV@[++i];\nconst w = opt.size;');
+  const S_B_DEAD = mk('opt.ghost = @AV@[++i];');
+  const S_EQ = mk('if (require.main === module) main(process.@AV@.slice(2));');
+  const aSelf = declsOf(S_A_LIVE).length === 1 && declsOf(S_A_LIVE)[0].id === 'DRY'
+    && declsOf(S_A_LIVE)[0].flag === 'dry'
+    && declsOf(S_A_DEAD).length === 1
+    && declsOf(S_EQ).length === 0
+    && declsOf(S_B_LIVE).length === 1 && declsOf(S_B_LIVE)[0].id === 'opt.size'
+    && declsOf(S_B_DEAD).length === 1
+    && deadOf(S_A_LIVE).length === 0 && deadOf(S_A_DEAD).length === 1
+    && deadOf(S_B_LIVE).length === 0 && deadOf(S_B_DEAD).length === 1
+    && deadOf(S_EQ).length === 0;
+  if (!aSelf) {
+    err('32-m(a) 的判据自检不成立（合成样本：const 有读 / const 零读 / `opt.key` 有读 / '
+      + '`opt.key` 零读 / `===` 不许被当成赋值 —— 五种没能各自认对）'); mBad++;
+  }
+  const MIN_JS = 8, MIN_JS_FILES = 3;
+  let aScanned = 0, aFiles = 0;
+  const aDead = [];
+  fs.readdirSync(path.join(ROOT, 'tools')).filter(f => f.endsWith('.js')).forEach(f => {
+    const rel = 'tools/' + f;
+    let code;
+    try { code = stripCode(fs.readFileSync(path.join(ROOT, rel), 'utf8')); } catch (e) { return; }
+    const ds = declsOf(code);
+    if (!ds.length) return;
+    aFiles++;
+    aScanned += ds.length;
+    deadOf(code).forEach(d => {
+      aDead.push(rel + ' 的 ' + (d.flag ? '`--' + d.flag + '`' : '`' + d.id + '`')
+        + '（`' + d.id + '` 在别处零出现）');
+    });
+  });
+  if (aFiles < MIN_JS_FILES || aScanned < MIN_JS) {
+    err(`32-m(a) 只扫到 ${aScanned} 条 argv 声明 / ${aFiles} 个文件（少于 ${MIN_JS} / ${MIN_JS_FILES}）`
+      + ' —— 扫描面多半坏了，不许让这条判据静默退化成恒真的空断言'); mBad++;
+  }
+  if (aDead.length) {
+    err(`${aDead.length} 条 js 命令行声明**零消费**（解析了 argv 却没人读 = 参数接受了却什么都不做）：`
+      + '\n       ' + aDead.join('\n       ')
+      + '\n       —— 要么接上消费方，要么删掉（同 32-l 的口径）'); mBad++;
+  }
+  if (!mBad) {
+    ok(`\`tools/*.js\` 的 ${aScanned} 条 argv 声明都有消费方（${aFiles} 个手写解析的文件；`
+      + '判据会排除 `===` / `=>` 这类比较运算符）');
+  }
+
+})();
+
+
 /* ---------------- 33. 体型数量：文档 / 出图工具必须与代码一致 ----------------
    代码里是 **9 种**（`TPL.fish / eel / ray / squid / jelly / oarfish / shark / whale / dragon`），
    而 GDD 两处 + 开发者文档一处都写着「10 种体型」，开发者文档 §5.2 自己又写着 9 ——

@@ -121,6 +121,62 @@ function at(t, phrase) {
   }
   return -1;
 }
+
+/* ---------- 剥注释：**只许有一处**（Q83，2026-10-12 第 55 轮）----------
+   来历：这一行洗注释的写法在 verify 里被各节抄了 **14 份**，其中 12 份是
+   `.replace(/^\s*\/\/.*$/gm, '')` —— **只剥整行**注释。于是「行尾注释」留在文本里当代码用，
+   判据会被它喂饱 / 误伤：本轮 36-d 第一版就栽了 —— `config.js` 的
+   `captureGlobal: true,  // 是否挂 window.onerror …` 被当成一处「直连 window」。
+   另 1 份更糙（一条「双斜杠到行尾」的裸正则，**不看引号**），会把 `'http://x'` 从中间撕开。
+   ⇒ 收成这一处：逐字符扫引号状态，**整行 / 行尾 / 块**注释都剥，**引号里的 `//` 不动**
+   （`'http://…'` 那种）。各节要洗注释就写 `const strip = stripComments;`。
+   ⚠️ 已知窄口：正则字面量里的引号（本仓 `panels.js` 有一处 `/"/g`）会让扫描器提前进入
+      「字符串态」⇒ 该行余下的 `//` 不被剥（只会**多留文本**，不会假绿）。要收口得引 JS 词法器。
+   ⚠️ 它**不剥字符串** —— 需要「字符串也算空」的判据（如 36-d 的位置白名单）再叠 `blankStrings()`。 */
+function stripComments(t) {
+  const NL = String.fromCharCode(10);
+  return String(t).replace(/\/\*[\s\S]*?\*\//g, '').split(NL).map(line => {
+    let q = null;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (q) { if (c === q && line[i - 1] !== '\\') q = null; }
+      else if (c === '"' || c === "'" || c === '`') q = c;
+      else if (c === '/' && line[i + 1] === '/') return line.slice(0, i);
+    }
+    return line;
+  }).join(NL);
+}
+/* 再把**字符串字面量的内容清空**（引号本身换成空格，位置不打乱）。
+   与 stripComments 两步分开：绝大多数判据只需要前者，剥字符串会误伤
+   「判据本来就盯字符串」的那一族（如 36-a 的 `DOMContentLoaded` 字面量）。 */
+function blankStrings(t) {
+  const NL = String.fromCharCode(10);
+  return String(t).split(NL).map(line => {
+    let q = null, out = '';
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (q) { if (c === q && line[i - 1] !== '\\') q = null; continue; }
+      if (c === '"' || c === "'" || c === '`') { q = c; out += ' '; continue; }
+      out += c;
+    }
+    return out;
+  }).join(NL);
+}
+/* 助手自检（定义处就跑一次）：整行 / 行尾 / 块三种注释都要剥掉，
+   引号里的 `//`（`'http://x'`）与字符串里的注释词都**不许**被剥。 */
+(function () {
+  const NL = String.fromCharCode(10);
+  const S = 'var a = 1;  // trailing' + NL + '// whole line' + NL
+    + 'var u = "http://x"; var b = 2;' + NL + '/* block' + NL + 'spanning */ var c = 3;';
+  const R = stripComments(S);
+  const B = blankStrings(S);
+  if (/trailing|whole line|block|spanning/.test(R) || !has(R, 'var u = "http://x";')
+      || !has(R, 'var c = 3;') || has(B, 'http') || !has(B, 'var c = 3;')) {
+    err('顶层助手 `stripComments()` / `blankStrings()` 的自检不成立（注释没剥干净 / '
+      + '把引号里的 `//` 或字符串内容算错了）—— 用它们的判据会假绿或假红');
+  }
+})();
+
 /* 从「某个标记」起切出它的函数 / 方法体：终止于「缩进 ≤ 该标记自身缩进」的第一行。
    ⚠️ 缩进必须**按标记自己所在行的缩进算**，不能写死 4：
       · 顶层函数（`def build_console_script(`，缩进 0）→ 终止于下一个顶行；
@@ -260,7 +316,7 @@ console.log('\n[2] 每个稀有度档位的颜色概率合计 = 100%');
    `G.Loot.colorProb(...)` 取概率。只看代码不看注释。 */
 console.log('\n[2-b] 颜色概率只许走 Loot.colorProb（不得再读已删的旧单值字段）');
 (function () {
-  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const strip = stripComments;      // 与顶层同源（Q83：行尾注释也要剥）
   const files = [];
   (function walk(dir) {
     fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
@@ -673,6 +729,15 @@ else {
    它 §2 那张对照表里同样写着「≈821 KB」，实测已经 889.9 KB（偏 −7.8%），
    挂了不知多少轮却没被拦 —— 因为扫描面只有 GDD 与开发者文档两份。 */
 const realKB = Math.round(BLD.build({}).meta.bytes / 1024);
+/* 🔴 2026-10-12（第 55 轮 Q85）：这句话**只许有一处作者** —— `docs/开发者文档.md` §15「单文件发布构建」。
+   来历：它原先在 **5 处**各写一遍（GDD ×2 / 开发者文档 ×2 / N8 ×1），措辞还各不相同，
+   而容差只有 ±5%（dev 与 release 产物本来差约 2%）⇒ 本轮平台层 +3.5 KB 就让 **5 处同时**
+   越过容差，一次要改 5 个地方。现在：**开发者文档 §15 写数字**（仍与真实构建比对），
+   GDD / N8 写「有多大见 `docs/开发者文档.md` §15「单文件发布构建」`」。
+   ⇒ 判据两头都管：① 作者那一处必须与真实构建相符；② **别的文档里再出现这个形态就报红**
+      （那是「又抄了一份」，必然在下一次体积变化时过期）。
+   ⚠️ 改措辞时记得同步这里的两条正则。 */
+const KB_CLAIM_AT = 'docs/开发者文档.md';
 let sizeClaimCount = 0;
 [['docs/GDD.md', /产物\s*[≈约]\s*\*{0,2}\s*(\d+)\s*KB/g],
  ['docs/开发者文档.md', /[≈约]\s*\*{0,2}\s*(\d+)\s*KB/g],
@@ -681,6 +746,14 @@ let sizeClaimCount = 0;
   const txt = fs.readFileSync(path.join(ROOT, file), 'utf8');
   let m;
   while ((m = pair[1].exec(txt))) {
+    if (file !== KB_CLAIM_AT) {
+      err(`${file} 里又写了一遍产物体积（≈${m[1]} KB）—— 这句**只许在 `
+        + `${KB_CLAIM_AT} 的 §15「单文件发布构建」** 写；别的文档请写「有多大见 `
+        + 'docs/开发者文档.md §15「单文件发布构建」」'
+        + '（抄一份就多一处会过期的数字：±5% 容差下，加几个模块就得同时改好几处）');
+      entryBad++;
+      continue;
+    }
     sizeClaimCount++;
     const claimed = +m[1];
     if (Math.abs(claimed - realKB) / realKB > 0.05) {
@@ -2066,7 +2139,7 @@ if (!loadWireBad) ok('读档提示语会播出去，坏档也有留存，迁移�
 console.log('\n[31] 表现层接口的接线（鱼影：写、读、收尾三处都要有人）');
 let wireBad = 0;
 (function () {
-  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const strip = stripComments;      // 与顶层同源（Q83：这一份原先不看引号）
   const sceneCode = strip(fs.readFileSync(path.join(ROOT, 'src/render/scene.js'), 'utf8'));
   const fishingSrc = fs.readFileSync(path.join(ROOT, 'src/core/fishing.js'), 'utf8');
   const srcAll = (function () {
@@ -2133,7 +2206,7 @@ if (!wireBad) ok('鱼影的「写 → 读 → 收尾」三处接线都在，且 
 console.log('\n[32] 所有模块的导出面：除白名单外，每个导出都要有消费方');
 let deadExportBad = 0;
 (function () {
-  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const strip = stripComments;      // 与顶层同源（Q83：行尾注释也要剥）
   const collect = (dir, re, out) => fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
     const p = path.join(ROOT, dir, n);
     if (fs.statSync(p).isDirectory()) collect(dir + '/' + n, re, out);
@@ -2344,7 +2417,7 @@ console.log('\n[32-c] 平台适配层的子能力也必须有消费方');
        platform.js 的注释与开发者文档都写明了这一点。 */
     'Platform.audio.playFile': true,
   };
-  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const strip = stripComments;      // 与顶层同源（Q83：行尾注释也要剥）
   const others = [];
   (function walk(dir) {
     fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
@@ -2401,7 +2474,7 @@ console.log('\n[32-c] 平台适配层的子能力也必须有消费方');
    反之命中即为真（模块内部 + 无动态键 + 写了从没读）。 */
 console.log('\n[32-d] 模块内部状态字段「只写不读」（逃出模块 / 动态键的对象不参与）');
 (function () {
-  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const strip = stripComments;      // 与顶层同源（Q83：行尾注释也要剥）
   const files = [];
   (function walk(dir) {
     fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
@@ -2470,7 +2543,7 @@ console.log('\n[32-d] 模块内部状态字段「只写不读」（逃出模块 
 console.log('\n[32-e] 战局原始状态只许 core/fishing.js 直读；力竭提示线必须可达');
 let fightRawBad = 0;
 (function () {
-  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const strip = stripComments;      // 与顶层同源（Q83：行尾注释也要剥）
   const files = [];
   (function walk(dir) {
     fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
@@ -2586,7 +2659,7 @@ let thrBad = 0;
    ⚠️ 这张网对付的是「真死字段」；短名字（n / x / …）撞名多，只会假阴性 —— 当网用，不当证明。 */
 console.log('\n[32-g] 数据文件的字段必须有消费方（零出现 = 死字段）');
 (function () {
-  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const strip = stripComments;      // 与顶层同源（Q83：行尾注释也要剥）
   /* 有意保留、而非「过时重复」的字段：白名单里必须写清为什么留。 */
   const DATA_WHITELIST = {
     /* `misc.biteWindow` 是**按稀有度 key 动态取值**的
@@ -6053,7 +6126,7 @@ console.log('\n[35-b] 每帧走的 UI 文案要缓存（不许无条件重写 in
 console.log('\n[36] 平台能力只能通过 G.Platform（不得直连浏览器专有 API）');
 let platBad = 0;
 (function () {
-  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const strip = stripComments;      // 与顶层同源（Q83：行尾注释也要剥）
   /* 名字 → 判据。都刻意避开「前面是 `.`」的情形（`G.Platform.dialog.confirm(` 合法）。 */
   const FORBID = [
     ['location.reload', /location\s*\.\s*reload\s*\(/],
@@ -6183,7 +6256,7 @@ let platBad = 0;
 console.log('\n[36-b] `document.*` 字面量只许出现在 platform.js 与 util.js');
 let docLitBad = 0;
 (function () {
-  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const strip = stripComments;      // 与顶层同源（Q83：行尾注释也要剥）
   const rel = [];
   (function walk(dir) {
     fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
@@ -6231,7 +6304,7 @@ let docLitBad = 0;
 console.log('\n[36-c] Platform.net 的离线语义（兜底不抛 / 永远 resolve / 降级路可达）');
 let netSemBad = 0;
 (function () {
-  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const strip = stripComments;      // 与顶层同源（Q83：行尾注释也要剥）
   const platSrc = strip(fs.readFileSync(path.join(ROOT, 'src/core/platform.js'), 'utf8'));
   const netObj = (/var net = \{([\s\S]*?)\n  \};/.exec(platSrc) || [, ''])[1];
   if (!netObj) { err('platform.js 里读不到 `var net = {…}` 块 —— 36-c 的判据会恒真，先修判据'); netSemBad++; return; }
@@ -6341,19 +6414,8 @@ let netSemBad = 0;
 console.log('\n[36-d] `window.<属性>` 只许出现在平台层（+ crypto 一族的按名枚举）');
 let wLitBad = 0;
 (function () {
-  const codeOnly = t => String(t)
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split(String.fromCharCode(10)).map(line => {
-      let q = null, out = '';
-      for (let i = 0; i < line.length; i++) {
-        const c = line[i];
-        if (q) { if (c === q && line[i - 1] !== '\\') q = null; continue; }
-        if (c === '"' || c === "'" || c === '`') { q = c; out += ' '; continue; }
-        if (c === '/' && line[i + 1] === '/') break;
-        out += c;
-      }
-      return out;
-    }).join(String.fromCharCode(10));
+  /* 代码面 = 顶层两个助手叠起来：剥注释（含行尾）+ 清空字符串字面量 */
+  const codeOnly = t => blankStrings(stripComments(t));
 
   /* ① `window.<属性>`：唯一豁免 = 模块头 `window.G` */
   const W_ALLOW = { G: true };
@@ -6459,7 +6521,7 @@ let wLitBad = 0;
    `CFG[name]`、`CFG.fight[key]` 这类动态取值扫不到 —— 断言只能当网用。 */
 console.log('\n[37] 读 config 的键必须真的存在（读不存在的键不会报错）');
 (function () {
-  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const strip = stripComments;      // 与顶层同源（Q83：行尾注释也要剥）
   const files = [];
   (function walk(dir) {
     fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
@@ -6783,7 +6845,7 @@ console.log('\n[40] 评审台运行器：命令口径单源 + 窗口脚本注入
    判据**全部现算**：真跑 `bgmSpec` 过 7 个钓场 × 4 天气 × 4 时段，不写死任何期望值。 */
 console.log('\n[41] 背景音乐随条件换参数：修饰量单一来源、键名合法、且真的起作用');
 (() => {
-  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const strip = stripComments;      // 与顶层同源（Q83：行尾注释也要剥）
   const Wx = sandbox.G && sandbox.G.Weather;
   const wxList = CFG.weather.types, tmList = CFG.weather.times;
 
@@ -8812,7 +8874,7 @@ let deepBad = 0;
 console.log('\n[50] 隔壁钓鱼佬：事件可复现、奖励只许纯外观、NPC / 台词 / 接线都有消费方');
 let storyBad = 0;
 (function () {
-  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const strip = stripComments;      // 与顶层同源（Q83：行尾注释也要剥）
   const coreSrc = fs.readFileSync(path.join(ROOT, 'src/core/story.js'), 'utf8');
   /* ⚠️ 判据一律吃**剥过注释**的这一份（硬规矩 第 1 条：只扫代码不扫注释）——
      `core/story.js` 的文件头注释里逐条写着 `needOk()` / `st.pick` 这类词，

@@ -231,7 +231,11 @@ def main():
         cmd_list(man, args.morph_filter, args.only_missing)
         return
     if not args.morph:
-        die("用法：`python tools/pick-card.py <id> <档> <版号>`，或 `--list` 先看看有哪些")
+        # 🔴 命令行没给全 = **用法错**（退出码 2），不是运行期错 —— 与上面「`--list` 与鱼 id
+        #    撞车」同口径（2026-10-12 第 55 轮：原来走 `die()`，退出码是 1，两处不一致，
+        #    而 `.cmd` 启动器要按退出码判断「是不是用法错」）。
+        #    ⚠️ `ap.error` 把 usage 与消息打到 **stderr**，宿主捕获时要连 stderr 一起收。
+        ap.error("用法：`python tools/pick-card.py <id> <档> <版号>`，或 `--list` 先看看有哪些")
     ver = args.ver
     if not ver and args.dry:
         # 🔴 `--dry` 是**只读路径** ⇒ 允许省版号，默认看「第 2 版」（挑的就是它）。
@@ -239,8 +243,10 @@ def main():
         #    让「少打一个数字」直接变成一次落盘，属不可逆的手滑（§9.1 第 4 条）。
         ver = 2
     if not ver:
-        die("用法：`python tools/pick-card.py <id> <档> <版号>`"
-            + "（只看会发生什么就加 `--dry`，那时版号可省），或 `--list` 先看看有哪些")
+        # 同上：这是**用法错** ⇒ `ap.error`（退出码 2）。真换要显式版号这条闸门是 Q54 拍的，
+        # 退出码只是让「谁在拦你」这件事对调用方（`.cmd` / 脚本）也说得清。
+        ap.error("用法：`python tools/pick-card.py <id> <档> <版号>`"
+                 + "（只看会发生什么就加 `--dry`，那时版号可省），或 `--list` 先看看有哪些")
     cmd_pick(man, args.id, args.morph, ver, args.dry)
 
 

@@ -1109,7 +1109,10 @@ def main():
             try:
                 # `die()` 抛的是 `SystemExit("❌ …")`（字符串码）⇒ 接住并把文案当报告，
                 # 不让「参数面坏了」把整个测试宿主带崩（同 [20]）
-                with contextlib.redirect_stdout(_buf), contextlib.redirect_stderr(io.StringIO()):
+                # ⚠️ stderr 也要收：`argparse` 的 usage / error（用法错，退出码 2）走 stderr，
+                # 不收的话「报用法错」这条断言会因为拿不到文案而假红（2026-10-12 第 55 轮）。
+                _errb = io.StringIO()
+                with contextlib.redirect_stdout(_buf), contextlib.redirect_stderr(_errb):
                     PC.main()
                 _rc = 0
             except SystemExit as _e:
@@ -1118,6 +1121,7 @@ def main():
                     _buf.write(_e.code)
             finally:
                 sys.argv = _old
+            _buf.write(_errb.getvalue())
             return _rc, _buf.getvalue()
 
         check(PC.normalize_dry(["A44", "shiny", "dry"]) == ["A44", "shiny", "--dry"]
@@ -1134,9 +1138,10 @@ def main():
             check(_snap() == _s0 and _man_now() == _m0,
                   "%s：**一个字节都没写**（两张图与台账都没动）" % _what)
         _rc, _t = _runpick("A44", "shiny")
-        check(_rc != 0 and "用法" in _t and _snap() == _s0 and _man_now() == _m0,
-              "不带 `--dry` 又省版号 ⇒ 报用法错且不落盘"
-              "（防手滑把「少打一个数字」直接变成一次真换 —— 那一步不可逆）")
+        check(_rc == 2 and "用法" in _t and _snap() == _s0 and _man_now() == _m0,
+              "不带 `--dry` 又省版号 ⇒ 报用法错（**退出码 2**，与 `--list`+id 撞车同口径）"
+              "且不落盘（防手滑把「少打一个数字」直接变成一次真换 —— 那一步不可逆）"
+              "（实得 rc=%d）" % _rc)
         _rc, _t = _runpick("A44", "shiny", "2")
         _now = _man_now()
         with open(_pa, "rb") as _f:

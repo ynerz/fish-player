@@ -10196,7 +10196,14 @@ console.log('\n[53-b] 样式里定义的自定义属性必须有消费方（零�
       绝大多数是 HTML 碎片，虽然当时的判定结果**碰巧**一样，但那是运气）。
    ⚠️ 判不了的事**写明**：它只判「这个类名有没有可能被拼出来」，判不了
       「拼它的那个分支是不是已经死了」；也判不了「用到了但样式里没规则」
-      （那条在 markup 一侧单独判，见 `11-k`）。 */
+      （那条在 markup 一侧单独判，见 `11-k`）。
+   ⚠️ **扫描面 = 每个「样式单元」自己的 `<style>`**（口径与 `53-b` 同款）：
+   ① `assets/css/style.css`（消费面 = `src/` 全部 `.js` + `index.html` + `docs/*.html`）；
+   ② 每个 `docs/*.html` **页内** `<style>`（消费面 = **那一页自己**，且要先把 `<style>` 块挖掉，
+      否则「定义喂饱自己」）。
+   📌 ② 是第 52 轮补的：只扫 `style.css` 时，**6 个 docs 页自己的样式块整片在网外** ——
+      补上这一层当场逮到两条死规则（`卡片评审.html` 的 `.flt .warn2`、
+      `收集耗时表.html` 的 `.fh`，两条都由 `tools/` 里的生成器写在模板字符串里）。 */
 console.log('\n[53-c] 样式里的类选择器必须有消费方（零消费的删掉）');
 (function () {
   let cBad = 0;
@@ -10215,8 +10222,9 @@ console.log('\n[53-c] 样式里的类选择器必须有消费方（零消费的�
     });
   })('src');
   hay.push(stripCode(fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8')));
-  fs.readdirSync(path.join(ROOT, 'docs')).forEach(n => {
-    if (/\.html$/.test(n)) hay.push(stripCode(fs.readFileSync(path.join(ROOT, 'docs', n), 'utf8')));
+  const docPages = fs.readdirSync(path.join(ROOT, 'docs')).filter(n => /\.html$/.test(n));
+  docPages.forEach(n => {
+    hay.push(stripCode(fs.readFileSync(path.join(ROOT, 'docs', n), 'utf8')));
   });
   const blob = hay.join('\n');
 
@@ -10230,10 +10238,29 @@ console.log('\n[53-c] 样式里的类选择器必须有消费方（零消费的�
   const consumed = (c, code, pfxs) =>
     code.indexOf(c) >= 0 || pfxs.some(p => p.length < c.length && c.indexOf(p) === 0);
 
-  const cssCode = stripCss(fs.readFileSync(path.join(ROOT, 'assets/css/style.css'), 'utf8'));
-  const classes = classesOf(cssCode);
-  const pfxs = prefixesOf(blob);
-  const dead = classes.filter(c => !consumed(c, blob, pfxs));
+  /* ---- 样式单元（与 53-b 同一模型）----
+     ① `assets/css/style.css`：消费面 = `src/` + `index.html` + `docs/*.html` 合起来的 blob；
+     ② 每个 `docs/*.html` 的**页内** `<style>`：消费面 = **那一页自己**，且先把 `<style>` 块挖掉。 */
+  const units = [{ name: 'assets/css/style.css', css: stripCss(
+    fs.readFileSync(path.join(ROOT, 'assets/css/style.css'), 'utf8')), use: blob }];
+  docPages.forEach(n => {
+    const raw = fs.readFileSync(path.join(ROOT, 'docs', n), 'utf8');
+    const code = stripCode(raw);
+    const blocks = code.match(/<style[^>]*>[\s\S]*?<\/style>/gi) || [];
+    const css = stripCss(blocks.map(b => b.replace(/<\/?style[^>]*>/gi, '')).join('\n'));
+    if (!css.trim()) return;
+    let body = code;
+    blocks.forEach(b => { body = body.replace(b, '\n'); });   // 定义不许喂饱自己
+    units.push({ name: 'docs/' + n, css: css, use: body });
+  });
+
+  let clsTotal = 0, pfxTotal = 0;
+  const dead = [];
+  units.forEach(u => {
+    const cls = classesOf(u.css), pfxs = prefixesOf(u.use);
+    clsTotal += cls.length; pfxTotal += pfxs.length;
+    cls.forEach(c => { if (!consumed(c, u.use, pfxs)) dead.push(u.name + ' 的 .' + c); });
+  });
 
   /* 自检（合成样本）：**字面量与动态前缀两条路都要真生效**
      —— `zz-lit` 只靠字面量、`zz-dyn1` 只靠 `'zz-dyn' +` 拼接、`zz-dead` 两条都不靠。
@@ -10241,22 +10268,23 @@ console.log('\n[53-c] 样式里的类选择器必须有消费方（零消费的�
   const S_CSS = '.zz-lit{}.zz-dyn1{}.zz-dead{}';
   const S_CODE = "U.el('i','zz-lit'); var k = 'zz-dyn' + n;";
   const sDead = classesOf(S_CSS).filter(c => !consumed(c, S_CODE, prefixesOf(S_CODE)));
-  if (classes.length < 200 || pfxs.length < 5
+  if (clsTotal < 200 || units.length < 5 || pfxTotal < 5
       || sDead.length !== 1 || sDead[0] !== 'zz-dead') {
     err('53-c 的判据自检不成立（合成样本该只抓 `zz-dead`、实抓 ['
-      + sDead.join(', ') + ']；扫描面只认到 ' + classes.length + ' 个类名 / '
-      + pfxs.length + ' 个动态前缀）—— 判据会退化成摆设，先修本节自身');
+      + sDead.join(', ') + ']；扫描面只认到 ' + clsTotal + ' 个类名（' + units.length + ' 个样式单元）/ '
+      + pfxTotal + ' 个动态前缀）—— 判据会退化成摆设，先修本节自身');
     cBad++;
   }
   if (dead.length) {
-    err('style.css 里这些类选择器没有任何消费方（源码一个字都不出现、也不是拼出来的）：'
-      + dead.map(c => '.' + c).join('、')
+    err('这些类选择器没有任何消费方（源码一个字都不出现、也不是拼出来的）：'
+      + dead.join('、')
       + ' —— 零消费的规则会让人以为还有这套结构（`book-sum` 就是删 DOM 忘删 CSS 留下来的），'
-      + '删掉，或者把消费方接回来');
+      + '删掉，或者把消费方接回来（docs 页自己的样式块要去对应的生成器里删，别只手改产物）');
     cBad++;
   }
   if (!cBad) {
-    ok(`${classes.length} 个类选择器全部有消费方（${pfxs.length} 个现算的动态前缀 + 字面量），0 个零消费`);
+    ok(`${units.length} 个样式单元里 ${clsTotal} 个类选择器全部有消费方`
+      + `（${pfxTotal} 个现算的动态前缀 + 字面量），0 个零消费`);
   }
 })();
 

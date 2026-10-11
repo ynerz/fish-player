@@ -363,7 +363,8 @@ TEMPLATE = u"""<!DOCTYPE html>
                 border-radius:6px; padding:4px 8px; font:inherit; cursor:pointer; }
   .flt select.on { border-color:var(--accent); color:#fff; }
   .flt .hit b { color:var(--accent); font-weight:600; }
-  .flt .warn2 { color:#d8a657; }
+  /* ⚠️ 这里原有 `.flt .warn2 { color:#d8a657; }` —— 全页没有任何元素挂 `warn2`
+     （提示条走的是 `#warn` + `.on`），第 52 轮清掉；`verify §53-c` 现在会盯住这一类。 */
   .prog { flex:1; min-width:180px; height:6px; background:#2a2d34; border-radius:3px; overflow:hidden; }
   .prog i { display:block; height:100%; background:var(--accent); width:0; }
   button { background:#2a2d34; color:var(--fg); border:1px solid var(--line);

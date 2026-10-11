@@ -13,7 +13,7 @@
     {
       "tool": "fix-rarity-price.js",
       "next": [
-        "node tools/balance.js",
+        "node tools/balance.js --emit",
         "node tools/verify.js",
         "node tools/gen-collect-time.js"
       ]

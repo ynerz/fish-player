@@ -4313,8 +4313,22 @@ console.log('\n[32-t] 数值链的「下一步」：一处声明（tools/pipelin
         tBad++;
       }
     }
-    /* (b) 写盘工具双向。
-       ⚠️ 门禁宿主（`verify.js` 里那份 `WRITES` 是 [14-b] 的白名单声明）与两个助手模块都不算「数值链工具」。 */
+    /* (a3) 指向 `balance.js` 的命令必须带 `--emit` —— 不带它只是**打印报告**，
+       `docs/balance-figures.js`（说明书与 GDD 引用的那份「仿真结论」）不会被刷新，
+       而 §33-l 只判它的**结构**、判不了新鲜度 ⇒ 分家且不报错（实测过：链条第 ④ 步
+       一直写的是 `node tools/balance.js`，价格改过之后那份表就悄悄过期了）。 */
+    PIPE.steps.forEach(s => {
+      s.next.forEach(cmd => {
+        if (/\btools\/balance\.js\b/.test(cmd) && !/--emit\b/.test(cmd)) {
+          err(`32-t：\`${s.tool}\` 的下一步写的是 \`${cmd}\` —— 不带 \`--emit\` 时 balance.js `
+            + '只打印报告、**不会刷新** `docs/balance-figures.js`（说明书 / GDD 引用的那份），'
+            + '分家且不报错 ⇒ 这一条命令必须带 `--emit`');
+          tBad++;
+        }
+      });
+    });
+
+    /* (b) 写盘工具双向。       ⚠️ 门禁宿主（`verify.js` 里那份 `WRITES` 是 [14-b] 的白名单声明）与两个助手模块都不算「数值链工具」。 */
     const HOST_SET = ['verify.js', 'test.js', 'argv.js', 'pipeline.js'];
     const jsFiles = fs.readdirSync(path.join(ROOT, 'tools')).filter(f => /\.js$/.test(f) && HOST_SET.indexOf(f) < 0);
     const jsWriters = [];

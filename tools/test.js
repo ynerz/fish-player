@@ -3273,6 +3273,15 @@ G_('CLI · js 工具的命令行契约（未知开关 / 缺值 / 互斥必须报
   ok(extra.length === 0, '  …那一行里没有 JSON 之外的步骤（反向：不许提一个不存在的下游）', extra.join(' '));
   ok(md5('src/data/fish.js') === fishMd5 && md5('src/data/fields.js') === fieldsMd5,
      '`--dry` 这一趟也没碰会被写回的两个数据文件（逐字节未变）');
+
+  /* ⑤ 生成物新鲜度：`docs/balance-figures.js` 是「胜率表」的唯一来源（说明书 / GDD 引用它），
+     而它只有 `balance.js --emit` 会写 —— 此前**常跑门禁一条都不盯它的新鲜度**
+     （`verify §33-l` 只判结构）⇒ 数值改了、图没重出，文档就在说假话且不报错。
+     这里真跑一次 `--check`（实测 1.4 秒、定种子 ⇒ 结果确定），不一致就报红。 */
+  const bal = run('balance.js', ['--check']);
+  ok(bal.status === 0 && String(bal.stdout || '').indexOf('一致') >= 0,
+     '生成物 docs/balance-figures.js 与实跑结论**一致**（说明书 / GDD 引用的胜率表不许过期）',
+     'status=' + bal.status + ' / ' + String(bal.stdout || '').trim().split('\n').slice(-1)[0]);
 })();
 
 

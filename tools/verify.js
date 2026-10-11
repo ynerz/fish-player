@@ -10123,6 +10123,89 @@ console.log('\n[53-b] 样式里定义的自定义属性必须有消费方（零�
   }
 })();
 
+/* ---------------- 53-c. 样式里的「类选择器」必须有消费方（零消费的删掉） ----------------
+   由来：`53-b` 只盯住**自定义属性**（有没有 `var(--x)` 读它），`style.css` 里
+   **类选择器**的零消费至今没有网 —— 第 41 轮 C 类审计试过一版「CSS 类名 ↔ 代码双向」，
+   当时按「噪音太大」整条放弃了（类名大量是**拼**出来的：`'rar' + r`、`'at-' + place`）。
+   代价是当场量到的东西一路隐形：`a3f1318`（v0.4.0 第二批）把面板里那句
+   `<div class="book-sum">…` 换成两条 `bk-bar` 进度条时**只删了 DOM、留下两条 CSS 规则** ——
+   此后 `book-sum` 在源码里一个字都不出现，还被内联进 `dist/` 的单文件产物，**没人报过**。
+
+   口径（两条都算「有人用」，缺一才算零消费）：
+     ① **字面量**：类名出现在消费面（`src/` 下全部 `.js` + `index.html` + `docs/*.html`）里（先剥注释）；
+     ② **动态前缀**：源码里有 `'…' +` / `"…" +` 这种**字符串拼接**，且引号里
+        **最后一段空白分词**是类名的**真前缀**（≥2 字符，且它本身是一个合法类名片段）——
+        `'rar' + f.rar` 覆盖 `rar0…rar4`、`'at-' + st.place` 覆盖 `at-idle/bite/fight/btn`。
+   ⚠️ ② **从源码现算**，不许写死白名单（写死 = 把「今天真用着的类」固化成永久豁免）。
+   ⚠️ 口径刻意**宁可漏报、不可误报**：前缀只收「合法类名片段」，于是 `'>…</i></div>'` / `'%'`
+      这类 HTML 碎片不会被当前缀（实测：放宽成「所有 `'…' +` 的最后一段」会有 539 个前缀、
+      绝大多数是 HTML 碎片，虽然当时的判定结果**碰巧**一样，但那是运气）。
+   ⚠️ 判不了的事**写明**：它只判「这个类名有没有可能被拼出来」，判不了
+      「拼它的那个分支是不是已经死了」；也判不了「用到了但样式里没规则」
+      （那条在 markup 一侧单独判，见 `11-k`）。 */
+console.log('\n[53-c] 样式里的类选择器必须有消费方（零消费的删掉）');
+(function () {
+  let cBad = 0;
+  const stripCss = (t) => String(t).replace(/\/\*[\s\S]*?\*\//g, '');
+  const stripCode = (t) => String(t)
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  /* 消费面：src/ 全部 .js（含子目录）+ index.html + docs/*.html */
+  const hay = [];
+  (function walk(rel) {
+    fs.readdirSync(path.join(ROOT, rel), { withFileTypes: true }).forEach(e => {
+      const r = rel + '/' + e.name;
+      if (e.isDirectory()) { if (e.name !== '__pycache__') walk(r); }
+      else if (/\.js$/.test(e.name)) hay.push(stripCode(fs.readFileSync(path.join(ROOT, r), 'utf8')));
+    });
+  })('src');
+  hay.push(stripCode(fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8')));
+  fs.readdirSync(path.join(ROOT, 'docs')).forEach(n => {
+    if (/\.html$/.test(n)) hay.push(stripCode(fs.readFileSync(path.join(ROOT, 'docs', n), 'utf8')));
+  });
+  const blob = hay.join('\n');
+
+  const classesOf = (css) => [...new Set(css.match(/\.(-?[A-Za-z_][\w-]*)/g) || [])]
+    .map(s => s.slice(1));
+  /* 动态前缀：每个「引号串（可含另一种引号）+ `+`」取引号里的最后一段空白分词 */
+  const prefixesOf = (code) => [...new Set(
+    (code.match(/'(?:\\.|[^'\\\n])*'\s*\+|"(?:\\.|[^"\\\n])*"\s*\+/g) || [])
+      .map(s => s.replace(/\s*\+\s*$/, '').slice(1, -1).split(/\s+/).pop())
+      .filter(p => p && p.length >= 2 && /^-?[A-Za-z_][\w-]*$/.test(p)))];
+  const consumed = (c, code, pfxs) =>
+    code.indexOf(c) >= 0 || pfxs.some(p => p.length < c.length && c.indexOf(p) === 0);
+
+  const cssCode = stripCss(fs.readFileSync(path.join(ROOT, 'assets/css/style.css'), 'utf8'));
+  const classes = classesOf(cssCode);
+  const pfxs = prefixesOf(blob);
+  const dead = classes.filter(c => !consumed(c, blob, pfxs));
+
+  /* 自检（合成样本）：**字面量与动态前缀两条路都要真生效**
+     —— `zz-lit` 只靠字面量、`zz-dyn1` 只靠 `'zz-dyn' +` 拼接、`zz-dead` 两条都不靠。
+     抓不到或数目不对 ⇒ 判据已退化成摆设，先修本节自身。 */
+  const S_CSS = '.zz-lit{}.zz-dyn1{}.zz-dead{}';
+  const S_CODE = "U.el('i','zz-lit'); var k = 'zz-dyn' + n;";
+  const sDead = classesOf(S_CSS).filter(c => !consumed(c, S_CODE, prefixesOf(S_CODE)));
+  if (classes.length < 200 || pfxs.length < 5
+      || sDead.length !== 1 || sDead[0] !== 'zz-dead') {
+    err('53-c 的判据自检不成立（合成样本该只抓 `zz-dead`、实抓 ['
+      + sDead.join(', ') + ']；扫描面只认到 ' + classes.length + ' 个类名 / '
+      + pfxs.length + ' 个动态前缀）—— 判据会退化成摆设，先修本节自身');
+    cBad++;
+  }
+  if (dead.length) {
+    err('style.css 里这些类选择器没有任何消费方（源码一个字都不出现、也不是拼出来的）：'
+      + dead.map(c => '.' + c).join('、')
+      + ' —— 零消费的规则会让人以为还有这套结构（`book-sum` 就是删 DOM 忘删 CSS 留下来的），'
+      + '删掉，或者把消费方接回来');
+    cBad++;
+  }
+  if (!cBad) {
+    ok(`${classes.length} 个类选择器全部有消费方（${pfxs.length} 个现算的动态前缀 + 字面量），0 个零消费`);
+  }
+})();
+
 /* ---------------- 54. 长线目标系统（每日 / 周常 / 成就 / 彩蛋）必须有网 ----------------
    由来：整套 B5 长线目标系统（`data/goals.js` + `core/goals.js` + 面板那一屏）**此前一条判据都没有** ——
    成就写错 metric、同 metric 的 need 重复、彩蛋 hint 把答案写在题面上、概率阶梯倒挂、

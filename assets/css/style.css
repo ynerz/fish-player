@@ -765,11 +765,9 @@ input[type=range]{ width:130px; accent-color:var(--c-primary); }
   border:1px solid rgba(0,0,0,.16); opacity:.22;
 }
 .bi-colors > i.on{ opacity:1; box-shadow:0 0 0 1px rgba(255,255,255,.9) inset; }
-.book-sum{
-  display:flex; gap:16px; flex-wrap:wrap; margin-top:8px;
-  font-size:12px; color:var(--c-text-2);
-}
-.book-sum b{ color:var(--c-text); font-size:14px; }
+/* ⚠️ 这里原有两条 `.book-sum`（一栏收集汇总）。`a3f1318`（v0.4.0 第二批）把面板里那句
+   `<div class="book-sum">…` 换成下面那两条 `bk-bar` 进度条时**只删了 DOM、留下了 CSS**，
+   此后一直没人用（第 52 轮清掉，并补 `verify §53-c` 盯住这一类）。别再加回来。 */
 
 /* -------- 图鉴 · 两条收集进度条 -------- */
 .bk-bar-row{ margin-top:11px; }

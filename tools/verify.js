@@ -3788,6 +3788,98 @@ console.log('\n[33-h] 尾型口径：TAIL_HINTS 一处实现；TAIL / TAIL_SHAPE
   }
 })();
 
+/* ---------------- 33-i. GDD 的装备表必须与 `src/data/items.js` 逐格一致 ----------------
+   项目已有的「文档里的数字」网：⑪-h/⑪-i（产物体积与请求数）· 33（体型数）· 33-b（钓场结构数字：
+   品种数 / 门槛 / 传说条数）· 34-c（存档结构）· 52（传说档色相带）。**没网的一类正是装备表** ——
+   GDD §6.1 / §6.2 那三张表（13 鱼饵 / 8 鱼竿 / 8 鱼线，实测 **118 格**）是**玩家照着买东西**的依据，
+   而它们全部由 `items.js` 的字段派生。改一个价格 / 倍率就漂，且**漂了不会报错** ——
+   与报障 ⑥「文档里的数字没人核对」是同一族，只是这一处一直没被翻出来。
+   ⚠️ 判据只认**表行**（`| 名字 | … |`）：散文里提到装备名不算 —— 第 43 轮审计实测，
+   按「名字附近有没有数字」抓会大面积漏判（正文里第一次出现名字的地方离表格很远）。
+   ⚠️ 「抓不到就报错」：三张表各自认到的**行数**必须 ≥ items.js 的件数，否则报红
+   （表被改名 / 改格式时，宁可报红也不许静默变成一条恒真的空断言）。 */
+console.log('\n[33-i] GDD 的装备表（鱼饵 / 鱼竿 / 鱼线）必须与 items.js 一致');
+(function () {
+  const GI = sandbox.G || {};
+  const BAITS = GI.BAITS, RODS = GI.RODS, LINES = GI.LINES;
+  if (!Array.isArray(BAITS) || !Array.isArray(RODS) || !Array.isArray(LINES)) {
+    err('沙箱里读不到 G.BAITS / G.RODS / G.LINES —— items.js 没被 index.html 加载，或挂载名改了'); return;
+  }
+  let gBad = 0;
+  const num = t => Number(String(t).replace(/[\s,，]/g, '').replace(/×/g, ''));
+  const lines = fs.readFileSync(path.join(ROOT, 'docs/GDD.md'), 'utf8').split(/\r?\n/);
+  const cells = l => l.split('|').slice(1, -1).map(t => t.trim());
+  const rowOf = name => lines.find(l => l.startsWith('| ' + name + ' ') || l.startsWith('|' + name + ' '));
+  const near = (a, b, tol) => Math.abs(a - b) <= (tol === undefined ? 1e-9 : tol);
+
+  /* ① 鱼饵：`| 名字 | <一包价> / <包数> 个（或「免费无限」） | 单价 | 咬口 × | 稀有 × | 传说 × |` */
+  let bRows = 0;
+  BAITS.forEach(b => {
+    const row = rowOf(b.name);
+    if (!row) { err(`GDD §6.1 的鱼饵表里没有「${b.name}」（items.js 有 ${BAITS.length} 件）`); gBad++; return; }
+    const c = cells(row); bRows++;
+    const pack = c[1].match(/^([\d,]+)\s*\/\s*(\d+)\s*个$/);
+    const price = pack ? num(pack[1]) : (/免费/.test(c[1]) ? 0 : null);
+    if (price === null) { err(`GDD 鱼饵「${b.name}」的一包价格那格读不出来：「${c[1]}」`); gBad++; return; }
+    if (price !== b.price) { err(`GDD 鱼饵「${b.name}」写一包 ${price} 金，items.js 是 ${b.price}`); gBad++; }
+    if (pack && b.pack && num(pack[2]) !== b.pack) {
+      err(`GDD 鱼饵「${b.name}」写每包 ${num(pack[2])} 个，items.js 的 pack 是 ${b.pack}`); gBad++;
+    }
+    if (b.pack && !near(num(c[2]), b.price / b.pack, 0.06)) {
+      err(`GDD 鱼饵「${b.name}」的单价写 ${num(c[2])}，按 items.js 现算是 ${(b.price / b.pack).toFixed(1)}`); gBad++;
+    }
+    if (!near(num(c[3]), b.speed)) {
+      err(`GDD 鱼饵「${b.name}」咬口写 ×${num(c[3])}，items.js 的 speed 是 ${b.speed}`); gBad++;
+    }
+    if (b.rareMul !== undefined && !near(num(c[4]), b.rareMul)) {
+      err(`GDD 鱼饵「${b.name}」稀有写 ×${num(c[4])}，items.js 的 rareMul 是 ${b.rareMul}`); gBad++;
+    }
+    if (b.legendMul !== undefined && !near(num(c[5]), b.legendMul)) {
+      err(`GDD 鱼饵「${b.name}」传说写 ×${num(c[5])}，items.js 的 legendMul 是 ${b.legendMul}`); gBad++;
+    }
+  });
+
+  /* ② 鱼竿：`| 名字 | 价格 | 稀有权重 × | 收线效率 × |` */
+  let rRows = 0;
+  RODS.forEach(r => {
+    const row = rowOf(r.name);
+    if (!row) { err(`GDD §6.2 的鱼竿表里没有「${r.name}」`); gBad++; return; }
+    const c = cells(row); rRows++;
+    const price = /免费/.test(c[1]) ? 0 : num(c[1]);
+    if (price !== r.price) { err(`GDD 鱼竿「${r.name}」写 ${price} 金，items.js 是 ${r.price}`); gBad++; }
+    if (!near(num(c[2]), r.rareMul)) {
+      err(`GDD 鱼竿「${r.name}」稀有写 ×${num(c[2])}，items.js 的 rareMul 是 ${r.rareMul}`); gBad++;
+    }
+    if (r.reel !== undefined && !near(num(c[3]), r.reel)) {
+      err(`GDD 鱼竿「${r.name}」收线写 ×${num(c[3])}，items.js 的 reel 是 ${r.reel}`); gBad++;
+    }
+  });
+
+  /* ③ 鱼线：`| 名字 | 价格 | 张力上限 |` */
+  let lRows = 0;
+  LINES.forEach(l => {
+    const row = rowOf(l.name);
+    if (!row) { err(`GDD §6.2 的鱼线表里没有「${l.name}」`); gBad++; return; }
+    const c = cells(row); lRows++;
+    const price = /免费/.test(c[1]) ? 0 : num(c[1]);
+    if (price !== l.price) { err(`GDD 鱼线「${l.name}」写 ${price} 金，items.js 是 ${l.price}`); gBad++; }
+    if (!near(num(c[2]), l.tensionMax)) {
+      err(`GDD 鱼线「${l.name}」张力写 ${num(c[2])}，items.js 的 tensionMax 是 ${l.tensionMax}`); gBad++;
+    }
+  });
+
+  /* 抓不到就报错：三张表各自认到的行数不许少于 items.js 的件数 */
+  if (bRows < BAITS.length || rRows < RODS.length || lRows < LINES.length) {
+    err(`GDD 装备表认到的行数不够（鱼饵 ${bRows}/${BAITS.length} · 鱼竿 ${rRows}/${RODS.length} · `
+      + `鱼线 ${lRows}/${LINES.length}）—— 表格被改名 / 改格式了，这条判据会变成恒真的空断言`); gBad++;
+  }
+  if (!gBad) {
+    ok(`GDD 的装备表与 items.js 逐格一致：鱼饵 ${BAITS.length} 件（一包价 / 包数 / 单价 / 咬口 / 稀有 / 传说）· `
+      + `鱼竿 ${RODS.length} 件（价格 / 稀有 / 收线）· 鱼线 ${LINES.length} 件（价格 / 张力）`);
+  }
+})();
+
+
 /* ---------------- 34. 文档里写的「自检 N 节」必须就是本文件的节数 ----------------
    开发者文档 §8 出现过「数据自检 29 节」、GDD §目录树 写着「自检 15 节」，
    而本文件早就不是这个数了 —— 每加一节就过期一次，而且没人会去核对。

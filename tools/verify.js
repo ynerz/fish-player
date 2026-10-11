@@ -4243,6 +4243,76 @@ console.log('\n[33-i] GDD 的装备表（鱼饵 / 鱼竿 / 鱼线）必须与 it
 })();
 
 
+/* ---------------- 33-j. `docs/说明书.html` 的玩家向数字必须与 config 现算一致（第 46 轮）----
+   `说明书.html` 是**玩家照着玩的手册**，里面的数字就是对外承诺。它有两半：
+     · 一半是**页面自己算的**（稀有度表 / 五档概率表 / 装备表 / 钓场表 / k1·k2 这些
+       都走页内 `CFG` / `G.*` 现算）—— 那一半天生同源，不会漂；
+     · 另一半是**散文数字**（「逃窜前 0.55 秒」「张力触顶 0.45 秒 → 断线」「鱼护初始 30 格」……）
+       —— 这一半**一个网都没有**：改 `config.js` 没人会想起这几句中文，说明书说的与实际跑的
+       就会悄悄分家，而且**谁都不报错**。
+   本节的判据只覆盖**能给出唯一来源的那几条**（有界子集，10 条；不追求把全文几十个数字都网住）：
+   每条 = 「一句必须原样出现的文案」+「数字由 `CFG` 现算」。文案改了就得同步改这里 ——
+   **这是有意的**（判据是描述性的，允许跟着文案走，但绝不允许把数字写死在判据里）。
+   ⚠️ 反过来**不许**因为「文案被我改了」就删掉一条：删了就少一处守，`MIN_ITEMS` 会报红。
+   为什么不把散文数字也改成页内现算？—— 说明书的 HTML 也被当源码读（改一行就能看懂），
+   塞满 `<span data-cfg>` 会让它没法读；Q49（GDD 装备表）选的是同一条路：**留散文 + 补网**。 */
+console.log('\n[33-j] `docs/说明书.html` 的玩家向数字必须与 config 现算一致');
+(function () {
+  const MANUAL = 'docs/说明书.html';
+  let jBad = 0;
+  let raw = '';
+  try { raw = fs.readFileSync(path.join(ROOT, MANUAL), 'utf8'); }
+  catch (e) { err(`读不到 \`${MANUAL}\` —— 33-j 抓不到要判的地方（先修判据本身）`); return; }
+  const txt = flat(raw);
+
+  const bw = CFG.misc.biteWindow;
+  const bwMin = Math.min.apply(null, Object.keys(bw).map(k => bw[k]));
+  const bwMax = Math.max.apply(null, Object.keys(bw).map(k => bw[k]));
+  const ITEMS = [
+    ['咬钩窗口（`CFG.misc.biteWindow` 的 min~max）', bwMin + '~' + bwMax + ' 秒内'],
+    ['逃窜预警提前量（`CFG.fight.dashWarnLead`）', '逃窜前 ' + CFG.fight.dashWarnLead + ' 秒'],
+    ['断线缓冲（`CFG.fight.snapGrace`）', '张力触顶 ' + CFG.fight.snapGrace + ' 秒'],
+    ['脱钩缓冲（`CFG.fight.slackGrace`）', '张力贴地 ' + CFG.fight.slackGrace + ' 秒'],
+    ['力竭起点与最大降幅（`CFG.fight.tireRampFrom` / `tireMaxDrop`）',
+      '进度过 ' + CFG.fight.tireRampFrom + '% 后鱼开始力竭，最多减 '
+      + Math.round(CFG.fight.tireMaxDrop * 100) + '%'],
+    ['断线修理费（`CFG.snap.repairPct` / `repairMin`）',
+      '修理费 = 鱼线价 × ' + (CFG.snap.repairPct * 100) + '%（保底 ' + CFG.snap.repairMin + ' 金）'],
+    ['鱼护初始格数（`CFG.storage.netCap`）', '鱼护初始 ' + CFG.storage.netCap + ' 格'],
+    ['水族箱初始格数（`CFG.storage.tankCap`）', '初始 ' + CFG.storage.tankCap + ' 格'],
+    ['离线补算上限（`CFG.idle.maxCatchUp`）', '上限 ' + (CFG.idle.maxCatchUp / 3600) + ' 小时'],
+    ['挂机稀有档权重（`CFG.idle.rareWeightMul`）', '权重 ×' + CFG.idle.rareWeightMul],
+  ];
+  /* 判据自检：① 每条的文案里**必须真的含现算出来的数字**（否则这网是恒真的装饰）；
+     ② 把一个数字改一位的副本必须**不被** `has()` 认出来（证明它真的是在比数字）。 */
+  const MUT = ITEMS[0][1].replace(bwMin + '~', (bwMin + 1) + '~');
+  const selfOk = ITEMS.every(it => it[1].length > 0)
+    && has('  ' + ITEMS[3][1] + '。', ITEMS[3][1])
+    && !has('  ' + MUT + '。', ITEMS[0][1])
+    && ITEMS[0][1] !== MUT;
+  if (!selfOk) {
+    err('33-j 的判据自检不成立（现算文案必须能被 has() 认出、改掉一个数字后必须认不出）');
+    jBad++;
+  }
+  const missing = [];
+  ITEMS.forEach(it => { if (!has(txt, it[1])) missing.push(it[0] + '　→ 期望文案「' + it[1] + '」'); });
+  if (ITEMS.length < 10) {
+    err(`33-j 的判据只剩 ${ITEMS.length} 条（少于 10）—— 少一条就少守一处，`
+      + '要改文案就改文案、**不许整条删掉**'); jBad++;
+  }
+  if (missing.length) {
+    err(`${MANUAL} 里 ${missing.length} 处玩家向数字与 config.js 现算不符（或那句文案被改过）：\n       `
+      + missing.join('\n       ')
+      + '\n       —— 数字对不上就改说明书；文案本身改了就把本节这条的文案一起改（**数字仍要现算**）');
+    jBad++;
+  }
+  if (!jBad) {
+    ok(`${MANUAL} 的 ${ITEMS.length} 处玩家向数字与 config 现算一致（咬钩窗口 / 逃窜预警 / 断线脱钩缓冲 / `
+      + '力竭 / 修理费 / 鱼护与水族箱容量 / 离线上限 / 挂机权重）');
+  }
+})();
+
+
 /* ---------------- 34. 文档里写的「自检 N 节」必须就是本文件的节数 ----------------
    开发者文档 §8 出现过「数据自检 29 节」、GDD §目录树 写着「自检 15 节」，
    而本文件早就不是这个数了 —— 每加一节就过期一次，而且没人会去核对。

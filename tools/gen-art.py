@@ -570,7 +570,8 @@ MORPHS = [(k, MORPH_CANDIDATES[MORPH_POOL[k][0][0]][1]) for k in MORPH_ORDER]
 
 # —— 体型：形态句 + 「华丽」作用在哪个部件上 ——
 #    `fin` 决定稀有度递进加长哪个部位；水母是触手、鳐是翼、鲸是尾叶。
-#    ⚠️ 形态句里**不要写尾型** —— 尾型一律由 `tail` 字段给，否则会拼出
+#    ⚠️ 形态句里**不要写尾型** —— 尾型一律由下面那节 `TAIL_HINTS` 给（不是 `tail`
+#       字段，那张 `TAIL` 表早已零消费，见它的注释），否则会拼出
 #       「forks tail, a fan-shaped tail」这种自相矛盾的话（实测踩过）。
 #    🔴 2026-10-09 新增 3 个体型（`crustacean` / `star` / `worm`，9 → 12）：
 #       它们原来**没有专属体型**，被兜底成 squid / jelly / eel ⇒ 数据模型里写着
@@ -1043,11 +1044,13 @@ def check_shape_words():
 
 
 
-# —— 尾型：**只对有独立尾鳍、且 tail 字段说得通的体型成立** ——
-#    eel 无独立尾鳍 / ray 是鞭尾且已在体型描述里 / squid 是三角鳍 / jelly 没有 /
-#    whale 的 tail 字段给不出 fluke 的正确说法（所以鲸的尾写在形态句里）。
-# ⚠️ 2026-10-10 起按 `FISH_SHAPES` **集合**取（原先只写 `"fish"`）——
-#    细分体型后单键比较会把 180 条鱼的尾型判断整体绕过。海马没有尾鳍，单独排除。
+# 🔴 尾型的**现行**口径：**不用 `tail` 字段**，走 `TAIL_HINTS`（名字线索优先 +
+#    `stable_pick` 兜底，见下面那一节）—— 因为实测 `tail` 字段不可用（362 条里只有
+#    11 条不是默认值 `fan`，见 `docs/优化队列.md` §2 的 Q4）。
+# ⚠️ 下面这两张表是 2026-10-07 `d3be3ee`（「形态档案」那次）把取值那三行删掉之后
+#    **留下的残骸**：全历史 `git log -S "TAIL[" -- tools/gen-art.py` 一次取值都没有，
+#    362 条提示词里因此**一个字都不来自这两张表**。留着是为了 Q4 真拍板「要不要
+#    重新启用 `tail` 维度」时手边有现成的词表；**接线前它们不产生任何输出**。
 TAIL_SHAPES = tuple(s for s in FISH_SHAPES if s != "seahorse") + ("shark", "dragon", "oarfish")
 TAIL = {"fan": "fan-shaped", "fork": "deeply forked", "lunate": "crescent-shaped",
         "round": "rounded", "whip": "long whip-like"}

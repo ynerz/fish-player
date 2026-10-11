@@ -666,17 +666,21 @@ else {
 }
 
 /* 11-h 文档里写的「单文件产物 ≈ N KB」必须与真实构建相符
-   这个数字在 GDD / 开发者文档里各写了一遍，谁都不会记得跟着改 ——
+   这个数字在 GDD / 开发者文档 / N8 设计文档里各写了一遍，谁都不会记得跟着改 ——
    本轮实测：文档写 419 KB，真产物已经 464 KB（漂了 11%），而它正是
    「双击 file:// 就能跑的单个文件有多大」这个对外说法。
    容差 5%：dev 与 release 产物本来就有约 2% 的差（release 剔除 devtools.js）。
    ⚠️ 判据只认「产物 ≈ N KB」与「≈ N KB」两种写法 ——
    GDD 版本历史表里那句「（21 个脚本内联成一个 HTML，≈419 KB）」是**历史记录**，
-   刻意不纳入（它描述的是 v0.5.4 当时的产物）。改措辞时记得同步这里的正则。 */
+   刻意不纳入（它描述的是 v0.5.4 当时的产物）。改措辞时记得同步这里的正则。
+   🔴 2026-10-11（第 41 轮 C 类审计）补 `docs/N8-多端与后端设计.md`：
+   它 §2 那张对照表里同样写着「≈821 KB」，实测已经 889.9 KB（偏 −7.8%），
+   挂了不知多少轮却没被拦 —— 因为扫描面只有 GDD 与开发者文档两份。 */
 const realKB = Math.round(BLD.build({}).meta.bytes / 1024);
 let sizeClaimCount = 0;
 [['docs/GDD.md', /产物\s*[≈约]\s*\*{0,2}\s*(\d+)\s*KB/g],
- ['docs/开发者文档.md', /[≈约]\s*\*{0,2}\s*(\d+)\s*KB/g]].forEach(function (pair) {
+ ['docs/开发者文档.md', /[≈约]\s*\*{0,2}\s*(\d+)\s*KB/g],
+ ['docs/N8-多端与后端设计.md', /[≈约]\s*\*{0,2}\s*(\d+)\s*KB/g]].forEach(function (pair) {
   const file = pair[0];
   const txt = fs.readFileSync(path.join(ROOT, file), 'utf8');
   let m;
@@ -699,7 +703,10 @@ if (!sizeClaimCount) { err('文档里再找不到「单文件产物 ≈ N KB」�
    判据同样只认「原本 N 个」这种写法，且**抓不到就报错**（口径删了要显式改这里）。 */
 const realReq = 1 + listed.length + cssListed.length;   // 1 = index.html 自身
 let reqClaimCount = 0;
-['docs/GDD.md', 'docs/开发者文档.md', 'README.md'].forEach(function (file) {
+/* 🔴 2026-10-11（第 41 轮）补 `docs/N8-多端与后端设计.md`：它原来写「34 个请求」，
+   同样不在网内（实测 35）。加它时**顺手把那句改成了规范措辞**「原本 N 个网络请求」，
+   否则这条判据的形态（同行既有「网络请求」又有「原本 N 个」）在它身上命不中。 */
+['docs/GDD.md', 'docs/开发者文档.md', 'README.md', 'docs/N8-多端与后端设计.md'].forEach(function (file) {
   /* ⚠️ 判据必须**同行**同时出现「网络请求」与「原本 N 个」——
      第一版只认「原本 N 个」，反向验证当场发现：文档里写一句「本节原本 3 个分组」
      也会被它当成对外承诺而报红（匹配条件写宽了 = 假报）。
@@ -717,7 +724,7 @@ let reqClaimCount = 0;
     }
   });
 });
-if (!reqClaimCount) { err('三份对外文档里都找不到「原本 N 个网络请求」（改了措辞就来更新这条断言）'); entryBad++; }
+if (!reqClaimCount) { err('四份对外文档里都找不到「原本 N 个网络请求」（改了措辞就来更新这条断言）'); entryBad++; }
 
 if (!entryBad) {
   ok(`入口 ${listed.length} 个脚本 == src/ 下 ${onDisk.length} 个模块，顺序正确`);

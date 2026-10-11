@@ -92,7 +92,11 @@ AMBIENCE = {
     'steps': 60,
     'seed': 20261013,
     'target_rms_dbfs': -14.51,
-    'mono': True,
+    # ⚠️ 「单声道」**不在**这张表里：它写在流水线的 `-ac 1`（`gen_ambience()` 两处）
+    #    与本文件 `--list` 的文案里，一共三处硬编码。
+    #    2026-10-11 前这里有个 `'mono': True`，但**没有任何代码读它**（零消费键，
+    #    同族的还有 prep-cards 的旧 `SPEC["alphaMin"]`）⇒ 改它不会有任何变化，
+    #    也不报错。要改声道数请去改那两处 `-ac` 与 `--list` 那句文案。
     'quality': '96k',
 }
 

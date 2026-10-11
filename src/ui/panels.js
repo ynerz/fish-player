@@ -1728,6 +1728,40 @@ G.Panels = (function () {
       foot.style.marginTop = '16px';
       foot.innerHTML = '成就是<b>按存档实时算出来的</b>（不额外占用存档字段），所以以后调整条件不需要迁移存档。';
       root.appendChild(foot);
+
+      /* --- 彩蛋（隐藏 · 概率撞见）---
+         🔴 **未撞见的只显示「？？？」+ 氛围提示** —— 名字一律不给（否则等于把答案写在题面上，
+            判据（`verify §54`）会逐条查 hint 与 name 有没有 2 个连续相同汉字）。
+         档位与概率文案由 `G.EGG_TIERS` / 每条自己的 `oneIn` 现算，面板不手抄。 */
+      var eg = Gl.eggs(), egp = Gl.eggProgress();
+      root.appendChild(U.el('div', 'section-title', '彩蛋（' + egp.got + ' / ' + egp.total + '）'));
+      var egTip = U.el('div', 'hint-text');
+      egTip.style.marginBottom = '10px';
+      egTip.innerHTML = '彩蛋是<b>概率撞见</b>的隐藏小发现 —— 每次<b>亲手</b>钓上一条鱼都有机会碰上一条，' +
+        '<b>挂机与离线补算不算</b>。每条只在<b>特定条件</b>（钓场 / 天气 / 时段 / 稀有度）下才有机会，' +
+        '所以越往后越要专门去凑。<b>彩蛋不给任何数值奖励</b>，只是「我见过」。';
+      root.appendChild(egTip);
+      var egWrap = U.el('div', 'goal-list');
+      G.EGG_TIERS.forEach(function (t) {
+        var items = eg.filter(function (x) { return x.tier === t.tier; });
+        if (!items.length) return;
+        var doneN = items.filter(function (x) { return x.done; }).length;
+        egWrap.appendChild(U.el('div', 'section-title',
+          '彩蛋 · ' + t.name + '（' + doneN + ' / ' + items.length + '）· ' + t.desc));
+        items.forEach(function (x) {
+          var row = U.el('div', 'goal-row ach' + (x.done ? ' done' : ''));
+          row.innerHTML =
+            '<div class="ach-mark">' + (x.done ? '✓' : '？') + '</div>' +
+            '<div class="goal-main">' +
+              '<div class="goal-top"><span class="goal-name">' +
+                (x.done ? esc(x.name) : '？？？') + '</span>' +
+                '<span class="goal-num">1 / ' + String(x.oneIn) + ' 竿</span></div>' +
+              '<div class="goal-desc">' + esc(x.hint) + '</div>' +
+            '</div>';
+          egWrap.appendChild(row);
+        });
+      });
+      root.appendChild(egWrap);
     },
   };
 

@@ -393,6 +393,75 @@ G.Goals = (function () {
     return { got: done, total: G.ACHIEVEMENTS.length };
   }
 
+  /* ---------------- 彩蛋（30 条 · 隐藏 · 概率获得） ----------------
+     用户口径（2026-10-11 夜）：彩蛋 = **特别稀有的成就**，靠**概率**撞见，越往后越难。
+     🔴 五条硬口径（每条都对应一种「不报错但玩家会看出问题」）：
+       ① **只认「亲手钓上来的那一条」**：`ctx.idle` 为真的（挂机 / 离线整批 / 开发者刷鱼）
+          不掷点 —— 彩蛋要是「你亲眼撞见的东西」，躺着刷出来就没有那个味道了；
+       ② **掷点走哈希、不用 `Math.random`**：盐里带这一竿的序号（`stats.catches`）⇒
+          同一竿重放结果一致（刷新页面不会重掷），本项目的数值工具也都能复现；
+       ③ **概率是「符合条件的那一竿」的独立伯努利**：`oneIn = N` ⇒ 期望 N 竿撞上一次；
+          `cond` 只负责把「有资格的竿」挑出来（不改变单竿概率）⇒ **凑条件真的能加速**；
+       ④ **找到就记 1、不重复、不累加**：`stats.eggs[id] = 1`（`stats` 的**子键式新增** ⇒
+          按项目约定**不升 SAVE_V**，老档缺它由读档兜底补空表）；
+       ⑤ **不占称号槽**：称号已经 45+ 个来源，再塞会把称号栏淹掉（见待办 E1 的边界）。 */
+  function eggCondOk(e, c) {
+    var d = e.cond || {};
+    if (d.field && d.field !== c.field) return false;
+    if (d.wx && d.wx !== c.wx) return false;
+    if (d.tm && d.tm !== c.tm) return false;
+    if (d.rar != null && d.rar !== c.rar) return false;
+    return true;
+  }
+  function eggHit(e, seq) {
+    return mkRand(hash32('egg|' + e.id + '|' + seq))() * e.oneIn < 1;
+  }
+  function eggsGot(S) {
+    var g = S && S.stats && S.stats.eggs;
+    return (g && typeof g === 'object' && !Array.isArray(g)) ? g : {};
+  }
+  /* 每次**成功上岸**调一次（由 `state.js: recordCatch()` 调；那是唯一的记账入口） */
+  function eggRoll(fish, ctx) {
+    if (!St || !fish) return [];
+    if (ctx && ctx.idle) return [];                 // 口径 ①
+    var S = St.get();
+    if (!S.stats || typeof S.stats !== 'object') return [];
+    var got = eggsGot(S);
+    if (got !== S.stats.eggs) S.stats.eggs = got;
+    var seq = Math.max(0, Math.round(S.stats.catches || 0));
+    var c = { field: fish.field || '', rar: fish.rar,
+              wx: (ctx && ctx.env && ctx.env.wx) || '', tm: (ctx && ctx.env && ctx.env.tm) || '' };
+    var out = [];
+    G.EASTER_EGGS.forEach(function (e) {
+      if (got[e.id]) return;
+      if (!eggCondOk(e, c)) return;
+      if (!eggHit(e, seq)) return;
+      got[e.id] = 1;
+      out.push(e);
+    });
+    if (out.length) {
+      St.scheduleSave();
+      if (G.Hud && G.Hud.toast) out.forEach(function (e) {
+        G.Hud.toast({ text: '🥚 撞见彩蛋：' + e.name, kind: 'good' });
+      });
+      emit('goals');
+    }
+    return out;
+  }
+  /* 面板用：未获得的**只给 hint**（名字由面板显示成「？？？」—— 别把答案递出去） */
+  function eggs() {
+    var got = eggsGot(St && St.get());
+    return G.EASTER_EGGS.map(function (e) {
+      return { id: e.id, tier: e.tier, name: e.name, hint: e.hint,
+               oneIn: e.oneIn, done: !!got[e.id] };
+    });
+  }
+  function eggProgress() {
+    var got = eggsGot(St && St.get()), n = 0;
+    G.EASTER_EGGS.forEach(function (e) { if (got[e.id]) n++; });
+    return { got: n, total: G.EASTER_EGGS.length };
+  }
+
   /* ---------------- 称号 ---------------- */
   function titles() {
     var out = [{ id: '', name: '无称号', from: '默认' }];
@@ -524,6 +593,10 @@ G.Goals = (function () {
     medalClaimable: medalClaimable,
     fmtVal: fmtVal, metrics: METRICS,
     achievements: achievements, achProgress: achProgress, achDone: achDone,
+    eggRoll: eggRoll, eggs: eggs, eggProgress: eggProgress,
+    /* `eggHit` 只给测试用（频率阶梯必须能被真跑验：大样本命中率 ≈ 1/oneIn）——
+       与 `fix-rarity-price.js` 导出 `dryRun()` 同一条理由。 */
+    eggHit: eggHit,
     titles: titles, equipped: equipped, equip: equip, medals: medals,
     check: check, ensureDay: ensureDay, ensureWeek: ensureWeek,
   };

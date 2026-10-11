@@ -26,6 +26,17 @@ G.State = (function () {
              **不升版本**（老档补成空记录 = 一句都没听过）。 */
   var SAVE_V = 6;
 
+  /* 彩蛋 id 索引（`data/goals.js` 的 `G.EASTER_EGGS`）——读档归一化时要用它剔掉不认识的 id。
+     惰性建一次：数据表是静态的，建好就不再变。 */
+  var EGG_IDS = null;
+  function eggIdMap() {
+    if (!EGG_IDS) {
+      EGG_IDS = {};
+      (G.EASTER_EGGS || []).forEach(function (e) { EGG_IDS[e.id] = 1; });
+    }
+    return EGG_IDS;
+  }
+
   /* 数字兜底：任何来自存档或计算的数值都要过一遍，
      否则 NaN 会被 JSON.stringify 写成 null，静默污染整个存档。 */
   function safeNum(v, dft) {
@@ -125,6 +136,11 @@ G.State = (function () {
         released: 0,                   // 放生累计条数
         netMax: 0, tankMax: 0,         // 鱼护 / 水族箱的**历史最大占用**（成就用）
         streak: 0, maxStreak: 0,       // 当前 / 历史最长「连续成功」竿数
+        /* 撞见过的彩蛋（id → 1，只记「有 / 没有」，不记次数）。
+           2026-10-11 夜用户点名的「彩蛋」系统：**概率**撞见、隐藏显示。
+           ⚠️ 它是 `stats` 的**子键式新增** ⇒ 按项目约定**不升 SAVE_V**；
+              老档缺它由 `Goals.eggsGot()` 兜底成空表，读档归一化再补一次。 */
+        eggs: {},
       },
       /* `speech` 默认 **关**：合成人声用的是**这台机器**的系统音色（可能是机械音），
          而且浏览器要求「先有用户手势」才允许出声 —— 默认开口会吓到刚打开游戏的玩家。
@@ -339,6 +355,14 @@ G.State = (function () {
     // ⚠️ 新增的计数键**必须**加进这张表：漏了的话脏档（NaN / 负数 / 字符串）会被原样带进游戏
     ['casts', 'catches', 'escapes', 'misses', 'robbed', 'tangled', 'snaps', 'idleCatches', 'days'].forEach(function (k) {
       d.stats[k] = Math.max(0, Math.round(safeNum(d.stats[k], 0)));
+    });
+    /* 彩蛋表：只留「认识的 id，值归一成 1」。脏档里可能是数组 / 字符串 / 未知 id ——
+       `Goals.eggsGot()` 只兜「不是对象」这一种，这里连**内容**一起扫干净。 */
+    if (!d.stats.eggs || typeof d.stats.eggs !== 'object' || Array.isArray(d.stats.eggs)) d.stats.eggs = {};
+    var eggIds = eggIdMap();
+    Object.keys(d.stats.eggs).forEach(function (id) {
+      if (!eggIds[id]) { delete d.stats.eggs[id]; return; }
+      d.stats.eggs[id] = 1;
     });
     if (!G.FIELD_MAP[d.field] || !d.unlocked[d.field]) d.field = 'D';
     /* 图鉴条目逐条纠正。条目结构 = { n, maxKg, colors, first }：
@@ -711,6 +735,12 @@ G.State = (function () {
           `fishing.js` 知道（它造 ctx 时顺手标了 `idle`）⇒ 日记不必反过来依赖战局状态。
        ⚠️ 日记只改 `S.diary`、**不自己落盘** —— 下面那句 `scheduleSave()` 就是它的保存。 */
     if (G.Diary && G.Diary.onCatch) G.Diary.onCatch(fish, kg, colorKey, isNew, ctx);
+
+    /* 彩蛋（2026-10-11 夜）：**成功上岸是唯一的掷点时机**。
+       放在这里而不是 `fishing.js`：与日记同一条理由 —— 记在唯一入口上就漏不掉，
+       而「这一竿是不是挂机」也只有 `ctx.idle` 一处口径（挂机 / 离线 / 开发者刷鱼都不掷点）。
+       ⚠️ 它自己会 `scheduleSave()`（只在真撞见时才落盘），别把下面那句当成它的保存。 */
+    if (G.Goals && G.Goals.eggRoll) G.Goals.eggRoll(fish, ctx);
 
     scheduleSave();
     return { isNew: isNew, isRecord: isRecord };

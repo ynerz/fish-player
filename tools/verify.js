@@ -9960,6 +9960,212 @@ console.log('\n[53-b] 样式里定义的自定义属性必须有消费方（零�
   }
 })();
 
+/* ---------------- 54. 长线目标系统（每日 / 周常 / 成就 / 彩蛋）必须有网 ----------------
+   由来：整套 B5 长线目标系统（`data/goals.js` + `core/goals.js` + 面板那一屏）**此前一条判据都没有** ——
+   成就写错 metric、同 metric 的 need 重复、彩蛋 hint 把答案写在题面上、概率阶梯倒挂、
+   掷点偷偷用 `Math.random`，全都不报错（第 49 轮那次审计量过 `stats` 的 23 键，
+   但它看的是「读不读得到」，不是「条件对不对」）。
+   本节覆盖：成就表自洽 / 彩蛋表与**解锁曲线** / 掷点接线 / 存档子键 / 消费方与称号隔离。 */
+console.log('\n[54] 长线目标系统：成就表自洽 + 彩蛋 30 条与四段曲线 + 掷点接线 + 存档子键');
+(function () {
+  let gBad = 0;
+  const A = sandbox.G.ACHIEVEMENTS, E = sandbox.G.EASTER_EGGS, T = sandbox.G.EGG_TIERS;
+  const CATS = sandbox.G.ACH_CATS;
+  const GOALS_SRC = fs.readFileSync(path.join(ROOT, 'src/core/goals.js'), 'utf8');
+  const METRICS = (sandbox.G.Goals && sandbox.G.Goals.metrics) || {};
+  if (!Array.isArray(A) || !Array.isArray(E) || !Array.isArray(T) || !Array.isArray(CATS)) {
+    err('拿不到 `G.ACHIEVEMENTS` / `G.EASTER_EGGS` / `G.EGG_TIERS` / `G.ACH_CATS` —— 先修本节自身');
+    return;
+  }
+
+  /* ---- ① 成就表自洽 ---- */
+  const seen = {}, byMetric = {};
+  A.forEach(a => {
+    if (!a.id || seen[a.id]) { err(`成就有重名 id：${a.id}`); gBad++; }
+    seen[a.id] = 1;
+    if (!a.name || !a.desc) { err(`成就 ${a.id} 缺 name / desc`); gBad++; }
+    if (!METRICS[a.metric]) { err(`成就 ${a.id} 的 metric 「${a.metric}」在 \`Goals.metrics\` 里不存在（永远不会完成）`); gBad++; }
+    if (!(a.need > 0)) { err(`成就 ${a.id} 的 need 不是正数（${a.need}）`); gBad++; }
+    if (!CATS.some(c => c.key === a.cat)) { err(`成就 ${a.id} 的 cat 「${a.cat}」不在 \`G.ACH_CATS\` 里（面板会整条漏掉）`); gBad++; }
+    (byMetric[a.metric] = byMetric[a.metric] || []).push({ id: a.id, need: a.need });
+  });
+  Object.keys(byMetric).forEach(m => {
+    const arr = byMetric[m].slice().sort((x, y) => x.need - y.need);
+    for (let i = 1; i < arr.length; i++) {
+      if (arr[i].need === arr[i - 1].need) {
+        err(`成就里同一 metric 「${m}」出现了两条同门槛（need = ${arr[i].need}）：${arr[i - 1].id} / ${arr[i].id}`);
+        gBad++;
+      }
+    }
+  });
+
+  /* ---- ② 彩蛋表 + 四段解锁曲线 ---- */
+  const WANT = [9, 9, 10, 2];          // 用户口径：前 30% / 30% / 33% / 7%（共 30）
+  if (E.length !== 30) { err(`彩蛋应当恰好 30 条（用户口径），实际 ${E.length} 条`); gBad++; }
+  if (T.length !== 4) { err(`\`G.EGG_TIERS\` 应当是 4 档，实际 ${T.length} 档`); gBad++; }
+  const tierCount = [0, 0, 0, 0];
+  const eIds = {};
+  let prevNaive = 0;
+  E.forEach((e, i) => {
+    if (!e.id || eIds[e.id]) { err(`彩蛋有重名 id：${e.id}`); gBad++; }
+    eIds[e.id] = 1;
+    if (!e.name || !e.hint) { err(`彩蛋 ${e.id} 缺 name / hint`); gBad++; }
+    if (!(e.tier >= 1 && e.tier <= 4)) { err(`彩蛋 ${e.id} 的 tier 越界（${e.tier}）`); gBad++; }
+    else tierCount[e.tier - 1]++;
+    if (!Number.isInteger(e.oneIn) || e.oneIn < 100) {
+      err(`彩蛋 ${e.id} 的 oneIn 必须是 ≥100 的整数（现为 ${e.oneIn}）—— 概率阶梯要能一眼算清`);
+      gBad++;
+    }
+    /* 表序 = 从易到难（用户口径的「进度」就是这条序） */
+    if (i && e.oneIn <= prevNaive) {
+      err(`彩蛋表的顺序不对：${e.id}（1/${e.oneIn}）不比上一条（1/${prevNaive}）更难 —— 表序即进度`);
+      gBad++;
+    }
+    prevNaive = e.oneIn;
+    /* 不剧透：hint 与 name 不许有 2 个连续相同汉字 */
+    for (let k = 0; k + 2 <= e.name.length; k++) {
+      const frag = e.name.slice(k, k + 2);
+      if (e.hint.indexOf(frag) >= 0) {
+        err(`彩蛋 ${e.id} 的 hint 泄题：「${frag}」是名字「${e.name}」里的连续两个字，`
+          + '未拿到的那张卡片等于把答案写在题面上');
+        gBad++;
+      }
+    }
+    /* cond 的值域现算（写错 key 值 = 这条彩蛋永远不会被掷到，且不报错） */
+    const c = e.cond || {};
+    const fieldKeys = sandbox.G.FIELDS.map(f => f.id);
+    const wxKeys = (CFG.weather.types || []).map(t => t.key);
+    const tmKeys = (CFG.weather.times || []).map(t => t.key);
+    if (c.field && fieldKeys.indexOf(c.field) < 0) { err(`彩蛋 ${e.id} 的 cond.field「${c.field}」不是钓场 id`); gBad++; }
+    if (c.wx && wxKeys.indexOf(c.wx) < 0) { err(`彩蛋 ${e.id} 的 cond.wx「${c.wx}」不是天气 key`); gBad++; }
+    if (c.tm && tmKeys.indexOf(c.tm) < 0) { err(`彩蛋 ${e.id} 的 cond.tm「${c.tm}」不是时段 key`); gBad++; }
+    if (c.rar != null && !(c.rar >= 0 && c.rar < CFG.rarity.length)) { err(`彩蛋 ${e.id} 的 cond.rar 越界（${c.rar}）`); gBad++; }
+    Object.keys(c).forEach(k => {
+      if (['field', 'wx', 'tm', 'rar'].indexOf(k) < 0) { err(`彩蛋 ${e.id} 的 cond 有不认识的键「${k}」（写了也不会生效）`); gBad++; }
+    });
+  });
+  if (tierCount.join('/') !== WANT.join('/')) {
+    err(`彩蛋四档的条数是 ${tierCount.join(' / ')}，应当是 ${WANT.join(' / ')}`
+      + '（前 30% 容易 / 30% 适中 / 33% 偏难 / 7% 极限 —— 用户给的解锁曲线）');
+    gBad++;
+  }
+  /* 档内严格递增 + 跨档严格递增（档与档之间不许重叠） */
+  for (let t = 1; t <= 4; t++) {
+    const arr = E.filter(e => e.tier === t).map(e => e.oneIn);
+    for (let i = 1; i < arr.length; i++) {
+      if (arr[i] <= arr[i - 1]) { err(`彩蛋第 ${t} 档里 1/${arr[i]} 不比前一条 1/${arr[i - 1]} 更难（同档也要递增）`); gBad++; }
+    }
+    if (t > 1) {
+      const prevMax = Math.max.apply(null, E.filter(e => e.tier === t - 1).map(e => e.oneIn));
+      const curMin = Math.min.apply(null, arr);
+      if (curMin <= prevMax) {
+        err(`彩蛋第 ${t} 档的最易（1/${curMin}）并不比第 ${t - 1} 档的最难（1/${prevMax}）更难 —— 档位与概率对不上`);
+        gBad++;
+      }
+    }
+  }
+
+  /* ---- ③ 掷点接线：唯一调用点 / 不许 Math.random / 挂机拦掉 / 撞见要落盘 ----
+     ⚠️ 判据要数**调用次数**而不是「哪些文件里有」—— 反向验证 G 组当场逮到过假绿：
+        在同一个文件里再粘一行完全相同的调用，按文件数根本看不出来（仍然是 1 个文件），
+        而重复调用 = 同一竿掷两次点（概率翻倍且两边都不报错）。 */
+  const stripC = (t) => String(t).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const srcFiles = [];
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+      const p = path.join(ROOT, dir, n);
+      if (fs.statSync(p).isDirectory()) walk(dir + '/' + n);
+      else if (/\.js$/.test(n)) srcFiles.push(dir + '/' + n);
+    });
+  })('src');
+  const callSites = [];
+  srcFiles.forEach(rel => {
+    const hits = (stripC(fs.readFileSync(path.join(ROOT, rel), 'utf8')).match(/G\.Goals\.eggRoll\s*\(/g) || []);
+    if (hits.length) callSites.push(rel + '×' + hits.length);
+  });
+  if (callSites.join() !== 'src/core/state.js×1') {
+    err(`\`G.Goals.eggRoll(\` 的调用点应当是**恰好一处** = \`src/core/state.js\`（唯一的记账入口），`
+      + `实际：${callSites.join(' / ') || '（一处都没有）'} —— 多一处就会同一竿掷两次点 / 漏一处就永远不会掷`);
+    gBad++;
+  }
+  const rollBody = bodyOf(GOALS_SRC, 'function eggRoll(');
+  const hitBody = bodyOf(GOALS_SRC, 'function eggHit(');
+  if (!rollBody || !hitBody) {
+    err('切不到 `eggRoll()` / `eggHit()` 的函数体 —— 判据会恒真，先修本节自身');
+    gBad++;
+  } else {
+    if (hitBody.indexOf('mkRand') < 0 || hitBody.indexOf('hash32') < 0) {
+      err('`eggHit()` 没有走 `mkRand` + `hash32` —— 概率掷点必须可复现（刷新页面不许重掷）');
+      gBad++;
+    }
+    if (/Math\.random/.test(rollBody + hitBody)) {
+      err('`eggRoll()` / `eggHit()` 里出现了 `Math.random` —— 本项目铁律：带随机性的东西必须可复现');
+      gBad++;
+    }
+    if (!/idle/.test(rollBody)) {
+      err('`eggRoll()` 没有拦掉挂机 / 离线（`ctx.idle`）—— 彩蛋要是「你亲眼撞见的东西」');
+      gBad++;
+    }
+    if (rollBody.indexOf('scheduleSave') < 0) {
+      err('`eggRoll()` 撞见之后没有落盘（`scheduleSave`）—— 刷新一下就白撞了');
+      gBad++;
+    }
+  }
+  /* 存档：`blank().stats.eggs` + 归一化剔未知 id（⚠️ 先剥注释再查 —— 反向验证 H 组逮到过
+     「把 `eggs: {}` 注释掉照样绿」的假绿） */
+  const stateCode = stripC(stateSrc);
+  if (!has(stateCode, 'eggs: {}')) {
+    err('`state.js: blank()` 的 `stats` 里没有 `eggs: {}` 子键（彩蛋撞见之后无处可记）');
+    gBad++;
+  }
+  if (!has(stateCode, 'eggIds[id]')) {
+    err('读档归一化没有剔掉不认识的彩蛋 id —— 脏档会把垃圾键原样带进游戏');
+    gBad++;
+  }
+  /* 彩蛋不许进称号池（用户口径 / 待办边界：称号栏会被淹掉） */
+  const titlesBody = bodyOf(GOALS_SRC, 'function titles(');
+  if (!titlesBody) { err('切不到 `titles()` 的函数体 —— 判据会恒真'); gBad++; }
+  else if (titlesBody.indexOf('EASTER_EGGS') >= 0) {
+    err('`titles()` 里读了 `EASTER_EGGS` —— 彩蛋**不占称号槽**（称号已经 45+ 个来源）');
+    gBad++;
+  }
+  /* 导出面与消费方 */
+  ['eggRoll', 'eggs', 'eggProgress'].forEach(k => {
+    if (GOALS_SRC.indexOf(k + ':') < 0) { err(`\`G.Goals\` 的导出面缺 \`${k}\``); gBad++; }
+  });
+  const panelSrc = fs.readFileSync(path.join(ROOT, 'src/ui/panels.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  if (panelSrc.indexOf('Gl.eggs()') < 0 || panelSrc.indexOf('Gl.eggProgress()') < 0) {
+    err('面板没有读 `Gl.eggs()` / `Gl.eggProgress()` —— `stats.eggs` 会变成零消费字段');
+    gBad++;
+  }
+  if (panelSrc.indexOf('？？？') < 0) {
+    err('面板没有「？？？」的隐藏态 —— 未撞见的彩蛋会把名字直接显示出来');
+    gBad++;
+  }
+
+  /* ---- ④ 判据自检（合成样本） ---- */
+  const hintLeak = (name, hint) => {
+    for (let k = 0; k + 2 <= name.length; k++) if (hint.indexOf(name.slice(k, k + 2)) >= 0) return true;
+    return false;
+  };
+  const selfOk = hintLeak('水面的月亮', '夜里你看清了水面的月亮') === true
+    && hintLeak('水面的月亮', '夜里的光，好像分成了两半。') === false
+    && E.every(e => !hintLeak(e.name, e.hint))
+    && tierCount.reduce((a, b) => a + b, 0) === E.length;
+  if (!selfOk) {
+    err('54 的判据自检不成立（泄题检测认不出注入 / 档位计数读不出来）');
+    gBad++;
+  }
+
+  if (!gBad) {
+    ok(`长线目标：成就 ${A.length} 条（id 唯一 / metric 全在 / 同 metric 门槛不重复）+ `
+      + `彩蛋 ${E.length} 条（四档 ${tierCount.join('/')}、表序与档位内概率都严格递增、`
+      + `hint 逐条不泄题、cond 值域现算）+ 掷点唯一调用点 = \`recordCatch\`（走 hash32+mkRand、`
+      + `拦掉挂机、撞见即落盘）+ \`stats.eggs\` 有存档位与两侧消费方、不进称号池`);
+  }
+})();
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

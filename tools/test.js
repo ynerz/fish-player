@@ -1244,6 +1244,84 @@ St.get().weekly.week = '1999-W01';
 G.Goals.ensureWeek(true);
 ok(St.get().weekly.week === wk1, '跨周后旧挑战被重掷');
 
+/* =========================================================
+   Goals · 彩蛋（30 条 · 隐藏 · 概率获得，2026-10-11 夜用户点名）
+   =========================================================
+   行为面判据（源码断言看不见这些）：
+     · 掷点必须**可复现**：同一份存档 + 同一竿序号 ⇒ 同样结果（刷新页面不许重掷）；
+     · 概率阶梯必须**真的**是那个数：大样本命中率 ≈ 1/oneIn，且**越往后越难**；
+     · 挂机 / 离线（`ctx.idle`）**不掷点**；
+     · 找到之后**不再重复**、能存能读；
+     · 面板**不许把未撞见的名字显示出来**。
+   ========================================================= */
+G_('Goals · 彩蛋（掷点可复现 + 阶梯 + 挂机不掷 + 存档往返）');
+St.reset();
+G.Goals.init();
+const EGG = G.EASTER_EGGS;
+ok(EGG.length === 30, `彩蛋 ${EGG.length} 条（用户口径 30）`);
+ok(G.Goals.eggProgress().total === 30 && G.Goals.eggProgress().got === 0, '全新存档：0 / 30');
+ok(G.Goals.eggs().every(x => x.done === false && x.hint && x.name), '每条都带 name 与 hint');
+/* 频率阶梯：大样本命中率必须与 1/oneIn **统计一致**（4σ），四档平均**逐档变难**。
+   ⚠️ 逐条严格递减**不能**断言 —— 最难那条 1/12000 在 12 万次里只有 10 个左右的命中，
+   Poisson 噪声就 ±30%（第一版这么写，当场被自己的样本噪声判红）。 */
+const NSEQ = 120000, per = [];
+EGG.forEach(e => {
+  let hits = 0;
+  for (let s = 0; s < NSEQ; s++) if (G.Goals.eggHit(e, s)) hits++;
+  per.push(hits / NSEQ);
+});
+const off = EGG.filter((e, i) => {
+  const exp = NSEQ / e.oneIn;
+  return Math.abs(per[i] * NSEQ - exp) > 4 * Math.sqrt(exp) + 4;
+});
+ok(!off.length, `30 条彩蛋实测频率与 1/oneIn 统计一致（超出 4σ 的：${off.map(e => e.id).join(' / ') || '无'}）`);
+const tierWant = [1, 2, 3, 4].map(t => {
+  const a = EGG.filter(e => e.tier === t).map(e => 1 / e.oneIn);
+  return a.reduce((x, y) => x + y, 0) / a.length;
+});
+const tierMeas = [1, 2, 3, 4].map(t => {
+  const idx = EGG.map((e, i) => (e.tier === t ? i : -1)).filter(i => i >= 0);
+  return idx.reduce((a, i) => a + per[i], 0) / idx.length;
+});
+ok(tierWant.every((r, i) => i === 0 || r < tierWant[i - 1]),
+   `四档的设定概率逐档变难（${tierWant.map(r => (r * 100).toFixed(3) + '%').join(' > ')}）`);
+ok(tierMeas.every((r, i) => i === 0 || r < tierMeas[i - 1]),
+   `实测的四档平均命中率也逐档变难（${tierMeas.map(r => (r * 100).toFixed(4) + '%').join(' > ')}）`);
+ok(per[0] > per[per.length - 1] * 20,
+   `最易 ${(per[0] * 100).toFixed(3)}% vs 最难 ${(per[per.length - 1] * 100).toFixed(4)}%：差 20 倍以上`);
+/* 可复现：同一序号两次结果必须一致 */
+let same = true;
+for (let s = 0; s < 500; s++) if (G.Goals.eggHit(EGG[0], s) !== G.Goals.eggHit(EGG[0], s)) same = false;
+ok(same, '同一竿序号两次掷点结果一致（刷新页面不会重掷）');
+/* 挂机不掷点：跑 3000 条挂机鱼，一条彩蛋都不该出现 */
+for (let i = 0; i < 3000; i++) {
+  St.get().stats.catches = i;
+  St.recordCatch(G.FISH[0], (G.FISH[0].minKg + G.FISH[0].maxKg) / 2, 'normal', { idle: true });
+}
+ok(G.Goals.eggProgress().got === 0, '挂机上的 3000 条鱼一条彩蛋都没掷出来（ctx.idle 拦住了）');
+/* 亲手钓 + 满足条件 ⇒ 总会撞上（用「所有条件都为真」的那条来验链路） */
+St.reset();
+G.Goals.init();
+const anyEgg = EGG.filter(e => !Object.keys(e.cond || {}).length);
+ok(anyEgg.length > 0, `有 ${anyEgg.length} 条彩蛋不带条件（任何一竿都有资格）`);
+let found = 0;
+for (let i = 0; i < 4000 && found < anyEgg.length; i++) {
+  St.get().stats.catches = i;
+  const before = G.Goals.eggProgress().got;
+  St.recordCatch(anyEgg[0] ? G.FISH.find(f => f.field === 'D') || G.FISH[0] : G.FISH[0], 1, 'normal', {});
+  if (G.Goals.eggProgress().got > before) found++;
+}
+ok(found > 0, `亲手钓 4000 条里撞见了 ${found} 条彩蛋（掷点链路真的通）`);
+/* 存档往返：撞见的那条存下来、读回来还在；不认识的 id 会被剔掉 */
+const gotIds = Object.keys(St.get().stats.eggs);
+ok(gotIds.length === found, `stats.eggs 记了 ${gotIds.length} 条`);
+St.get().stats.eggs.zzz_not_a_real_egg = 1;
+St.save(true);
+St.load();
+ok(St.get().stats.eggs.zzz_not_a_real_egg === undefined, '读档归一化剔掉了不认识的彩蛋 id');
+ok(Object.keys(St.get().stats.eggs).length === found, `读回来还是那 ${found} 条`);
+ok(/^[01]$/.test(String(St.get().stats.eggs[gotIds[0]] || '')), '找到的彩蛋只记「有 / 没有」（值 = 1）');
+
 G_('Goals · 周常领取与奖励');
 St.reset();
 G.Goals.init();
@@ -6584,6 +6662,40 @@ G_('Panels · 钓鱼日记面板（N11 ④）');
       「真实视口下首屏只画一部分」是**布局**的结论，得靠浏览器探针
       （`tools/probe-book-lazydraw.js`）—— 两者互补，谁也不能替谁。
    ========================================================= */
+G_('Panels · 目标面板的彩蛋区（隐藏态不许剧透）');
+(function () {
+  var doc = global.document;
+  global.document = { createElement: mkEl, querySelector: function () { return null; },
+                      querySelectorAll: function () { return []; } };
+  var s = St.get();
+  var realEggs = s.stats.eggs;
+  try {
+    /* ① 一条都没撞见：30 条全部显示「？？？」，名字一个字都不许出现 */
+    s.stats.eggs = {};
+    var r0 = mkEl('div');
+    G.Panels.VIEWS.goals.render(r0);   // ⚠️ 用 `G.Panels`：本文件顶层的 `Panels` const 还在 TDZ 里
+    var t0 = panelText(r0);
+    ok(t0.indexOf('彩蛋（0 / 30）') >= 0, '彩蛋区标题现算进度（0 / 30）');
+    var leaked = G.EASTER_EGGS.filter(function (e) { return t0.indexOf(e.name) >= 0; });
+    ok(!leaked.length, `未撞见的彩蛋名字一个都没露出来（泄漏 ${leaked.length} 条）`);
+    ok(t0.indexOf('？？？') >= 0, '未撞见的那几条显示成「？？？」');
+    ok(t0.indexOf(G.EASTER_EGGS[0].hint) >= 0, '未撞见的照常给氛围提示（hint）');
+    /* ② 撞见一条之后：那一条显示真名、计数 +1，其余仍隐藏 */
+    var e0 = G.EASTER_EGGS[0];
+    s.stats.eggs = {}; s.stats.eggs[e0.id] = 1;
+    var r1 = mkEl('div');
+    G.Panels.VIEWS.goals.render(r1);
+    var t1 = panelText(r1);
+    ok(t1.indexOf(e0.name) >= 0, '撞见的那一条显示真名');
+    ok(t1.indexOf('彩蛋（1 / 30）') >= 0, '计数变成 1 / 30');
+    ok(!G.EASTER_EGGS.slice(1).some(function (e) { return t1.indexOf(e.name) >= 0; }),
+       '其余 29 条仍然只有「？？？」');
+  } finally {
+    s.stats.eggs = realEggs;
+    global.document = doc;
+  }
+})();
+
 G_('Panels · 图鉴懒绘制（IntersectionObserver 真路径）');
 (function () {
   /* 2D 上下文桩：图鉴画的是**剪影**（没钓到的那条走

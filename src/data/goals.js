@@ -170,6 +170,75 @@ G.ACH_CATS = [
   { key: 'skill',  name: '操作类' },
 ];
 
+/* ---------------- 彩蛋（30 条 · 隐藏 · 概率获得） ----------------
+   越往后越难 —— 前 30% 概率较高、30~60% 适中、60~95% 降低但努力可得、95~100% 极其困难。
+   ---------------------------------------------------------
+   字段：
+     id     唯一 id（'e01'…'e30'，按投入从易到难排）
+     tier   档位 1..4（文案见 G.EGG_TIERS），**条数必须是 9 / 9 / 10 / 2**
+     oneIn  「符合条件的一竿」的中奖概率倒数（N ⇒ 期望 N 竿撞上一次），**同档内严格递增**
+     name   撞见之后才显示的名字
+     hint   没撞见时显示的**氛围提示** —— 🔴 与 name 不许有 2 个连续相同汉字
+            （等于把答案写在题面上；`verify §54` 逐条对拍）
+     cond   有资格掷点的条件（**不改变单竿概率**，只是把「有资格的竿」挑出来）：
+            field = 钓场 id · wx = 天气 key · tm = 时段 key · rar = 稀有度下标（0~3）
+            空对象 = 任何一竿都有资格
+   🔴 「凑条件真的能加速」是刻意的：罕见彩蛋都挂着条件，玩家拼命凑条件就有事可做。
+   ========================================================= */
+G.EGG_TIERS = [
+  { tier: 1, name: '偶遇', desc: '随手就能碰上几条' },
+  { tier: 2, name: '少见', desc: '玩上一阵子自然会遇到' },
+  { tier: 3, name: '罕有', desc: '得专门去凑条件' },
+  { tier: 4, name: '传说', desc: '后期极限目标' },
+];
+
+G.EASTER_EGGS = [
+  /* ---- ① 偶遇（9 条 · 1/120 ~ 1/300） ---- */
+  { id: 'e01', tier: 1, oneIn: 140, name: '水面的月亮', hint: '夜里的光，好像分成了两半。', cond: { tm: 'night' } },
+  { id: 'e02', tier: 1, oneIn: 160, name: '蜻蜓落竿', hint: '有只小家伙把你的家伙当成了树枝。', cond: { wx: 'clear', tm: 'day' } },
+  { id: 'e03', tier: 1, oneIn: 180, name: '一片旧渔网', hint: '水底挂着什么看不清的东西。', cond: {} },
+  { id: 'e04', tier: 1, oneIn: 200, name: '谁的水壶', hint: '岸边的草丛里好像落了东西。', cond: {} },
+  { id: 'e05', tier: 1, oneIn: 220, name: '雨点节奏', hint: '敲在浮标上的声音，有个调子。', cond: { wx: 'rain' } },
+  { id: 'e06', tier: 1, oneIn: 240, name: '雾里的脚步声', hint: '看不清的另一边，有什么在走。', cond: { wx: 'fog' } },
+  { id: 'e07', tier: 1, oneIn: 260, name: '竿梢的露水', hint: '天刚亮，你的线尖挂着什么。', cond: { tm: 'dawn' } },
+  { id: 'e08', tier: 1, oneIn: 280, name: '一条会看你的鱼', hint: '把它放回去之后，它没有立刻走。', cond: { rar: 1 } },
+  { id: 'e09', tier: 1, oneIn: 300, name: '夕阳正好', hint: '这个点的光，怎么拍都好看。', cond: { tm: 'dusk' } },
+
+  /* ---- ② 少见（9 条 · 1/400 ~ 1/900） ---- */
+  { id: 'e10', tier: 2, oneIn: 420, name: '水底的石子路', hint: '浅滩下面好像铺着一条道。', cond: { field: 'C' } },
+  { id: 'e11', tier: 2, oneIn: 470, name: '老陈的旧照片', hint: '村口的木箱里压着一张东西。', cond: { field: 'D' } },
+  { id: 'e12', tier: 2, oneIn: 520, name: '井水的凉', hint: '有一股温度顺着线传上来。', cond: { field: 'D', tm: 'day' } },
+  { id: 'e13', tier: 2, oneIn: 580, name: '海雾里的灯', hint: '很远的地方，有一点光。', cond: { field: 'A', wx: 'fog' } },
+  { id: 'e14', tier: 2, oneIn: 640, name: '珊瑚的年轮', hint: '那一丛东西上有一圈一圈的痕。', cond: { field: 'S' } },
+  { id: 'e15', tier: 2, oneIn: 700, name: '沉船的铜铃', hint: '水底传来一声很轻的响。', cond: { field: 'S', wx: 'rain' } },
+  { id: 'e16', tier: 2, oneIn: 760, name: '星陨的碎片', hint: '有一小块东西掉进了这片水里。', cond: { field: 'SS', tm: 'night' } },
+  { id: 'e17', tier: 2, oneIn: 820, name: '冰下的鱼影', hint: '水面之下，一大片黑在慢慢移动。', cond: { field: 'SS', tm: 'dawn' } },
+  { id: 'e18', tier: 2, oneIn: 900, name: '时之尽头的回声', hint: '这里安静得能听见自己的心跳。', cond: { field: 'SSS' } },
+
+  /* ---- ③ 罕有（10 条 · 1/1200 ~ 1/4000） ---- */
+  { id: 'e19', tier: 3, oneIn: 1200, name: '双生的影子', hint: '水里有两个轮廓，可你只放了一条线。', cond: { field: 'A', tm: 'night', wx: 'clear' } },
+  { id: 'e20', tier: 3, oneIn: 1400, name: '会发光的浮漂', hint: '这一竿那点亮点得不太正常。', cond: { field: 'S', rar: 2 } },
+  { id: 'e21', tier: 3, oneIn: 1650, name: '无人的小船', hint: '湖心停着一样东西，上面没有谁。', cond: { field: 'B', wx: 'fog' } },
+  { id: 'e22', tier: 3, oneIn: 1900, name: '逆流的鱼', hint: '它明明是往下去的方向。', cond: { field: 'C', rar: 1 } },
+  { id: 'e23', tier: 3, oneIn: 2200, name: '星陨之渊的歌', hint: '水里有一种很低的、连着的声音。', cond: { field: 'SS', wx: 'cloudy' } },
+  { id: 'e24', tier: 3, oneIn: 2500, name: '巨物的影子', hint: '那条东西，比你的船还长。', cond: { rar: 3 } },
+  { id: 'e25', tier: 3, oneIn: 2800, name: '雨夜的同行者', hint: '这么晚、这么大的雨，还有谁在？', cond: { field: 'SSS', wx: 'rain', tm: 'night' } },
+  { id: 'e26', tier: 3, oneIn: 3100, name: '鱼群的转向', hint: '整片水里，它们同时转了身。', cond: { field: 'S', tm: 'dusk' } },
+  { id: 'e27', tier: 3, oneIn: 3500, name: '被钓过的鱼', hint: '它的嘴角有一个很旧的痕迹。', cond: { rar: 2 } },
+  { id: 'e28', tier: 3, oneIn: 4000, name: '水面的字', hint: '雾散之前，上面浮出过几个符号。', cond: { field: 'SSS', wx: 'fog', tm: 'dawn' } },
+
+  /* ---- ④ 传说（2 条 · 1/6000 / 1/12000） ---- */
+  { id: 'e29', tier: 4, oneIn: 6000, name: '时之尽头的那一尾', hint: '传说里，这条水上有一条谁都只见过一次的鱼。', cond: { field: 'SSS', rar: 3 } },
+  { id: 'e30', tier: 4, oneIn: 12000, name: '钓鱼人生的第一竿', hint: '你忽然想不起来，自己是为什么开始钓的。', cond: { rar: 0, tm: 'dawn' } },
+];
+
+/* ---------------- 成就（纯派生） ----------------
+   由存档现有数据直接算出来，**不占存档字段** ⇒ 以后改条件 / 加成就都不需要写存档迁移。
+   四段解锁曲线（用户口径，见 `docs/改进待办.md` 的 E2）：总量 ≥ 100，
+   占比 ≈ 30% / 30% / 35% / 5%（按「完成所需投入」排，不是按类目平摊）。
+   ⚠️ 奖励口径：只给称号与纪念币（见文件头）。
+   ⚠️ `need` 必须**同 metric 内严格递增、不留重复**（`verify §54` 盯住）。
+   ========================================================= */
 G.ACHIEVEMENTS = [
   /* ---- 图鉴类 ---- */
   { id: 'b1',   cat: 'book', name: '初次见面', desc: '收集 1 种鱼',            metric: 'bookCount', need: 1 },

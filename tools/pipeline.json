@@ -1,0 +1,30 @@
+{
+  "_note": "数值链的顺序 —— **唯一一处声明**（verify §32-t 盯着它）。为什么要它：这条链的『下一步』此前散在四个工具各自的收尾文案里，写法与覆盖面各不相同 —— 实测 2026-10-12（第 54 轮）`fix-rarity-price.js` 收尾只写 `balance.js && verify.js`，而链条的最后一环 `gen-collect-time.js` 才是那个会把《收集耗时表》刷新的（它按 `fish.js` 的 `w` 与 fields 的 rarity 现算）⇒ 照那句『下一步』做完，`docs/收集耗时表.html` 就与数据分家，而且**没有任何门禁会报红**。现在每个写盘工具收尾都从这张表打印同一行『下一步： …』，命令本身也在这张表里（`verify §32-t` 会逐条核对『打印出来的命令集合 == 这里的 next 集合』）。",
+  "nextPrefix": "下一步：",
+  "steps": [
+    {
+      "tool": "gen-fish.py",
+      "next": ["python tools/solve-drop.js"]
+    },
+    {
+      "tool": "solve-drop.js",
+      "next": ["node tools/fix-rarity-price.js"]
+    },
+    {
+      "tool": "fix-rarity-price.js",
+      "next": [
+        "node tools/balance.js",
+        "node tools/verify.js",
+        "node tools/gen-collect-time.js"
+      ]
+    },
+    {
+      "tool": "balance.js",
+      "next": ["node tools/gen-collect-time.js"]
+    },
+    {
+      "tool": "gen-collect-time.js",
+      "next": []
+    }
+  ]
+}

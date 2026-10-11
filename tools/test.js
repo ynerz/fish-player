@@ -3252,6 +3252,27 @@ G_('CLI · js 工具的命令行契约（未知开关 / 缺值 / 互斥必须报
      '正控：`--out <正常路径>` 仍真写盘（`needValue()` 没有把正常值也拦掉）');
   ok(run('build.js', ['--zzz']).status !== good.status,
      '对照：同一个工具，坏用法与好用法**退出码不同**（否则说明判据恒真或恒假）');
+
+  /* ④ 数值链的「下一步」—— 真跑一次，把打印出来的那一行与 `tools/pipeline.json` 对拍。
+     静态面在 `verify §32-t`；这里补的是**间接形态**的真实输出：工具调的是 `nextLine()`，
+     文件里并没有把下游命令字面写出来 ⇒ 只有真跑才看得见那一行是不是全。
+     ⚠️ 只跑 `--dry`：真跑会写回 `fish.js` / `fields.js`。 */
+  const PIPE = require(path.join(ROOT, 'tools/pipeline.json'));
+  const sd = run('solve-drop.js', ['--dry']);
+  const line = String(sd.stdout || '').split('\n').filter(l => l.indexOf(PIPE.nextPrefix) >= 0)[0] || '';
+  const step = PIPE.steps.filter(s => s.tool === 'solve-drop.js')[0] || { tool: 'solve-drop.js', next: [] };
+  ok(sd.status === 0 && line.length > 0,
+     '`solve-drop.js --dry` 收尾真打出了「下一步：」那一行（间接形态也验到真实输出）',
+     'status=' + sd.status);
+  const inLine = step.next.filter(c => line.indexOf(c) >= 0);
+  ok(inLine.length === step.next.length,
+     `  …JSON 里 ${step.next.length} 条下游命令**全都在**那一行里（漏一条 = 照它做完会少跑一步）`,
+     line.trim());
+  const mentioned = line.match(/[\w.\-]+\.(?:js|py)/g) || [];
+  const extra = mentioned.filter(n => step.next.every(c => c.indexOf(n) < 0));
+  ok(extra.length === 0, '  …那一行里没有 JSON 之外的步骤（反向：不许提一个不存在的下游）', extra.join(' '));
+  ok(md5('src/data/fish.js') === fishMd5 && md5('src/data/fields.js') === fieldsMd5,
+     '`--dry` 这一趟也没碰会被写回的两个数据文件（逐字节未变）');
 })();
 
 

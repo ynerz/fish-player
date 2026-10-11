@@ -9,10 +9,27 @@ tools/gen-fish.py  —  生成 src/data/fish.js
 用法： python tools/gen-fish.py          # 生成并写回 src/data/fish.js
        python tools/gen-fish.py --dry    # 只算不写：报「盘上的那份和现在算出来的是不是一致」
 """
-import io, os, sys
+import io, os, sys, json
 
 OUT = os.path.join(os.path.dirname(__file__), '..', 'src', 'data', 'fish.js')
 REL_OUT = 'src/data/fish.js'          # 打印 / 还原提示里用的仓库相对路径（唯一一处）
+PIPELINE_JSON = os.path.join(os.path.dirname(__file__), 'pipeline.json')
+
+
+def next_line(tool):
+    """数值链的「下一步」那一行 —— 顺序表在 `tools/pipeline.json`（**唯一真相**）。
+
+    ⚠️ 顺序表是 **JSON（数据）**而不是某个 js 模块，正是为了让 py 侧也能直接读 ——
+       否则「链条顺序」会有第二种写法，而两份必然分家（本项目反复栽的那一类）。
+       `verify §32-t` 会拿这里的输出与 JSON 里的 next 逐条对拍。
+       没有下游（链条叶子）时返回空串，调用方据此不打这一行。
+    """
+    with io.open(PIPELINE_JSON, encoding='utf-8') as f:
+        raw = json.load(f)
+    for s in raw['steps']:
+        if s['tool'] == tool:
+            return (raw['nextPrefix'] + ' ' + '  &&  '.join(s['next'])) if s['next'] else ''
+    return ''
 
 # =============================================================
 # 每场鱼价乘数 —— 唯一控制「经济曲线」的旋钮
@@ -684,6 +701,9 @@ if __name__ == '__main__':
         io.open(OUT, 'w', encoding='utf-8').write(txt)
         print('生成 %s（%s）' % (os.path.abspath(OUT), '内容与原来一致，未产生改动' if same else '已改动'))
         print('  不想留这次改动：git checkout -- ' + REL_OUT)
+    # 数值链的「下一步」：顺序表在 `tools/pipeline.json`（**数据**，所以 py 侧直接读它，
+    # 不在本文件里另写一份命令）。此前**真跑时一个字都不提**后续步骤 ⇒ 照它做完就停在这儿。
+    print('  ' + next_line('gen-fish.py'))
     for fid in ['D','C','B','A','S','SS','SSS']:
         rows = FIELD_FISH[fid]
         c = [0,0,0,0]

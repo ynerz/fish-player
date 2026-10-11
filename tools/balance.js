@@ -27,6 +27,8 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 /* 命令行契约的唯一实现（判定 + 报错口径都在那儿，工具只声明自己的开关表） */
 const { checkKnown, checkExclusive } = require('./argv');
+/* 数值链的「下一步」唯一出口（顺序表在 tools/pipeline.json）*/
+const { nextLine } = require('./pipeline');
 
 /* 写回目标：**唯一一处声明**（同 `solve-drop.js` / `gen-collect-time.js`）——
    写完之后照它打印清单与还原命令，`verify [14-b]` 会拿它与真写盘路径对拍。 */
@@ -433,4 +435,12 @@ if (EMIT || CHECK) {
     console.log(`  fight ${fightRows.length} 行 / pace ${paceRows.length} 行 · 种子 ${SEED} · 每档 ${ROUNDS} 场`);
   }
 }
+
+/* 收尾：链条的「下一步」（唯一真相 = `tools/pipeline.json`，`verify §32-t` 逐条对拍）。
+   ⚠️ `--check` 那一路不打 —— 它只比对、不写盘，没有「下一步」可言。 */
+if (!CHECK) {
+  const nl = nextLine('balance.js');
+  if (nl) console.log('\n' + nl + '\n');
+}
+
 

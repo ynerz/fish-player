@@ -31,6 +31,8 @@ const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
 /* 命令行契约的唯一实现 */
 const { checkKnown } = require('./argv');
+/* 数值链的「下一步」唯一出口（顺序表在 tools/pipeline.json）*/
+const { nextLine } = require('./pipeline');
 const KNOWN = ['--dry'];
 
 /* 写回目标：**唯一一处声明**（与 `solve-drop.js` / `gen-collect-time.js` 同一口径）——
@@ -268,7 +270,11 @@ function main() {
   } else {
     fs.writeFileSync(path.join(ROOT, WRITES[0]), out.join('\n'));
     console.log('\n✔ ' + WRITES[0] + ' 已写回，共调整 ' + changed + ' 条鱼价');
-    console.log('  下一步： node tools/balance.js && node tools/verify.js');
+    /* ⚠️ 这一行必须**覆盖链条下游的全部**（`tools/pipeline.json` 是唯一真相，
+       `verify §32-t` 会拿它逐条对拍）。此前这里只写 `balance.js && verify.js` ——
+       **漏了 `gen-collect-time.js`**，而《收集耗时表》正是按 `fish.js` 的 `w` 与
+       fields 的 rarity 现算的 ⇒ 照那句做完，文档就与数据分家且不报错。 */
+    console.log('  ' + nextLine('fix-rarity-price.js'));
     console.log('  再跑一次本脚本应为「0 条」——verify.js 第 ⑭ 节会盯住这一点。');
     console.log('  不想留这次改动：git checkout -- ' + WRITES.join(' ') + '\n');
   }

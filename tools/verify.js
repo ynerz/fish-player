@@ -4227,6 +4227,150 @@ console.log('\n[32-s] `tools/*.js` 的命令行契约：未知开关 / 缺值 / 
   }
 })();
 
+/* ---------------- 32-t. 数值链的「下一步」：一处声明 + 每个写盘工具都得照它打（第 54 轮）----
+   §32-r 判的是「自报的**命令**照抄能不能跑」；本节判的是「自报的**下一步**对不对、全不全」。
+   实测（2026-10-12 第 54 轮）：这条链四个写盘工具各自在收尾时说「下一步」，覆盖面各不相同 ——
+     · `fix-rarity-price.js` 只写 `balance.js && verify.js` ⇒ **漏了 `gen-collect-time.js`**，
+       而它才是刷新 `docs/收集耗时表.html` 的那个（该表按 `fish.js` 的 `w` 与 fields 的 rarity
+       现算）⇒ 照那句做完，文档就与数据分家，而**没有任何门禁会报红**；
+     · `solve-drop.js` 只写「复核：node tools/balance.js」⇒ **漏了 `fix-rarity-price.js`**
+       （没有它「档位越高每小时收益越高」并不成立）；
+     · `gen-fish.py` 真跑时**一个字都不提**后续步骤。
+   修法 = 顺序收进 `tools/pipeline.json`（**数据**，所以 py 侧也能 `json.load`，不会出现第二种写法），
+   打印走 `tools/pipeline.js: nextLine()`（js）与 `gen-fish.py: next_line()`（py）。判据四组：
+     (a) JSON 可解析 / `nextPrefix` 非空 / 每一步的工具文件真的在 `tools/` 下 /
+         `next` 里的命令必须指向**排在它后面**的步骤（顺序自洽）；
+     (b) 写盘工具**双向**：`tools/*.js` 里声明了 `const WRITES = [` 的那些必须都在表里，
+         表里每一步也真的会写盘（js 有 `fs.writeFileSync(` / py 有带 `'w'` 的 `io.open(`）；
+     (c) 每个**有下游**的步骤都接上了打印：文件里（剥注释）要么出现 `nextLine('<它自己>')`
+         （间接形态、内容由 JSON 决定），要么把 `next` 每条命令的工具名都字面写出来；
+         **叶子（`next: []`）不要求打**（打一句空的「下一步：」比不打更让人困惑）；
+     (d) 判据自检（正/负控）+「表里少于 5 步就报错」（空集自检）。
+   ⚠️ 间接形态（`nextLine()`）的**真实输出**由行为面兜：`tools/test.js` 里真跑
+      `solve-drop.js --dry`，断言 stdout 的「下一步：」那一行与 JSON 的 next **双向一致**。 */
+console.log('\n[32-t] 数值链的「下一步」：一处声明（tools/pipeline.json）+ 每个写盘工具照它打');
+(function () {
+  let tBad = 0;
+  const stripJs = t => String(t).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const stripPy = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
+    .replace(/#[^\n]*/g, '');
+  const read = (rel) => {
+    try { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); }
+    catch (e) { err(`读不到 \`${rel}\` —— 32-t 抓不到要判的地方（先修判据本身）`); tBad++; return null; }
+  };
+
+  const rawJson = read('tools/pipeline.json');
+  let PIPE = null;
+  if (rawJson !== null) {
+    try { PIPE = JSON.parse(rawJson); }
+    catch (e) { err('`tools/pipeline.json` 不是合法 JSON —— 数值链的顺序失去唯一真相'); tBad++; }
+  }
+  if (PIPE) {
+    /* ---- 判据自检（正/负控）：先证明下面那几段真会报红 ---- */
+    const selfOk = PIPE.nextPrefix && Array.isArray(PIPE.steps) && PIPE.steps.length >= 5;
+    const selfBad1 = selfOk && PIPE.steps.every(s => typeof s.tool === 'string' && Array.isArray(s.next));
+    if (!selfOk || !selfBad1) {
+      err('32-t 的判据自检不成立（顺序表的形状不对：`nextPrefix` / `steps[].tool` / `steps[].next`）'
+        + ' —— 这条网会假绿');
+      tBad++;
+    }
+    /* (a) 顺序自洽 + 工具文件存在 */
+    const order = PIPE.steps.map(s => s.tool);
+    PIPE.steps.forEach(s => {
+      if (!fs.existsSync(path.join(ROOT, 'tools', s.tool))) {
+        err(`32-t：\`tools/pipeline.json\` 里的 \`${s.tool}\` 在 \`tools/\` 下不存在 —— 顺序表指着空气`);
+        tBad++;
+      }
+      s.next.forEach(cmd => {
+        const m = /([\w.\-]+\.(?:js|py))/.exec(cmd);
+        if (!m) {
+          err(`32-t：\`${s.tool}\` 的 next 里有一条认不出工具名的命令：${cmd}`);
+          tBad++;
+          return;
+        }
+        if (!fs.existsSync(path.join(ROOT, 'tools', m[1]))) {
+          err(`32-t：\`${s.tool}\` 的 next 指向 \`tools/${m[1]}\` —— 该文件不存在`);
+          tBad++;
+        }
+        if (order.indexOf(m[1]) >= 0 && order.indexOf(m[1]) <= order.indexOf(s.tool)) {
+          err(`32-t：\`${s.tool}\` 的 next 指向 \`${m[1]}\`，而它在顺序表里**不排在后面** —— `
+            + '链条顺序与 next 自相矛盾（谁是下游只有一处能说）');
+          tBad++;
+        }
+        /* ⚠️ 不指向「链上的步骤」是允许的（例：`fix-rarity-price.js` 的下一步里有门禁
+           `verify.js` —— 它不是链条的一环，所以没有顺序可判），只要求文件真的存在。 */
+      });
+    });
+    /* (a2) 每个非叶子步骤必须点名它的**直接后继** —— 这是唯一能从顺序表「现算」出来的完整性
+       约束（少了它，`next` 可以从中间跳步：`gen-fish.py` 直接指到 `fix-rarity-price.js`）。
+       ⚠️ 边界（写清，别当成万能）：`next` **写得全不全**是数据事实 —— JSON 就是真源，
+       「有人漏写了更下游的一步」只能靠人读 + 行为面对拍（`test.js` 只保证「打出来的与 JSON 一致」）。 */
+    for (let i = 0; i < order.length - 1; i++) {
+      const s = PIPE.steps[i];
+      if (s.next.map(c => (/[\w.\-]+\.(?:js|py)/.exec(c) || [''])[0]).indexOf(order[i + 1]) < 0) {
+        err(`32-t：\`${s.tool}\` 的 next 里没有它的**直接后继** \`${order[i + 1]}\` ——`
+          + ' 照它做完会跳过链条中间那一步（顺序表说谁是下一步，next 就得点它）');
+        tBad++;
+      }
+    }
+    /* (b) 写盘工具双向。
+       ⚠️ 门禁宿主（`verify.js` 里那份 `WRITES` 是 [14-b] 的白名单声明）与两个助手模块都不算「数值链工具」。 */
+    const HOST_SET = ['verify.js', 'test.js', 'argv.js', 'pipeline.js'];
+    const jsFiles = fs.readdirSync(path.join(ROOT, 'tools')).filter(f => /\.js$/.test(f) && HOST_SET.indexOf(f) < 0);
+    const jsWriters = [];
+    jsFiles.forEach(f => {
+      const t = read('tools/' + f);
+      if (t !== null && /const\s+WRITES\s*=\s*\[/.test(stripJs(t))) jsWriters.push(f);
+    });
+    const inTable = PIPE.steps.map(s => s.tool);
+    const missing = jsWriters.filter(f => inTable.indexOf(f) < 0);
+    if (missing.length) {
+      err(`32-t：这些 js 写盘工具（声明了 \`WRITES\`）不在数值链顺序表里：${missing.join(' ')} ——`
+        + ' 它们的「下一步」就没有人管了');
+      tBad++;
+    }
+    const notWriter = [];
+    PIPE.steps.forEach(s => {
+      const t = read('tools/' + s.tool);
+      if (t === null) return;
+      const code = /\.js$/.test(s.tool) ? stripJs(t) : stripPy(t);
+      /* ⚠️ 针串用**正则**写（`/fs\.writeFileSync\(/`）：直接写字面量会被 [14-b] 的扫描器
+         当成「verify.js 自己在写盘」—— 上一轮同类坑是 `argv[++i]` 把自己喂饱。 */
+      const writes = /\.js$/.test(s.tool) ? /fs\.writeFileSync\(/.test(code)
+        : /io\.open\([^)]*'w'/.test(code);
+      if (!writes) notWriter.push(s.tool);
+    });
+    if (notWriter.length) {
+      err(`32-t：顺序表里这些步骤**并不写盘**：${notWriter.join(' ')} —— 表里只该有写盘步骤`);
+      tBad++;
+    }
+    /* (c) 每个有下游的步骤都接上了打印 */
+    PIPE.steps.forEach(s => {
+      if (!s.next.length) return;
+      const t = read('tools/' + s.tool);
+      if (t === null) return;
+      const code = /\.js$/.test(s.tool) ? stripJs(t) : stripPy(t);
+      const viaHelper = new RegExp('(?:nextLine|next_line)\\(\\s*[\'"]' + s.tool.replace('.', '\\.') + '[\'"]\\s*\\)').test(code);
+      const names = s.next.map(cmd => (/[\w.\-]+\.(?:js|py)/.exec(cmd) || [''])[0]).filter(Boolean);
+      const literal = names.length > 0 && names.every(n => has(code, n));
+      if (!viaHelper && !literal) {
+        err(`32-t：\`${s.tool}\` 有下游（${names.join(' / ')}）却没接上打印 —— 文件里既没有 `
+          + '`nextLine(\'' + s.tool + '\')`（推荐形态：内容由 JSON 决定），也没有把下游命令字面写出来 ⇒ '
+          + '照它做完就少跑了后面的步骤（这正是本轮实测到的坑）');
+        tBad++;
+      }
+    });
+  }
+  if (!tBad) {
+    const n = PIPE ? PIPE.steps.length : 0;
+    ok(`数值链的「下一步」只有 \`tools/pipeline.json\` 一处声明（${n} 步：`
+      + `${(PIPE ? PIPE.steps.map(s => s.tool) : []).join(' → ')}）；`
+      + `${(PIPE ? PIPE.steps.filter(s => s.next.length).length : 0)} 个有下游的步骤都真接上了打印`
+      + '（js 走 `nextLine()` / py 走 `next_line()`），写盘工具的集合**双向**对得上，'
+      + `顺序自洽（行为侧：\`test.js\` 真跑 \`solve-drop.js --dry\` 对拍那一行）`);
+  }
+})();
+
 /* ---------------- 33. 体型数量：文档 / 出图工具必须与代码一致 ----------------
    代码里是 **9 种**（`TPL.fish / eel / ray / squid / jelly / oarfish / shark / whale / dragon`），
    而 GDD 两处 + 开发者文档一处都写着「10 种体型」，开发者文档 §5.2 自己又写着 9 ——

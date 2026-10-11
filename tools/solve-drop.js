@@ -29,6 +29,8 @@ const path = require('path');
 const ROOT = path.join(__dirname, '..');
 /* 命令行契约的唯一实现 —— 判定放在**任何读取 / 写回之前**（打错开关时一个字节都不碰盘） */
 const { checkKnown } = require('./argv');
+/* 数值链的「下一步」唯一出口（顺序表在 tools/pipeline.json）*/
+const { nextLine } = require('./pipeline');
 const KNOWN = ['--dry'];
 checkKnown(process.argv.slice(2), KNOWN, 'solve-drop.js');
 
@@ -301,4 +303,8 @@ for (const fid of ids) {
   console.log(`${('到 ' + fid).padEnd(6)}  ${G.FIELD_MAP[fid].name.padEnd(10)}  ${cum.toFixed(0).padStart(5)} h ${note}`);
 }
 console.log(`\n全部 7 场 100% 收满 ≥ ${cum.toFixed(0)} 小时`);
-console.log('\n复核：node tools/balance.js\n');
+/* ⚠️ 这一行必须覆盖链条下游（`tools/pipeline.json` 是唯一真相，`verify §32-t` 逐条对拍）。
+   此前这里只写「复核：node tools/balance.js」—— **漏了 `fix-rarity-price.js`**：
+   它才是有稀有度定价归一化那一步（本脚本只写回 `w` 与 rarity，没有它「档位越高每小时收益越高」
+   并不成立）。 */
+console.log('\n' + nextLine('solve-drop.js') + '\n');

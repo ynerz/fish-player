@@ -352,7 +352,12 @@ G.Panels = (function () {
 
   /* 画图鉴网格里的一条鱼（拆出来是为了能按需懒绘制） */
   function paintBookItem(cv, f, e) {
-    cv.setAttribute('data-drawn', '1');   // 供自测脚本确认懒绘制是否触发
+    /* ⚠️ 这个标记目前**没有任何测试读它**（第 43 轮审计实测：全项目只有这一处**写**）——
+       它原本的注释说「供自测脚本确认懒绘制是否触发」，那句话不成立：Node 桩里没有
+       IntersectionObserver，走的是「观察不到就直接画」的兜底分支，**真懒绘制路径
+       （观察者回调 → unobserve）两侧都没被验过**。留着它是给人工调试用的；
+       要真覆盖那条路得用浏览器探针（待办里已登记）。 */
+    cv.setAttribute('data-drawn', '1');
     var ctx = cv.getContext('2d');
     var dpr = G.Platform.sys.dpr();
     cv.width = 260 * dpr; cv.height = 112 * dpr;

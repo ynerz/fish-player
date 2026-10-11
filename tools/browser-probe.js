@@ -34,12 +34,18 @@ for (let i = 0; i < argv.length; i++) {
   if (argv[i] === '--exe') opt.exe = argv[++i];
   else if (argv[i] === '--wait') opt.wait = Number(argv[++i]);
   else if (argv[i] === '--port') opt.port = Number(argv[++i]);
+  else if (argv[i] === '--size') opt.size = argv[++i];   // 例：--size 1440,900（默认 800x600 —— 太小会让布局与真实桌面差一截）
   else pos.push(argv[i]);
 }
 const url = pos[0];
 const shot = pos[1] || path.join(os.tmpdir(), 'probe.png');
 const probeFile = pos[2];
 const waitMs = opt.wait || 2500;
+/* 视口尺寸：**默认 headless 窗口只有 800x600**，而游戏的面板布局对高度很敏感
+   （实测 2026-10-11：同一个图鉴在 800x600 下 52 个筛选 chip 把网格推到可视区之外，
+     首屏一条鱼都不画；在 1440x900 下首屏就有鱼）⇒ 量布局相关的行为必须能指定尺寸。
+   ⚠️ 形如 1440,900（也接受 1440x900）。 */
+const winSize = (opt.size || '').split(/[x,]/).map(Number).filter(n => n > 0);
 const port = opt.port || 9333;
 
 /* 找浏览器：显式 --exe > 环境变量 > 常见安装位置 */
@@ -53,7 +59,7 @@ const CANDIDATES = [
 const EXE = opt.exe || CANDIDATES.find(p => { try { return fs.existsSync(p); } catch (e) { return false; } });
 
 if (!url) {
-  console.error('用法：node tools/browser-probe.js <url> [截图.png] [探针.js] [--exe 浏览器] [--wait ms]');
+  console.error('用法：node tools/browser-probe.js <url> [截图.png] [探针.js] [--exe 浏览器] [--wait ms] [--size 1440,900]');
   process.exit(2);
 }
 if (!EXE) {
@@ -89,8 +95,10 @@ async function main() {
   const child = spawn(EXE, [
     '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
     '--disk-cache-size=1', '--media-cache-size=1',   // 无害的保险，与上面那条结论无关
-    '--user-data-dir=' + profile, '--remote-debugging-port=' + port, 'about:blank',
-  ], { stdio: 'ignore' });
+    '--user-data-dir=' + profile, '--remote-debugging-port=' + port,
+    (winSize.length === 2 ? '--window-size=' + winSize[0] + ',' + winSize[1] : null),
+    'about:blank',
+  ].filter(Boolean), { stdio: 'ignore' });
 
   try {
     let list = null;

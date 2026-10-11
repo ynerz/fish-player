@@ -6563,6 +6563,197 @@ G_('Panels · 钓鱼日记面板（N11 ④）');
   } finally { s.diary = real; global.document = doc; }
 })();
 
+/* =========================================================
+   Panels · 图鉴懒绘制的**真路径**（IntersectionObserver，队列 Q52）
+   =========================================================
+   为什么非有不可（第 43 轮审计顺出来的）：`panels.js` 的图鉴用
+   `IntersectionObserver`（`rootMargin: 260px`）做懒绘制、画完 `unobserve`，
+   而**这条路在此之前没有任何机器证据**：
+     · Node 侧没有 `IntersectionObserver` ⇒ 本文件一直跑的是
+       「观察不到就直接画」的**兜底分支**（`else item._paint()`）；
+     · `data-drawn` 那个标记当时只被写、没人读。
+   ⇒ 「格子不会一次全画」「画过的会 unobserve」全凭读源码相信。
+
+   本节把 `IntersectionObserver` 桩成**接住回调 + 能手动触发交会**
+   （与帧回调桩同族：把回调丢掉的桩 = 那条路一次都没跑过，而且不报错）。
+
+   ⚠️ 本节能证的是**机制**：新建格子**不许**顺手画，画只许由交会回调触发。
+      「真实视口下首屏只画一部分」是**布局**的结论，得靠浏览器探针
+      （`tools/probe-book-lazydraw.js`）—— 两者互补，谁也不能替谁。
+   ========================================================= */
+G_('Panels · 图鉴懒绘制（IntersectionObserver 真路径）');
+(function () {
+  /* 2D 上下文桩：图鉴画的是**剪影**（没钓到的那条走
+     `drawSilhouette` + `fillText('?')`）⇒ 少一个方法就是这一节整段崩，
+     而崩的原因与懒绘制无关（本文件踩过一次：桩缺一个字段 = 一条路没被测过）。 */
+  const ctx2 = {
+    setTransform: noop, clearRect: noop, save: noop, restore: noop,
+    translate: noop, scale: noop, beginPath: noop, moveTo: noop, lineTo: noop,
+    closePath: noop, fill: noop, stroke: noop, ellipse: noop, fillRect: noop,
+    fillText: noop, drawImage: noop, createLinearGradient: () => ({ addColorStop: noop }),
+    fillStyle: '', strokeStyle: '', lineWidth: 1, font: '', textAlign: '', globalAlpha: 1,
+  };
+  const made = [];
+  function makeIO() {
+    return function (cb, opts) {
+      const o = { cb: cb, opts: opts || {}, targets: [], gone: [], disc: false, calls: 0 };
+      o.observe = (t) => { o.targets.push(t); };
+      o.unobserve = (t) => { o.gone.push(t); o.targets = o.targets.filter((x) => x !== t); };
+      o.disconnect = () => { o.disc = true; o.targets.length = 0; };
+      /* 手动交会：`pick` 只喂指定目标（不给 = 全喂）。浏览器里 unobserve 过的目标
+         不会再进回调 ⇒ 这里也只从剩下的 targets 里取。 */
+      o.fire = (inter, pick) => {
+        o.calls++;
+        const ts = pick ? o.targets.filter((t) => pick.indexOf(t) >= 0) : o.targets.slice();
+        const ents = ts.map((t) => ({ target: t, isIntersecting: inter !== false }));
+        if (ents.length) o.cb(ents, o);
+        return ents.length;
+      };
+      made.push(o);
+      return o;
+    };
+  }
+  const realIO = global.IntersectionObserver;
+  const realDoc = global.document, prevQS = global.document.querySelector;
+  const realCanvas = G.Platform.canvas.create;
+  const realFishArt = G.FishArt, realAudio = G.Audio;
+
+  /* 会记账的 canvas：`data-drawn` 是「这一格真画过」的唯一可观察后果 */
+  const cvs = [];
+  G.Platform.canvas.create = () => {
+    const cv = {
+      width: 0, height: 0, style: {}, className: '', _attrs: {},
+      setAttribute(k, v) { cv._attrs[k] = String(v); },
+      getAttribute(k) { return cv._attrs[k] || null; },
+      getContext: () => ctx2,
+    };
+    cvs.push(cv); return cv;
+  };
+  const painted = () => cvs.filter((c) => c._attrs['data-drawn'] === '1').length;
+
+  /* 会记账的 element：筛选 chip 的点击回调要能**手动调**（U.on 走 addEventListener） */
+  const clickEl = (tag) => {
+    const n = mkEl(tag);
+    n._on = {};
+    n.addEventListener = (t, fn) => { (n._on[t] = n._on[t] || []).push(fn); };
+    return n;
+  };
+  /* ⚠️ 格子的类名是 `book-item`（已钓到）**或** `book-item unknown`（没钓到）——
+     用 className 全等去数只能数到已钓到的那几条（第一版就这么假报过：
+     「格子 16 / 目标 362」）。判据用前缀。 */
+  const isCell = (n) => String(n.className).split(' ')[0] === 'book-item';
+  const walk = (n, pred, out) => {
+    out = out || [];
+    if (!n || !n.children) return out;
+    if (pred(n)) out.push(n);
+    n.children.forEach((c) => walk(c, pred, out));
+    return out;
+  };
+  const cellsOf = (root) => walk(root, isCell);
+  G.FishArt = { draw: noop, drawSilhouette: noop };
+  G.Audio = { click: noop, coin: noop, deny: noop, splash: noop };
+
+  try {
+    /* refresh() 排的是 setTimeout(0)；把 `#modal` 报成「已隐藏」⇒ refresh 走
+       「面板没开就不重绘」那条路，于是 chip 点击**只改筛选**、不炸 DOM（同 ⑤-b 的用法） */
+    const modalEl = clickEl('div');
+    modalEl.classList = { add: noop, remove: noop, toggle: noop, contains: () => true };
+    global.document = {
+      createElement: clickEl, querySelector: (s) => (s === '#modal' ? modalEl : null),
+      querySelectorAll: () => [], addEventListener: noop,
+    };
+    G.CardArt.setLoader(null); G.CardArt.reset();
+
+    /* ---------- ① 前提：真路径此刻**可达**（不然下面全是空断言） ---------- */
+    global.IntersectionObserver = makeIO();
+    ok('IntersectionObserver' in global.window,
+       '前提：本节的桩让「真懒绘制路径」可达（此前 Node 侧永远走兜底分支）');
+
+    const r1 = mkEl('div');
+    Panels.VIEWS.book.render(r1);
+    const items1 = cellsOf(r1);
+    const io1 = made[0];
+    ok(items1.length >= 3 && !!io1, '图鉴渲染出格子并建了观察器', '格子 ' + items1.length);
+    ok(painted() === 0,
+       '🔴 **建格子时一格都不画** —— 画只能由交会回调触发（这条路径此前 Node 侧根本不存在）',
+       '实际已画 ' + painted() + ' 格');
+    ok(io1 && io1.targets.length === items1.length,
+       '每个格子都交给观察器 observe（懒绘制的入口只有这一处）',
+       'observe ' + (io1 ? io1.targets.length : -1) + ' / 格子 ' + items1.length);
+    ok(io1 && io1.opts.rootMargin === '260px',
+       'rootMargin 与实现一致（提前 260px 就画，滚动时才看不到空白）', io1 && io1.opts.rootMargin);
+
+    /* ---------- ② 只喂一个目标 ⇒ 只画那一格 ---------- */
+    const n1 = io1.fire(true, [io1.targets[0]]);
+    ok(n1 === 1 && painted() === 1,
+       '交会回调只画**被交会的那一格**（不是整批重画）', '喂 ' + n1 + ' / 已画 ' + painted());
+    ok(io1.gone.length === 1, '交会过的那一格立刻 unobserve（画过的目标不再进回调）',
+       'unobserve ' + io1.gone.length);
+
+    /* ---------- ③ 不交会 ⇒ 一格都不画（回调里那行守卫的正对照） ---------- */
+    const r2 = mkEl('div');
+    Panels.VIEWS.book.render(r2);
+    const io2 = made[made.length - 1];
+    const before2 = painted();
+    const n2 = io2.fire(false);
+    ok(n2 > 0 && painted() === before2,
+       'isIntersecting 为假时**一格都不画**（`if (!en.isIntersecting) return` 真在生效）',
+       '喂 ' + n2 + ' 条、画了 ' + (painted() - before2));
+    /* ⏭ 观察器的**断开时机**（重绘 / 关面板）见本节的姊妹条 Q53 ——
+       那里会证明「重绘那只旧的没被断掉」并把它修掉；本节只证「画由谁触发」。 */
+
+    /* ---------- ④ 切「全部钓场」⇒ 整张鱼表，依旧是懒的 ---------- */
+    const chips = walk(r2, (n) => String(n.className).split(' ')[0] === 'chip');
+    const allChip = chips.filter((c) => String(c.innerHTML).indexOf('全部钓场') >= 0)[0];
+    ok(!!allChip, '找得到「全部钓场」筛选按钮');
+    if (allChip) {
+      ok(typeof allChip._on.click[0] === 'function', '筛选按钮挂着点击回调');
+      allChip._on.click[0]();
+      const r3 = mkEl('div');
+      Panels.VIEWS.book.render(r3);
+      const items3 = cellsOf(r3);
+      const io3 = made[made.length - 1];
+      const before3 = painted();
+      ok(items3.length === G.FISH.length,
+         '「全部钓场」把整张鱼表列出来（现算自 G.FISH.length）', '实际 ' + items3.length);
+      ok(before3 === painted(),
+         '换成整张表之后**依旧一格都没画**（懒不懒与格子数无关）', '已画 ' + painted() + ' 格');
+      ok(io3 && io3.targets.length === G.FISH.length,
+         '每一格都被 observe（' + G.FISH.length + ' 个目标）',
+         'observe ' + (io3 && io3.targets.length));
+
+      const n3 = io3.fire(true);
+      ok(n3 === G.FISH.length && painted() === before3 + G.FISH.length,
+         '整批交会 ⇒ 这一批全画上', '喂 ' + n3 + ' / 新增 ' + (painted() - before3));
+      ok(io3.gone.length === G.FISH.length, '全批都 unobserve 了一遍');
+
+      const before4 = painted(), calls4 = io3.calls;
+      const n4 = io3.fire(true);
+      ok(n4 === 0 && painted() === before4 && io3.calls === calls4 + 1,
+         '🔴 「画过的不再画」：再喂一次同一批，**不产生任何新的绘制**（这就是 unobserve 的意义）',
+         '第二次喂了 ' + n4 + ' 条');
+    }
+
+    /* ---------- ⑤ 兜底分支仍在：没有 IntersectionObserver 时立即全画 ---------- */
+    delete global.IntersectionObserver;
+    const nMade = made.length, before5 = painted();
+    const r4 = mkEl('div');
+    Panels.VIEWS.book.render(r4);
+    const items4 = cellsOf(r4);
+    ok(made.length === nMade && painted() === before5 + items4.length,
+       '宿主没有 IntersectionObserver ⇒ 立即全画（兜底分支没丢，两条路互斥）',
+       '新增观察器 ' + (made.length - nMade) + ' / 新画 ' + (painted() - before5));
+  } finally {
+    global.document = realDoc;
+    global.document.querySelector = prevQS;
+    if (realIO === undefined) delete global.IntersectionObserver;
+    else global.IntersectionObserver = realIO;
+    G.Platform.canvas.create = realCanvas;
+    G.FishArt = realFishArt; G.Audio = realAudio;
+    G.CardArt.setLoader(null); G.CardArt.reset();
+  }
+})();
+
 /* ---------- 汇总 ---------- */
 console.log('\n' + '='.repeat(52));
 if (fail) { console.log(`\u2716 测试未通过：${pass} 通过 / ${fail} 失败\n`); process.exit(1); }

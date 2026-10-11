@@ -4246,8 +4246,11 @@ console.log('\n[32-s] `tools/*.js` 的命令行契约：未知开关 / 缺值 / 
          （间接形态、内容由 JSON 决定），要么把 `next` 每条命令的工具名都字面写出来；
          **叶子（`next: []`）不要求打**（打一句空的「下一步：」比不打更让人困惑）；
      (d) 判据自检（正/负控）+「表里少于 5 步就报错」（空集自检）。
-   ⚠️ 间接形态（`nextLine()`）的**真实输出**由行为面兜：`tools/test.js` 里真跑
-      `solve-drop.js --dry`，断言 stdout 的「下一步：」那一行与 JSON 的 next **双向一致**。 */
+   ⚠️ 间接形态（`nextLine()`）的**真实输出**由行为面兜：`tools/test.js` 真跑 `tools/pipeline.js` 的
+      `nextLine()`，断言那一行与 JSON 的 next **双向一致**。⚠️ 为什么不在 `test.js` 里跑
+      `solve-drop.js --dry` 本身：实测它一次要 **59.5 秒**（整套求解自检），放进单测既慢又贴着超时线
+      （第一次就是这么 ETIMEDOUT 的）—— 「**内容**等于 JSON」由行为面证明，「**工具真的调了它**」
+      由本节 (c) 按**自身名字**钉住，两条合起来才完整。 */
 console.log('\n[32-t] 数值链的「下一步」：一处声明（tools/pipeline.json）+ 每个写盘工具照它打');
 (function () {
   let tBad = 0;
@@ -4380,8 +4383,8 @@ console.log('\n[32-t] 数值链的「下一步」：一处声明（tools/pipelin
     ok(`数值链的「下一步」只有 \`tools/pipeline.json\` 一处声明（${n} 步：`
       + `${(PIPE ? PIPE.steps.map(s => s.tool) : []).join(' → ')}）；`
       + `${(PIPE ? PIPE.steps.filter(s => s.next.length).length : 0)} 个有下游的步骤都真接上了打印`
-      + '（js 走 `nextLine()` / py 走 `next_line()`），写盘工具的集合**双向**对得上，'
-      + `顺序自洽（行为侧：\`test.js\` 真跑 \`solve-drop.js --dry\` 对拍那一行）`);
+      + '（js 走 `nextLine()` / py 走 `next_line()`，按**自身名字**钉住），写盘工具的集合**双向**对得上，'
+      + `顺序自洽（行为面：\`test.js\` 真跑 \`pipeline.js: nextLine()\` 把它与 JSON 的 next 双向对拍）`);
   }
 })();
 

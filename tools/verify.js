@@ -9896,6 +9896,70 @@ console.log('\n[53] 卡面后处理：规格单源 + 派生物已 ignore + 文�
   }
 })();
 
+/* ---------------- 53-b. 样式里定义的自定义属性必须有消费方（2026-10-11 第 50 轮，Q71）--------
+   由来：`docs/步骤对比.html` / `docs/闪光档闪度对比.html` 各躺着一个 `--ok:#3f9e6a`，
+   而两页一个 `var(--ok)` 都没写（同一个形状：`说明书.html` 的 `--r0..--r3`（Q68 清掉，
+   但**生成器里还留着一份**、产物 `docs/收集耗时表.html` 跟着又长回来）、第 43 轮清掉的
+   `data-role`、第 47 轮清掉的 `idleToggle`）。零消费的自定义属性没有任何报错途径 ——
+   它只是静静躺在那儿，让下一个读样式的人以为「有这么一套语义色」。
+   判据：定义取自 `<style>` 块（`.css` 取全文），消费方取**全文**（`var(--x)`，含 JS 拼串）；
+   两边都**先剥注释**（HTML 注释 / CSS 块注释 / 行注释，放过 `://`）。 */
+console.log('\n[53-b] 样式里定义的自定义属性必须有消费方（零消费的删掉）');
+(function () {
+  let vBad = 0;
+  const stripAll = (t) => String(t)
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  /* 每个「单元」= 一组文件：定义在该单元里，消费也在该单元里找。
+     `style.css` 被 `index.html` 引用 ⇒ 两者算一个单元（跨文件用同一个变量是正常的）。 */
+  const units = [];
+  fs.readdirSync(path.join(ROOT, 'docs')).forEach(n => {
+    if (/\.html$/.test(n)) units.push({ name: 'docs/' + n, files: ['docs/' + n] });
+  });
+  units.push({ name: 'assets/css/style.css + index.html',
+               files: ['assets/css/style.css', 'index.html'] });
+  let defCount = 0;
+  const dead = [];
+  units.forEach(u => {
+    let defs = [], uses = '';
+    u.files.forEach(rel => {
+      let raw = '';
+      try { raw = fs.readFileSync(path.join(ROOT, rel), 'utf8'); } catch (e) { return; }
+      const code = stripAll(raw);
+      /* 定义只认 `<style>` 块（`.css` 整份就是样式）；消费方整份文件都算 */
+      const styleSrc = /\.css$/.test(rel)
+        ? code
+        : (code.match(/<style[^>]*>([\s\S]*?)<\/style>/gi) || []).join('\n');
+      (styleSrc.match(/(--[A-Za-z0-9_-]+)\s*:/g) || []).forEach(m => defs.push(m.replace(/\s*:$/, '')));
+      uses += code;
+    });
+    defs = [...new Set(defs)];
+    defCount += defs.length;
+    defs.forEach(d => {
+      const re = new RegExp('var\\(\\s*' + d.replace(/[-]/g, '\\-') + '\\s*[,)]');
+      if (!re.test(uses)) dead.push(u.name + ' 里的 ' + d);
+    });
+  });
+  /* 自检：合成样本 —— 「定义了没人用」必被抓、「有人用」必放过 */
+  const S_DEF = ':root{ --zz-unused:#123456; --zz-used:#654321; } b{ color:var(--zz-used); }';
+  const selfDead = [...new Set((S_DEF.match(/(--[A-Za-z0-9_-]+)\s*:/g) || []).map(m => m.replace(/\s*:$/, '')))]
+    .filter(d => !new RegExp('var\\(\\s*' + d.replace(/[-]/g, '\\-') + '\\s*[,)]').test(S_DEF));
+  if (selfDead.join() !== '--zz-unused' || defCount < 40) {
+    err(`53-b 的判据自检不成立（合成样本该抓 1 个、实抓 ${selfDead.length} 个；`
+      + `扫描面只认到 ${defCount} 个自定义属性）—— 判据会退化成摆设，先修本节自身`);
+    vBad++;
+  }
+  if (dead.length) {
+    err(`样式里这些自定义属性定义了却没有任何 \`var(--x)\` 读它：${dead.join('、')}`
+      + ' —— 零消费的声明会让人误以为有这套语义色，删掉（要用就真的用起来）');
+    vBad++;
+  }
+  if (!vBad) {
+    ok(`${units.length} 个样式单元里 ${defCount} 个自定义属性全部有消费方（0 个零消费）`);
+  }
+})();
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

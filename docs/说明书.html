@@ -717,6 +717,12 @@
 
   /* ---------------- 颜色 ---------------- */
   var demo = G.FISH_ID['D02'] || G.FISH[0];
+  /* 「原色」那一格的色点：`cm.tint` 为 null 是**刻意的**（原色 = 不叠染色），
+     所以这里需要一个中性的兜底色。⚠️ 它与 `CFG.rarity[0].color`（普通档标识色）
+     和 `CFG.rankColor.D`（钓场 D 档）**同值但不同义** —— 不许「顺手派生成其中一个」：
+     那两个值一改，这个**纯展示用**的占位色就会跟着变，而图例本来与它们毫无关系。
+     （2026-10-11 第 50 轮量过语义后如此定案，见队列 Q71。） */
+  var MORPH_SWATCH = '#8b98a5';
   var mb = document.getElementById('morphBox');
   CFG.colorMorphs.forEach(function (cm) {
     var d = document.createElement('div');
@@ -736,7 +742,7 @@
       var note = { normal:'最常见', bright:'好卖', albino:'稀有外观',
                    golden:'较稀有', shiny:'最稀有 · 也最贵' }[cm.key] || '';
       return '<tr><td><span style="display:inline-block;width:12px;height:12px;border-radius:50%;' +
-        'background:' + (cm.tint || '#8b98a5') + ';border:1px solid rgba(0,0,0,.18);vertical-align:-1px"></span> ' +
+        'background:' + (cm.tint || MORPH_SWATCH) + ';border:1px solid rgba(0,0,0,.18);vertical-align:-1px"></span> ' +
         cm.name + '</td><td class="num">×' + cm.valueMul.toFixed(2) + '</td>' +
         [0,1,2,3].map(function(t){ return '<td class="num">' + (G.Loot.colorProb(cm,t)*100).toFixed(1) + '%</td>'; }).join('') +
         '<td>' + note + '</td></tr>';

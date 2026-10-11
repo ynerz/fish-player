@@ -2958,7 +2958,9 @@ def main():
                     help="只回答「现在能不能开跑」：free 退出码 0 / busy 退出码 3。"
                          "判据与出图时的互斥锁**同一份**（lock_state）—— 一键启动器读它")
     ap.add_argument("--brief", action="store_true",
-                    help="配合 --stale：只打摘要（数量 + 按档分布），不打逐条 id —— 启动器用")
+                    help="只打摘要（数量 + 按档分布），不打逐条 id —— 启动器用。"
+                         "⚠️ 单用即**隐含 --stale**（它只是那个报告的输出形态；"
+                         "2026-10-12 之前单用时被静默忽略、还会掉进真正的出图流程）")
     ap.add_argument("--skip-existing", action="store_true", help="已有成品跳过（断点续跑）")
     ap.add_argument("--budget-min", type=float, default=0,
                     help="时间预算（分钟）：到点**在任务边界干净收工**，不等当前这张之外的更多任务。"

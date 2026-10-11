@@ -3598,7 +3598,7 @@ console.log('\n[32-o] 形态表的三个写者：.bak 备份 + 空值守卫 + �
         （正则失效时不许静默退化成一条恒真的空断言）。 */
 console.log('\n[32-p] `tools/` 入口的开关组合语义：同用时不许静默丢弃（互斥要么报错、要么明说）');
 (function () {
-  const MIN_GUARDS = 9;      /* 实测 9 组（2026-10-12 口径，7 个文件）；少了就是扫描面坏了 */
+  const MIN_GUARDS = 10;     /* 实测 10 组（2026-10-12 口径，8 个文件）；少了就是扫描面坏了 */
   const stripPy = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
     .split('\n').map(line => {
       /* 行尾注释也要剥（32-h / 32-j / 32-o 同款）：本节的成因就写在注释里 */
@@ -3623,10 +3623,12 @@ console.log('\n[32-p] `tools/` 入口的开关组合语义：同用时不许静�
   };
   /* ②③ 互斥守卫：找每一处 `ap.error(`，往上看**最近的那个 `if …:`**（跳纯空白行），
      它必须同时提到两个开关（`.out` / `.all` / `.list`，不绑变量名 —— `a = parse_args()` 那种
-     写法里是 `a.out`）。
-     🔴 **必须排除否定形态**（`if not args.ids and not args.all:`）：那是「**都没给**才报错」的
+     写法里是 `a.out`），**且至少有一个是正向写法**。
+     🔴 为什么要「至少一个正向」：`if not args.ids and not args.all:` 是「**都没给**才报错」的
      另一条判据（`prep-cards.py` 里本来就有这么一句）—— 不排掉的话，把新增的互斥守卫整段删掉
-     它照样绿（第 53 轮反向验证 P 组当场逮到，这条网会**假绿**）。 */
+     它照样绿（第 53 轮反向验证 P 组当场逮到，这条网会**假绿**）。
+     ⚠️ 但**混合形态**（`if args.open and not args.serve:`）是**正当**的互斥守卫 ⇒ 判法用
+     「挖掉所有 `not X.Y` 片段之后仍至少命中一个键」，而不是「出现过 `not X.Y` 就整条不算」。 */
   const exclusiveOk = (code, reA, reB) => {
     const lines = String(code).split('\n');
     let found = 0;
@@ -3636,8 +3638,10 @@ console.log('\n[32-p] `tools/` 入口的开关组合语义：同用时不许静�
         const t = lines[j].trim();
         if (!t) continue;
         if (!/^if\s+.+:/.test(t)) break;       /* 最近的语句不是 if ⇒ 这处不算互斥守卫 */
-        if (/not\s+\w+\./.test(t)) break;      /* 否定形态 = 另一条判据，不算互斥守卫 */
-        if (reA.test(t) && reB.test(t)) found++;
+        const positive = t.replace(/not\s+\w+\.\w+/g, '');   /* 挖掉否定片段 */
+        if (reA.test(t) && reB.test(t) && (reA.test(positive) || reB.test(positive))) {
+          found++;
+        }
         break;
       }
     });
@@ -3659,6 +3663,9 @@ console.log('\n[32-p] `tools/` 入口的开关组合语义：同用时不许静�
     /* 否定形态（`if not a.out and not a.all:`）= 另一条判据，必须**不算**互斥守卫 */
     && exclusiveOk('    if not a.out and not a.all:\n        ap.error("x")\n',
       /\.out\b/, /\.all\b/) === false
+    /* 混合形态（一个正向 + 一个否定）是**正当**的互斥守卫，必须算 */
+    && exclusiveOk('    if a.out and not a.all:\n        ap.error("x")\n',
+      /\.out\b/, /\.all\b/) === true
     && exclusiveOk(stripPy('# if a.out and a.all:\n') + '    ap.error("x")\n',
       /\.out\b/, /\.all\b/) === false;
   if (!selfOk) {
@@ -3750,6 +3757,16 @@ console.log('\n[32-p] `tools/` 入口的开关组合语义：同用时不许静�
       pBad++;
     } else guards++;
   }
+  const rv = readPy('tools/review-cards.py');
+  if (rv !== null) {
+    if (!exclusiveOk(rv, /\.open\b/, /\.serve\b/)) {
+      err('32-p：`review-cards.py` 的 `--open` 只在 `--serve` 那一支被读 ⇒ 单用时**被静默忽略**'
+        + '（只是写出静态页，然后什么都不发生），而 help 写的是「--serve 起来后自动用默认浏览器'
+        + '打开本页」⇒ 用户以为「它会帮我开页面」'
+        + '\n       —— 修法：显式 `ap.error("--open 只在 --serve 下有意义…")`');
+      pBad++;
+    } else guards++;
+  }
   if (guards < MIN_GUARDS && pBad === 0) {
     err(`32-p 只认出 ${guards} 处互斥守卫（少于 ${MIN_GUARDS}）—— 判据自己烂了（互斥守卫的写法变了，`
       + '或 `ap.error(` 的所在支换位置了，就来更新本节）');
@@ -3758,7 +3775,7 @@ console.log('\n[32-p] `tools/` 入口的开关组合语义：同用时不许静�
   if (!pBad) {
     ok(`\`tools/\` 入口的开关组合语义：\`--brief\` 隐含 \`--stale\`（单用不再掉进出图流程）；`
       + `${guards} 组「点了名 / 出了范围」的重叠开关（\`--list\`×\`--limit\`·\`--rar\`、`
-      + '`--ids`×`--batch`、`--out`×`--all`、`--all`×`--list`、`--list`×鱼 id）'
+      + '`--ids`×`--batch`、`--out`×`--all`、`--all`×`--list`、`--list`×鱼 id、`--open`×`--serve`）'
       + '都**显式报错**，不再静默丢掉其中一个');
   }
 })();
@@ -3909,11 +3926,44 @@ console.log('\n[32-q] `tools/` 入口的值域校验与现算文案（写错档�
       qBad++;
     }
   }
+  /* ⑤ 传说档的**条数**不许写死在工具文案里（它是数据事实：改鱼表就漂，而这两处
+     一个是启动器收尾提示、一个是 `.cmd` 文件头 —— 都不会有任何报错） */
+  const readRaw = (rel) => {
+    try { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); }
+    catch (e) { err(`读不到 \`${rel}\` —— 32-q 的 ⑤ 抓不到要判的地方（先修判据本身）`); qBad++; return null; }
+  };
+  const legendCountRe = /传说[^\n]*\d+\s*条/;
+  const cmdLegendRe = /\bthe\s+\d+\s+legendary\b/i;
+  if (!legendCountRe.test("say('① 挑传说的闪光（**只有传说档**有 2 版可选，27 条）')")
+      || legendCountRe.test("say('① 挑传说的闪光（**只有传说档**有 2 版可选 —— 有多少条以现算为准）')")
+      || !cmdLegendRe.test("rem  Only the 27 legendary fish render shiny TWICE")
+      || cmdLegendRe.test("rem  Only legendary fish render shiny TWICE")) {
+    err('32-q ⑤ 的判据自检不成立（写死条数的正负控没能各自认对）—— 这条网会假绿或假红');
+    qBad++;
+  }
+  const rrRaw = readRaw('tools/rerender.py');
+  if (rrRaw !== null) {
+    const rrCode = stripPy(rrRaw);
+    if (legendCountRe.test(rrCode)) {
+      err('32-q：`tools/rerender.py` 的收尾提示里写死了传说档的**条数**（剥注释后仍命中）——'
+        + ' 那条数是数据事实，改鱼表就漂；改成「有多少条以 `--stale --brief` 现算为准」');
+      qBad++;
+    }
+  }
+  const psh = readRaw('tools/pick-shiny.cmd');
+  if (psh !== null) {
+    /* ⚠️ `.cmd` 的 `rem` 就是**给人看的文案**（不剥）：要禁的正是那里的写死条数 */
+    if (cmdLegendRe.test(psh)) {
+      err('32-q：`tools/pick-shiny.cmd` 的文件头里写死了「the N legendary fish」——'
+        + ' 条数会随鱼表漂（`.cmd` 里算不出来，就别写）');
+      qBad++;
+    }
+  }
   if (!qBad) {
     ok('`tools/` 入口的值域与文案：`contact-sheet.py --morph` 先校验现算值域再筛'
       + '（写错档名不再报成「没有可渲染的卡面」）、`gen-art.py --rar` 的默认上限'
       + '只许从 `RAR_DEFAULT_CAP` 读且 help 现算、`check-fishdata-drift.py` 的条数现算、'
-      + '`gen-audio.py --all` 的 help 现算');
+      + '`gen-audio.py --all` 的 help 现算、传说档的条数不许写死在 `rerender.py` / `pick-shiny.cmd` 的文案里');
   }
 })();
 

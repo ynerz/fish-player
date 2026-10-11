@@ -2,7 +2,7 @@
 rem ===========================================================================
 rem  Pick the better LEGENDARY shiny  --  double-click this file.
 rem
-rem  Only the 27 legendary fish render shiny TWICE (the user's call: legendary
+rem  Only legendary fish render shiny TWICE (the user's call: legendary
 rem  cards are display pieces, so give them two candidates and let a human pick).
 rem  Every other fish has exactly one shiny card and needs nothing here.
 rem

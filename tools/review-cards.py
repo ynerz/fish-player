@@ -1289,6 +1289,13 @@ def main():
         serve(args.port, only, open_browser=args.open)
         return
 
+    # 🔴 2026-10-12（第 53 轮，B 类收尾）：同族第七处 —— `--open` 只在 `--serve` 那一支被读，
+    #    单用时它**被静默忽略**（只是写出静态页，然后什么都不发生），而 help 里写的是
+    #    「--serve 起来后自动用默认浏览器打开本页」⇒ 用户以为「它会帮我开页面」。
+    if args.open and not args.serve:
+        ap.error("--open 只在 --serve 下有意义（它是「起了本地运行器之后用默认浏览器打开本页」）；"
+                 "只想生成静态页就不要给 --open")
+
     html, n = build_page(only)
     io.open(args.out, "w", encoding="utf-8", newline="\n").write(html)
     print("评审台已写出：%s" % args.out)

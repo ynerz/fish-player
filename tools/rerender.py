@@ -131,7 +131,8 @@ def next_steps():
     say('  图    ：assets/cards/     台账：assets/cards/manifest.json')
     say('  确认  ：python tools/gen-art.py --stale --brief   （应当报 0 张）')
     say()
-    say('  ① 挑传说的闪光（**只有传说档**有 2 版可选，27 条）')
+    # ⚠️ 条数**不写死**（传说档有多少条是数据事实）：要现算就 `gen-art.py --stale --brief`。
+    say('  ① 挑传说的闪光（**只有传说档**有 2 版可选 —— 有多少条以 --stale --brief 现算为准）')
     say('     双击 tools/pick-shiny.cmd 看候选，再 pick-shiny.cmd A44 2 换上去')
     say('  ② 机器验收（要带 PIL 的那个 python）')
     say('     C:/Users/15001/miniconda3/python.exe tools/check-cards.py')

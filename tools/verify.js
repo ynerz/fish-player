@@ -2741,6 +2741,86 @@ console.log('\n[32-j] `tools/*.py` 的配方表：整表零消费 / 只按字面
 })();
 
 
+/* ---------------- 32-k. 音频素材名 ↔ `G.Audio` 方法名（Q48） ----------------
+   第 41 轮 C 类只读审计查出来的**第六张网**：`assets/audio/*.mp3` 与 `G.Audio` 的方法名
+   当时**全对齐**（16 个一次性音效 ↔ 16 个 mp3，第 17 个 `ambience.mp3` 走「整段循环 buffer」
+   那条独立通道），但**没有任何断言盯着它**。三种静默坏法：
+     ① 改名只改一边（代码问 `sfx('splash')`、文件叫 `splash2.mp3`）⇒ **永远走合成**，
+        听感变了但没人报错（采样层「拿不到就照旧出声」是**有意**的设计，所以它不会崩）；
+     ② 删掉方法却留着 mp3 ⇒ **死素材**，白占包体（卡面走远端，音频可是随包发的）；
+     ③ 把 mp3 放到 `NO_SAMPLE` 的方法名下（例如 `startBgm.mp3`）⇒ 那个名字**永远不会被问**
+        （采样层按 `NO_SAMPLE` 跳过包装）⇒ 文件在盘上躺着，谁也不知道它没生效。
+   ⚠️ **已知网眼（写清楚，别当成已覆盖）**：「新加了一个音效方法、也忘了配 mp3」**不报红** ——
+     那是**合法**状态（走合成），本网抓的是「素材名对不上」与「素材放在读不到的位置」。
+   ⚠️ 「抓不到就报错」：mp3 少于 `MIN_FILES` 或方法少于 `MIN_METHODS` 就报红（改了目录 / 改了结构时，
+     宁可报红也不许静默变成恒真的空断言）。 */
+console.log('\n[32-k] 音频素材名 ↔ `G.Audio` 方法名（死素材 / 名字对不上 / 放在读不到的位置 = 报红）');
+(function () {
+  const MIN_FILES = 10, MIN_METHODS = 10;   // 实测 17 个 mp3 / 16 个被包装的方法（2026-10-11）
+  const AUDIO = 'src/core/audio.js', DIR = 'assets/audio';
+  let kBad = 0;
+  let src;
+  try { src = fs.readFileSync(path.join(ROOT, AUDIO), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''); }
+  catch (e) { err(`读不到 \`${AUDIO}\` —— 32-k 抓不到要判的地方（先修判据本身）`); return; }
+  /* 取块一律走 `closeOf()`（§42 ⑩：块尾不许押在「字符首次出现」上），
+     取锚点一律走 `at()`（§38：源码子串比对不许裸 `indexOf`）。
+     ⇒ 这里封一个小助手：给「一句带 `{` 的原文」，返回它在**原文**里那个完整块。 */
+  const blockAfter = (s, phrase) => {
+    const bkAt = at(s, phrase);
+    return bkAt < 0 ? '' : s.slice(bkAt, closeOf(s, bkAt + phrase.length - 1));
+  };
+  const apiBody = blockAfter(src, 'var API = {');
+  const noBody = blockAfter(src, 'var NO_SAMPLE = {');
+  if (!apiBody) { err('`audio.js` 里找不到 `var API = {` —— 32-k 的取块锚点要跟着改'); return; }
+  if (!noBody) { err('`audio.js` 里找不到 `var NO_SAMPLE = {` —— 32-k 的取块锚点要跟着改'); return; }
+  const apiKeys = [...new Set([...apiBody.matchAll(/^ {4}([A-Za-z][A-Za-z0-9_]*)\s*:/gm)].map(m => m[1]))];
+  const noKeys = [...new Set([...noBody.matchAll(/([A-Za-z][A-Za-z0-9_]*)\s*:/g)].map(m => m[1]))];
+  const ambKey = (src.match(/var AMB_KEY\s*=\s*'([^']+)'/) || [])[1];
+
+  let files;
+  try { files = fs.readdirSync(path.join(ROOT, DIR)).filter(f => /\.mp3$/.test(f)).map(f => f.replace(/\.mp3$/, '')); }
+  catch (e) { err(`读不到 \`${DIR}\` —— 32-k 抓不到素材目录（先修判据本身）`); return; }
+
+  /* 判据自检：合成样本（分类逻辑与下面逐条判据同一份形态） */
+  const sample = { keys: ['cast', 'startBgm'], no: ['startBgm'], amb: 'ambience',
+                   files: ['cast', 'ambience', 'startBgm', 'oldThing'] };
+  const deadOf = f => sample.keys.indexOf(f) < 0 && f !== sample.amb;
+  const muted = f => sample.no.indexOf(f) >= 0;
+  if (!deadOf('oldThing') || deadOf('cast') || !muted('startBgm') || muted('cast') || sample.amb !== ambKey) {
+    err('32-k 的判据自检不成立（合成样本：死素材 / 名字对得上 / 落在 NO_SAMPLE 三种情形没能各自认出来）');
+    kBad++;
+  }
+
+  const wrapped = apiKeys.filter(k => noKeys.indexOf(k) < 0);
+  if (files.length < MIN_FILES) {
+    err(`${DIR} 下只扫到 ${files.length} 个 mp3（少于 ${MIN_FILES}）—— 扫描面多半坏了，`
+      + '这条判据不许多扫到 0 个时静默变成恒真的空断言'); kBad++;
+  }
+  if (wrapped.length < MIN_METHODS) {
+    err(`\`${AUDIO}\` 里只有 ${wrapped.length} 个方法会被采样层包装（少于 ${MIN_METHODS}）—— 取块锚点要跟着改`); kBad++;
+  }
+  const dead = files.filter(f => apiKeys.indexOf(f) < 0 && f !== ambKey);
+  if (dead.length) {
+    err(`\`${DIR}\` 里有 ${dead.length} 个 mp3 的名字对不上任何 \`G.Audio\` 方法（也不叫 \`${ambKey}\`）：`
+      + `${dead.slice(0, 8).join('、')} —— 死素材（白占包体），或者名字改过一边没改另一边`
+      + '（那种情况下它会**永远走合成**、听感变了却谁都不报错）'); kBad++;
+  }
+  const mutedFiles = files.filter(f => noKeys.indexOf(f) >= 0);
+  if (mutedFiles.length) {
+    err(`这些 mp3 落在了 \`NO_SAMPLE\` 的方法名下：${mutedFiles.join('、')} —— `
+      + '采样层按 `NO_SAMPLE` 跳过包装 ⇒ 这些名字**永远不会被问**，文件躺在盘上谁也不知道它没生效'
+      + `（\`${ambKey}\` 是例外：它走「整段循环 buffer」那条独立通道，不在这个名单里）`); kBad++;
+  }
+  if (!ambKey) { err('`audio.js` 里找不到 `var AMB_KEY = \'…\'` —— 环境音那条通道的键名要现算'); kBad++; }
+  if (!kBad) {
+    ok(`音频素材名与 \`G.Audio\` 对得上：${files.length} 个 mp3 里 ${files.length - 1} 个是音效方法名`
+      + `（另 1 个 \`${ambKey}.mp3\` 走循环通道）、没有一个落在 \`NO_SAMPLE\` 的 ${noKeys.length} 个名字下、`
+      + `被采样层包装的 ${wrapped.length} 个方法里没有对不上的素材`);
+  }
+})();
+
+
 /* ---------------- 33. 体型数量：文档 / 出图工具必须与代码一致 ----------------
    代码里是 **9 种**（`TPL.fish / eel / ray / squid / jelly / oarfish / shark / whale / dragon`），
    而 GDD 两处 + 开发者文档一处都写着「10 种体型」，开发者文档 §5.2 自己又写着 9 ——
@@ -5190,6 +5270,9 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
      判据是**多重集相等**（双向一步到位，缺一条就退化成摆设）：
        · 每一处「`at()` 的锚点变量出现在 `.slice(...)` 参数里」都必须在白名单里 —— 多一处即报红；
        · 白名单每一条都必须在文件里**恰好出现一次** —— 删了 / 改了 / 抄了第二份都报红。
+     ⚠️ **给 `at()` 的返回值起名会扩大下面这张网的锚点集合**（锚点 = 所有「由 `at()` 赋值」的变量名）：
+        写成 `const i = at(...)` 会让全项目**所有** `.slice(i…)` 一起冒出来（实测一次多出 7 处）。
+        ⇒ 锚点变量一律用 `xxAt` 这类独特名（`fnAt` / `bkAt`），别用 `i` / `p` 这种短名。
      ⚠️ 只认 `at()`（项目自己的「返回**原文偏移**」助手）。`indexOf()` 的短名锚点
         （i / nl / end / nx …）在同一文件里会**撞名**（只读探针实测 31 个候选里 10 处是撞名误报，
         连 `bodyOf()` 自己内部的 `nl` 也会中枪）⇒ 那批是**结构边界**问题，不按名在这里硬套 ——
@@ -5241,6 +5324,10 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
       'code' + SL + 'i0, e0)',
       /* Q38（2026-10-09）把「取段落」那三条收成结构边界后，它们不再按位置切：
          blank() 的段走 bodyOf()、VIEWS.settings 段与 MORPH_POOL 字典走 closeOf() ⇒ 条目已随代码删掉。 */
+      /* 32-k（Q48，2026-10-11）：`blockAfter()` 里那一刀 —— 从 `var API = {` / `var NO_SAMPLE = {`
+         的锚点起，切到 `closeOf()` 给的**结构边界**为止。取的是**对象字面量的块**（不是函数体），
+         `bodyOf()` 按缩进切不适用；锚点走 `at()`、块尾走 `closeOf()` ⇒ 两头都不是「位置语义」。 */
+      's' + SL + 'bkAt, closeOf(s, bkAt + phrase.length - 1))',
     ].map(norm);
     /* 判据自检：合成样本 —— 带 at() 锚点变量的切片必被认出、纯数组切片必被放过 */
     const SYN_YES = "const zzAt = at(cc, 'x'); const q = cc" + SL + 'zzAt, 2);';

@@ -19,6 +19,8 @@
 
    用法： node tools/solve-drop.js          # 求解并写回
           node tools/solve-drop.js --dry    # 只打印不写回
+   写回： `WRITES` 那张清单（`fields.js` 的 rarity + `fish.js` 的 w）——
+          跑完它会自己把清单与还原命令打出来；`verify [14-b]` 盯着这张清单。
    ========================================================= */
 const fs = require('fs');
 const path = require('path');
@@ -33,6 +35,17 @@ Object.defineProperty(global, 'G', { get() { return H.G; }, set(v) { H.G = v; },
 const G = global.G, CFG = G.CONFIG;
 
 const DRY = process.argv.indexOf('--dry') >= 0;
+
+/* ---------------- 写回目标：**唯一一处声明** ----------------
+   ⚠️ 这张清单有两个消费方，都不是装饰：
+     ① 本脚本**写回之后**照它打印「改了哪些文件 + 怎么还原」；
+     ② `verify [14-b]` 拿它逐项与下面真的 `writeFileSync(path.join(ROOT, '…'))` 对拍
+        （**双向**：多一个少一个都报红），并要求 `docs/开发者文档.md` 里那条还原命令
+        **覆盖这张清单的全集**。
+   🔴 来历（2026-10-11 第 48 轮实测）：本脚本会写**两个**文件，而「跑完还原」那句
+   一直只写 `src/data/fish.js` —— 照做的人会留下一份**改过的 `fields.js`**（稀有度权重），
+   与还原回来的 `fish.js` 凑成一对**不自洽**的数据，而且**不报错**。 */
+const WRITES = ['src/data/fields.js', 'src/data/fish.js'];
 
 /* ---------------- 设计参数 ---------------- */
 
@@ -263,6 +276,13 @@ if (!DRY) {
   }
   fs.writeFileSync(path.join(ROOT, 'src/data/fish.js'), lines.join('\n'));
   console.log('✔ fish.js 权重已写回，共 ' + patched + ' 条');
+
+  /* 写回之后**自报改了哪些文件 + 怎么还原**（清单见文件头的 `WRITES`）——
+     「只还原 fish.js」那句错在这里：照做会留下改过的 fields.js。 */
+  console.log('📝 本次写回 ' + WRITES.length + ' 个文件：' + WRITES.join('、'));
+  console.log('   ↳ 不想留这次改动：git checkout -- ' + WRITES.join(' '));
+} else {
+  console.log('（--dry：本次没有写盘；正式跑会写回 ' + WRITES.join('、') + '）');
 }
 
 /* 累计节奏表 */

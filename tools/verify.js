@@ -894,6 +894,151 @@ try {
   chainBad++;
 }
 
+
+
+/* ---------------- 14-b. 数值链工具的「写回目标」必须一处声明，文档的还原命令必须覆盖它 ----------------
+   由来（2026-10-11 第 48 轮实测）：`solve-drop.js` 会写**两个**文件
+   （`fields.js` 的 `rarity` + `fish.js` 的 `w`），而文档 / 记忆里那句「跑完还原」
+   一直只写 `src/data/fish.js` ⇒ 照做的人会留下一份**改过的 `fields.js`**，
+   与还原回来的 `fish.js` 凑成一对**不自洽**的数据，而且**不报错**。
+   这条网把「工具真的写什么」与「文档让你还原什么」对起来：
+     ① 扫描面 **现算** = `docs/开发者文档.md` 里出现的 `node tools/*.js` 命令（不写死清单）；
+     ② 会写盘的工具必须声明 `const WRITES = [ … ]`，**写回调用只许走这张清单**
+        （`writeFileSync(path.join(ROOT, WRITES[k]))` 或字面量且字面量 ∈ 清单）；
+        ⇒ 三个方向都会报红：**写了一个不在清单里的目标** / **清单里的目标从没被写**（零消费）/
+        **索引越界**（`WRITES[3]` 但清单只有 2 项）；
+     ③ 声明的清单要有**消费方**（写回后照它自报 + 打还原命令，不是写完就扔）；
+     ④ 文档里那条 `git checkout -- <路径…>` 的路径集合必须**覆盖**（⊇）所有清单的并集，
+        且列出的路径都真的存在（写错路径 = 真去还原时才炸）；
+     ⑤ 抓不到命令 / 抓不到写回目标 / 抓不到还原命令 ⇒ **报错**（空集自检）；
+        解析器另有**合成样本自检**，防它退化成「恒空集 = 摆设」。
+   ⚠️ 白名单机制留着（条目必须写明「为什么这次写回不需要还原」）。
+   ⚠️ 已知网眼：路径完全由变量拼出来（`writeFileSync(outPath, …)`）的写回解析器认不出 ——
+      这类工具会走「抓不到就报错」那一支，要么改成走清单、要么进白名单写理由。 */
+console.log('\n[14-b] 数值链工具的写回目标：一处声明 + 文档的还原命令必须覆盖它');
+(function () {
+  let wBad = 0;
+  const stripC = t => String(t)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+  const WRITE_EXEMPT = {
+    'tools/build.js': '写的是 `dist/`（已 gitignore 的构建产物），还原它没有意义（`--check` 模式还不写盘）',
+  };
+  const docTxt = fs.readFileSync(path.join(ROOT, 'docs/开发者文档.md'), 'utf8');
+  const scan = [...new Set([...docTxt.matchAll(/^\s*(?:node|npx)\s+(tools\/[A-Za-z0-9._-]+\.js)\b/gm)]
+    .map(m => m[1]))];
+  if (!scan.length) {
+    err('14-b 在 `docs/开发者文档.md` 里找不到任何 `node tools/*.js` 命令 —— 判据失效（先修本节自身）');
+    return;
+  }
+  /* 写回调用的两种形态：字面量 `'x/y.js'` 与 `WRITES[k]` */
+  const parseCalls = src => [...stripC(src)
+    .matchAll(/\.writeFileSync\(\s*path\.join\(\s*ROOT\s*,\s*(?:'([^']+)'|WRITES\[\s*(\d+)\s*\])/g)]
+    .map(m => (m[1] !== undefined ? { lit: m[1] } : { idx: +m[2] }));
+  const parseWrites = src => {
+    const m = stripC(src).match(/const\s+WRITES\s*=\s*\[([\s\S]*?)\]/);
+    if (!m) return null;
+    return [...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]);
+  };
+  /* 🔴 合成样本必须**拼**出来（硬规矩 ①/㊳ 那类自指陷阱）：`node tools/verify.js` 自己
+     也在本节扫描面里（它出现在文档的命令块中），把样本写成字面量的话，判据会被**自己那段样本**
+     喂饱 —— 实测就是如此：第一版把 `const WRITES = ['a/b.js']` 与一行真的 `writeFileSync(...)`
+     写进源码，于是 `want` 里凭空多出一个 `a/b.js`。 */
+  const W = 'WRITES', WFS = 'writeFileSync';
+  const SAMPLE = 'const ' + W + " = ['a/b.js'];\n"
+    + 'fs.' + WFS + "(path.join(ROOT, 'a/b.js'), x);\n"
+    + 'fs.' + WFS + '(path.join(ROOT, ' + W + '[0]), y);';
+  if (parseCalls(SAMPLE).length !== 2 || (parseWrites(SAMPLE) || []).join() !== 'a/b.js') {
+    err('14-b 的解析器自检不成立（合成样本里认不出写回调用 / 清单）'); wBad++;
+  }
+  const want = [];
+  let toolCount = 0;
+  scan.forEach(rel => {
+    const p = path.join(ROOT, rel);
+    if (!fs.existsSync(p)) return;
+    const src = fs.readFileSync(p, 'utf8');
+    const body = stripC(src);
+    const calls = parseCalls(src);
+    const writes = /\.writeFileSync\s*\(/.test(body);   /* 带点：真实调用总是 `fs.writeFileSync(`，而判据自己的文案里那个名字没有点（自指防线） */
+    if (!calls.length) {
+      if (writes && !WRITE_EXEMPT[rel]) {
+        err(`${rel} 会写盘，但 14-b 认不出它的写回目标（路径是变量 / 拼出来的）—— `
+          + '改成 `writeFileSync(path.join(ROOT, WRITES[k]))` 或字面量，'
+          + '确实不需要还原就加进 14-b 的 WRITE_EXEMPT 并写明理由');
+        wBad++;
+      }
+      return;
+    }
+    toolCount++;
+    if (WRITE_EXEMPT[rel]) return;
+    const list = parseWrites(src);
+    if (!list) {
+      err(`${rel} 会写盘却没有 \`const WRITES = [ … ]\` 清单 —— 写回目标要一处声明`
+        + '（写完之后照它自报 + 让门禁与文档对拍）；确实不需要还原就进 WRITE_EXEMPT 并写明理由');
+      wBad++;
+      return;
+    }
+    const used = [];
+    calls.forEach((c, i) => {
+      let tgt = null;
+      if (c.lit !== undefined) {
+        tgt = c.lit;
+        if (list.indexOf(tgt) < 0) {
+          err(`${rel} 第 ${i + 1} 个写回调用的目标是 \`${tgt}\`，但它不在 \`WRITES\` 清单里`
+            + `（清单：[${list.join('、')}]）—— 不在清单里的写回，还原命令永远不会覆盖它`);
+          wBad++;
+        }
+      } else if (!(c.idx < list.length)) {
+        err(`${rel} 的写回调用用了 \`WRITES[${c.idx}]\`，但清单只有 ${list.length} 项（越界 ⇒ 路径会是 undefined）`);
+        wBad++;
+      } else tgt = list[c.idx];
+      if (tgt && used.indexOf(tgt) < 0) used.push(tgt);
+    });
+    const cold = list.filter(x => used.indexOf(x) < 0);
+    if (cold.length) {
+      err(`${rel} 的 \`WRITES\` 清单里这些目标**从没被写过**：${cold.join('、')}`
+        + '（零消费 ⇒ 清单在说谎，还原命令会多还原一个文件）');
+      wBad++;
+    }
+    if ((body.match(/\bWRITES\b/g) || []).length < 2) {
+      err(`${rel} 的 \`WRITES\` 声明了却没有消费方（写回后没照它自报 / 没打还原命令）`);
+      wBad++;
+    }
+    list.forEach(x => { if (cold.indexOf(x) < 0 && want.indexOf(x) < 0) want.push(x); });
+  });
+  /* 文档里的还原命令：只认「像仓库内路径」的 token（散文里那句 `git checkout --` 不算）。
+     ⚠️ 路径里**可以有中文**（本项目的 `docs/收集耗时表.html` / `tools/评审台.cmd` 就是），
+     所以字符集要带上 CJK —— 第一版漏了它，于是那条还原命令里的中文路径被当成散文滤掉，
+     判据反过来报「没覆盖」（假报）。 */
+  const looksPath = v => /^[A-Za-z0-9_.\-\u4e00-\u9fff]+\/[A-Za-z0-9_.\-\u4e00-\u9fff/]+$/.test(v);
+  const restorePaths = [];
+  [...docTxt.matchAll(/git checkout -- ([^\n`|]+)/g)].forEach(m => {
+    m[1].split(/\s+/).forEach(v => {
+      if (looksPath(v) && restorePaths.indexOf(v) < 0) restorePaths.push(v);
+    });
+  });
+  if (!want.length) {
+    err('14-b 没有可对拍的写回清单（上面已经报过红，先修那几条）'); wBad++;
+  } else if (!restorePaths.length) {
+    err('`docs/开发者文档.md` 里找不到还原命令（写成 `git checkout -- <路径…>` 一行）—— '
+      + '跑完数值链要能一眼看出还原哪些文件，「只还原一个」会留下不自洽的一半数据且不报错');
+    wBad++;
+  } else {
+    const miss = want.filter(x => restorePaths.indexOf(x) < 0);
+    if (miss.length) {
+      err(`文档里那条还原命令没覆盖这些写回目标：${miss.join('、')}`
+        + `（命令里写着 ${restorePaths.join(' ')}）`);
+      wBad++;
+    }
+    const ghost = restorePaths.filter(x => !fs.existsSync(path.join(ROOT, x)));
+    if (ghost.length) { err(`文档里那条还原命令列了不存在的路径：${ghost.join('、')}`); wBad++; }
+  }
+  if (!wBad) {
+    ok(`数值链 ${toolCount} 个会写盘的工具：写回调用都走自己的 \`WRITES\` 清单（双向、无越界）、`
+      + `写回后照它自报；文档那条还原命令覆盖全部 ${want.length} 个目标（${want.join('、')}）`);
+  }
+})();
+
 /* 工具输出必须可复现：会用到随机性的工具都必须覆写 Math.random。
    踩过的坑：balance.js / verify.js 的输出会抄进文档，它们的警戒线
    （比如「C 场比 D 场高 15% 以上」）曾经会因为随机性 30 次里误报 1 次。 */

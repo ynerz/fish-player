@@ -28,6 +28,11 @@
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
 
+/* 写回目标：**唯一一处声明**（与 `solve-drop.js` / `gen-collect-time.js` 同一口径）——
+   写回调用只许走这张清单，`verify [14-b]` 会拿它与真实的 `writeFileSync` 对拍，
+   并要求 `docs/开发者文档.md` 里那条还原命令覆盖它。 */
+const WRITES = ['src/data/fish.js'];
+
 /* ---------- 确定性随机 ----------
    必须在加载游戏模块之前替换，保证之后所有采样都可复现。
    线性同余（Lehmer）：seed < 2^31，乘 48271 后仍 < 2^47，双精度下无精度损失。 */
@@ -228,7 +233,9 @@ function main() {
   }
 
   /* ---------- 写回 fish.js ---------- */
-  const FILE = path.join(ROOT, 'src/data/fish.js');
+  /* 写回目标：**唯一一处声明**（同 `solve-drop.js` / `gen-collect-time.js`）——
+     路径写成字面量，`verify [14-b]` 才认得出它，并拿它与文档那条还原命令对拍。 */
+  const FILE = path.join(ROOT, WRITES[0]);
   const lines = fs.readFileSync(FILE, 'utf8').split('\n');
   /* 行格式：  F('D01', '鲫鱼', 0, 'fish', '#a8bcc9', '#7f95a4', 0.1, 0.8, 12, { w:1 });
      第 9 个参数是 price —— 用「最后一个数字 + 逗号 + 空格 + {」定位 */
@@ -252,10 +259,11 @@ function main() {
   if (DRY) {
     console.log('\n（--dry 模式，未写回。将改动 ' + changed + ' 条）\n');
   } else {
-    fs.writeFileSync(FILE, out.join('\n'));
-    console.log('\n✔ fish.js 已写回，共调整 ' + changed + ' 条鱼价');
+    fs.writeFileSync(path.join(ROOT, WRITES[0]), out.join('\n'));
+    console.log('\n✔ ' + WRITES[0] + ' 已写回，共调整 ' + changed + ' 条鱼价');
     console.log('  下一步： node tools/balance.js && node tools/verify.js');
-    console.log('  再跑一次本脚本应为「0 条」——verify.js 第 ⑭ 节会盯住这一点。\n');
+    console.log('  再跑一次本脚本应为「0 条」——verify.js 第 ⑭ 节会盯住这一点。');
+    console.log('  不想留这次改动：git checkout -- ' + WRITES.join(' ') + '\n');
   }
 }
 

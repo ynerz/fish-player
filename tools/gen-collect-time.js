@@ -19,6 +19,11 @@ Object.defineProperty(global, 'G', { get() { return H.G; }, set(v) { H.G = v; },
   .forEach(r => (new Function(fs.readFileSync(path.join(ROOT, r), 'utf8'))).call(global));
 const G = global.G, CFG = G.CONFIG;
 
+/* 写回目标：**唯一一处声明**（同 `solve-drop.js`）—— 写完之后照它打印清单与还原命令，
+   `verify [14-b]` 会拿它与下面真的 `writeFileSync(path.join(ROOT, '…'))` 对拍，
+   并要求 `docs/开发者文档.md` 里那条还原命令覆盖它。 */
+const WRITES = ['docs/收集耗时表.html'];
+
 const FIGHT_EXP = [7.3, 22, 34, 50];
 
 /* 收齐指定集合的期望竿数：E[T] = ∫₀^∞ [1 − Π(1 − e^(−p·t))] dt */
@@ -339,7 +344,7 @@ ${fieldData.map(d => `
 </html>`;
 
 fs.writeFileSync(path.join(ROOT, 'docs/收集耗时表.html'), html);
-console.log('生成 docs/收集耗时表.html');
+console.log('生成 ' + WRITES[0] + '（不想留这次改动：git checkout -- ' + WRITES.join(' ') + '）');
 summaryRows.forEach(r => {
   console.log(`  ${r.rank.padEnd(4)} ${String(r.n).padStart(3)} 种  收齐品种 ${fmtHour(r.all).padStart(9)}  连颜色 ${fmtHour(r.color).padStart(10)}`);
 });

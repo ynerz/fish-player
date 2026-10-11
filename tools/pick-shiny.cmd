@@ -6,12 +6,17 @@ rem  Only legendary fish render shiny TWICE (the user's call: legendary
 rem  cards are display pieces, so give them two candidates and let a human pick).
 rem  Every other fish has exactly one shiny card and needs nothing here.
 rem
-rem    double-click           -> list the legendary fish that still have 2 versions
-rem    pick-shiny.cmd A44     -> swap in version 2 for A44 (defaults to version 2)
-rem    pick-shiny.cmd A44 2   -> same thing, explicit
-rem    pick-shiny.cmd A44 dry -> DRY RUN: prints what would happen, writes nothing
-rem                              ("--dry" works too; the bare word is normalised in
-rem                               tools\pick-card.py, not here)
+rem    double-click            -> list the legendary fish that still have 2 versions
+rem    pick-shiny.cmd A44 2    -> swap in version 2 for A44  (EXPLICIT version)
+rem    pick-shiny.cmd A44 dry  -> DRY RUN: prints what would happen, writes nothing
+rem                               (a dry run MAY omit the version: it defaults to 2;
+rem                                "--dry" works too -- normalised in tools\pick-card.py)
+rem
+rem  WHY THERE IS NO BARE "pick-shiny.cmd A44": a swap really swaps the files AND the
+rem  manifest record together, so "typing one number less" must not turn into a write.
+rem  That default lives in tools\pick-card.py (dry runs only, where it is harmless);
+rem  THIS launcher forwards your argument verbatim instead of inventing a version.
+rem  It also rejects a third argument instead of silently dropping it (keep 2 max).
 rem
 rem  WHAT A SWAP MEANS: the pair is SWAPPED (files + the manifest records together),
 rem  so the chosen image becomes the live card assets\cards\A44-shiny.png and the
@@ -32,8 +37,6 @@ cd /d "%~dp0.."
 
 set "PY=C:\Users\15001\.workbuddy\binaries\python\versions\3.13.12\python.exe"
 set "ID=%~1"
-set "VER=%~2"
-if "%VER%"=="" set "VER=2"
 
 if not exist "%PY%" (
   echo [X] python not found: %PY%
@@ -45,6 +48,13 @@ if not exist "assets\cards\manifest.json" (
   pause
   exit /b 1
 )
+if not "%~3"=="" (
+  echo [X] too many arguments: usage is  pick-shiny.cmd ^<ID^> [version ^| dry]
+  echo     got:  %*
+  echo     a 3rd argument used to be dropped silently - now it is an error
+  pause
+  exit /b 2
+)
 
 if "%ID%"=="" (
   echo ===========================================================
@@ -52,22 +62,32 @@ if "%ID%"=="" (
   echo ===========================================================
   echo.
   "%PY%" -u tools\pick-card.py --list --morph shiny
+  set "RC=%ERRORLEVEL%"
   echo.
   echo -----------------------------------------------------------
-  echo   To swap in version 2:   pick-shiny.cmd ^<ID^>       e.g.  pick-shiny.cmd A44
-  echo   To dry-run first:       pick-shiny.cmd ^<ID^> --dry
+  echo   To swap in version 2:   pick-shiny.cmd ^<ID^> 2    e.g.  pick-shiny.cmd A44 2
+  echo   To dry-run first:       pick-shiny.cmd ^<ID^> dry  e.g.  pick-shiny.cmd A44 dry
   echo   To look at them first:  double-click  tools\review-desk.cmd
   echo -----------------------------------------------------------
+  echo.
+  if not "%RC%"=="0" echo [!] exit code = %RC%
   pause
-  exit /b 0
+  exit /b %RC%
 )
 
 echo ===========================================================
-echo   Swapping in version %VER% for %ID%  ^(shiny^)
+echo   Shiny pick for %ID%
+if "%~2"=="" (
+  echo   args forwarded to pick-card.py : ^(none^)
+  echo   ^>^> a real swap needs an explicit version, so this will stop and tell you
+) else (
+  echo   args forwarded to pick-card.py : %~2
+)
 echo ===========================================================
 echo.
-"%PY%" -u tools\pick-card.py %ID% shiny %VER%
+"%PY%" -u tools\pick-card.py %ID% shiny %~2
 set "RC=%ERRORLEVEL%"
 echo.
 if not "%RC%"=="0" echo [!] exit code = %RC%
 pause
+exit /b %RC%

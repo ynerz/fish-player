@@ -9,11 +9,19 @@ rem  re-render: either in its own console window (recommended) or in the
 rem  background. Close THIS window to stop the runner (windows it already
 rem  opened keep running -- they are separate processes).
 rem
+rem  USAGE: double-click it. This launcher takes NO arguments -- the port is the
+rem  PORT value below and the runner is always started with --serve --open.
+rem  Arguments used to be dropped silently (they never reached the runner), so
+rem  they are rejected now: a flag that quietly does nothing is exactly the
+rem  failure mode this project keeps getting bitten by. To use another port,
+rem  run the python command yourself:
+rem      python tools\review-cards.py --serve --open --port 8888
+rem
 rem  WHY AN ASCII ALIAS EXISTS: tools\gen-art-loop.cmd points the user here, and
 rem  .cmd files must stay ASCII-only (cmd.exe reads them in the system ANSI code
 rem  page). So the real launcher lives here and the Chinese-named file forwards.
 rem
-rem  NOTE: keep this file ASCII-only. (Same note as tools/gen-art-loop.cmd.)
+rem  NOTE: keep this file ASCII-only. (Same note as tools\gen-art-loop.cmd.)
 rem ===========================================================================
 setlocal
 chcp 65001 >nul
@@ -27,6 +35,13 @@ if not exist "%PY%" (
   echo [X] python not found: %PY%
   pause
   exit /b 1
+)
+if not "%~1"=="" (
+  echo [X] this launcher takes no arguments. Start it by double-clicking, or run
+  echo     python tools\review-cards.py --serve --open --port 8888   yourself.
+  echo     got:  %*
+  pause
+  exit /b 2
 )
 
 echo ===========================================================
@@ -43,3 +58,4 @@ echo.
 if not "%RC%"=="0" echo [!] runner exit code = %RC%
 echo Runner stopped. (Re-render windows you opened may still be running.)
 pause
+exit /b %RC%

@@ -10527,7 +10527,9 @@ let skipBad = 0;
   const rr = path.join(ROOT, 'tools/rerender.py');
   if (!fs.existsSync(rr)) {
     err('缺 `tools/rerender.py` —— 一键启动器（`tools/gen-art-loop.cmd`）的编排层不见了；'
-      + '`.cmd` 里写不了逻辑（ANSI 码页 + 会话里执行不了 cmd.exe ⇒ 写完等于没验证）');
+      + '`.cmd` 里写不了逻辑（ANSI 码页 + 写在那儿的东西**没法单测** —— 出处是 python 才能 '
+      + '被 test.js 覆盖；⚠️ 2026-10-12 更正：本条早先写「执行不了 cmd.exe」，实测**能**跑，'
+      + '见本节 ⑦-f）');
     skipBad++;
   } else {
     const rrFull = fs.readFileSync(rr, 'utf8');
@@ -10560,7 +10562,8 @@ let skipBad = 0;
     const cmdLines = cmdSrc.split('\n').filter(l => !/^\s*rem\b/i.test(l)).join('\n');
     if (!/rerender\.py/.test(cmdLines)) {
       err('`tools/gen-art-loop.cmd` 没有调 `rerender.py` —— 逻辑又回到 `.cmd` 里了'
-        + '（`.cmd` 只能纯 ASCII、且本项目的工具执行不了它，等于没验证）');
+        + '（`.cmd` 只能纯 ASCII，且写在这里的逻辑**不会被任何单测覆盖**；'
+        + '⚠️ 2026-10-12 更正：早先的说法是「本项目的工具执行不了它」，实测能跑 —— 见 ⑦-f）');
       skipBad++;
     }
     /* .cmd 必须纯 ASCII：cmd.exe 用系统 ANSI 码页读脚本，中文会被撕碎成乱命令。
@@ -10663,6 +10666,209 @@ let skipBad = 0;
       }
     }
   }
+
+
+  /* ── ⑦-e 🆕 2026-10-12（自动化第 55 轮 · C 类审计 → 当场做实）：**启动器不许自己编参数** ──
+     实测踩到的三件事（全是「不报错但静默失效」）：
+       ① `tools/pick-shiny.cmd` 里写着「少了版号就补 2」—— 而 `tools/pick-card.py` 的契约
+          （第 44 轮 Q54 拍板）是「**只有干跑**能省版号；真换一律要显式版号」（换文件 + 换
+          manifest 台账**不可逆**，不许「少打一个数字」变成一次落盘）。于是照着这个启动器的
+          文件头敲 `pick-shiny.cmd A44` 就会**真换** —— python 侧那道闸门被包装器绕开了。
+       ② 第 3 个及以后的参数被**静默丢掉**（`%*` 没往 python 传）；
+       ③ 退出码没带出来（`pause` 之后没有 `exit /b %RC%`）⇒ 谁调用它都拿到 0，
+          「跑失败了」只能靠人读屏幕。
+     ✅ 三处都改了，这一节把「不许退回去」钉住。
+     ⚠️ 只扫**可执行行**（`rem` 是给人看的文案，里面本来就写着 `set "VER=2"` 这种反例）。 */
+  const LAUNCH_DIR = path.join(ROOT, 'tools');
+  const execLines = file => fs.readFileSync(path.join(LAUNCH_DIR, file), 'utf8')
+    .split(/\r?\n/).filter(l => !/^\s*(rem\b|@?echo off)/i.test(l));
+  const NL55 = String.fromCharCode(10);
+  const PS = String.fromCharCode(92);
+  const psCmdFile = 'pick-shiny.cmd';
+  const psCmdPath = path.join(LAUNCH_DIR, psCmdFile);
+  let launcherLive = 0;          // 真跑过几个形态（下面 ⑦-f 填）
+  /* 🔴 ⑦-f 的**安全闸门**：真跑只跑「干跑」形态，而干跑之所以安全，全靠 ⑦-e 那三条
+     —— 一旦「用户给的 `dry` 被原样传出」这条不成立，下面那次真跑就会**变成一次真换**
+     （反向验证 R2 组实测：把调用行写死成 `… shiny 2`，verify 自己就把 A44 那一对换了）。
+     ⇒ 源码面没证明「透传是对的」之前，**不许**跑真通道：判据自己落盘比没有判据更糟。 */
+  let psPassThruOK = true;
+  if (!fs.existsSync(psCmdPath)) {
+    err('缺 `tools/pick-shiny.cmd` —— 传说档闪光两版的挑选入口不见了'); skipBad++;
+  } else {
+    const j = execLines(psCmdFile).join(NL55);
+    /* 判据自检：可执行行必须真的切到了（切空 ⇒ 下面三条会静默恒绿） */
+    if (!/pick-card\.py/.test(j)) {
+      err('第 51 节 ⑦-e 的判据自检不成立：`pick-shiny.cmd` 的**可执行行**里找不到 `pick-card.py`'
+        + ' —— 要么它不调 python 了，要么「哪些行算可执行」的过滤写坏了'); skipBad++;
+    }
+    /* 针串拼出来（硬规矩 43 的同族做法）：别让本节的报错文案自己喂饱判据 */
+    const inventVer = /set\s+"VER\s*=/;
+    const badLines = execLines(psCmdFile).filter(l => inventVer.test(l));
+    if (badLines.length) { psPassThruOK = false; }
+    if (badLines.length) {
+      err('`tools/pick-shiny.cmd` 自己给版号兜了默认值：' + badLines.map(l => l.trim()).join(' / ')
+        + NL55 + '       —— 真换是**不可逆**的（文件 + manifest 台账一起换），版号默认值'
+        + '只许由 `pick-card.py` 决定、且只在干跑时。照这个启动器的说明敲 `pick-shiny.cmd A44`'
+        + ' 就会真换，python 侧那道闸门等于被绕开'); skipBad++;
+    }
+    if (!/pick-card\.py\s+%ID%\s+shiny\s+%~2/.test(j)) {
+      err('`tools/pick-shiny.cmd` 没有把用户给的第二个参数**原样**转给 `pick-card.py`'
+        + '（应为 `pick-card.py %ID% shiny %~2`）—— 参数被改写 / 被兜默认值都属这类静默失效'
+        + '（⚠️ 这一条同时也是 ⑦-f 的安全闸门：它红了，下面的真跑就跳过）');
+      psPassThruOK = false;
+      skipBad++;
+    }
+    if (!/%~3/.test(j)) {
+      err('`tools/pick-shiny.cmd` 没有对第 3 个参数报错 —— 多给的参数会被静默丢掉'
+        + '（跟 §32-s 一个口径：要么报错，要么明说）'); skipBad++;
+    }
+  }
+  /* ⑦-e ④ **结尾必须把退出码带出去**：`pause` 之后没有 `exit /b %RC%` ⇒ 谁调用它都拿到 0，
+     「跑失败了」只能靠人读屏幕。
+     ⚠️ 判据盯的是**最后一行可执行语句**，不是「文件里出现过 `exit /b %RC%`」——
+        后者写宽了：列表那一支里也有一处，把结尾那处删掉照样绿（反向验证 R4 组当场逮到）。 */
+  ['gen-art-loop.cmd', psCmdFile, 'review-desk.cmd'].forEach(file => {
+    if (!fs.existsSync(path.join(LAUNCH_DIR, file))) return;
+    const tail = execLines(file).map(l => l.trim()).filter(Boolean);
+    const last = tail[tail.length - 1] || '(空)';
+    if (!/^exit\s*\/b\s+%RC%$/i.test(last)) {
+      err('`tools/' + file + '` 的最后一行可执行语句不是 `exit /b %RC%`（实际是 `' + last + '`）'
+        + NL55 + '       —— 退出码打印了却带不出去，谁调用它都拿到 0'); skipBad++;
+    }
+  });
+  /* ⑦-e ② `review-desk.cmd` 对用户参数必须**有决策**（转发或报错）—— 原来静默丢掉。
+     ⚠️ 判据只认「出现了 `%~1`」＝「这里确实对参数做了点什么」；文案写得好不好读不出来
+        （同 §32-l 那句「只判有没有，判不了对不对」）。 */
+  const rdPath = path.join(LAUNCH_DIR, 'review-desk.cmd');
+  if (fs.existsSync(rdPath)) {
+    const j = execLines('review-desk.cmd').join(NL55);
+    if (!/%~1/.test(j)) {
+      err('`tools/review-desk.cmd` 对多余参数既不转发也不报错 —— 静默丢掉（实测：'
+        + '`review-desk.cmd --port 8888` 照样起 8770，用户以为端口换了）'); skipBad++;
+    }
+  }
+
+  /* ── ⑦-f 🆕 **真跑启动器**（只在 Windows）────────────────────────────────
+     本节早先写着「本项目的工具执行不了 cmd.exe」，那是**量错了**：Node 的 `child_process`
+     能跑 `cmd /c tools\xxx.cmd`，`spawnSync` 拿得到 stdout 与退出码（stdin 给 `''` 让
+     `pause` 立刻返回）。所以这两条从「只能读源码」升级成**真跑**。
+     ⛔ **只跑只读形态**（裸列表 / 干跑）—— 真换那条绝不跑：判据自己变成一次不可逆落盘，
+        比没有判据更糟（而且「不带版号」那条一旦有人把 ⑦-e 的修法退回去，就会在这里真换文件）。
+     断言：退出码 0 · 输出含只读标记 · `assets/cards/manifest.json` 的 大小+mtime 前后一致。 */
+  if (!fs.existsSync(psCmdPath)) {
+    /* 上面已经报过缺文件，这里不重复 */
+  } else if (process.platform !== 'win32') {
+    ok('`.cmd` 启动器：非 Windows 平台 ⇒ 真跑判据跳过（本项目只在 Windows 上手跑；'
+      + '源码面判据 ⑦-e 仍然生效）');
+  } else if (!psPassThruOK) {
+    ok('`.cmd` 启动器：源码面已经证明「`dry` 不会被原样传出去」（见 ⑦-e 的红）—— '
+      + '**真跑跳过**：那种情况下真跑会变成一次不可逆的对换，判据不许自己落盘');
+  } else {
+    const { spawnSync } = require('child_process');
+    const manPath = path.join(ROOT, 'assets/cards/manifest.json');
+    const stamp = p => { const st = fs.statSync(p); return st.size + ':' + st.mtimeMs; };
+    /* 连被挑那条鱼的两张卡面一起盖戳：对换会**同时**动它们，只盯 manifest 不够稳 */
+    const cardStamp = id => ['assets/cards/' + id + '-shiny.png', 'assets/cards/' + id + '-shiny-2.png']
+      .map(p => (fs.existsSync(path.join(ROOT, p)) ? stamp(path.join(ROOT, p)) : '(缺)')).join(' | ');
+    const manBefore = fs.existsSync(manPath) ? stamp(manPath) : '(缺)';
+    const runLauncher = (args) => spawnSync('cmd',
+      ['/c', 'tools' + PS + psCmdFile].concat(args || []),
+      { cwd: ROOT, encoding: 'utf8', timeout: 60000, input: '' });
+    const L1 = runLauncher([]);
+    const out1 = String(L1.stdout || '');
+    launcherLive++;
+    if (L1.status !== 0 || !/Legendary shiny - candidates/.test(out1)) {
+      err('真跑 `pick-shiny.cmd`（裸形态 = 列候选）没按预期工作：退出码 ' + L1.status
+        + (L1.error ? '（' + L1.error.message + '）' : '')
+        + NL55 + '       实测输出开头：' + JSON.stringify(out1.slice(0, 120))); skipBad++;
+    } else {
+      /* 从**列表里现取**一个有 2 版的 id（写死 id 会在素材变动后变成假红 / 空跑） */
+      const m = /\|\s*`([A-Za-z0-9]+)`\s*\|/.exec(out1);
+      if (!m) {
+        ok('`pick-shiny.cmd` 真跑通过（裸列表 退出码 0）；⚠️ 当前没有「同档两版」的鱼 ⇒ '
+          + '干跑形态本轮跳过');
+      } else {
+        const cardBefore = cardStamp(m[1]);
+        const L2 = runLauncher([m[1], 'dry']);
+        const out2 = String(L2.stdout || '');
+        launcherLive++;
+        /* `--dry` 这个只读标记由 `pick-card.py` 打出来 ⇒ 顺带证明参数真到了 python 手里 */
+        if (L2.status !== 0 || !/--dry/.test(out2)) {
+          err('真跑 `pick-shiny.cmd ' + m[1] + ' dry` 没按预期工作：退出码 ' + L2.status
+            + NL55 + '       实测输出开头：' + JSON.stringify(out2.slice(0, 120))); skipBad++;
+        }
+        const manAfter = fs.existsSync(manPath) ? stamp(manPath) : '(缺)';
+        const cardAfter = cardStamp(m[1]);
+        if (manAfter !== manBefore || cardAfter !== cardBefore) {
+          err('**干跑改了盘**：manifest ' + (manAfter === manBefore ? '未变' : manBefore + ' → ' + manAfter)
+            + '；' + m[1] + ' 的两张卡面 ' + (cardAfter === cardBefore ? '未变' : cardBefore + ' → ' + cardAfter)
+            + NL55 + '       —— 干跑必须只读（这条判据就是拿它当证据的）'); skipBad++;
+        } else {
+          ok('`.cmd` 启动器真跑通过（Windows）：裸列表 + `' + m[1] + ' dry` 两个只读形态'
+            + ' 退出码都是 0、参数真到了 python 手里，且 `manifest.json` 与那条鱼的两张卡面'
+            + '（大小/mtime）一格没动'
+            + '（真换的那条**刻意不跑**：判据不许自己落盘）');
+        }
+      }
+    }
+  }
+
+
+  /* ── ⑦-g 🆕 **`.cmd` 的两条形态纪律**（都是本轮真跑时踩出来的，各静默失效一次）──────
+     ① **换行必须是 CRLF**：`.cmd` 写成 LF-only 时 `if (...)` 这类**块**会被 cmd.exe
+        解析错 —— 实测症状是**整个脚本变成空操作**（什么都不打印，只留下一个 `pause`），
+        退出码还给一个莫名其妙的 2。**不报错、不提示**，最容易当成「脚本坏了」。
+     ② **块里的 `echo` 文本，括号必须转义成 `^(` / `^)`**：实测
+        `echo (a third argument ...)` 写在一个 `if (...)` 块里 ⇒ 那个裸 `)` 提前闭合了块，
+        后果同 ①（后面所有语句被当成块体、条件为假时整段跳过）。`.cmd` 里没有语法检查器，
+        这类错误只能靠形态判据 + 真跑兜。
+     ⚠️ 判据只扫**可执行行**（`rem` 是给人看的文案，括号随便写）；
+        块深度按「行尾是 `(` ⇒ +1、行首是 `)` ⇒ −1」推（这几份启动器就是这个形状）。
+     合成样本自检：一个诱饵块（裸括号）必须被抓到、`rem` 里的括号与转义过的括号必须放过。 */
+  const cmdFiles = ['gen-art-loop.cmd', psCmdFile, 'review-desk.cmd', '评审台.cmd']
+    .map(n => path.join(LAUNCH_DIR, n)).filter(p => fs.existsSync(p));
+  const scanCmdShape = (text) => {
+    const bad = [];
+    let depth = 0;
+    text.split(/\r?\n/).forEach((ln, i) => {
+      if (/^\s*(rem\b|@?echo off)/i.test(ln)) return;      // 文案行不参与
+      const t = ln.replace(/\s+$/, '');
+      if (/^\s*\)/.test(t)) depth--;
+      if (depth > 0 && /^\s*echo\b/i.test(t)) {
+        /* 去掉转义过的 `^(` / `^)` 与 `^^`，还剩下裸括号就是坏形态 */
+        const rest = t.replace(/\^[()^]/g, '');
+        if (/[()]/.test(rest)) bad.push((i + 1) + ': ' + t.trim());
+      }
+      if (/\(\s*$/.test(t)) depth++;
+    });
+    return bad;
+  };
+  const shapeSelfOK = (() => {
+    const S = ['@echo off', 'rem a (b) c', 'if "%A%"=="" (', '  echo fine ^(x^)', ')',
+      'if "%B%"=="" (', '  echo broken (x)', ')'].join(NL55);
+    const b = scanCmdShape(S);
+    return b.length === 1 && /broken/.test(b[0]);
+  })();
+  if (!shapeSelfOK) {
+    err('第 51 节 ⑦-g 的判据自检不成立：合成样本没按预期分正反（要么抓不到块里的裸括号，'
+      + '要么把 `rem` 文案 / 转义过的括号算成坏形态）'); skipBad++;
+  }
+  cmdFiles.forEach(p => {
+    const raw = fs.readFileSync(p, 'utf8');
+    const name = path.basename(p);
+    const lfOnly = (raw.match(/\n/g) || []).length - (raw.match(/\r\n/g) || []).length;
+    if (lfOnly > 0) {
+      err('`tools/' + name + '` 有 ' + lfOnly + ' 行是 LF 换行（应整份 CRLF）—— '
+        + 'cmd.exe 读 LF-only 的 `.cmd` 时 `if (...)` 块会被解析错：实测症状是'
+        + '**整段脚本静默变成空操作**（什么都不打印，只留一个 `pause`）'); skipBad++;
+    }
+    const bad = scanCmdShape(raw);
+    if (bad.length) {
+      err('`tools/' + name + '` 的块里 `echo` 文本有未转义的括号（要写成 `^(` / `^)`）：'
+        + NL55 + '       ' + bad.join(NL55 + '       ')
+        + NL55 + '       —— 裸括号会提前闭合 `if (...)` 块，后面整段语句跟着被跳过'); skipBad++;
+    }
+  });
 
   if (!skipBad) {
     ok('生图管线判据同源：`card_state()` 一处定义、`--skip-existing` 与 `--stale` 共用它，'

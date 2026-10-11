@@ -1857,14 +1857,21 @@ copyTargets.forEach(m => {
 if (panelsSrc.indexOf('maxCatchUp') < 0) {
   err('panels.js 没有消费 CFG.idle.maxCatchUp（离线补算上限的文案会漂）'); copyNumBad++;
 }
-/* 钓场等级配色表只许有一份：SSS 的色值是它最独特的标记，全项目只该出现 1 次 */
+/* 钓场等级配色表只许有一份：SSS 的色值是它最独特的标记，全项目只该出现 1 次。
+   ⚠️ 2026-10-11（第 48 轮）**先剥注释再数**（硬规矩 ①）：这条判据原先拿原文数字面量，
+   而 `src/data/config.js` 里那句**解释本判据的注释**自己也引用了 `#a87a1f` ⇒ 数出来是 2、
+   报「多份会各自漂」——假报。注释不是第二份真相（它不参与任何渲染），
+   与「反向验证时注释里写同样的词必须仍绿」是同一条口径的两面。 */
 (function () {
+  const stripC = t => String(t)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
   let hits = 0;
   const walk = dir => fs.readdirSync(path.join(ROOT, dir)).forEach(nm => {
     const rel = dir + '/' + nm;
     if (fs.statSync(path.join(ROOT, rel)).isDirectory()) walk(rel);
     else if (/\.(js|css)$/.test(nm)) {
-      hits += (fs.readFileSync(path.join(ROOT, rel), 'utf8').match(/#a87a1f/g) || []).length;
+      hits += (stripC(fs.readFileSync(path.join(ROOT, rel), 'utf8')).match(/#a87a1f/g) || []).length;
     }
   });
   walk('src'); walk('assets');

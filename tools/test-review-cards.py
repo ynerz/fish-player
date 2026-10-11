@@ -1232,6 +1232,58 @@ def main():
               "反向验证：新方向留 `MIS/MIS1`、旧方向留 `OKA`，两者**不相交** "
               "⇒ 上面那两条断言在旧代码上必红（判据不是恒真）")
 
+    print("\n[23] `--sleep-check` 的分块睡眠：必须**真的分块续心跳**（本轮新接线的那条）")
+    # 病根：`gen-art.py --sleep-check` 自 `48faa42`（2026-10-08「无人值守保险」）起
+    #   **只声明、从没被读过** —— 传了等于没传（退出码 0、不报错、行为与不传一样）。
+    # 本轮把它接上，但「接上」不只是加一行调用：`--sleep-check N` 要歇 N 秒，
+    #   而锁的存活靠**心跳**（`LOCK_STALE_SEC` 没心跳就判「上一轮已死、可以接管」）⇒
+    #   一口气 `time.sleep(N)` 睡过阈值，别的生图进程会接管 ⇒ 重复出图 + 并发写 manifest.json。
+    #   ⇒ 实现按 `SLEEP_CHUNK_SEC` 分块、每块之间续一次心跳。
+    # 这里钉三件静态判据看不出来的事：**分块粒度真的决定心跳次数**、0 秒立刻返回、
+    #   `beat` 可省（渲染循环之外也想用它时不许炸）。
+    GA = load_genart()
+    if hasattr(GA, "sleep_in_chunks"):
+        check(GA.SLEEP_CHUNK_SEC < GA.LOCK_STALE_SEC,
+              "分块粒度 %gs 必须小于心跳阈值 %gs（否则分块也白搭：睡过阈值的那一段里，"
+              "别的进程会把这个锁判成 free 并接管）" % (GA.SLEEP_CHUNK_SEC, GA.LOCK_STALE_SEC))
+        # 把粒度临时调小，好在几十毫秒里观察「分块 ⇒ 多次心跳」（不然要真睡 90 秒）
+        _oldchunk = GA.SLEEP_CHUNK_SEC
+        GA.SLEEP_CHUNK_SEC = 0.02
+        _t0 = time.time()
+        _beats = []
+        GA.sleep_in_chunks(0.05, lambda: _beats.append(time.time()))
+        _el = time.time() - _t0
+        check(len(_beats) == 3 and _el >= 0.045,
+              "粒度 0.02s 睡 0.05s ⇒ **续了 3 次心跳**且真的睡够了（实得 %d 次 / %.3fs）"
+              % (len(_beats), _el))
+        check(all(b <= _beats[i + 1] for i, b in enumerate(_beats[:-1])),
+              "心跳是按时间先后发生的（不是一次性攒在同一刻）")
+        _b2 = []
+        GA.sleep_in_chunks(0.05, lambda: _b2.append(1))
+        check(len(_b2) == 3, "同参数再跑一次，心跳次数稳定（实得 %d 次）" % len(_b2))
+        GA.SLEEP_CHUNK_SEC = _oldchunk
+        _b3 = []
+        GA.sleep_in_chunks(0, lambda: _b3.append(1))
+        check(_b3 == [], "睡 0 秒 ⇒ 一次心跳都不续、立刻返回（别把 `--sleep-check 0` 变成忙等）")
+        _ok_no_beat = True
+        try:
+            GA.sleep_in_chunks(0.01)          # 不传 beat 也不许炸
+        except Exception:
+            _ok_no_beat = False
+        check(_ok_no_beat, "`beat` 可省（不传也不许抛）")
+        # 判据效力：**粒度决定心跳次数** —— 拿「粒度 > 总时长」反证「分块不是摆设」
+        _oldchunk = GA.SLEEP_CHUNK_SEC
+        GA.SLEEP_CHUNK_SEC = 5
+        _b4 = []
+        GA.sleep_in_chunks(0.05, lambda: _b4.append(1))
+        GA.SLEEP_CHUNK_SEC = _oldchunk
+        check(len(_b4) == 1,
+              "把粒度调到 5s（> 总时长 0.05s）⇒ 只续 1 次 —— 说明 30s 这个粒度**真的是**"
+              "心跳节奏的来源（粒度 ≥ 阈值时它就是一句 `time.sleep`）")
+    else:
+        check(False, "`gen-art.py` 里找不到 `sleep_in_chunks()` —— `--sleep-check` 又变成"
+                     "「声明了没人读」的空开关（这正是本轮修的那个形状）")
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

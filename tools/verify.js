@@ -2821,6 +2821,172 @@ console.log('\n[32-k] 音频素材名 ↔ `G.Audio` 方法名（死素材 / 名�
 })();
 
 
+/* ---------------- 32-l. `tools/*.py` 的**命令行开关**也要有消费方（Q57） ----------------
+   第 45 轮 C 类只读审计查出来的**第六张网**。零消费这条线此前有五张：导出面（㉜）·
+   模块内部状态（32-d）· 数据字段（32-g）· 存档键（32-h）· `tools/` 的模块级配方表（32-j）——
+   而**命令行的开关**一个都没人盯：`ap.add_argument("--foo", action="store_true")` 写了，
+   代码里从来没人读 `args.foo` ⇒ 参数**接受了却什么也没做**：退出码 0、不报错、
+   行为与不传完全一样。用户按 `--help` 里那句话去用，等不到任何效果也不知道为什么。
+   实据：`gen-art.py --sleep-check`（"每张出完额外歇 N 秒"）从 `48faa42` 引入起
+   **一次都没被读过**），全项目也没有第二处提到它。
+
+   判据（跑在**剥过注释**的源码上；`tools/` 25 个 py / 93 个开关）：
+     a) 先认 `X = …parse_args(…)` 的**那个 X**（`args` / `a` 都有人用）——
+        只认字面 `args.` 会把 `ai-traits.py` / `trait-rewrite.py` 的 9 个开关全误报成零消费；
+     b) dest 的取法：显式 `dest=` 优先；否则**选项串里第一个 `--long`**（`-o/--out` 的 dest 是
+        `out`，写成 `o` 会假报）；没有长选项才退回单字母短选项；
+     c) 该 dest 必须在本文件里以 `X.<dest>` 的形式出现过，否则报红；
+     d) **「抓不到就报错」**：扫到的开关总数少于 `MIN_FLAGS`、或一个 `parse_args` 都没认出来
+        ⇒ 报红（正则在文件改名 / 排版变化后失效时，不许静默变成一条恒真的空断言）。
+
+   ⚠️ **本条只判「有没有人读」**，判不了「读得对不对」（`--only-missing` 那种「方向写反」
+     静态判不出来 ⇒ 归 `tools/test-review-cards.py` 的行为断言，见 [22]）。
+   ⚠️ 判据**不剥字符串字面量**：`f"{args.foo}"` 这类会在剥字符串时被误判成零消费
+     （实测全仓 0 处 `args.` 出现在引号**内部**，所以保持字符串不动更稳）；
+     反向验证里用**注释**做负对照（注释里的 `X.dest` 不算消费方）。 */
+console.log('\n[32-l] `tools/*.py` 的命令行开关必须有消费方（零消费 = 参数接受但什么也不做）');
+(function () {
+  const MIN_FLAGS = 70;        // 实测 93（2026-10-11 口径，25 个文件）；少于它说明扫描面坏了
+  const stripPy = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
+    .replace(/(^|[\r\n])[ \t]*#[^\n]*/g, '$1')
+    .split(String.fromCharCode(10)).map(line => {
+      /* 行尾注释也要剥（32-h / 32-j 同款）：`x = 1  # args.foo` 能喂饱子串判据 */
+      let q = null;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (q) { if (c === q && line[i - 1] !== '\\') q = null; }
+        else if (c === '"' || c === "'") q = c;
+        else if (c === '#') return line.slice(0, i);
+      }
+      return line;
+    }).join(String.fromCharCode(10));
+
+  /* 括号配平取 `add_argument( … )` 的整段实参（帮助文案里可能有括号 ⇒ 认引号） */
+  const specsOf = (code) => {
+    const out = [];
+    const re = /add_argument\s*\(/g;
+    let m;
+    while ((m = re.exec(code))) {
+      let i = re.lastIndex, depth = 1, q = null;
+      for (; i < code.length; i++) {
+        const c = code[i];
+        if (q) { if (c === q && code[i - 1] !== '\\') q = null; }
+        else if (c === '"' || c === "'") q = c;
+        else if (c === '(') depth++;
+        else if (c === ')') { depth--; if (!depth) break; }
+      }
+      out.push(code.slice(re.lastIndex, i));
+      re.lastIndex = i;
+    }
+    return out;
+  };
+  const destOf = (spec) => {
+    const d = /dest\s*=\s*["']([^"']+)["']/.exec(spec);
+    if (d) return d[1];
+    const longs = [...spec.matchAll(/["'](--[A-Za-z0-9_-]+)["']/g)];
+    if (longs.length) return longs[0][1].slice(2).replace(/-/g, '_');
+    const shorts = [...spec.matchAll(/["'](-[A-Za-z0-9])["']/g)];
+    return shorts.length ? shorts[0][1].slice(1) : null;
+  };
+
+  /* 判据自检：dest 取法四种（长选项 / 显式 dest / 短+长别名 / 只有短选项） */
+  const selfOk = destOf('"--check", action="store_true"') === 'check'
+    && destOf('"-m", "--budget-min", type=float') === 'budget_min'
+    && destOf('"--morph", dest="morph_filter"') === 'morph_filter'
+    && destOf('"-o", "--out", default=""') === 'out'
+    && destOf('"-q"') === 'q'
+    && specsOf('ap.add_argument("a", help="x)")').length === 1;
+  if (!selfOk) {
+    err('32-l 的判据自检不成立（合成样本：长选项 / 显式 dest / 短+长别名 / 只有短选项 / '
+      + '帮助文案里带右括号，这五种没能各自认对）');
+  }
+  let lBad = selfOk ? 0 : 1;
+  let scanned = 0, parserFiles = 0;
+  const dead = [];
+  fs.readdirSync(path.join(ROOT, 'tools')).filter(f => f.endsWith('.py')).forEach(f => {
+    const rel = 'tools/' + f;
+    let code;
+    try { code = stripPy(fs.readFileSync(path.join(ROOT, rel), 'utf8')); } catch (e) { return; }
+    const pm = /(\w+)\s*=\s*[\w.]*parse_args\s*\(/.exec(code);
+    if (!pm) return;                       /* 不解析 argv 的脚本不参与 */
+    parserFiles++;
+    const v = pm[1];
+    const dests = specsOf(code).map(destOf).filter(d => d && d !== 'help');
+    scanned += dests.length;
+    dests.forEach(d => {
+      if (!new RegExp('\\b' + v + '\\.' + d + '\\b').test(code)) {
+        dead.push(rel + ' 的 `--' + d.replace(/_/g, '-') + '`（`' + v + '.' + d + '` 零出现）');
+      }
+    });
+  });
+  if (parserFiles < 10) {
+    err(`只认出 ${parserFiles} 个「解析 argv 的 py」（少于 10）—— 扫描面多半坏了，`
+      + '不许让这条判据静默退化成恒真的空断言'); lBad++;
+  }
+  if (scanned < MIN_FLAGS) {
+    err(`只扫到 ${scanned} 个命令行开关（少于 ${MIN_FLAGS}）—— \`add_argument\` 的抽取要跟着改`); lBad++;
+  }
+  if (dead.length) {
+    err(`${dead.length} 个命令行开关**零消费**（参数接受了却什么也不做：退出码 0、不报错、`
+      + '行为与不传一样）：\n       ' + dead.join('\n       ')
+      + '\n       —— 要么接上消费方（像本轮接 `--sleep-check`），要么删掉这个开关'
+      + '（**注意**：删开关会让已经在用它的命令行变成退出码 2，接上更安全）'); lBad++;
+  }
+  if (!lBad) {
+    ok(`\`tools/*.py\` 的 ${scanned} 个命令行开关都有消费方`
+      + `（${parserFiles} 个解析 argv 的脚本；判据按 \`X = parse_args()\` 的那个 X 找，`
+      + '并会认显式 `dest=` 与 `-o/--out` 这类别名）');
+  }
+
+  /* ---- (b) 本轮接线的那一个开关：`--sleep-check` 不只要「有人读」，还要**接对** ----
+     「有人读」上面那张网就够了，但读错地方照样是坏的：真正要的是
+       ① 分块粒度必须**小于**锁的过期阈值（不然分块也白搭：睡过 LOCK_STALE_SEC 的那一段
+          里，别的进程看锁会判成 free ⇒ 接管 ⇒ 两个生图进程同时跑、并发写 manifest.json）；
+       ② `sleep_in_chunks()` 里必须真的续心跳（`beat(...)`）—— 传了个空回调就退化成
+          「一句 time.sleep」，等于没分块；
+       ③ 渲染循环必须真的把它接上，而且读的是 `args.sleep_check`（写成常量就等于开关失效）。
+     ⚠️ 三条判据的锚点全走 `bodyOf()` 的**定义形态** marker（§42 ⑧ 的硬规矩）。 */
+  const GA = 'tools/gen-art.py';
+  let gaCode = '';
+  try { gaCode = stripPy(fs.readFileSync(path.join(ROOT, GA), 'utf8')); } catch (e) {
+    err(`读不到 \`${GA}\` —— 32-l(b) 抓不到要判的地方（先修判据本身）`); lBad++;
+  }
+  if (gaCode) {
+    const numOf = (name) => {
+      const m = new RegExp('^' + name + '\\s*=\\s*([0-9.]+)', 'm').exec(gaCode);
+      return m ? parseFloat(m[1]) : null;
+    };
+    const chunk = numOf('SLEEP_CHUNK_SEC'), stale = numOf('LOCK_STALE_SEC');
+    if (chunk === null || stale === null) {
+      err(`\`${GA}\` 里找不到 \`SLEEP_CHUNK_SEC\` / \`LOCK_STALE_SEC\` 的数值定义 —— `
+        + '`--sleep-check` 的分块粒度判不了（不许当成「没有这条要检查」）'); lBad++;
+    } else if (!(chunk < stale)) {
+      err(`\`SLEEP_CHUNK_SEC\`（${chunk}）不小于 \`LOCK_STALE_SEC\`（${stale}）—— `
+        + '一口气睡过心跳阈值时，别的生图进程会把锁判成 free 并接管 ⇒ '
+        + '**重复出图 + 并发写 manifest.json**，而且两边都不报错'); lBad++;
+    }
+    const sic = bodyOf(gaCode, 'def sleep_in_chunks(');
+    if (!sic) {
+      err(`\`${GA}\` 里找不到 \`def sleep_in_chunks(\` —— \`--sleep-check\` 的实现不见了`
+        + '（不许当成「没有这条要检查」）'); lBad++;
+    } else if (!has(sic, 'beat(') || !has(sic, 'SLEEP_CHUNK_SEC')) {
+      err('`sleep_in_chunks()` 既没续心跳（找不到 `beat(`）也没按 `SLEEP_CHUNK_SEC` 分块 —— '
+        + '那就退化成一句 `time.sleep(sec)`：睡过心跳阈值后锁会假死'); lBad++;
+    }
+    const gamain = bodyOf(gaCode, 'def main(');
+    if (!gamain || !has(gamain, 'sleep_in_chunks(args.sleep_check')) {
+      err('`main()` 的渲染循环没有接上 `--sleep-check`（找不到 '
+        + '`sleep_in_chunks(args.sleep_check`）—— 开关写着「每张出完额外歇 N 秒」却什么都不做'
+        + '（正是本轮修的那个形状：`48faa42` 引入起从没被读过）'); lBad++;
+    }
+    if (!lBad) {
+      ok('`--sleep-check` 接对了：分块粒度 ' + chunk + 's < 心跳阈值 ' + stale + 's、'
+        + '`sleep_in_chunks()` 每块续一次心跳、`main()` 的渲染循环按 `args.sleep_check` 调它');
+    }
+  }
+})();
+
+
 /* ---------------- 33. 体型数量：文档 / 出图工具必须与代码一致 ----------------
    代码里是 **9 种**（`TPL.fish / eel / ray / squid / jelly / oarfish / shark / whale / dragon`），
    而 GDD 两处 + 开发者文档一处都写着「10 种体型」，开发者文档 §5.2 自己又写着 9 ——

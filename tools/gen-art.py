@@ -2402,6 +2402,29 @@ SEC_SAMPLE_MIN = 20     # 实测样本少于此数就退回常数（中位不稳
 #    更松 = 两个进程同时跑、并发写台账。两种都**不报错**。
 # ────────────────────────────────────────────────────────────────────────────
 LOCK_STALE_SEC = 300          # 心跳超过这么久没动静 = 上一个进程已死（配合 pid 判据）
+SLEEP_CHUNK_SEC = 30          # `--sleep-check` 的分块粒度 —— 必须 < LOCK_STALE_SEC，见下
+
+
+def sleep_in_chunks(sec, beat=None):
+    """`--sleep-check N`：**每张出完额外歇 N 秒**（给 GPU 降降火，也留出被外部打断的窗）。
+
+    🔴 为什么**分块**睡，而不是一句 `time.sleep(sec)`：
+       锁的存活靠**心跳**（`LOCK_STALE_SEC` = 300 秒没心跳就判「上一轮已经死了、可以接管」）。
+       一口气睡 400 秒的话，这中间别的进程来看锁会判成 **free** ⇒ 两个生图进程同时开跑，
+       而后果是**重复出图 + 并发写 `manifest.json`**（追踪文件，并发写会把条目覆盖掉）
+       —— 第 31 轮那「15 张有图无台账」就是这么来的。
+       ⇒ 按 `SLEEP_CHUNK_SEC` 分块，每块之间续一次心跳。
+       `SLEEP_CHUNK_SEC` 必须**小于** `LOCK_STALE_SEC`（不然分块也白搭），判据盯着这条。
+
+    `beat` 由调用方给（就是 `main()` 里那个 `lock_write()`）——
+    心跳的实现仍然只有一处，本函数不自己写锁文件。
+    """
+    left = float(sec)
+    while left > 0:
+        time.sleep(min(left, SLEEP_CHUNK_SEC))
+        left -= SLEEP_CHUNK_SEC
+        if beat is not None:
+            beat()
 
 
 def lock_path():
@@ -3178,6 +3201,14 @@ def main():
             fail += 1
             print("    失败：" + (r.stdout or r.stderr or "")[-200:])
         lock_write()          # 心跳（见上：锁靠心跳过期来自愈，不查 pid）
+        # `--sleep-check N`：每张出完额外歇 N 秒（给 GPU 降降火，也留出被外部打断的窗）。
+        # ⚠️ 放在**心跳之后**、并按 `SLEEP_CHUNK_SEC` 分块续心跳（见 `sleep_in_chunks()`）——
+        #    一口气睡过 `LOCK_STALE_SEC` 的话，别的进程会把这个锁判成 free 并接管 ⇒
+        #    两个生图进程同时跑、并发写 manifest.json，而且**不报错**。
+        # ⚠️ 只对**真出过的**那几张生效：跳过的那几张走上面的 `continue`，本来就不歇
+        #    （help 写的是「每张出完」；跳过 ≠ 出过）。
+        if args.sleep_check > 0:
+            sleep_in_chunks(args.sleep_check, lock_write)
         if (ok + fail + skip) % CHECKPOINT == 0:
             save_manifest()   # 定期落盘（见上：长跑被杀不能连台账一起丢）
 

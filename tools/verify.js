@@ -7500,7 +7500,22 @@ let storyBad = 0;
   const FIELDS_T = (sandbox.G && sandbox.G.FIELDS) || null;
   const duelBad = [];
   let duelEvs = 0;
-  const TOKEN_ALLOW = ['name', 'rival', 'best', 'score'];
+  /* 🔴 占位符白名单**现算**（㉙ 禁字面）：从 `core/story.js: fillLine()` 的那几个
+     `.replace(/\{名字\}/g, …)` 里取 —— 引擎**真的会替换**哪些 token，这才是唯一真相。
+     原先是手写的一行字面量：内容里加第五个占位符时两处会分家（手写的白名单会让
+     「引擎根本不替换它」这件事**看起来合法**）；而且手写那份证明不了任何事。
+     取不到 ⇒ **直接报错**（判据悄悄失效比漏报更坏，与本节其余空集自检同款）。 */
+  const TOKEN_ALLOW = (function () {
+    const re = /\.replace\(\s*\/\\\{([A-Za-z_$][\w$]*)\\\}\/g\s*,/g;
+    const out = [];
+    let m2;
+    while ((m2 = re.exec(coreCode))) if (out.indexOf(m2[1]) < 0) out.push(m2[1]);
+    return out;
+  })();
+  if (TOKEN_ALLOW.length < 2) {
+    err('从 core/story.js 的 fillLine() 里读不出占位符表（只认出 ' + TOKEN_ALLOW.length
+      + ' 个）—— 本节一部分判据会静默失效，先修判据自身（锚点是 `.replace(/\\{名字\\}/g,`）');
+  }
   EVS.forEach(ev => {
     if (ev.duel === undefined) return;
     duelEvs++;
@@ -8666,6 +8681,52 @@ let storyBad = 0;
     return r ? ((r.atMinMs / 1000) + '~' + (r.atMaxMs / 1000) + ' 秒 / ≤' + r.maxRar + ' 档')
       : '（缺 CFG.story.race）';
   })();
+
+  /* ⑭ 🔴 占位符：**只许出现在结算台词里**，名字必须有实现，每个实现都要有人用。
+     `core/story.js: fillLine()` 是**唯一**替换实现，而它只被限时比试的结算链路调用 ——
+     所以「在闲聊池 / 事件台词里写一个 `{name}`」这种坏法**不报错**，玩家听到的是字面量
+     「{name}」（⑬ 那节只扫 `duel.win` / `duel.lose` 两处，别处一条网都没有）。
+     三个方向一起判（全是现算的）：
+       ① 值域：内容里出现的每个 `{token}` 都要在 `fillLine()` 的实现里（否则原样念出来）；
+       ② 位置：带占位符的字符串**必须**在 `duel.win` / `duel.lose` 之下（别处没人替换）；
+       ③ 反向：`fillLine()` 里实现的每个 token 都至少被内容用一次（否则那条替换是死代码）。
+     ⚠️ 判据走**已加载的内容表**（不是扫文本）⇒ `story.js` 注释里写同样的词天然不算数。 */
+  const phBad = [];
+  const phHit = {};
+  if (TOKEN_ALLOW.length >= 2 && EVS && NPCS) {
+    const walkStr = (v, path0) => {
+      if (typeof v === 'string') {
+        (v.match(/\{[A-Za-z_$][\w$]*\}/g) || []).forEach(t => {
+          const name = t.slice(1, -1);
+          if (TOKEN_ALLOW.indexOf(name) < 0) {
+            phBad.push(path0 + ' 里的 ' + t + ' 不在 fillLine() 的实现里 ⇒ 玩家会听到字面量'
+              + '（实现里只有 ' + TOKEN_ALLOW.map(x => '{' + x + '}').join(' / ') + '）');
+            return;
+          }
+          phHit[name] = (phHit[name] || 0) + 1;
+          if (!/(^|\.)duel\.(win|lose)\[/.test(path0)) {
+            phBad.push(path0 + ' 带了 ' + t + '，但 fillLine() 只在**结算台词**里被调用 ⇒ '
+              + '这行会把 ' + t + ' 原样念给玩家听');
+          }
+        });
+        return;
+      }
+      if (Array.isArray(v)) { v.forEach((x, i) => walkStr(x, path0 + '[' + i + ']')); return; }
+      if (v && typeof v === 'object') {
+        Object.keys(v).forEach(k => walkStr(v[k], path0 ? path0 + '.' + k : k));
+      }
+    };
+    Object.keys(NPCS).forEach(id => walkStr(NPCS[id], id));
+    EVS.forEach((e, i) => walkStr(e, (e && e.id) || ('EV[' + i + ']')));
+    if (BNC) BNC.forEach((b, i) => walkStr(b, (b && b.id) || ('BANTER[' + i + ']')));
+    TOKEN_ALLOW.forEach(t => {
+      if (!phHit[t]) {
+        phBad.push('fillLine() 里实现了 `{' + t + '}`，但内容表一次都没用 ⇒ 那条替换是死代码'
+          + '（要么删实现，要么让台词用上它）');
+      }
+    });
+  }
+  if (phBad.length) { err('事件台词的占位符不对：' + phBad.join('；')); storyBad++; }
 
   if (!storyBad) {
     ok('隔壁钓鱼佬在位：' + npcIds.length + ' 个 NPC / ' + EVS.length + ' 条事件，'

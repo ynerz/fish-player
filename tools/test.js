@@ -2804,6 +2804,133 @@ G_('Panels · 设置键必须能从界面改（真渲染 + 真触发注册的回
 })();
 
 /* =========================================================
+   面板零覆盖补课（第 43 轮 C 类审计翻出来的）
+   =========================================================
+   审计实测：`panels.js` 挂上去 **14 个**面板，`test.js` 里真打开过的只有 **3 个**
+   （`net` / `offline` / `settings`）—— `shop` 与三个 `picker*`（换饵 / 换竿 / 换线）
+   在 Node 侧**连名字都没出现过**。而它们正是**花钱 / 换装备**的界面：
+   `render` 里一个 `undefined.x` 就白屏，而这四个面板此前只有真浏览器能验。
+   本节按 house style 复用最小 DOM 桩，把四个面板各**真渲染一遍**并读它写出来的文字。
+   ⚠️ 判据读 DOM 文本，不查源码（查源码 = 假绿）；渲染不抛错 + 文本非空 + 认出装备名，
+      三条一起才算「这个面板画得出来」。
+   ========================================================= */
+/* =========================================================
+   面板零覆盖补课（第 43 轮 C 类审计翻出来的）
+   =========================================================
+   审计实测：`panels.js` 挂上去 **14 个**面板，`test.js` 里真打开过的只有 **3 个**
+   （`net` / `offline` / `settings`）—— `shop` 与三个 `picker*`（换饵 / 换竿 / 换线）
+   在 Node 侧**连名字都没出现过**。而它们正是**花钱 / 换装备**的界面：
+   `render` 里读一个 `undefined` 就是白屏，而这四个面板此前只有真浏览器能验。
+   本节按 house style 复用最小 DOM 桩，把四个面板各**真渲染一遍**并读它写出来的文字。
+   ⚠️ 判据读 DOM 文本，不查源码（查源码 = 假绿）。
+   ⚠️ 装备店是**五个 tab**（鱼饵 / 鱼竿 / 鱼线 / 装饰 / 付费内容），默认只画「鱼饵」——
+      所以这里连 tab 的**点击**也真走一遍（回调由桩记下来），否则鱼竿 / 鱼线那两屏
+      在这个文件里永远验不到。
+   ⚠️ 「买 / 选用」按钮是 innerHTML 字符串拼出来的 ⇒ Node 桩里没有真元素、也就没有回调，
+      **购买动作仍然只能靠真浏览器验**（写在这儿，免得下一个人以为已经覆盖了）。
+   ========================================================= */
+G_('Panels · 装备店与三个选择器（Node 侧真渲染）');
+(function () {
+  const realDoc = global.document;
+  const prevAudio = G.Audio;
+  const handlers = [];
+  const node = (tag) => {
+    const el = mkEl(tag);
+    el.addEventListener = function (type, fn) { handlers.push({ type: type, fn: fn, el: el }); };
+    return el;
+  };
+  /* 弹层的 class 要**记下来**：下面要用「打开 ⇒ 不隐藏 / 按 Esc ⇒ 隐藏」当行为证据。 */
+  const modalCls = new Set(['hidden']);
+  const modalStub = { classList: { contains: c => modalCls.has(c),
+    add: c => { modalCls.add(c); }, remove: c => { modalCls.delete(c); }, toggle() {} },
+    addEventListener() {} };
+  const body = node('div');
+  const qmap = { '#modal': modalStub, '#modalTitle': node('div'), '#modalBody': body,
+                 '#modalClose': node('button'), '#app': node('div') };
+  /* ⚠️ `createElement` 也要用**记回调**的那个工厂：面板里的按钮（tab / 行）全部由
+     `U.el` 现建 ⇒ 若这里给的是裸 `mkEl`（addEventListener 是空函数），
+     那些按钮的回调一个都收不到（第一版就是这么写的，chip 找不到）。 */
+  global.document = { createElement: tag => node(tag), querySelector: s => qmap[s] || null,
+    querySelectorAll: () => [], addEventListener() {} };
+  G.Audio = { click() {}, coin() {}, deny() {}, splash() {}, unlock() {} };
+  /* ⚠️ `refresh()` 是 `setTimeout(0)` 排队的 ⇒ 切 tab 之后**同一 tick 里读不到新 DOM**。
+     把 setTimeout 换成「立刻跑」的桩，切 tab 才是确定性的（跑完还原）。 */
+  const prevST = global.setTimeout;
+  /* ⚠️ 桩必须返回**假值句柄**：`refresh()` 把返回值存进 `refreshTimer` 当「已排队」的锁，
+     返回 1（真值）会让锁**永久闩住** ⇒ 第二次之后所有 refresh 都被守卫吞掉
+     （实测症状：切「鱼竿」好使、切「鱼线」什么都不画）。 */
+  global.setTimeout = function (fn) { fn(); return 0; };
+  Panels.init();
+
+  /* ---- ① 装备店：默认屏 + 两个 tab 的**点击** ---- */
+  body.children.length = 0; handlers.length = 0;
+  let e = null;
+  try { Panels.open('shop'); } catch (err) { e = err; }
+  ok(!e, "Panels.open('shop') 能在 Node 里真跑完（不依赖浏览器专有 API）", e && e.message);
+  let text = panelText(body);
+  ok(text.length > 0, "'shop' 面板画出了内容（不是空白 —— 渲染里读 undefined 会白屏）");
+  ok(['鱼饵', '鱼竿', '鱼线', '装饰', '付费内容'].every(t => text.indexOf(t) >= 0),
+     '装备店的五个分类 tab 都画出来了', text.slice(0, 100));
+  ok(G.BAITS.every(b => text.indexOf(b.name) >= 0),
+     `默认那一屏列出了全部 ${G.BAITS.length} 种鱼饵`);
+  ok(text.indexOf('买 ') >= 0 || text.indexOf('选用') >= 0, '每个饵料都带一个「买 / 选用」按钮');
+  ok(G.RODS.every(r => text.indexOf(r.name) < 0),
+     'tab 机制是真的：切之前那一屏**没有**任何鱼竿（否则下面那条断言会假通过）');
+  /* ⚠️ `U.el(tag, cls, html)` 写的是 **innerHTML**（不是 textContent）—— 第一版按 textContent 找，
+     一个都找不到。判据要跟真实的赋值口径对齐。 */
+  const chipOf = (label) => handlers.filter(h => h.type === 'click'
+    && String(h.el.innerHTML) === label
+    && String(h.el.className).indexOf('chip') >= 0)[0];
+  const rodChip = chipOf('鱼竿');
+  ok(!!rodChip, "装备店里能找到「鱼竿」那个 tab 按钮（它挂着 click 回调）");
+  if (rodChip) {
+    body.children.length = 0;
+    rodChip.fn();
+    text = panelText(body);
+    ok(G.RODS.every(r => text.indexOf(r.name) >= 0),
+       `点一下「鱼竿」⇒ 全部 ${G.RODS.length} 支鱼竿都画出来了（tab 真的重渲染了）`);
+  }
+  const lineChip = chipOf('鱼线');
+  if (lineChip) {
+    body.children.length = 0;
+    lineChip.fn();
+    text = panelText(body);
+    ok(G.LINES.every(l => text.indexOf(l.name) >= 0),
+       `点一下「鱼线」⇒ 全部 ${G.LINES.length} 种鱼线都画出来了`);
+  }
+  Panels.close();
+
+  /* ---- ② 三个选择器：整列都得画出来 ---- */
+  const CASES = [
+    ['pickerBait', '饵料', G.BAITS],
+    ['pickerRod', '鱼竿', G.RODS],
+    ['pickerLine', '鱼线', G.LINES],
+  ];
+  for (const [name, label, list] of CASES) {
+    body.children.length = 0;
+    let e2 = null;
+    try { Panels.open(name); } catch (err) { e2 = err; }
+    ok(!e2, `Panels.open('${name}') 能在 Node 里真跑完`, e2 && e2.message);
+    const t2 = panelText(body);
+    ok(t2.length > 0, `'${name}' 面板画出了内容（不是空白）`);
+    ok(list.every(x => t2.indexOf(x.name) >= 0),
+       `${label}选择器列出了全部 ${list.length} 项`, t2.slice(0, 120));
+    Panels.close();
+  }
+
+  /* ---- ③ 名字拼错的面板不许「打开成功但内容来自上一个面板」 ---- */
+  body.children.length = 0;
+  let ghost = null;
+  try { Panels.open('panels-not-exist'); } catch (err) { ghost = err; }
+  ok(!ghost || panelText(body).length === 0,
+     '打开一个不存在的面板：要么抛错、要么什么都不画（不许留下上一个面板的内容）');
+
+  global.document = realDoc;
+  G.Audio = prevAudio;
+  global.setTimeout = prevST;   // 还原真计时器
+})();
+
+/* =========================================================
    Hud · 比试芯片：挂机时要说清「挂机中的鱼不算」（拍板第 10 条）
    =========================================================
    用户 2026-10-10 拍板：「挂机中上的鱼不算比试、但玩家不知道 ⇒ 在顶栏倒计时芯片上加一句」。

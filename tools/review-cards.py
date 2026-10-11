@@ -1296,6 +1296,27 @@ def main():
     print("     要能直接跑：双击 tools\\评审台.cmd，或 python tools/review-cards.py --serve --open")
 
 
+def runner_alive(port, timeout=1.5):
+    """这个端口上是不是**已经有一个评审台运行器在答话**。
+
+    为什么要先问一句（2026-10-11 修，队列 Q58）：下面那行
+    `ThreadingTCPServer.allow_reuse_address = True` 在 **Windows 上的语义就是 `SO_REUSEADDR`**
+    —— 它允许**第二个 socket 绑同一个地址**。实测连起两次 `--serve --port 8774` 之后，
+    `netstat` 里是**两个 pid 同时 LISTENING 在同一行**，两个窗口都印「运行器已启动」、
+    **谁都不报错**。对用户来说这是纯困惑（关掉哪个窗口会停服务？为什么有两份日志？），
+    还白占一个 python 进程 —— 而最自然的动作恰恰就是「双击两次 `review-desk.cmd`」。
+    ⚠️ 为什么不干脆把 `allow_reuse_address` 关掉：它是**故意**开着的（TIME_WAIT 之后
+    能立刻重开，不然刚关掉窗口又要等），关掉会换一个更烦人的毛病。所以选在**起服务之前问一句**。
+    """
+    import json as _json
+    from urllib.request import urlopen
+    try:
+        with urlopen("http://127.0.0.1:%d/api/ping" % port, timeout=timeout) as r:
+            return bool(_json.loads(r.read().decode("utf-8")).get("ok"))
+    except Exception:
+        return False
+
+
 def serve(port, only, open_browser=False):
     """本地运行器：把评审页发出去，并开一个**能真的跑重出**的口子。
 
@@ -1430,6 +1451,27 @@ def serve(port, only, open_browser=False):
             threading.Thread(target=worker, args=(groups,), daemon=True).start()
             return self._send(200, json.dumps({"ok": True, "mode": "bg", "total": job["total"]}))
 
+    # 🔴 起服务之前先问一句：端口上**已经有**运行器在答话就**不再绑一次**（Q58）。
+    #    不这么做的话，Windows 的 `SO_REUSEADDR` 会让第二个进程**也绑上同一个端口**
+    #    （两个 pid 同时 LISTENING），两个窗口都印「运行器已启动」、谁都不报错 ——
+    #    用户双击两次就多出一个困惑的进程。有人答话就把浏览器指过去，然后**正常退出（0）**：
+    #    用户的意图是「我要用评审台」，那个意图已经满足了，不是错误。
+    # ⚠️ 这一段放在**开机自检之前**：第二次启动不该再白等几秒（`--stale` 要读整张鱼表）。
+    _url = "http://127.0.0.1:%d/" % port
+    if runner_alive(port):
+        print("⏸ 端口 %d 上已经有一个评审台运行器在跑 —— 不重复启动（免得两个进程抢同一个端口）。" % port)
+        print("   · 直接用它就好：%s" % _url)
+        print("   · 想关掉它：关掉那个写着「Review desk」的窗口（或在里面按 Ctrl-C）")
+        print("   · 想同时开第二个评审台：换一个端口，例如 `--port %d`" % (port + 1))
+        if open_browser:
+            try:
+                import webbrowser
+                webbrowser.open(_url)
+                print("   · 已用默认浏览器打开本页")
+            except Exception as e:
+                print("   · 自动开浏览器失败（%s）—— 手动开 %s 即可" % (e, _url))
+        return
+
     # 开机自检：拿 `--stale` 试跑一次 gen-art.py（**不联网、不出图**），
     # 把「解释器不对 / 管线坏了」在第一次重出**之前**就告诉人。
     try:
@@ -1445,7 +1487,7 @@ def serve(port, only, open_browser=False):
 
     socketserver.ThreadingTCPServer.allow_reuse_address = True
     with socketserver.ThreadingTCPServer(("127.0.0.1", port), Handler) as httpd:
-        url = "http://127.0.0.1:%d/" % port
+        url = _url
         print("评审台运行器已启动：%s" % url)
         print("   · 标记「重出」后点按钮就会真的跑（逐张约 50 秒）")
         print("   · 「在窗口里开跑」= 新开一个你自己的控制台窗口（可关窗口停、不随会话回收）")

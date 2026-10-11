@@ -1284,6 +1284,99 @@ def main():
         check(False, "`gen-art.py` 里找不到 `sleep_in_chunks()` —— `--sleep-check` 又变成"
                      "「声明了没人读」的空开关（这正是本轮修的那个形状）")
 
+    print("\n[24] 同一端口不许起第二个评审台运行器（本轮修的第四件事：Q58）")
+    # 病根：`serve()` 末尾那句 `ThreadingTCPServer.allow_reuse_address = True` 在 **Windows 上
+    #   就是 `SO_REUSEADDR`** —— 它允许**第二个 socket 绑同一个地址**。实测连起两次之后
+    #   `netstat` 里是**两个 pid 同时 LISTENING 在同一端口**，两个窗口都印「运行器已启动」、
+    #   **谁都不报错**。而用户最自然的动作恰恰是「双击两次 `review-desk.cmd`」。
+    # 修法：起服务**之前**先探 `/api/ping`，有人答就不再绑，把地址报给人并正常退出（0）。
+    # 🔴 这一段**真起服务**（子进程）+ 真起第二次，因为它要证的是**绑定行为**，
+    #    静态断言看不见（`allow_reuse_address` 那行的存在与否都「看起来没问题」）。
+    #    ⚠️ 端口取自 `PORT_BASE`（偏移一个不常用的段位），跑完全部收掉，不留后台进程。
+    import socket as _sock
+    PORT_BASE = 8791
+
+    def _can_bind(_port):
+        """不带 SO_REUSEADDR 能不能绑上 —— 有人 LISTENING 时 Windows 会拒（这正是判据的对照物）。"""
+        _s = _sock.socket()
+        try:
+            _s.bind(("127.0.0.1", _port))
+            return True
+        except OSError:
+            return False
+        finally:
+            _s.close()
+
+    def _listen_count(_port):
+        """`netstat` 里这个端口的 LISTENING 行数（读不到就返回 None，由调用方决定怎么报）。"""
+        try:
+            _r = subprocess.run(["netstat", "-ano"], capture_output=True, text=True,
+                                errors="replace", timeout=20)
+            return len([l for l in (_r.stdout or "").split("\n")
+                        if (":%d " % _port) in l and "LISTENING" in l])
+        except Exception:
+            return None
+
+    if hasattr(R, "runner_alive"):
+        check(R.runner_alive(PORT_BASE, timeout=0.6) is False and _can_bind(PORT_BASE),
+              "空端口上：`runner_alive()` 说没有、裸 socket 也绑得上（前提成立）")
+        _p1 = subprocess.Popen([sys.executable, "-u", os.path.join(TOOLS, "review-cards.py"),
+                                "--serve", "--port", str(PORT_BASE)],
+                               cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                               text=True, errors="replace")
+        try:
+            _up = False
+            for _ in range(60):                     # 最多等 30 秒（启动时有一次 gen-art 自检）
+                if R.runner_alive(PORT_BASE, timeout=0.6):
+                    _up = True
+                    break
+                if _p1.poll() is not None:
+                    break
+                time.sleep(0.5)
+            check(_up, "第一个运行器真的起来了（`/api/ping` 答话）")
+            # ⚠️ 第二次必须用 Popen + 有界等待，**不能用 `subprocess.run(timeout=…)`**：
+            #    修之前那版会**绑上端口并 serve_forever**（永远不返回）⇒ `run()` 抛
+            #    `TimeoutExpired`（整份宿主崩掉、退出码 1 却没有「未通过」标记，
+            #    反向验证会把它读成「没报红」）。这里把「一直不返回」**当成失败证据**收下。
+            _p2 = subprocess.Popen([sys.executable, "-u", os.path.join(TOOLS, "review-cards.py"),
+                                    "--serve", "--port", str(PORT_BASE)],
+                                   cwd=ROOT, stdout=subprocess.PIPE,
+                                   stderr=subprocess.STDOUT, text=True, errors="replace")
+            try:
+                _t2 = _p2.communicate(timeout=90)[0] or ""
+                _rc2, _hung = _p2.returncode, False
+            except subprocess.TimeoutExpired:
+                _p2.kill()
+                _t2 = (_p2.communicate()[0] or "")
+                _rc2, _hung = None, True
+            check(not _hung and _rc2 == 0,
+                  "第二次起**立刻正常退出 0**（用户的意图「我要用评审台」已经满足了，不是错误）"
+                  "（实得 %s）" % ("一直不返回 = 它把端口又绑上了、正在 serve_forever" if _hung
+                                   else "rc=%s" % _rc2))
+            check("已经有一个评审台运行器在跑" in _t2,
+                  "第二次起会明说「已经有一个运行器在跑」并把地址报给人")
+            check("运行器已启动" not in _t2,
+                  "第二次起**没有**再印「运行器已启动」（印了就说明它又绑了一次）")
+            _n = _listen_count(PORT_BASE)
+            check(_n == 1,
+                  "同一端口只有一个 LISTENING（实得 %s —— 修之前这里是 2，而两个进程都不报错）"
+                  % ("读不到" if _n is None else _n))
+        finally:
+            _p1.kill()
+            try:
+                _p1.wait(timeout=10)
+            except Exception:
+                pass
+        _gone = False
+        for _ in range(20):
+            if not R.runner_alive(PORT_BASE, timeout=0.6) and _can_bind(PORT_BASE):
+                _gone = True
+                break
+            time.sleep(0.5)
+        check(_gone, "收尾：运行器被收掉、端口重新空出来（测试不留后台进程）")
+    else:
+        check(False, "`review-cards.py` 里找不到 `runner_alive()` —— 同端口二次启动又没人拦了")
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

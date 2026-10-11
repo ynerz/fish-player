@@ -4311,6 +4311,13 @@ console.log('\n[33-j] `docs/说明书.html` 的玩家向数字必须与 config �
   const bw = CFG.misc.biteWindow;
   const bwMin = Math.min.apply(null, Object.keys(bw).map(k => bw[k]));
   const bwMax = Math.max.apply(null, Object.keys(bw).map(k => bw[k]));
+  /* 档案的上限 / 下限也是玩家向数字（新增两节里写了）—— 从 `G.Profile` 现算。
+     拿不到就报错：这两条一旦变成「读 undefined ⇒ 文案里出现 undefined」，判据就成了装饰。 */
+  const PROF = (sandbox.G && sandbox.G.Profile) || null;
+  if (!PROF || !(PROF.NAME_MAX > 0) || !(PROF.PW_MIN > 0)) {
+    err('拿不到 `G.Profile` 的 NAME_MAX / PW_MIN —— 33-j 抓不到要判的地方（先修判据本身）');
+    return;
+  }
   const ITEMS = [
     ['咬钩窗口（`CFG.misc.biteWindow` 的 min~max）', bwMin + '~' + bwMax + ' 秒内'],
     ['逃窜预警提前量（`CFG.fight.dashWarnLead`）', '逃窜前 ' + CFG.fight.dashWarnLead + ' 秒'],
@@ -4325,6 +4332,8 @@ console.log('\n[33-j] `docs/说明书.html` 的玩家向数字必须与 config �
     ['水族箱初始格数（`CFG.storage.tankCap`）', '初始 ' + CFG.storage.tankCap + ' 格'],
     ['离线补算上限（`CFG.idle.maxCatchUp`）', '上限 ' + (CFG.idle.maxCatchUp / 3600) + ' 小时'],
     ['挂机稀有档权重（`CFG.idle.rareWeightMul`）', '权重 ×' + CFG.idle.rareWeightMul],
+    ['档案昵称上限（`G.Profile.NAME_MAX`）', '昵称最多 ' + PROF.NAME_MAX + ' 字'],
+    ['档案密码下限（`G.Profile.PW_MIN`）', '密码至少 ' + PROF.PW_MIN + ' 位'],
   ];
   /* 判据自检：① 每条的文案里**必须真的含现算出来的数字**（否则这网是恒真的装饰）；
      ② 把一个数字改一位的副本必须**不被** `has()` 认出来（证明它真的是在比数字）。 */
@@ -4350,8 +4359,97 @@ console.log('\n[33-j] `docs/说明书.html` 的玩家向数字必须与 config �
     jBad++;
   }
   if (!jBad) {
-    ok(`${MANUAL} 的 ${ITEMS.length} 处玩家向数字与 config 现算一致（咬钩窗口 / 逃窜预警 / 断线脱钩缓冲 / `
-      + '力竭 / 修理费 / 鱼护与水族箱容量 / 离线上限 / 挂机权重）');
+    ok(`${MANUAL} 的 ${ITEMS.length} 处玩家向数字与 config / Profile 现算一致（咬钩窗口 / 逃窜预警 / `
+      + '断线脱钩缓冲 / 力竭 / 修理费 / 鱼护与水族箱容量 / 离线上限 / 挂机权重 / 档案昵称与密码上限）');
+  }
+})();
+
+
+/* ---------------- 33-k. `docs/说明书.html` 的节号与目录必须对得上（2026-10-11 新增，Q63） ----------------
+   由来：这份玩家向文档是**手工维护**的，而它的节号与目录此前**没有任何网**。实测（第 47 轮）：
+   目录里漏了 ⑯ 隔壁的钓鱼佬 / ⑰ 钓鱼日记（正文里有、目录里没有 ⇒ 玩家翻不到，而页面本身
+   一切正常），而 ⑩ 常见问题 排在 ⑱ 之后 —— 编号顺序与正文顺序是两套。这类坏法**全是静默的**：
+   加一节忘了编号 / 改了标题忘了改目录 / 目录指向的 id 早就不存在（点了没反应，不报错）。
+   判据三条（全部现算，不写死任何节号或标题）：
+     ① 带节号的 `<h2>` 必须 ①…N **连续**、不重复、且按正文顺序递增；
+     ② 每个带节号的小节在目录里**恰好一条**，节号与顺序都一致；
+     ③ 目录里的每个 `#id` 都必须真的指向一个 `<h2>`（没有悬空链接）。
+   ⚠️ 只认**带圈数字开头**的标题：本页有一节「市场调研：…」（`id="s0"`）有意不编号、也不进目录。 */
+console.log('\n[33-k] `docs/说明书.html` 的节号与目录必须对得上');
+(function () {
+  const MANUAL = 'docs/说明书.html';
+  let kBad = 0;
+  let raw = '';
+  try { raw = fs.readFileSync(path.join(ROOT, MANUAL), 'utf8'); }
+  catch (e) { err(`读不到 \`${MANUAL}\` —— 33-k 抓不到要判的地方（先修判据本身）`); return; }
+  /* 带圈数字 1..35：①..⑳ 是 U+2460..U+2473，㉑..㉟ 是 U+3251..U+325F —— 按码点现算，
+     不写一串字面量（㉙ 禁字面；而且真写成字面量的话，注入样本时容易改漏一个）。 */
+  const NUM = {};
+  for (let i = 1; i <= 20; i++) NUM[String.fromCodePoint(0x245F + i)] = i;
+  for (let i = 21; i <= 35; i++) NUM[String.fromCodePoint(0x3250 + (i - 20))] = i;
+  const plain = s => String(s).replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+
+  const heads = [];
+  const reH = /<h2[^>]*\bid="([^"]+)"[^>]*>([\s\S]*?)<\/h2>/g;
+  let m;
+  while ((m = reH.exec(raw))) {
+    const title = plain(m[2]);
+    heads.push({ id: m[1], num: NUM[title.charAt(0)] || 0, title: title });
+  }
+  const tocBlock = (raw.match(/<div class="toc">([\s\S]*?)<\/div>/) || ['', ''])[1];
+  const toc = [];
+  const reA = /<a href="#([^"]+)">([\s\S]*?)<\/a>/g;
+  while ((m = reA.exec(tocBlock))) {
+    const label = plain(m[2]);
+    toc.push({ ref: m[1], num: NUM[label.charAt(0)] || 0, label: label });
+  }
+  if (!heads.length || !toc.length) {
+    err('33-k 抓不到说明书的小节或目录（小节 ' + heads.length + ' 个 / 目录 ' + toc.length
+      + ' 条）—— 判据失效，先修本节自身（小节认 `<h2 id="…">`、目录认 `.toc` 里的 `<a href="#…">`）');
+    return;
+  }
+  const numbered = heads.filter(h => h.num > 0);
+  const numberedToc = toc.filter(t => t.num > 0);
+  if (numbered.length < 15 || numberedToc.length !== numbered.length) {
+    err(`${MANUAL} 带节号的小节 ${numbered.length} 个、目录里带节号的条目 ${numberedToc.length} 条`
+      + '（应当相等且 ≥ 15）—— 漏一条就是「玩家翻不到那一节」');
+    kBad++;
+  }
+  numbered.forEach((h, i) => {
+    if (h.num !== i + 1) {
+      err(`${MANUAL} 的节号不连续：正文第 ${i + 1} 个带号小节是「${h.title}」`
+        + `（节号 ${h.num}）—— 编号必须 ①…N 顺序递增（漏号 / 重号 / 大号排在小号前面都算）`);
+      kBad++;
+    }
+  });
+  numbered.forEach(h => {
+    const hits = toc.filter(t => t.ref === h.id);
+    if (hits.length !== 1) {
+      err(`${MANUAL} 的「${h.title}」在目录里出现 ${hits.length} 次（应恰好 1 次）`);
+      kBad++;
+    } else if (hits[0].num !== h.num) {
+      err(`${MANUAL} 的「${h.title}」在目录里写成 ${hits[0].num || '（没写节号）'}`
+        + `，正文里是 ${h.num} —— 两处必须同一个号`);
+      kBad++;
+    }
+  });
+  toc.forEach(t => {
+    if (!heads.some(h => h.id === t.ref)) {
+      err(`${MANUAL} 的目录项「${t.label}」指向 #${t.ref}，正文里没有这个 <h2>`);
+      kBad++;
+    }
+  });
+  numberedToc.forEach((t, i) => {
+    if (t.num !== i + 1) {
+      err(`${MANUAL} 的目录顺序不对：第 ${i + 1} 条是「${t.label}」（节号 ${t.num}）`
+        + '—— 目录要按正文顺序排，否则读者按目录翻会跳来跳去');
+      kBad++;
+    }
+  });
+  if (!kBad) {
+    ok(`${MANUAL} 的 ${numbered.length} 个小节节号 ①…${numbered[numbered.length - 1].num} 连续、`
+      + `与目录逐条同名同序（另有 ${heads.length - numbered.length} 个有意不编号的小节），`
+      + '目录里没有悬空锚点');
   }
 })();
 

@@ -1111,7 +1111,7 @@ G_('Goals · 成就（纯派生）');
 St.reset();
 G.Goals.init();
 const ap0 = G.Goals.achProgress();
-ok(ap0.total === G.ACHIEVEMENTS.length && ap0.total >= 30, `成就总数 ${ap0.total}（≥30）`);
+ok(ap0.total === G.ACHIEVEMENTS.length && ap0.total >= 100, `成就总数 ${ap0.total}（≥100 · E2 扩容后）`);
 ok(ap0.got === 0, '全新存档没有任何成就达成');
 
 St.noteResult(true); St.noteResult(true); St.noteResult(true);
@@ -1210,6 +1210,62 @@ ok(G.QUEST_TPL.every(t => typeof t.text(1, '', St.get()) === 'string'), '任务�
 ok(G.QUEST_PER_DAY >= 1 && G.QUEST_PER_DAY <= G.QUEST_TPL.length, '每日条数不超过模板总数');
 const titled = G.ACHIEVEMENTS.filter(a => a.title).length + G.MEDAL_TITLES.length;
 ok(titled >= 10, `称号数量 ≥10（成就 ${G.ACHIEVEMENTS.filter(a => a.title).length} + 纪念币 ${G.MEDAL_TITLES.length}）`);
+
+/* =========================================================
+   7a-b. Goals · 成就的四段解锁曲线（E2：31 → 117，2026-10-11 用户点名）
+   =========================================================
+   用户口径：「成就数量可以根据稀有度自己设置，100 多个都没问题……
+   **一定要好好设计这个解锁曲线**」⇒ 总量 ≥100，四段占比 ≈ 30/30/35/5，
+   同一取数口径内 need 严格递增、tier 随门槛单调不降。
+   源码侧的门禁在 `verify §54 ①`；这里验的是**行为面**：带 key 的成就真的按 key 取数。
+   ========================================================= */
+G_('Goals · 成就的四段曲线（E2 · 31 → 117）');
+const A_TIER_WANT = [0.30, 0.30, 0.35, 0.05];
+const aTier = [0, 0, 0, 0];
+G.ACHIEVEMENTS.forEach(a => aTier[a.tier - 1]++);
+ok(G.ACHIEVEMENTS.length >= 100, `成就 ${G.ACHIEVEMENTS.length} 条（用户口径「100 多个都没问题」⇒ ≥100）`);
+ok(G.ACH_TIERS.length === 4 && G.ACH_TIERS.every(t => t.tier >= 1 && t.tier <= 4 && t.name && t.desc),
+   '四个档位都有档号 / 名字 / 说明（面板与门禁共用这一张表）');
+ok(aTier.every((c, i) => Math.abs(c / G.ACHIEVEMENTS.length - A_TIER_WANT[i]) <= 0.02),
+   `四段摊派 ${aTier.join(' / ')} 与 30 / 30 / 35 / 5 对齐（±2 个百分点）`);
+(function () {
+  /* 同一「取数口径」= metric + key（带 key 的口径按 key分组，否则 D 场那条 100 会与 C 场那条 100 撞车） */
+  const groups = {};
+  G.ACHIEVEMENTS.forEach(a => { const k = a.metric + '|' + (a.key || ''); (groups[k] = groups[k] || []).push(a); });
+  let badInc = 0, badTier = 0;
+  Object.keys(groups).forEach(k => {
+    const arr = groups[k].slice().sort((x, y) => x.need - y.need);
+    for (let i = 1; i < arr.length; i++) {
+      if (arr[i].need <= arr[i - 1].need) badInc++;
+      if (arr[i].tier < arr[i - 1].tier) badTier++;
+    }
+  });
+  ok(badInc === 0, '同一取数口径内 need 严格递增（没有同门槛 / 倒挂）');
+  ok(badTier === 0, '同一取数口径内 tier 随 need 单调不降（不会「门槛更低却被摊到更难的段」）');
+})();
+(function () {
+  /* 带 key 的成就真的把 key 传给了取数口径 ——
+     写反 / 漏传的后果是「取数恒为 0，这条永远拿不到」，而面板照常渲染（不报错）。 */
+  const s = St.get();
+  const oldField = s.stats.byField, oldWx = s.stats.byWx;
+  try {
+    s.stats.byField = { D: 100 };
+    ok(G.Goals.achDone(G.ACHIEVEMENTS.find(a => a.id === 'fd100')) === true,
+       'byField.D = 100 → 「池塘常客」达成（key 真的到了取数口径）');
+    ok(G.Goals.achDone(G.ACHIEVEMENTS.find(a => a.id === 'fc100')) === false,
+       '同一份数据下别的钓场那条**不**达成（key 没有串号）');
+    s.stats.byWx = { clear: 80 };
+    ok(G.Goals.achDone(G.ACHIEVEMENTS.find(a => a.id === 'wclear')) === true,
+       'byWx.clear = 80 → 「晴钓百竿」达成');
+    /* 反向：把 byField 清空 ⇒ 立刻不达成（证明上一条不是恒真） */
+    s.stats.byField = {};
+    ok(G.Goals.achDone(G.ACHIEVEMENTS.find(a => a.id === 'fd100')) === false,
+       'byField 清空 → 立刻不达成（上一条不是恒真判据）');
+  } finally {
+    s.stats.byField = oldField;
+    s.stats.byWx = oldWx;
+  }
+})();
 
 /* =========================================================
    7b. Goals · 周常挑战（v0.5.6 的中周期目标）
@@ -6694,6 +6750,34 @@ G_('Panels · 目标面板的彩蛋区（隐藏态不许剧透）');
     s.stats.eggs = realEggs;
     global.document = doc;
   }
+})();
+
+G_('Panels · 目标面板的成就四段进度带（E2）');
+(function () {
+  var doc = global.document;
+  global.document = { createElement: mkEl, querySelector: function () { return null; },
+                      querySelectorAll: function () { return []; } };
+  try {
+    var r = mkEl('div');
+    G.Panels.VIEWS.goals.render(r);
+    /* ⚠️ `panelText()` 把 innerHTML 原样拼进来（`<b>` 还在）⇒ 这里的断言走剥过标签的副本，
+       否则「文案对不对」会被标记写法绑架（改个 `<b>` 就该红的话，判据就白写了）。 */
+    var t = panelText(r).replace(/<[^>]*>/g, '');
+    var ach = G.Goals.achievements();
+    var bad = [];
+    /* 预期值**按数据现算**（不是抄一份常量）—— 抄一份就等于第二份真相 */
+    G.ACH_TIERS.forEach(function (tier) {
+      var items = ach.filter(function (a) { return a.tier === tier.tier; });
+      var done = items.filter(function (a) { return a.done; }).length;
+      if (t.indexOf(tier.name + ' ' + done + ' / ' + items.length) < 0) bad.push(tier.name + '·进度');
+      if (t.indexOf(tier.desc) < 0) bad.push(tier.name + '·说明');
+    });
+    ok(!bad.length, `四段进度带四条都现算渲染了（缺：${bad.join(' / ') || '无'}）`);
+    ok(t.indexOf('成就共 ' + ach.length + ' 条') >= 0,
+       `成就总数从数据现算（${ach.length} —— 面板不手抄条数）`);
+    ok(ach.every(function (a) { return a.tier >= 1 && a.tier <= 4; }),
+       '`Gl.achievements()` 把 tier 带出来了（面板拿不到它 = 四段这一块整块消失）');
+  } finally { global.document = doc; }
 })();
 
 G_('Panels · 图鉴懒绘制（IntersectionObserver 真路径）');

@@ -4470,6 +4470,17 @@ console.log('\n[33-j] `docs/说明书.html` 的玩家向数字必须与 config �
     err('拿不到 `G.Profile` 的 NAME_MAX / PW_MIN —— 33-j 抓不到要判的地方（先修判据本身）');
     return;
   }
+  /* 第 51 轮（E2）追加 5 条：长线目标系统的**条数**也是「对外承诺」——
+     成就从 31 扩到 117 时说明书那句「成就 31 个」就会悄悄变成假话（E1 的彩蛋 30 个、
+     称号 17 个同理）。这五个数一律从数据表现算，说明书里只留散文。 */
+  const GD = sandbox.G;
+  if (!GD || !Array.isArray(GD.ACHIEVEMENTS) || !Array.isArray(GD.EASTER_EGGS) ||
+      !Array.isArray(GD.MEDAL_TITLES) || !(GD.QUEST_PER_DAY > 0) || !(GD.WEEKLY_PER_WEEK > 0)) {
+    err('拿不到 `G.ACHIEVEMENTS` / `G.EASTER_EGGS` / `G.MEDAL_TITLES` / `QUEST_PER_DAY` / '
+      + '`WEEKLY_PER_WEEK` —— 33-j 抓不到要判的地方（先修判据本身）');
+    return;
+  }
+  const titleCount = GD.ACHIEVEMENTS.filter(a => a.title).length + GD.MEDAL_TITLES.length;
   const ITEMS = [
     ['咬钩窗口（`CFG.misc.biteWindow` 的 min~max）', bwMin + '~' + bwMax + ' 秒内'],
     ['逃窜预警提前量（`CFG.fight.dashWarnLead`）', '逃窜前 ' + CFG.fight.dashWarnLead + ' 秒'],
@@ -4486,6 +4497,11 @@ console.log('\n[33-j] `docs/说明书.html` 的玩家向数字必须与 config �
     ['挂机稀有档权重（`CFG.idle.rareWeightMul`）', '权重 ×' + CFG.idle.rareWeightMul],
     ['档案昵称上限（`G.Profile.NAME_MAX`）', '昵称最多 ' + PROF.NAME_MAX + ' 字'],
     ['档案密码下限（`G.Profile.PW_MIN`）', '密码至少 ' + PROF.PW_MIN + ' 位'],
+    ['每日任务条数（`G.QUEST_PER_DAY`）', '每日任务 ' + GD.QUEST_PER_DAY + ' 条'],
+    ['周常条数（`G.WEEKLY_PER_WEEK`）', '周常挑战 ' + GD.WEEKLY_PER_WEEK + ' 条'],
+    ['成就条数（`G.ACHIEVEMENTS.length`）', '成就 ' + GD.ACHIEVEMENTS.length + ' 个'],
+    ['彩蛋条数（`G.EASTER_EGGS.length`）', '彩蛋 ' + GD.EASTER_EGGS.length + ' 个'],
+    ['称号条数（成就带称号的 + 纪念币里程碑）', '称号 ' + titleCount + ' 个'],
   ];
   /* 判据自检：① 每条的文案里**必须真的含现算出来的数字**（否则这网是恒真的装饰）；
      ② 把一个数字改一位的副本必须**不被** `has()` 认出来（证明它真的是在比数字）。 */
@@ -4511,8 +4527,9 @@ console.log('\n[33-j] `docs/说明书.html` 的玩家向数字必须与 config �
     jBad++;
   }
   if (!jBad) {
-    ok(`${MANUAL} 的 ${ITEMS.length} 处玩家向数字与 config / Profile 现算一致（咬钩窗口 / 逃窜预警 / `
-      + '断线脱钩缓冲 / 力竭 / 修理费 / 鱼护与水族箱容量 / 离线上限 / 挂机权重 / 档案昵称与密码上限）');
+    ok(`${MANUAL} 的 ${ITEMS.length} 处玩家向数字与 config / Profile / 长线目标数据现算一致（咬钩窗口 / 逃窜预警 / `
+      + '断线脱钩缓冲 / 力竭 / 修理费 / 鱼护与水族箱容量 / 离线上限 / 挂机权重 / 档案昵称与密码上限 / '
+      + '每日与周常条数 / 成就 · 彩蛋 · 称号条数）');
   }
 })();
 
@@ -9978,8 +9995,39 @@ console.log('\n[54] 长线目标系统：成就表自洽 + 彩蛋 30 条与四�
     return;
   }
 
-  /* ---- ① 成就表自洽 ---- */
-  const seen = {}, byMetric = {};
+  /* ---- ① 成就表自洽（E2 起含：条数下限 / 四段曲线 / 可达性 / keyed 值域） ----
+     由来：成就从 31 条扩到 117 条之后，「条数摊派」「need 阶梯」「可达性」都会**静默**漂 ——
+     同门槛重复、need 超过物理上界、keyed 的 key 写错、tier 与 need 对不上，
+     面板照常渲染、玩家永远拿不到那一条，一句都不报错。 */
+  const TIERS = sandbox.G.ACH_TIERS;
+  const MIN_TOTAL = 100;                          // 用户口径：「100 多个都没问题」⇒ 至少 100
+  const TIER_WANT = [0.30, 0.30, 0.35, 0.05];     // 四段占比（用户给的解锁曲线）
+  const TIER_TOL = 0.02;                          // ±2 个百分点（117 条下 2 条约 1.7pp）
+  if (!Array.isArray(TIERS) || TIERS.length !== 4) {
+    err('拿不到 `G.ACH_TIERS`（应当 4 档）—— 面板的四段进度带与本节判据都要它');
+    gBad++;
+  }
+  if (A.length < MIN_TOTAL) {
+    err(`成就只有 ${A.length} 条，用户口径是「100 多个都没问题」⇒ 至少 ${MIN_TOTAL} 条`);
+    gBad++;
+  }
+  /* 可达性的「物理上界」全部**现算**（写死就等于把判据变成第二份真相） */
+  const FISHS = sandbox.G.FISH || [];
+  const BOUND = {
+    bookCount:  FISHS.length,
+    colorCount: FISHS.length * (CFG.colorMorphs || []).length,
+    fieldsOpen: sandbox.G.FIELDS.length,
+    baitUsed:   (sandbox.G.BAITS || []).length,
+    wxUsed:     (CFG.weather.types || []).length,
+    tmUsed:     (CFG.weather.times || []).length,
+    netMax:     CFG.storage.netCap + CFG.storage.netStep * CFG.storage.netCosts.length,
+    tankMax:    CFG.storage.tankCap + CFG.storage.tankStep * CFG.storage.tankCosts.length,
+    maxKgAll:   FISHS.reduce((m, f) => Math.max(m, f.maxKg || 0), 0),
+  };
+  const fieldIds = sandbox.G.FIELDS.map(f => f.id);
+  const fieldName = {}; sandbox.G.FIELDS.forEach(f => { fieldName[f.id] = f.name; });
+  const wxName = {}; (CFG.weather.types || []).forEach(t => { wxName[t.key] = t.name; });
+  const seen = {}, byMetric = {}, achTierCount = [0, 0, 0, 0];
   A.forEach(a => {
     if (!a.id || seen[a.id]) { err(`成就有重名 id：${a.id}`); gBad++; }
     seen[a.id] = 1;
@@ -9987,7 +10035,44 @@ console.log('\n[54] 长线目标系统：成就表自洽 + 彩蛋 30 条与四�
     if (!METRICS[a.metric]) { err(`成就 ${a.id} 的 metric 「${a.metric}」在 \`Goals.metrics\` 里不存在（永远不会完成）`); gBad++; }
     if (!(a.need > 0)) { err(`成就 ${a.id} 的 need 不是正数（${a.need}）`); gBad++; }
     if (!CATS.some(c => c.key === a.cat)) { err(`成就 ${a.id} 的 cat 「${a.cat}」不在 \`G.ACH_CATS\` 里（面板会整条漏掉）`); gBad++; }
-    (byMetric[a.metric] = byMetric[a.metric] || []).push({ id: a.id, need: a.need });
+    /* —— 四段档位 —— */
+    if (!(a.tier >= 1 && a.tier <= 4)) { err(`成就 ${a.id} 的 tier 越界（${a.tier}）—— 四段曲线的档位只许 1..4`); gBad++; }
+    else {
+      achTierCount[a.tier - 1]++;
+      if (Array.isArray(TIERS) && !TIERS.some(t => t.tier === a.tier)) {
+        err(`成就 ${a.id} 的 tier=${a.tier} 在 \`G.ACH_TIERS\` 里没有对应的文案档 —— 面板那一段会整块漏掉`);
+        gBad++;
+      }
+    }
+    /* —— 可达性：need 不许超过该 metric 的物理上界 —— */
+    if (BOUND[a.metric] != null && a.need > BOUND[a.metric]) {
+      err(`成就 ${a.id}（${a.metric}）的目标 ${a.need} 超过了物理上界 ${BOUND[a.metric]} —— 这条永远拿不到`);
+      gBad++;
+    }
+    /* —— keyed 口径：key 值域 + desc 必须与 key 说同一件事 —— */
+    if (a.key != null) {
+      if (a.metric === 'field') {
+        if (fieldIds.indexOf(a.key) < 0) { err(`成就 ${a.id} 的 key「${a.key}」不是钓场 id`); gBad++; }
+        else if (String(a.desc).indexOf(fieldName[a.key]) < 0) {
+          err(`成就 ${a.id} 的 key=${a.key}（${fieldName[a.key]}）而 desc 写的是「${a.desc}」—— 两者不是同一片水，玩家看到的与算的不是一件事`);
+          gBad++;
+        }
+      } else if (a.metric === 'wx') {
+        if (!wxName[a.key]) { err(`成就 ${a.id} 的 key「${a.key}」不是天气 key`); gBad++; }
+        else if (String(a.desc).indexOf(wxName[a.key]) < 0) {
+          err(`成就 ${a.id} 的 key=${a.key}（${wxName[a.key]}）而 desc 写的是「${a.desc}」—— 两者不是同一种天`);
+          gBad++;
+        }
+      } else {
+        err(`成就 ${a.id} 的 metric「${a.metric}」不吃 key（写了也不会生效）—— 只有 field / wx 两条口径带 key`);
+        gBad++;
+      }
+    } else if (a.metric === 'field' || a.metric === 'wx') {
+      err(`成就 ${a.id} 用的是带 key 的口径「${a.metric}」却没有 key ⇒ 取数恒为 0，这条永远拿不到`);
+      gBad++;
+    }
+    const gk = a.metric + '|' + (a.key || '');
+    (byMetric[gk] = byMetric[gk] || []).push({ id: a.id, need: a.need, tier: a.tier });
   });
   Object.keys(byMetric).forEach(m => {
     const arr = byMetric[m].slice().sort((x, y) => x.need - y.need);
@@ -9996,8 +10081,30 @@ console.log('\n[54] 长线目标系统：成就表自洽 + 彩蛋 30 条与四�
         err(`成就里同一 metric 「${m}」出现了两条同门槛（need = ${arr[i].need}）：${arr[i - 1].id} / ${arr[i].id}`);
         gBad++;
       }
+      if (arr[i].tier < arr[i - 1].tier) {
+        err(`成就同一口径「${m}」里，门槛更高的 ${arr[i].id}（need ${arr[i].need}）却被摊到更早的 tier ${arr[i].tier}`
+          + `（前一条 ${arr[i - 1].id} 是 tier ${arr[i - 1].tier}）—— tier 是「按完成所需投入排」，同口径内必须随 need 单调不降`);
+        gBad++;
+      }
     }
   });
+  /* —— 四段占比 —— */
+  TIER_WANT.forEach((want, i) => {
+    const share = A.length ? achTierCount[i] / A.length : 0;
+    if (Math.abs(share - want) > TIER_TOL) {
+      err(`成就四段占比第 ${i + 1} 段是 ${(share * 100).toFixed(1)}%，目标是 ${(want * 100).toFixed(0)}%`
+        + `（± ${(TIER_TOL * 100).toFixed(0)} 个百分点）—— 现在的摊派是 ${achTierCount.join(' / ')}`
+        + '（四段＝按「完成所需投入」排：30% / 30% / 35% / 5%）');
+      gBad++;
+    }
+  });
+  /* —— `tier` 必须有消费方：没人读 = 静默死字段（同 32-g 的口径）—— */
+  const panelCode = fs.readFileSync(path.join(ROOT, 'src/ui/panels.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  if (panelCode.indexOf('G.ACH_TIERS') < 0 || panelCode.indexOf('a.tier') < 0) {
+    err('面板没有读 `G.ACH_TIERS` / 成就的 `tier` —— 四段曲线成了零消费数据（玩家看不见，也没人消费它）');
+    gBad++;
+  }
 
   /* ---- ② 彩蛋表 + 四段解锁曲线 ---- */
   const WANT = [9, 9, 10, 2];          // 用户口径：前 30% / 30% / 33% / 7%（共 30）
@@ -10152,14 +10259,20 @@ console.log('\n[54] 长线目标系统：成就表自洽 + 彩蛋 30 条与四�
   const selfOk = hintLeak('水面的月亮', '夜里你看清了水面的月亮') === true
     && hintLeak('水面的月亮', '夜里的光，好像分成了两半。') === false
     && E.every(e => !hintLeak(e.name, e.hint))
-    && tierCount.reduce((a, b) => a + b, 0) === E.length;
+    && tierCount.reduce((a, b) => a + b, 0) === E.length
+    /* 成就侧：四段占比判据真的会红（不是恒真）+ 每条的 tier 都被数进去了 */
+    && Math.abs(0.50 - TIER_WANT[0]) > TIER_TOL
+    && Math.abs(A.length * TIER_WANT[0] - A.filter(a => a.tier === 1).length) / A.length <= TIER_TOL
+    && achTierCount.reduce((a, b) => a + b, 0) === A.length;
   if (!selfOk) {
     err('54 的判据自检不成立（泄题检测认不出注入 / 档位计数读不出来）');
     gBad++;
   }
 
   if (!gBad) {
-    ok(`长线目标：成就 ${A.length} 条（id 唯一 / metric 全在 / 同 metric 门槛不重复）+ `
+    ok(`长线目标：成就 ${A.length} 条（id 唯一 / metric 全在 / 同 metric+key 门槛严格递增、tier 随门槛单调不降 / `
+      + `keyed 的 key 值域与 desc 一致 / need 全在物理上界内）+ 四段摊派 ${achTierCount.join(' / ')} `
+      + `＝ ${achTierCount.map(c => (c * 100 / A.length).toFixed(1) + '%').join(' / ')}（目标 30 / 30 / 35 / 5）+ `
       + `彩蛋 ${E.length} 条（四档 ${tierCount.join('/')}、表序与档位内概率都严格递增、`
       + `hint 逐条不泄题、cond 值域现算）+ 掷点唯一调用点 = \`recordCatch\`（走 hash32+mkRand、`
       + `拦掉挂机、撞见即落盘）+ \`stats.eggs\` 有存档位与两侧消费方、不进称号池`);

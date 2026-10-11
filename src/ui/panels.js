@@ -1703,6 +1703,27 @@ G.Panels = (function () {
         if (a.metric === 'playHours') return (v < 10 ? (Math.round(v * 10) / 10) : Math.round(v)) + ' 小时';
         return U.num(Math.floor(v));
       }
+      /* --- 四段解锁曲线（E2 · 2026-10-11 用户口径）---
+         117 条成就按「完成所需投入」摊在四段上（30% / 30% / 35% / 5%）。
+         这里给一条**进度带**，让玩家看得见自己推到第几段了；档位名与说明一律
+         来自 `G.ACH_TIERS`、条数与达成数由 `Gl.achievements()` 现算，面板不手抄
+         （`verify §54 ①` 盯住：`tier` 没有消费方就报红）。 */
+      var tierBar = U.el('div', 'hint-text');
+      tierBar.style.marginBottom = '6px';
+      tierBar.innerHTML = '成就共 <b>' + ap.total + '</b> 条，按「要投入多少」分四段：' +
+        G.ACH_TIERS.map(function (t) {
+          var items = ach.filter(function (a) { return a.tier === t.tier; });
+          var doneN = items.filter(function (a) { return a.done; }).length;
+          return '<b>' + esc(t.name) + '</b> ' + doneN + ' / ' + items.length;
+        }).join('　·　');
+      root.appendChild(tierBar);
+      var tierTip = U.el('div', 'hint-text');
+      tierTip.style.marginBottom = '10px';
+      tierTip.innerHTML = G.ACH_TIERS.map(function (t) {
+        return '<b>' + esc(t.name) + '</b>：' + esc(t.desc);
+      }).join('　·　');
+      root.appendChild(tierTip);
+
       G.ACH_CATS.forEach(function (cat) {
         var items = ach.filter(function (a) { return a.cat === cat.key; });
         var done = items.filter(function (a) { return a.done; }).length;

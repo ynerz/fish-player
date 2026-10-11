@@ -381,6 +381,10 @@ G.Goals = (function () {
       var got = achGot(a);
       return {
         id: a.id, cat: a.cat, name: a.name, desc: a.desc, title: a.title || null,
+        /* `tier` = 四段解锁曲线的档位（1..4，文案在 `G.ACH_TIERS`）。
+           面板据此画「推到第几段了」那条进度 —— 它是本字段**唯一**的消费方
+           （`verify §54 ①` 会查它不被面板读到就报红：加字段没消费方 = 静默死字段）。 */
+        tier: a.tier,
         need: a.need, got: got, done: got >= a.need,
         pct: a.need > 0 ? U.clamp(got / a.need, 0, 1) : 1,
         fmt: a.fmt || null,

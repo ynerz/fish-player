@@ -3086,6 +3086,104 @@ console.log('\n[32-m] `tools/*.js` 的命令行开关必须有消费方（零消
 })();
 
 
+/* ---------------- 32-n. 探针采的字段要么被判、要么带理由豁免（零消费网第八张，第 46 轮）----
+   适用对象：**只有真跑一次才看得见**的探针（`shell/main.js` 的 `PROBE`）。那条路太重
+   （跑 electron），接不进门禁 ⇒ 静态侧至少钉住「**采了就得有人看**」。「只采集不判」=
+   面板在说谎：采样了、那行 JSON 里也一直在打，却没有任何一条判据看它。
+
+   实据（2026-10-11）：`shell/README.md` 的第 4 条判据写着「存档落在用户目录、
+   重启之后进度还在」，而 `judge()` **从来没读过** `lsKeys` / `storageKind`；
+   真正被判的 `saveV` 还是一条**不可能失败**的判据（`state.js` 的 `load()` 无条件
+   `d.v = SAVE_V`）—— 「广告与实现不一致」的又一种形态，而且这次广告写得**很像已经验过**。
+
+   判据：探针的每个 `out.<字段> =` 必须出现在 `judge()` 里（以 `p.<字段>` 的形式）或在
+   `DIAG_ONLY` 里（**每一条都要写清为什么不用判**）；`DIAG_ONLY` 里多一个不存在的字段也报红
+   （名单过期）；字段数 / 豁免数低于下限即报错（防扫描面坏成恒真空断言）。
+   ⚠️ 直接在**整份文件**上扫 `out.<字段> =`（`out.` 只出现在探针里、判据用 `p.`）——
+      不用按位置切片，也就省掉一处 `§42 ⑨/⑩` 的位置白名单负担。 */
+console.log('\n[32-n] `shell/main.js` 的探针字段：采了就得有人看（只采集不判 = 面板在说谎）');
+(function () {
+  const stripCode = t => String(t)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[ \t])\/\/[^\n]*/gm, '$1');
+  let mBad = 0;
+  const SHELL = 'shell/main.js';
+  const MIN_FIELDS = 12, MIN_DIAG = 4;
+  const auditFields = (rawSrc) => {
+    const src = stripCode(rawSrc);
+    const problems = [];
+    const fields = [];
+    const seen = {};
+    let m;
+    const reF = /(?:^|[^\w.$])out\.([A-Za-z_$][\w$]*)\s*=/g;
+    /* 同一个字段可能被赋值多次（`out.tainted = null;` 之后 `out.tainted = true;`）
+       ⇒ 必须去重，否则重复赋值会把「字段数」撑大、掩盖漏判 */
+    while ((m = reF.exec(src))) { if (!seen[m[1]]) { seen[m[1]] = true; fields.push(m[1]); } }
+    const diagM = /const DIAG_ONLY\s*=\s*\{([\s\S]*?)\n\};/.exec(src);
+    if (!diagM) { problems.push('找不到 `const DIAG_ONLY = { … };` —— 判据锚点要跟着改'); return { fields, diag: {}, problems }; }
+    const diag = {};
+    const reD = /(?:^|\n)[ \t]*([A-Za-z_$][\w$]*)\s*:\s*'([^']*)'/g;
+    while ((m = reD.exec(diagM[1]))) diag[m[1]] = m[2];
+    const jb = bodyOf(src, 'function judge(');
+    if (!jb) problems.push('找不到 `function judge(` 的函数体 —— 判据锚点要跟着改');
+    const judged = f => (jb ? new RegExp('[^\\w$]p\\.' + f + '\\b').test(jb) : false);
+    fields.forEach(f => {
+      if (judged(f)) return;
+      if (diag[f] !== undefined) {
+        if (!diag[f]) problems.push('`' + f + '` 在 DIAG_ONLY 里但没写理由');
+        return;
+      }
+      problems.push('探针字段 `' + f + '` 既没在 `judge()` 里被判、也不在 DIAG_ONLY 里 '
+        + '—— 只采集不判 = 面板在说谎（采了、打了，却没人看）');
+    });
+    Object.keys(diag).forEach(k => {
+      if (fields.indexOf(k) < 0) problems.push('DIAG_ONLY 里的 `' + k + '` 不是探针字段（名单过期了，删掉它）');
+    });
+    return { fields, diag, problems };
+  };
+  /* 判据自检：`out.a` 被判 / `out.b` 走豁免 / `out.c` 谁都没管 / 只写进注释不算判 */
+  const T_OK = "out.a = 1; out.b = 2;\nconst DIAG_ONLY = {\n  b: '诊断用',\n};\n"
+    + 'function judge(p) { if (!p.a) bad.push(1); }';
+  const T_MISS = "out.a = 1; out.c = 3;\nconst DIAG_ONLY = {\n  a: '诊断用',\n};\n"
+    + 'function judge(p) { if (!p.a) bad.push(1); }';
+  const T_STALE = "out.a = 1;\nconst DIAG_ONLY = {\n  a: '诊断用',\n  zz: '诊断用',\n};\n"
+    + 'function judge(p) { if (!p.a) bad.push(1); }';
+  const T_NOREASON = "out.a = 1;\nconst DIAG_ONLY = {\n  a: '',\n};\nfunction judge(p) {}";
+  const T_COMMENT = "out.a = 1; out.b = 2;\nconst DIAG_ONLY = {\n  b: '诊断用',\n};\n"
+    + 'function judge(p) { /* p.a 在这里只是提了一句 */ }';
+  const bSelf = auditFields(T_OK).problems.length === 0
+    && auditFields(T_MISS).problems.length === 1
+    && auditFields(T_STALE).problems.length === 1
+    && auditFields(T_NOREASON).problems.length === 1
+    && auditFields(T_COMMENT).problems.length === 1;
+  if (!bSelf) {
+    err('32-n 的判据自检不成立（合成样本：判到 / 漏判 / 名单过期 / 没写理由 / '
+      + '只在注释里提一句 —— 五种没能各自认对）'); mBad++;
+  }
+  let shellSrc = '';
+  try { shellSrc = fs.readFileSync(path.join(ROOT, SHELL), 'utf8'); }
+  catch (e) { err(`读不到 \`${SHELL}\` —— 32-n 抓不到要判的地方（先修判据本身）`); mBad++; }
+  if (shellSrc) {
+    const r = auditFields(shellSrc);
+    if (r.fields.length < MIN_FIELDS) {
+      err(`32-n 只认出 ${r.fields.length} 个探针字段（少于 ${MIN_FIELDS}）—— `
+        + '`out.<字段> =` 的抽取要跟着改'); mBad++;
+    }
+    if (Object.keys(r.diag).length < MIN_DIAG) {
+      err(`32-n 只认出 ${Object.keys(r.diag).length} 条 DIAG_ONLY 豁免（少于 ${MIN_DIAG}）`
+        + ' —— 抽取要跟着改'); mBad++;
+    }
+    if (r.problems.length) {
+      err(`${SHELL} 的探针字段有问题：\n       ` + r.problems.join('\n       ')); mBad++;
+    } else if (!mBad) {
+      ok(`${SHELL} 的 ${r.fields.length} 个探针字段都有人看`
+        + `（判据 ${r.fields.length - Object.keys(r.diag).length} 个 · `
+        + `带理由豁免的纯诊断 ${Object.keys(r.diag).length} 个）`);
+    }
+  }
+})();
+
+
 /* ---------------- 33. 体型数量：文档 / 出图工具必须与代码一致 ----------------
    代码里是 **9 种**（`TPL.fish / eel / ray / squid / jelly / oarfish / shark / whale / dragon`），
    而 GDD 两处 + 开发者文档一处都写着「10 种体型」，开发者文档 §5.2 自己又写着 9 ——

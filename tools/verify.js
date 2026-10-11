@@ -2619,6 +2619,128 @@ console.log('\n[32-i] 陪伴助手的台词表：场景键必须被核心取用�
 })();
 
 
+/* ---------------- 32-j. `tools/*.py` 的「配方表」也要有消费方（Q46） ----------------
+   第 41 轮 C 类只读审计查出来的**第五张网**：`src/` 那边有 ㉜（导出面）· 32-d（模块内部状态）·
+   32-g（数据字段）· 32-h（存档键）**四张零消费网**，而 `tools/` 里那些「配方表」
+   （模块级的 `NAME = { … }`：出图口径 / 音频参数 / 形态词表 …）**一张网都没有**。
+   实据是同一周踩了两次：`SPEC["alphaMin"]`（prep-cards，自 Q8 起没人读，Q11 才发现）、
+   `AMBIENCE['mono']`（gen-audio，第 41 轮删掉）；最狠的是 `TAIL` / `TAIL_SHAPES`
+   （gen-art，`d3be3ee` 删取值后留下的**整表零消费**残骸，`git log -S "TAIL["` 全历史 0 次取值）。
+
+   ⚠️ **判据不能只认字面量下标** —— 第 41 轮原型实测：`TAIL.get(f["tail"])` /
+   `FIELD_PRICE_MUL[fid]` 这类**按变量取键**的表会被整片误判成「零消费」（15 张表里 3~5 条假报）。
+   ⇒ 所以先**分类**，再逐键：
+     · **零用法**（定义块之外一次都没出现）  ⇒ **整表零消费，报红**（`TAIL` 就是这一种）；
+     · **有「泛用」**（`.items()` / `.keys()` / `.get(变量)` / `for … in NAME` /
+       传参 / `**NAME` / `NAME[变量]`）        ⇒ **免检**（有整体消费路径，键无从逐一定位）；
+     · **只用字面量取键**                      ⇒ 每个键都必须被某处字面取过，否则报红。
+   ⚠️ **已知网眼（写清楚，别当成已覆盖）**：「全是泛用」的表里，某个键到底可不可达
+     静态判不了（`FIELD_PRICE_MUL[fid]` 的 `fid` 来自数据）。这张网抓的是
+     「**整表没人读**」与「**只有字面量取键却漏了键**」这两种，其余靠 32-g 那类数据侧网兜。
+   ⚠️ 「抓不到就报错」：扫出来的表少于 `MIN_TABLES` 就报红（正则被改坏 / 文件改名时，
+     宁可报红也不许静默变成一条恒真的空断言）。 */
+console.log('\n[32-j] `tools/*.py` 的配方表：整表零消费 / 只按字面量取键却漏键 = 报红');
+(function () {
+  const MIN_TABLES = 8;        // 实测 15 张（2026-10-11）；少于它说明扫描面坏了
+  const stripPy = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
+    .replace(/(^|[\r\n])[ \t]*#[^\n]*/g, '$1');
+  const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  /* 扫描面：所有 py 都当「消费者」（含本仓库的 py 与 js/html —— 键可能只在别处被取） */
+  const others = [];
+  ['tools', 'src'].forEach(dir => {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(f => {
+      const rel = dir + '/' + f;
+      if (!fs.statSync(path.join(ROOT, rel)).isFile()) return;
+      if (/\.py$/.test(f)) others.push([rel, stripPy(read(rel))]);
+      else if (/\.(js|html)$/.test(f)) others.push([rel, read(rel)]);
+    });
+  });
+  others.push(['index.html', read('index.html')]);
+
+  let scanned = 0, jBad = 0;
+  const findings = [];
+  /* 把「一个表名在给定文本里怎么被用」抽成纯函数 —— 判据与自检跑的是**同一个实现**
+     （自检不许另写一份近似正则：那样只能证明「我写的正则配我写的样本」） */
+  const classify = (name, txt) => {
+    const out = { uses: 0, generic: 0, lit: new Set() };
+    const nameRe = new RegExp('\\b' + name + '\\b', 'g');
+    for (const mm of txt.matchAll(nameRe)) {
+      const after = txt.slice(mm.index + name.length);
+      out.uses++;
+      if (/^\s*\.\s*(items|keys|values|copy|update)\s*\(/.test(after)) { out.generic++; continue; }
+      const litKey = after.match(/^\s*(?:\.\s*get\s*)?\(\s*["']([A-Za-z_][A-Za-z0-9_]*)["']\s*\)/)
+        || after.match(/^\s*\[\s*["']([A-Za-z_][A-Za-z0-9_]*)["']\s*\]/);
+      if (litKey) { out.lit.add(litKey[1]); continue; }
+      out.generic++;   /* 其余（.get(变量) / [变量] / 传参 / **NAME / 认不出的写法）一律保守当泛用 */
+    }
+    return out;
+  };
+  /* 判据自检：三种分类 + 键抽取，各一组合成样本 —— 跑的是上面那个 classify() 与同一条键正则。
+     ⚠️ 样本里的「定义」与「用法」**分开喂**：主循环喂给 classify() 的本来就是
+     「挖掉定义块之后」的正文（第一版自检把定义一起喂进去 ⇒ 定义行自己被当了一次用法，
+     自检当场报红 —— 留着这条注解，免得下一个人以为可以省掉挖块）。 */
+  const DEF = 'DEAD_ONE = {\n    "a": 1,\n    "b": 2,\n}\n';
+  const KEYS_RE = /^\s{4}["']([A-Za-z_][A-Za-z0-9_]*)["']\s*:/gm;
+  const defKeys = [...DEF.matchAll(KEYS_RE)].map(x => x[1]);
+  const selfOk = defKeys.length === 2                                            /* 键抽取认得 4 空格缩进 */
+    && classify('DEAD_ONE', '').uses === 0                                       /* 整表零消费 */
+    && classify('VARTAB', 'print(VARTAB[key])\n').generic > 0                    /* 变量取键 ⇒ 泛用 */
+    && classify('LITS', 'print(LITS["a"])\n').lit.size === 1                     /* 只取过 1 个键 */
+    && (() => { const c = classify('KEEP_ONE', 'print(KEEP_ONE["a"], KEEP_ONE["b"])\n');
+                return c.lit.size === 2 && c.generic === 0; })();                /* 全覆盖 ⇒ 干净 */
+  if (!selfOk) {
+    err('32-j 的判据自检不成立（合成样本：键抽取 / 整表零消费 / 变量取键 / 只取一半 / 全覆盖，'
+      + '这五种情形没能各自认出来）');
+    jBad++;
+  }
+  fs.readdirSync(path.join(ROOT, 'tools')).filter(f => f.endsWith('.py')).forEach(f => {
+    const rel = 'tools/' + f;
+    const src = stripPy(read(rel));
+    for (const m of src.matchAll(/^([A-Z][A-Z0-9_]*)\s*=\s*\{/gm)) {
+      const name = m[1];
+      const open = src.indexOf('{', m.index);
+      let depth = 0, j = open;
+      for (; j < src.length; j++) {
+        if (src[j] === '{') depth++;
+        else if (src[j] === '}') { depth--; if (!depth) break; }
+      }
+      const body = src.slice(open, j + 1);
+      /* 顶层键：4 空格缩进 + `'k':` —— 与 §33-h / 第 41 轮原型同一份口径 */
+      const keys = [...body.matchAll(/^\s{4}["']([A-Za-z_][A-Za-z0-9_]*)["']\s*:/gm)].map(x => x[1]);
+      if (!keys.length) continue;
+      scanned++;
+      const acc = { uses: 0, generic: 0, lit: new Set() };
+      const hay = [[rel, src.slice(0, m.index) + src.slice(j + 1)]]
+        .concat(others.filter(([p]) => p !== rel));
+      for (const [, txt] of hay) {
+        const c = classify(name, txt);
+        acc.uses += c.uses; acc.generic += c.generic;
+        c.lit.forEach(k => acc.lit.add(k));
+      }
+      const dead = keys.filter(k => !acc.lit.has(k));
+      if (!acc.uses) {
+        findings.push(`${rel} 的 \`${name}\`（${keys.length} 键）**一次都没人用** —— 整表零消费`);
+        jBad++;
+      } else if (!acc.generic && dead.length) {
+        findings.push(`${rel} 的 \`${name}\`（${keys.length} 键）只按字面量取键，`
+          + `却有 ${dead.length} 个键从没被取过：${dead.slice(0, 6).join('、')}`);
+        jBad++;
+      }
+    }
+  });
+  if (scanned < MIN_TABLES) {
+    err(`32-j 只扫到 ${scanned} 张配方表（少于 ${MIN_TABLES}）—— 扫描面多半坏了，`
+      + '这条判据不许多 scan 数为 0 时静默变成恒真的空断言');
+    jBad++;
+  }
+  if (jBad) findings.forEach(t => err(t));
+  if (!jBad) {
+    ok(`\`tools/*.py\` 的 ${scanned} 张模块级配方表都有消费路径：没有「整表零消费」，`
+      + '也没有「只按字面量取键却漏键」的（泛用取键的表免检 —— 那是已知网眼，见注释）');
+  }
+})();
+
+
 /* ---------------- 33. 体型数量：文档 / 出图工具必须与代码一致 ----------------
    代码里是 **9 种**（`TPL.fish / eel / ray / squid / jelly / oarfish / shark / whale / dragon`），
    而 GDD 两处 + 开发者文档一处都写着「10 种体型」，开发者文档 §5.2 自己又写着 9 ——

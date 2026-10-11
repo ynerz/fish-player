@@ -75,14 +75,15 @@ for s in SLOTS:
     per_slot[s] = ids
     changed_any |= set(ids)
 
-print("改动前后逐鱼逐档对拍（362 条 × 5 档 = 1810 个提示词）")
+print("改动前后逐鱼逐档对拍（%d 条 × %d 档 = %d 个提示词）"
+      % (len(NEW_FISH), len(SLOTS), len(NEW_FISH) * len(SLOTS)))
 for s in SLOTS:
     print("  %-7s 变了 %3d 条" % (s, len(per_slot[s])))
 print()
 print("  变了提示词的鱼（去重）= %d 条" % len(changed_any))
 
 print()
-print("  ✅ 没被波及的鱼 = %d 条" % (362 - len(changed_any)))
+print("  ✅ 没被波及的鱼 = %d 条" % (len(NEW_FISH) - len(changed_any)))
 print("  变了名字的鱼里，新名字**没**进提示词的：%s" % (
     [i for i in sorted(changed_any)
      if NEW_FISH_BY_ID[i]["name"] not in a["master"][i]] or "（无）"))

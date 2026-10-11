@@ -109,6 +109,12 @@ def main():
     ap.add_argument("--dry", action="store_true")
     args = ap.parse_args()
 
+    # 🔴 2026-10-12（第 53 轮）：两个同时给时，旧行为是 `--all` **静默胜出**、`--list` 被丢掉
+    #    （`if args.all:` 在前）⇒ 用户点名了两条鱼，却跑了一整批。⇒ 显式报错。
+    if args.all and args.list:
+        ap.error("--all 与 --list 不能同时用：--all 已经是「全部已有母版的鱼」，"
+                 "点名请只给 --list")
+
     if args.all:
         ids = sorted(f[:-4] for f in os.listdir(CARDS)
                      if f.endswith(".png") and len(f) == 7 and f[:-4].isalnum()

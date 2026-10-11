@@ -319,6 +319,12 @@ def main():
 
     if not args.ids and not args.all:
         ap.error("要么 --list <ids>，要么 --all")
+    # 🔴 2026-10-12（第 53 轮）：两个都给时旧行为是 `--all` **静默胜出**
+    #    （`ids = [... args.ids ...] or None` 里非空的那一份赢，而 `plan_slots(ids)`
+    #     只按它筛）⇒ 点名了两条鱼却跑了全量。⇒ 显式报错（同族第五处）。
+    if args.ids and args.all:
+        ap.error("--list 与 --all 不能同时用：--all 已经是「全部已有抠图的鱼」，"
+                 "点名请只给 --list")
     ids = [x.strip() for x in args.ids.split(",") if x.strip()] or None
     slots = plan_slots(ids)
     if args.limit:

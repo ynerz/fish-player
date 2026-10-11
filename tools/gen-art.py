@@ -2314,7 +2314,19 @@ def pick(fish, args):
         want = set(x.strip() for x in args.list.split(","))
         return [f for f in fish if f["id"] in want]
     if args.rar is not None:
-        return [f for f in fish if f["rar"] == args.rar][:args.limit or 99]
+        # 🔴 2026-10-12（第 53 轮）：这里原来是 `[:args.limit or 99]` —— 裸字面量 99 是
+        #    一个**静默上限**：`--rar 0` 实测有 **176** 条、`--rar 1` 有 **100** 条，
+        #    却都只出 **99** 条，且**一行提示都没有**（维护者以为这一档出全了）。
+        #    上限本身保留（去掉它 = 手滑就起 176 条的大批），但改成**一处声明 + 命中时明说**。
+        #    ⚠️ 提示只在**没给 `--limit`**（= 上限是默认值）时打 —— 用户自己写了 `--limit 5`
+        #       就是明确只要 5 条，再提示一句「要全出请给 --limit 176」只会是噪音。
+        hit = [f for f in fish if f["rar"] == args.rar]
+        if args.limit:
+            return hit[:args.limit]
+        if len(hit) > RAR_DEFAULT_CAP:
+            print("⚠️ --rar %d 这一档有 %d 条，本次只出前 %d 条（要全出请显式给 --limit %d）。"
+                  % (args.rar, len(hit), RAR_DEFAULT_CAP, len(hit)))
+        return hit[:RAR_DEFAULT_CAP]
     if args.limit:
         # 跨稀有度均匀抽样（每种稀有度取若干），确定性：按 id 排序后等距取
         out, seen = [], {}
@@ -2338,6 +2350,10 @@ def pick(fish, args):
 # ────────────────────────────────────────────────────────────────────────────
 BATCH_SIZE = {0: 5, 1: 5, 2: 2, 3: 1}
 RAR_CN = {0: "普通", 1: "稀有", 2: "史诗", 3: "传说"}
+# `--rar` 不带 `--limit` 时的默认上限（`pick()` 的**唯一消费方**）。
+# 🔴 别把它内联回 `pick()` 里当字面量：那样它就是一个没人知道的静默截断
+#    （2026-10-12 之前就是 `[:args.limit or 99]`，实测 `--rar 0` 的 176 条被悄悄砍到 99）。
+RAR_DEFAULT_CAP = 99
 # 出图耗时**实测**（2026-10-07，RTX 5060 Laptop，模型已热）：
 #   母版 = 文生图 cfg=3.0（每步两次前向）≈ 55s
 #   档位 = 图生图 cfg=1.0 ≈ 20s
@@ -2908,9 +2924,13 @@ def report_stale(fish, brief=False):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--list", default="")
-    ap.add_argument("--rar", type=int, default=None)
-    ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--list", default="",
+                    help="点名：逗号分隔的鱼 id（如 A01,D16）。⚠️ 与 --limit / --rar 互斥（会报错）")
+    ap.add_argument("--rar", type=int, default=None,
+                    help="只出某一档（0 普 / 1 稀 / 2 史 / 3 传）。⚠️ 不带 --limit 时**默认只取前 %d 条**"
+                         "（超了会打一行说明）" % RAR_DEFAULT_CAP)
+    ap.add_argument("--limit", type=int, default=0,
+                    help="只处理 N 条（跨稀有度等距抽样）。⚠️ 与 --list 互斥（点名优先，会报错）")
     ap.add_argument("--plan", action="store_true", help="只写出分批清单 docs/生图清单.md")
     ap.add_argument("--forms", action="store_true", help="只写出形态档案 docs/鱼形态档案.md")
     ap.add_argument("--prompts", action="store_true", help="只写出提示词表 docs/鱼提示词表.md")
@@ -2940,6 +2960,13 @@ def main():
                     help="**单张图**的等待上限秒数（正常 ≈62s）。卡死时不再白等 txt2img 的默认 3600s。")
     args = ap.parse_args()
 
+    if args.list and (args.limit or args.rar is not None):
+        # 🔴 2026-10-12（第 53 轮）：`pick()` 里 `--list` 是**第一支**、直接 return
+        #    ⇒ 同给 `--limit` / `--rar` 时它们被**静默丢掉**（用户以为「点名的这几条里取前 2 条」，
+        #    其实全出）。同族第三处（前两处 = `--out`×`--all`、`--all`×`--list`）。
+        ap.error("--list 是「点名出这几条」，与 --limit / --rar 冲突"
+                 "（那两条是「按范围筛」⇒ 点名时它们不生效）")
+
     if args.who:
         st = lock_state()
         if st is None:
@@ -2952,6 +2979,14 @@ def main():
     if args.dry:
         args.list = args.dry
         args.prompt_only = True
+
+    if args.brief:
+        # 🔴 2026-10-12（第 53 轮）：`--brief` 只是 `--stale` 的一种**输出形态**，不是独立开关。
+        #    不这样接的话，`--brief` **单用**会被静默忽略，然后一路走到下面真正的出图流程 ——
+        #    维护者照着 help 上那句「只打摘要」敲，等的是一份摘要，起来的是一整批出图
+        #    （退出码 0、不报错、`--brief` 看起来不生效）。
+        #    同款先例就在上面那一支：`--dry` 隐含 `--prompt-only`。
+        args.stale = True
 
     allfish = load_fish()
 

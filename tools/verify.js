@@ -3579,6 +3579,344 @@ console.log('\n[32-o] 形态表的三个写者：.bak 备份 + 空值守卫 + �
   }
 })();
 
+/* ---------------- 32-p. `tools/` 入口的**开关组合语义**：同用时不许静默丢弃（第 53 轮）------
+   由来（第 53 轮铺的新审计面：`tools/*.py` 的 help / 运行时行为是否一致）——
+   32-l 只判「开关**有没有人读**」，判不了「两个开关**一起给**时会怎样」。
+   实测三处「一个开关被另一个**静默吃掉**」：退出码 0、一行提示都没有，而三处的 help
+   都只描述单个开关的用法（照它敲的人不知道另一个被丢了）：
+     · `gen-art.py --brief` —— help 写「配合 --stale：只打摘要」，单用时它**被忽略**，
+       然后一路走到**真正的出图流程**（等一份摘要，起来的是一整批出图）；
+     · `contact-sheet.py --out` × `--all` —— `--out` 被丢掉，文件落到默认目录；
+     · `cutout.py` / `paint-card.py` 的 `--all` × `--list` —— `--all` 静默胜出，
+       点名了两条鱼却跑了一整批。
+   判据（跑在**剥过 `#` 注释与三引号 docstring** 的源码上；判据自带合成样本 + 抓不到就报错）：
+     ① `gen-art.py: main()` 里必须有一支把 `args.brief` 接到 `args.stale = True`
+        （`--brief` 只是 `--stale` 的输出形态 ⇒ 单用必须**隐含**它）；
+     ② `contact-sheet.py` 的 `--out` 与 `--all` 必须**显式报错**（互斥守卫里调 `ap.error(`）；
+     ③ `cutout.py` / `paint-card.py` 的 `--all` 与 `--list` 同样必须**显式报错**；
+     ④ 「抓不到就报错」：读不到那四个文件、或互斥守卫不足 3 处 ⇒ 报红
+        （正则失效时不许静默退化成一条恒真的空断言）。 */
+console.log('\n[32-p] `tools/` 入口的开关组合语义：同用时不许静默丢弃（互斥要么报错、要么明说）');
+(function () {
+  const MIN_GUARDS = 9;      /* 实测 9 组（2026-10-12 口径，7 个文件）；少了就是扫描面坏了 */
+  const stripPy = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
+    .split('\n').map(line => {
+      /* 行尾注释也要剥（32-h / 32-j / 32-o 同款）：本节的成因就写在注释里 */
+      let q = null;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (q) { if (c === q && line[i - 1] !== '\\') q = null; }
+        else if (c === '"' || c === "'") q = c;
+        else if (c === '#') return line.slice(0, i);
+      }
+      return line;
+    }).join('\n');
+
+  /* ① `--brief` ⇒ `--stale`：`if args.brief:` 之后若干行内必须出现 `args.stale = True`。
+     ⚠️ 中间那些注释行剥完会变成纯空白行 ⇒ 窗口按**行数**给足（12 行），不按「非空行」。
+     ⚠️ 行尾按 `\r?\n` 写：`tools/gen-art.py` 是 **CRLF**（实测），只认 `\n` 会让这条判据
+        在本文件上**恒假**（第一次写就栽了：正控样本过了、真文件报红）。 */
+  const briefImpliesStale = (code) => {
+    const b = bodyOf(code, 'def main(');
+    if (!b) return null;                       /* 切不到 ⇒ 交给调用方报错，别静默放行 */
+    return /if\s+args\.brief:\r?\n(?:[^\n]*\r?\n){0,12}[^\n]*args\.stale\s*=\s*True/.test(b);
+  };
+  /* ②③ 互斥守卫：找每一处 `ap.error(`，往上看**最近的那个 `if …:`**（跳纯空白行），
+     它必须同时提到两个开关（`.out` / `.all` / `.list`，不绑变量名 —— `a = parse_args()` 那种
+     写法里是 `a.out`）。
+     🔴 **必须排除否定形态**（`if not args.ids and not args.all:`）：那是「**都没给**才报错」的
+     另一条判据（`prep-cards.py` 里本来就有这么一句）—— 不排掉的话，把新增的互斥守卫整段删掉
+     它照样绿（第 53 轮反向验证 P 组当场逮到，这条网会**假绿**）。 */
+  const exclusiveOk = (code, reA, reB) => {
+    const lines = String(code).split('\n');
+    let found = 0;
+    lines.forEach((ln, i) => {
+      if (ln.indexOf('ap.error(') < 0) return;
+      for (let j = i - 1; j >= 0 && j >= i - 8; j--) {
+        const t = lines[j].trim();
+        if (!t) continue;
+        if (!/^if\s+.+:/.test(t)) break;       /* 最近的语句不是 if ⇒ 这处不算互斥守卫 */
+        if (/not\s+\w+\./.test(t)) break;      /* 否定形态 = 另一条判据，不算互斥守卫 */
+        if (reA.test(t) && reB.test(t)) found++;
+        break;
+      }
+    });
+    return found > 0;
+  };
+
+  /* 判据自检：三组正控 + 三组负控（含「只写在注释里」的负控） */
+  const S_BRIEF_OK = 'def main():\n    if args.brief:\n        args.stale = True\n';
+  const S_BRIEF_BAD = 'def main():\n    if args.brief:\n        pass\n';
+  const S_EXCL_OK = '    if a.out and a.all:\n        ap.error("x")\n';
+  const S_EXCL_BAD = '    if a.all:\n        ap.error("x")\n';
+  const selfOk = briefImpliesStale(S_BRIEF_OK) === true
+    && briefImpliesStale(S_BRIEF_BAD) === false
+    /* 注释里那一句：**必须先过 stripPy**（判据跑的就是剥过注释的源码）——
+       直接拿带 `#` 的样本喂它，`def main(` 会命中注释里的那几个字 ⇒ 自检自己就假红。 */
+    && briefImpliesStale(stripPy('# def main(): 里的 if args.brief: 那种写法\n')) === null
+    && exclusiveOk(S_EXCL_OK, /\.out\b/, /\.all\b/) === true
+    && exclusiveOk(S_EXCL_BAD, /\.out\b/, /\.all\b/) === false
+    /* 否定形态（`if not a.out and not a.all:`）= 另一条判据，必须**不算**互斥守卫 */
+    && exclusiveOk('    if not a.out and not a.all:\n        ap.error("x")\n',
+      /\.out\b/, /\.all\b/) === false
+    && exclusiveOk(stripPy('# if a.out and a.all:\n') + '    ap.error("x")\n',
+      /\.out\b/, /\.all\b/) === false;
+  if (!selfOk) {
+    err('32-p 的判据自检不成立（`--brief`⇒`--stale` 的正/负控、互斥守卫的正/负控、'
+      + '「只写在注释里」的负控，这六组没能各自认对）—— 这条网会假绿或假红');
+  }
+  let pBad = selfOk ? 0 : 1;
+  const readPy = (rel) => {
+    try { return stripPy(fs.readFileSync(path.join(ROOT, rel), 'utf8')); }
+    catch (e) { err(`读不到 \`${rel}\` —— 32-p 抓不到要判的地方（先修判据本身）`); pBad++; return null; }
+  };
+  const ga = readPy('tools/gen-art.py');
+  const cs = readPy('tools/contact-sheet.py');
+  const cut = readPy('tools/cutout.py');
+  const pc = readPy('tools/paint-card.py');
+  const prep = readPy('tools/prep-cards.py');
+  const ft = readPy('tools/fetch-traits.py');
+  const pick = readPy('tools/pick-card.py');
+  let guards = 0;
+  if (ga !== null) {
+    const st = briefImpliesStale(ga);
+    if (st === null) {
+      err('`tools/gen-art.py` 里切不到 `def main(` —— 32-p 的 ① 会恒真，先修本节自身');
+      pBad++;
+    } else if (!st) {
+      err('32-p：`gen-art.py` 的 `--brief` **单用时被静默忽略**：`main()` 里没有把它接到 '
+        + '`args.stale = True` —— 照 help 那句「配合 --stale：只打摘要」敲 `--brief` 的人，'
+        + '等的是一份摘要，起来的却是一整批出图（退出码 0、不报错）'
+        + '\n       —— 修法：`if args.brief: args.stale = True`（同 `--dry` ⇒ `--prompt-only` 那一支）');
+      pBad++;
+    } else guards++;
+    /* 同族第二处：`--list` 是 `pick()` 的第一支 ⇒ `--limit` / `--rar` 被静默丢掉 */
+    if (!exclusiveOk(ga, /\.list\b/, /\.limit\b/)) {
+      err('32-p：`gen-art.py` 的 `--list`（点名）与 `--limit` / `--rar` 同用时，后两者被'
+        + '**静默丢掉**（`pick()` 里 `--list` 是第一支、直接 return ⇒ 想「点名的这几条里取前 2 条」'
+        + '的人拿到的是全出）'
+        + '\n       —— 修法：显式 `ap.error("--list 是「点名出这几条」，与 --limit / --rar 冲突…")`');
+      pBad++;
+    } else guards++;
+  }
+  if (cs !== null) {
+    if (!exclusiveOk(cs, /\.out\b/, /\.all\b/)) {
+      err('32-p：`contact-sheet.py` 的 `--out` 与 `--all` 同用时**静默丢掉 `--out`**'
+        + '（文件照旧落到 `_tmp/contact-sheet-<tag>-p<N>.png`，help 里一个字都没提）'
+        + '\n       —— 修法：显式 `ap.error("--out 与 --all 不能同时用…")`'
+        + '（改成一页一覆盖更坏：盘上只剩最后一页）');
+      pBad++;
+    } else guards++;
+    if (!exclusiveOk(cs, /\.ids\b/, /\.batch\b/)) {
+      err('32-p：`contact-sheet.py` 的 `--ids` 与 `--batch` 同用时 `--batch` 被**静默丢掉**'
+        + '（`pick()` 里 `if args.ids` 排在 `elif args.batch` 前面）'
+        + '\n       —— 修法：显式 `ap.error("--ids 与 --batch 不能同时用…")`');
+      pBad++;
+    } else guards++;
+  }
+  [[cut, 'tools/cutout.py'], [pc, 'tools/paint-card.py']].forEach(([code, rel]) => {
+    if (code === null) return;
+    if (!exclusiveOk(code, /\.all\b/, /\.list\b/)) {
+      err(`32-p：\`${rel}\` 的 \`--all\` 与 \`--list\` 同用时 \`--all\` **静默胜出**、\`--list\` 被丢掉`
+        + '（点名了两条鱼却跑了一整批，一行提示都没有）'
+        + '\n       —— 修法：显式 `ap.error("--all 与 --list 不能同时用…")`');
+      pBad++;
+    } else guards++;
+  });
+  if (prep !== null) {
+    if (!exclusiveOk(prep, /\.ids\b/, /\.all\b/)) {
+      err('32-p：`prep-cards.py` 的 `--list` 与 `--all` 同用时 `--all` 被**静默丢掉**'
+        + '（`ids = [... args.ids ...] or None` 里非空的那份赢，`plan_slots()` 只按它筛）'
+        + '\n       —— 修法：显式 `ap.error("--list 与 --all 不能同时用…")`');
+      pBad++;
+    } else guards++;
+  }
+  if (ft !== null) {
+    const pairs2 = [[/\.list\b/, /\.all\b/, '`--all` 被静默丢掉（`--list` 是 `main()` 的第一支）'],
+      [/\.list\b/, /\.limit\b/, '`--limit` 被静默丢掉（它只在 `else:` 那一支里被读）']];
+    pairs2.forEach(([reA, reB, why]) => {
+      if (!exclusiveOk(ft, reA, reB)) {
+        err(`32-p：\`fetch-traits.py\` 的 \`--list\` 与 \`--all\` / \`--limit\` 同用时${why}`
+          + '\n       —— 修法：显式 `ap.error("--list 与 … 不能同时用…")`');
+        pBad++;
+      } else guards++;
+    });
+  }
+  if (pick !== null) {
+    if (!exclusiveOk(pick, /\.list\b/, /\.id\b/)) {
+      err('32-p：`pick-card.py` 的 `--list` 与鱼 id 同用时 `--list` 排在前面 ⇒ 那个 id 被**静默丢掉**'
+        + '（想「挑 A44 的第 2 版」却只看到一张「哪些鱼有两版」的表）'
+        + '\n       —— 修法：显式 `ap.error("--list 与鱼 id 不能同时用…")`');
+      pBad++;
+    } else guards++;
+  }
+  if (guards < MIN_GUARDS && pBad === 0) {
+    err(`32-p 只认出 ${guards} 处互斥守卫（少于 ${MIN_GUARDS}）—— 判据自己烂了（互斥守卫的写法变了，`
+      + '或 `ap.error(` 的所在支换位置了，就来更新本节）');
+    pBad++;
+  }
+  if (!pBad) {
+    ok(`\`tools/\` 入口的开关组合语义：\`--brief\` 隐含 \`--stale\`（单用不再掉进出图流程）；`
+      + `${guards} 组「点了名 / 出了范围」的重叠开关（\`--list\`×\`--limit\`·\`--rar\`、`
+      + '`--ids`×`--batch`、`--out`×`--all`、`--all`×`--list`、`--list`×鱼 id）'
+      + '都**显式报错**，不再静默丢掉其中一个');
+  }
+})();
+
+/* ---------------- 32-q. `tools/` 入口的**值域校验与现算文案**（第 53 轮）------------------
+   同一面的另一半：开关**收下了**，但值写错 / 文案写死时同样不报错。
+     ① `contact-sheet.py --morph zzz` —— 旧行为是**静默筛空**，落到 `main()` 那句
+        「没有可渲染的卡面 —— 先跑 tools/gen-art.py 出图。」：一句**误导**
+        （实测 A01 的 6 张图全在盘上，只是这个档名没人认得）⇒ 必须**先校验值域再筛**，
+        且值域**现算**（档位名的唯一真相 = `gen-art.py: MORPH_POOL`，别在本文件抄第二份）；
+     ② `gen-art.py --rar` 的 `or 99` —— 裸字面量 = **没人知道的静默截断**
+        （实测 `--rar 0` 有 176 条、`--rar 1` 有 100 条，都只出 99 条且一行不提示）
+        ⇒ 上限收成模块级**一处声明** `RAR_DEFAULT_CAP`，`pick()` 只许读它，且 `--rar` 的
+        help 必须**引用它现算**（否则「有这个上限」这件事还是没人知道）；
+     ③ `check-fishdata-drift.py` 里写死的 `362` / `1810` —— 鱼表条数一变，它打的那行
+        就在说假话（而这行的用途恰恰是「告诉你对拍了多少条」）⇒ 改成 `len(NEW_FISH)` 现算；
+     ④ `gen-audio.py --all` 的 help 里写死「16 个一次性音效」—— 同一个数在 `--list` 里
+        是**现算**的（`len(ONESHOT)`），help 里却是字面量 ⇒ 两处会分家 ⇒ help 也现算。
+   判据（剥注释 / docstring；合成样本 + 抓不到就报错）。 */
+console.log('\n[32-q] `tools/` 入口的值域校验与现算文案（写错档名 / 写死条数 = 报红）');
+(function () {
+  const stripPy = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
+    .split('\n').map(line => {
+      let q = null;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (q) { if (c === q && line[i - 1] !== '\\') q = null; }
+        else if (c === '"' || c === "'") q = c;
+        else if (c === '#') return line.slice(0, i);
+      }
+      return line;
+    }).join('\n');
+  /* 判据自检：`or 99` 那种裸上限 / 写死的条数，四种样本各判一次 */
+  const bareCap = c => /\[\s*:\s*args\.limit\s+or\s+\d+\s*\]/.test(c);
+  const hasLiteral = (c, n) => new RegExp('(?<![\\w.])' + n + '(?![\\w])(?![\\d.])').test(c);
+  const selfOk = bareCap('return [f for f in fish if f["rar"] == args.rar][:args.limit or 99]') === true
+    && bareCap('return hit[:cap]') === false
+    && hasLiteral('print("改动前后逐鱼逐档对拍（362 条 × 5 档）")', 362) === true
+    && hasLiteral('print("对拍了 %d 条" % len(NEW_FISH))', 362) === false
+    && hasLiteral('print("v0.6.2 的 362 条")', 362) === true;
+  if (!selfOk) {
+    err('32-q 的判据自检不成立（裸上限 `or 99` / 写死的条数，正负控没能各自认对）'
+      + ' —— 这条网会假绿或假红');
+  }
+  let qBad = selfOk ? 0 : 1;
+  const readPy = (rel) => {
+    try { return stripPy(fs.readFileSync(path.join(ROOT, rel), 'utf8')); }
+    catch (e) { err(`读不到 \`${rel}\` —— 32-q 抓不到要判的地方（先修判据本身）`); qBad++; return null; }
+  };
+  /* ① 值域校验（`--morph`） */
+  const csCode = readPy('tools/contact-sheet.py');
+  if (csCode !== null) {
+    const pb = bodyOf(csCode, 'def pick(');
+    if (!pb) {
+      err('`tools/contact-sheet.py` 里切不到 `def pick(` —— 32-q 的 ① 会恒真，先修本节自身');
+      qBad++;
+    } else {
+      /* 「先校验值域再筛」= 值域表（现算的 `MORPH_POOL`）+ 报错（`sys.exit(`）都必须出现在
+         **筛选那一行（`keep = "master"`）之前**。⚠️ 用 `at()` 取**原始偏移**再比大小
+         （不用 `.slice()`：那会踩 §42 ⑨ 的位置切片白名单）；
+         ⚠️ 别拿「整个 pick() 里有 `sys.exit(`」判：同函数里 `--batch` 那条也有一个，
+         写成那样就**证伪不了**（把值域守卫整段删掉它照样绿）。 */
+      const ip = at(pb, 'MORPH_POOL');
+      const ix = at(pb, 'sys.exit(');
+      const ik = at(pb, 'keep = "master"');
+      if (ip < 0 || ix < 0 || ik < 0 || Math.max(ip, ix) > ik) {
+        err('32-q：`contact-sheet.py: pick()` 里没有「先校验 `--morph` 值域再筛」那一步'
+          + '（现算的值域表 `MORPH_POOL` 与 `sys.exit(` 的报错都必须出现在 `keep = "master"` 之前）——'
+          + ' 写错档名（`--morph zzz`）会**静默筛空**，然后报一句误导的'
+          + '「没有可渲染的卡面 —— 先跑 tools/gen-art.py 出图。」（图其实在盘上）');
+        qBad++;
+      }
+    }
+  }
+  /* ② `--rar` 的默认上限只许一处声明 + help 现算 */
+  const gaRaw = (() => {
+    try { return fs.readFileSync(path.join(ROOT, 'tools/gen-art.py'), 'utf8'); }
+    catch (e) { return null; }
+  })();
+  if (gaRaw === null) {
+    err('读不到 `tools/gen-art.py` —— 32-q 的 ② 抓不到要判的地方（先修判据本身）'); qBad++;
+  } else {
+    const gaCode = stripPy(gaRaw);
+    const decl = gaCode.match(/^RAR_DEFAULT_CAP\s*=\s*\d+\s*$/gm) || [];
+    if (decl.length !== 1) {
+      err(`32-q：\`gen-art.py\` 里 \`RAR_DEFAULT_CAP = <数字>\` 有 ${decl.length} 处（应恰 1 处）`
+        + ' —— `--rar` 的默认上限必须**一处声明**，否则它就是一个没人知道的静默截断');
+      qBad++;
+    }
+    const pb = bodyOf(gaCode, 'def pick(');
+    if (!pb) {
+      err('切不到 `tools/gen-art.py` 的 `def pick(` —— 32-q 的 ② 会恒真，先修本节自身');
+      qBad++;
+    } else {
+      if (bareCap(pb) || !has(pb, 'RAR_DEFAULT_CAP')) {
+        err('32-q：`gen-art.py: pick()` 的 `--rar` 那一支又出现了**裸字面量上限**'
+          + '（`[:args.limit or 99]`）—— `--rar 0` 实测 176 条会被悄悄砍到 99 条、一行不提示；'
+          + '上限只许读 `RAR_DEFAULT_CAP`');
+        qBad++;
+      }
+    }
+    /* help 现算：`--rar` 的 add_argument 实参里必须引用那个常量
+       ⚠️ `\r?\n`：`gen-art.py` 是 CRLF（同 `briefImpliesStale` 那条注释）。 */
+    const spec = (gaCode.match(/ap\.add_argument\("--rar"[\s\S]{0,400}?\)\r?\n/) || [''])[0];
+    if (!spec || !has(spec, 'RAR_DEFAULT_CAP')) {
+      err('32-q：`gen-art.py` 的 `--rar` help 没有**引用** `RAR_DEFAULT_CAP` 现算'
+        + '（写死「前 99 条」等于把这个上限藏在代码里）');
+      qBad++;
+    }
+  }
+  /* ③ 写死的鱼表条数 */
+  const fdRaw = (() => {
+    try { return fs.readFileSync(path.join(ROOT, 'tools/check-fishdata-drift.py'), 'utf8'); }
+    catch (e) { return null; }
+  })();
+  if (fdRaw === null) {
+    err('读不到 `tools/check-fishdata-drift.py` —— 32-q 的 ③ 抓不到要判的地方（先修判据本身）');
+    qBad++;
+  } else {
+    const fd = stripPy(fdRaw);
+    if (hasLiteral(fd, 362)) {
+      err('32-q：`tools/check-fishdata-drift.py` 里还写着鱼表条数 `362`（剥注释后仍命中）——'
+        + ' 鱼种数一变，它打的那行就在说假话 ⇒ 改成 `len(NEW_FISH)` 现算');
+      qBad++;
+    }
+    if (!has(fd, 'len(NEW_FISH)')) {
+      err('32-q：`tools/check-fishdata-drift.py` 里找不到 `len(NEW_FISH)` —— 条数必须现算，'
+        + '不许再从哪里抄一个数进来');
+      qBad++;
+    }
+  }
+  /* ④ 一次性音效条数：help 与 `--list` 必须同源（都现算） */
+  const audRaw = (() => {
+    try { return fs.readFileSync(path.join(ROOT, 'tools/gen-audio.py'), 'utf8'); }
+    catch (e) { return null; }
+  })();
+  if (audRaw === null) {
+    err('读不到 `tools/gen-audio.py` —— 32-q 的 ④ 抓不到要判的地方（先修判据本身）');
+    qBad++;
+  } else {
+    const spec = (audRaw.match(/ap\.add_argument\('--all'[\s\S]{0,300}?\)\s*\n/) || [''])[0];
+    if (!spec || !has(spec, 'len(ONESHOT)')) {
+      err('32-q：`gen-audio.py` 的 `--all` help 没有现算一次性音效条数（必须 `% len(ONESHOT)`）——'
+        + ' `--list` 那边是现算的，help 这边写死就会两处分家');
+      qBad++;
+    } else if (hasLiteral(spec, 16)) {
+      err('32-q：`gen-audio.py` 的 `--all` help 里还写死「16」—— 条数现算之后不许再留这个字面量');
+      qBad++;
+    }
+  }
+  if (!qBad) {
+    ok('`tools/` 入口的值域与文案：`contact-sheet.py --morph` 先校验现算值域再筛'
+      + '（写错档名不再报成「没有可渲染的卡面」）、`gen-art.py --rar` 的默认上限'
+      + '只许从 `RAR_DEFAULT_CAP` 读且 help 现算、`check-fishdata-drift.py` 的条数现算、'
+      + '`gen-audio.py --all` 的 help 现算');
+  }
+})();
+
 /* ---------------- 33. 体型数量：文档 / 出图工具必须与代码一致 ----------------
    代码里是 **9 种**（`TPL.fish / eel / ray / squid / jelly / oarfish / shark / whale / dragon`），
    而 GDD 两处 + 开发者文档一处都写着「10 种体型」，开发者文档 §5.2 自己又写着 9 ——

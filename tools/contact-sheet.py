@@ -25,13 +25,16 @@
 
 用法：
   python tools/contact-sheet.py                  # 全部已出图的鱼，每页 6 条 → 只出第 1 页（并提示共几页）
-  python tools/contact-sheet.py --all            # 出全部页
-  python tools/contact-sheet.py --batch 21       # 第 21 批（批号与生图清单一致）
+  python tools/contact-sheet.py --all            # 出全部页（⚠️ 与 --out 互斥：一个路径装不下多页）
+  python tools/contact-sheet.py --batch 21       # 第 21 批（批号与生图清单一致；⚠️ 与 --ids 互斥）
   python tools/contact-sheet.py --ids A01,C02    # 点名（逗号或空格分隔）
   python tools/contact-sheet.py --page 2 --per-page 5
   python tools/contact-sheet.py --morph normal   # 只看母版那张（含原色档抠图）
+                                                 # 值域 = all / normal(=master) + gen-art.MORPH_POOL 的键
   python tools/contact-sheet.py --list           # 只算不画：打印判定清单，不落盘
   python tools/contact-sheet.py -o 我的表.png --cell 360
+  ⚠️ 互斥的开关同给会**报错**（不是静默丢掉一个）：`--out`×`--all`、`--ids`×`--batch`
+     —— 见开发者文档 §9 硬规矩 45 与 `verify §32-p`。
 
 输出：默认 `_tmp/contact-sheet-<tag>-p<N>.png`
   ⚠️ 默认落 `_tmp/`（已在 .gitignore）：接触表是**看一次就丢**的评审中间物，
@@ -125,6 +128,18 @@ def hexrgb(h):
 
 def pick(args, rc, ga):
     """返回 (rows, meta)。rows 是**评审台口径**的行（每条鱼 + 它已有的档位文件）。"""
+    # 🔴 2026-10-12（第 53 轮）：**值域校验放在最前面**（任何筛选动作之前）——
+    #    写错档名（`--morph zzz`）旧行为是**静默筛空** ⇒ 落到 `main()` 那句
+    #    「没有可渲染的卡面 —— 先跑 tools/gen-art.py 出图。」：一句**误导**
+    #    （图明明在盘上，实测 A01 的 6 张全在，只是这个档名没人认得）。
+    #    值域**现算**：档位名的唯一真相 = `gen-art.py` 的 `MORPH_POOL`
+    #    （`normal` / `master` 是「母版那张」的两个别名，与下面 `keep` 的取法同源 ——
+    #     别在这里再抄一份档位名列表）。
+    if args.morph and args.morph != "all":
+        allowed = ["normal", "master"] + list(ga.MORPH_POOL)
+        if args.morph not in allowed:
+            sys.exit("档位名不对：%s（可用 all / %s）" % (args.morph, " / ".join(allowed)))
+
     rows = rc.build_rows()                      # 有母版的鱼，按 id 升序
     have = {r["id"] for r in rows}
     meta = {"title": "全部已出图的鱼", "tag": "all", "missing": []}
@@ -303,7 +318,21 @@ def parse_args(argv):
     ap.add_argument("--cell", type=int, default=300, help="每张缩略图宽（px，默认 300）")
     ap.add_argument("-o", "--out", default="", help="输出路径（默认 _tmp/contact-sheet-<tag>-p<N>.png）")
     ap.add_argument("--list", action="store_true", help="只算不画：打印判定清单")
-    return ap.parse_args(argv)
+    args = ap.parse_args(argv)
+    if args.out and args.all:
+        # 🔴 2026-10-12（第 53 轮）：这两个同用时，旧行为是**静默丢掉 `--out`**
+        #    （文件照旧落到 `_tmp/contact-sheet-<tag>-p<N>.png`），而 help 里一个字都没提。
+        #    为什么不改成「多页都写 `--out`」：那会让每一页互相覆盖，最后盘上只剩最后一页 ——
+        #    比静默丢弃更坏。为什么不静默 + 打一行警告：`--out` 是**用户明确给的落盘位置**，
+        #    猜错位置的代价（找不着产物）比报错大。⇒ 直接说清楚（§9.1 第 2 条：规则说得清）。
+        ap.error("--out 与 --all 不能同时用：--all 会出多页，一个路径装不下。"
+                 "去掉 --out 即可 —— 默认落 _tmp/contact-sheet-<tag>-p<N>.png，文件名自带页号")
+    if args.ids and args.batch:
+        # 🔴 2026-10-12（第 53 轮）：同族 —— `--ids` 在 `pick()` 里排在 `elif args.batch` 前面
+        #    ⇒ 两个都给时 `--batch` 被**静默丢掉**，用户以为在看第 21 批、其实看的是点名的两条。
+        ap.error("--ids 与 --batch 不能同时用：一个是「点名几条鱼」、一个是「整批」，"
+                 "只能选一个（批号见 docs/生图清单.md）")
+    return args
 
 
 def main(argv=None):

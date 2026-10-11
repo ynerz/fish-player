@@ -644,6 +644,13 @@ def main():
 
     fish = load_list()
     have = cached_ids(only_ok=True)
+    # 🔴 2026-10-12（第 53 轮）：同族（开关组合被静默丢弃）——
+    #    `--list` 是**第一支**、直接按点名的取；同给 `--all` / `--limit` 时它们被**静默丢掉**
+    #    （`--limit` 只在 `else:` 那一支里被读）⇒ 用户以为「前 5 条」/「全部」，实际是点名的那些。
+    if args.list and args.all:
+        ap.error("--list 与 --all 不能同时用：一个是「点名几条鱼」、一个是「全部还没抓过的」")
+    if args.list and args.limit:
+        ap.error("--list 与 --limit 不能同时用：--limit 是「按顺序取前 N 条」（未点名时才用）")
     if args.list:
         want = [x.strip() for x in args.list.split(",") if x.strip()]
         todo = [f for f in fish if f["id"] in want]

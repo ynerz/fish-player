@@ -221,6 +221,12 @@ def main():
         die("找不到 %s" % os.path.relpath(OUT, ROOT))
     man = load_manifest()
 
+    if args.list and args.id:
+        # 🔴 2026-10-12（第 53 轮）：同族（开关组合被静默丢弃）—— `--list` 排在前面
+        #    ⇒ 同给鱼 id 时它被**静默丢掉**：想「挑 A44 的第 2 版」却只看到一张「哪些鱼有两版」的表。
+        #    ⚠️ 用 `ap.error`（用法错 = 退出码 2，与其它工具同一口径），不用 `die`（那是运行期错）。
+        ap.error("--list 与鱼 id 不能同时用：--list 是「列出所有同档两版的鱼」（只看不选），"
+                 "要挑某一条就别给 --list")
     if args.list or not args.id:
         cmd_list(man, args.morph_filter, args.only_missing)
         return

@@ -247,7 +247,8 @@ def main():
     ap.add_argument('--probe', action='store_true', help='量一遍盘上已有素材（只读）')
     ap.add_argument('--probe-synth', action='store_true', help='现算合成环境音的电平靶子')
     ap.add_argument('--only', default=None, help='只做这一条（id）')
-    ap.add_argument('--all', action='store_true', help='全量重出（含 16 个一次性音效）')
+    ap.add_argument('--all', action='store_true',
+                    help='全量重出（含 %d 个一次性音效 + 1 段环境音）' % len(ONESHOT))
     ap.add_argument('--skip-existing', action='store_true', help='已存在的不重出')
     args = ap.parse_args()
 

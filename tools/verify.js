@@ -3917,6 +3917,72 @@ console.log('\n[32-q] `tools/` 入口的值域校验与现算文案（写错档�
   }
 })();
 
+/* ---------------- 32-r. 工具自报的「下一步命令」必须真能跑（第 53 轮）--------------------
+   同一面的第三个方向：开关收下了、值也校验了，但**打印给用户的命令**本身是坏的。
+   实测（2026-10-12 第 53 轮）：`gen-art.py` 的 `--stale` 报告最后会给每条要重出的鱼
+   打印一行**可复制的命令**（那正是它的用途：「照抄就能重出」）。而它按**归档键**分组
+   （一档多版时带 `-2` 后缀：`shiny-2`），把那个键直接拼进了 `--only-morph` ——
+   该开关的值域只有**档名**（`[k for k, _ in MORPHS]`）⇒ 照打印的命令跑，会当场
+   `sys.exit("--only-morph 里有不认识的档：shiny-2（可选：bright/albino/golden/shiny）")`。
+   传说闪光就是 2 版 ⇒ **那 27 条鱼只要过期，报告给出的命令一条都跑不通**；
+   而且它长得像正常输出，看不出坏（假提示）。
+     ① `report_stale()` 里构造 `--only-morph` 的那一处**不许**直接把 `k` 拼出去
+        （`k` 是归档键，可能带 `-2`）—— 这是根因；
+     ② 必须存在把版本后缀剥掉的一步（`k.split(`）—— 抓不到就报错（写法变了就来更新本节）；
+     ③ 行为侧同款断言在 `tools/test-review-cards.py [25]`（真调 `report_stale()`，
+        把桩架在 `card_state()` 上让 `shiny-2` 那一组必然出现，再逐条查打印出来的值）。 */
+console.log('\n[32-r] 工具自报的「下一步命令」必须真能跑（照抄就报错的命令 = 假提示）');
+(function () {
+  const stripPy = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
+    .split('\n').map(line => {
+      let q = null;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (q) { if (c === q && line[i - 1] !== '\\') q = null; }
+        else if (c === '"' || c === "'") q = c;
+        else if (c === '#') return line.slice(0, i);
+      }
+      return line;
+    }).join('\n');
+  /* 判据本体：给定「构造 only-morph 的那段源码」，判它是不是把归档键直接拼出去了 */
+  const rawKeyLeak = (seg) => /--only-morph "\s*\+\s*k\s*\)/.test(seg);
+  const stripsSuffix = (seg) => /k\.split\(/.test(seg);
+  /* 合成样本自检：坏样本（裸拼 k）/ 好样本（k.split）各判一次 */
+  const S_R = 'print("重出：%s" % (" --only-morph " + k))';
+  const S_OK = 'flag = "" if k == "母版" else " --only-morph " + k.split("-")[0]';
+  if (!rawKeyLeak(S_R) || rawKeyLeak(S_OK) || !stripsSuffix(S_OK)) {
+    err('32-r 的判据自检不成立（裸拼归档键 vs 剥掉版本后缀，这一对正负控没能各自认对）'
+      + ' —— 这条网会假绿或假红');
+  }
+  let rBad = 0;
+  let gaSrc = '';
+  try { gaSrc = stripPy(fs.readFileSync(path.join(ROOT, 'tools/gen-art.py'), 'utf8')); }
+  catch (e) { err('读不到 `tools/gen-art.py` —— 32-r 抓不到要判的地方（先修判据本身）'); rBad++; }
+  if (gaSrc) {
+    const rsb = bodyOf(gaSrc, 'def report_stale(');
+    if (!rsb || !has(rsb, '--only-morph')) {
+      err('切不到 `tools/gen-art.py: report_stale()` 里构造 `--only-morph` 的那一段 ——'
+        + ' 32-r 会恒真，先修本节自身');
+      rBad++;
+    } else if (rawKeyLeak(rsb)) {
+      err('32-r：`report_stale()` 把**归档键**（一档多版时带 `-2` 后缀）直接拼进了 '
+        + '`--only-morph` —— 而该开关的值域只有档名 ⇒ 传说闪光那 27 条鱼的「重出命令」'
+        + '照抄就会报「--only-morph 里有不认识的档：shiny-2」（报告在给假提示）'
+        + '\n       —— 修法：打印出去的一律是**档名**（`k.split("-")[0]`），后缀只用来分组');
+      rBad++;
+    } else if (!stripsSuffix(rsb)) {
+      err('32-r：`report_stale()` 里找不到「把版本后缀剥掉」那一步（`k.split(`）——'
+        + ' 要么写法变了、要么有人又直接把键拼出去了；改写法就来更新本节');
+      rBad++;
+    }
+  }
+  if (!rBad) {
+    ok('`gen-art.py --stale` 报告打印的「重出命令」照抄能跑：`--only-morph` 给的是**档名**'
+      + '（不是带 `-2` 后缀的归档键），并明说该档的每一版都归它管'
+      + '（行为侧断言见 `test-review-cards.py [25]`）');
+  }
+})();
+
 /* ---------------- 33. 体型数量：文档 / 出图工具必须与代码一致 ----------------
    代码里是 **9 种**（`TPL.fish / eel / ray / squid / jelly / oarfish / shark / whale / dragon`），
    而 GDD 两处 + 开发者文档一处都写着「10 种体型」，开发者文档 §5.2 自己又写着 9 ——

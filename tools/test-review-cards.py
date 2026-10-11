@@ -1377,6 +1377,55 @@ def main():
     else:
         check(False, "`review-cards.py` 里找不到 `runner_alive()` —— 同端口二次启动又没人拦了")
 
+    print("\n[25] `--stale` 报告打印的「重出命令」必须**照抄就能跑**（档名 vs 归档键）")
+    # 病根（2026-10-12 第 53 轮实测出来的真 bug）：`report_stale()` 按**归档键**分组打印，
+    #   而一档多版时归档键带 `-2` 后缀（`shiny-2`，27 条传说鱼的闪光第 2 版）；
+    #   它把那个键直接拼进 `--only-morph`，而 `--only-morph` 的值域只有**档名**
+    #   （`[k for k, _ in MORPHS]`）⇒ 照打印的命令跑会当场
+    #   `--only-morph 里有不认识的档：shiny-2（可选：bright/albino/golden/shiny）`。
+    #   这一行的用途恰恰是「照抄就能重出」⇒ 它是**假提示**，而不是一条无害的笔误。
+    #
+    # 判法（确定性，不依赖真实卡面状态）：把 `card_state()` 换成「只有 shiny 第 2 版算过期」
+    #   的桩 + 把 MANIFEST 指向临时文件 ⇒ 那一条组必然出现（判据不是空转），
+    #   然后逐个检查它打印出来的 `--only-morph` 值。
+    GA = load_genart()
+    _mfile = os.path.join(TMP, "rs-manifest-stub.json")
+    with io.open(_mfile, "w", encoding="utf-8") as fh:
+        json.dump({"A44": {}}, fh)
+    _old_man, _old_state = GA.MANIFEST, GA.card_state
+    GA.MANIFEST = _mfile
+    GA.card_state = lambda f, morph, vi, man: (
+        "步数已变" if (morph, vi) in ((None, 0), ("bright", 0), ("shiny", 1)) else None)
+    try:
+        _buf = io.StringIO()
+        with contextlib.redirect_stdout(_buf):
+            GA.report_stale([f for f in GA.load_fish() if f["id"] in ("A44", "SS01")])
+        out = _buf.getvalue()
+    finally:
+        GA.MANIFEST, GA.card_state = _old_man, _old_state
+        try:
+            os.remove(_mfile)                      # 收尾不留临时文件（同「不留后台进程」那条规矩）
+        except OSError:
+            pass
+    keys = [k for k, _ in GA.MORPHS]                    # `--only-morph` 的合法值域（档名）
+    check("shiny-2" in out,
+          "桩生效：输出里出现了带版本后缀的分组 `shiny-2`（否则这条断言是空转）")
+    check("母版" in out, "桩生效：母版那一组也在（它打印的命令**不带** --only-morph）")
+    flags = re.findall(r"--only-morph\s+(\S+)", out)
+    check(len(flags) >= 2, "报告里确实打印了 --only-morph 命令（实得 %d 条）" % len(flags))
+    bad = sorted({x for x in flags if x not in keys})
+    check(not bad,
+          "打印的 --only-morph 值全部落在档名集合 %s（越界 = 照抄会报错）：%s"
+          % ("/".join(keys), bad or "一致"))
+    if "shiny-2" in out:
+        _line = [ln for ln in out.split("\n") if "--only-morph" in ln and "shiny" in ln]
+        check(any(ln.split("--only-morph")[-1].strip() in keys for ln in _line),
+              "`shiny-2` 那一组打印的是**档名**（`--only-morph shiny`），不是归档键")
+    ids = re.findall(r"--list\s+(\S+)", out)
+    fish_ids = {f["id"] for f in GA.load_fish()}
+    check(all(set(x.split(",")) <= fish_ids for x in ids) and ids,
+          "打印的 --list 值都是鱼 id（实得 %d 条命令）" % len(ids))
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

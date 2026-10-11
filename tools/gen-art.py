@@ -2913,8 +2913,17 @@ def report_stale(fish, brief=False):
             continue
         print("  %-7s %3d 条" % (k, len(ids)))
         print("          %s" % " ".join(ids))
-        print("          重出：python tools/gen-art.py --list %s%s\n"
-              % (",".join(ids), "" if k == "母版" else " --only-morph " + k))
+        # 🔴 `k` 是**归档键**（一档多版时带 `-2` 后缀：`shiny-2`），而 `--only-morph` 的值域
+        #    只有**档名**（`[k for k, _ in MORPHS]`）⇒ 照这里打印的 `--only-morph shiny-2` 去跑，
+        #    会当场 `sys.exit("--only-morph 里有不认识的档：shiny-2（可选：…）")`。
+        #    实测（2026-10-12，第 53 轮）：传说闪光有第 2 版 ⇒ 那 27 条只要过期，
+        #    这一行给出的命令**一条都跑不通** —— 而它的用途恰恰是「照抄就能重出」。
+        #    ⇒ 后缀只用来**分组**，打印出去的永远是**档名**；该档的每一版都归它管
+        #      （配 `--skip-existing` 只会重出过期的那一版 —— 判据同源，见 `card_state()`）。
+        flag = "" if k == "母版" else " --only-morph " + k.split("-")[0]
+        print("          重出：python tools/gen-art.py --list %s%s\n" % (",".join(ids), flag))
+    print("⚠️ 上面 `--only-morph` 只给**档名**（一档多版时它把那几版一起管）—— 加 `--skip-existing`"
+          " 之后，只有「过期的那一版」会被重出，同档已经是最新口径的那一版照样跳过。")
     print("⚠️ 母版重出会顺带刷新它的 `-normal`（原色档就是母版的抠图）；"
           "五档是独立文生图，单档重出只影响那一张，不会连带动别的档。")
     print("💡 建议**加** `--skip-existing` 跑上面那些命令（断点续跑）：跳过判据与这里同源，"

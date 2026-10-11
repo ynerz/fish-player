@@ -1044,16 +1044,16 @@ def check_shape_words():
 
 
 
-# 🔴 尾型的**现行**口径：**不用 `tail` 字段**，走 `TAIL_HINTS`（名字线索优先 +
-#    `stable_pick` 兜底，见下面那一节）—— 因为实测 `tail` 字段不可用（362 条里只有
-#    11 条不是默认值 `fan`，见 `docs/优化队列.md` §2 的 Q4）。
-# ⚠️ 下面这两张表是 2026-10-07 `d3be3ee`（「形态档案」那次）把取值那三行删掉之后
-#    **留下的残骸**：全历史 `git log -S "TAIL[" -- tools/gen-art.py` 一次取值都没有，
-#    362 条提示词里因此**一个字都不来自这两张表**。留着是为了 Q4 真拍板「要不要
-#    重新启用 `tail` 维度」时手边有现成的词表；**接线前它们不产生任何输出**。
-TAIL_SHAPES = tuple(s for s in FISH_SHAPES if s != "seahorse") + ("shark", "dragon", "oarfish")
-TAIL = {"fan": "fan-shaped", "fork": "deeply forked", "lunate": "crescent-shaped",
-        "round": "rounded", "whip": "long whip-like"}
+# 🔴 尾型的**唯一**口径：**不用 `tail` 字段**，走 `TAIL_HINTS`（名字线索优先 + 兜底，
+#    见下面「头型 / 尾型」那一节）—— 因为实测 `tail` 字段不可用（362 条里只有 11 条
+#    不是默认值 `fan`）。
+# ── ⛔ 这里原本有 `TAIL_SHAPES` 与 `TAIL` 两张表（尾型键 → 英文短语）：
+#    `d3be3ee`（2026-10-07「形态档案」那次）改用 `TAIL_HINTS` 后，那三行取值被删、
+#    两张表却留在了原地，从此**零消费**（全历史 `git log -S "TAIL[" -- tools/gen-art.py`
+#    一次取值都没有）。**2026-10-11 删除**，依据 = 用户拍板 **Q4：不重新启用 `tail` 维度**
+#    （见 `docs/优化队列.md` §3.9）⇒ 留着就是死代码，`verify §33-h` 会拦住它复活。
+#    ⚠️ **不要再按「数据维度好像不够用」的理由把它们加回来** —— 尾型这件事已经由
+#    `TAIL_HINTS`（名字科属线索）接管，加回来只会多一份没人读的真相。
 
 # —— 特征位：**按体型过滤**（水母不长背棘、鲸没有须）——
 #    glow 是通用的「边缘发光」，其余都要看体型。

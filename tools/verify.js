@@ -3529,6 +3529,60 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
   }
 })();
 
+/* ---------------- 33-h. 尾型口径：`TAIL_HINTS` 一处实现；`TAIL` / `TAIL_SHAPES` 不许复活 ----------------
+   **Q4 的收口**（2026-10-11 用户拍板：**不重新启用 `tail` 维度**，见 `docs/优化队列.md` §3.9「已拍板：2026-10-11 四项口径（暴雨 · Q31 · Q4 · SS/SSS 前缀）」）。
+   来历：`d3be3ee`（2026-10-07「形态档案」那次）把 `tail = TAIL.get(f.get("tail"))` 那三行删掉、
+   改用 `TAIL_HINTS`（名字科属线索 + 兜底），理由是「`tail` 字段不可用（362 条里 351 条都是 `fan`）」；
+   **但两张表留在了 `gen-art.py` 里**，从此零消费（`git log -S "TAIL["` 全历史 0 次取值），
+   而注释还写着「尾型一律由 `tail` 字段给」——2026-10-11 第 41 轮 C 类审计把它查出来，用户拍板后**已删除**。
+   这条判据做两件事（缺一边这条口径就守不住）：
+     · **正控**：`TAIL_HINTS` 必须还在、而且**真有人迭代它**（否则「尾型」整条链路会悄悄消失，
+       而画面上只是「鱼尾越来越像」这种没人会报的观感退化）；
+     · **反控**：`gen-art.py` 里不许再出现 `TAIL = {` / `TAIL_SHAPES =` —— 加回来就是**第二份没人读的真相**。
+   ⚠️ 判据先剥注释（硬规矩 ①）：上面那段删除留档**点着这两个名字**，不剥就会自指报红。 */
+console.log('\n[33-h] 尾型口径：TAIL_HINTS 一处实现；TAIL / TAIL_SHAPES 不许复活');
+(function () {
+  const stripPy = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
+    .replace(/(^|[\r\n])[ \t]*#[^\n]*/g, '$1');
+  let py;
+  try { py = stripPy(fs.readFileSync(path.join(ROOT, 'tools/gen-art.py'), 'utf8')); }
+  catch (e) { err('读不到 `tools/gen-art.py` —— 33-h 抓不到要判的地方（先修判据本身）'); return; }
+
+  let hBad = 0;
+  /* 被删掉的那两张表（反控）—— 判定抽成一个函数，便于下面拿合成样本自检 */
+  const deadTables = src => ['TAIL_SHAPES', 'TAIL']
+    .filter(n => new RegExp('^' + n + '\\s*=', 'm').test(src));
+  /* 自检（判据自身必须真的抓得住 —— 合成样本，不碰真文件） */
+  const sampleBad = 'TAIL_SHAPES = ("fish",)\nTAIL = {"fan": "fan-shaped"}\n';
+  const sampleOk = 'TAIL_HINTS = [\n    ("鲤", "a forked tail"),\n]\nfor key, desc in TAIL_HINTS:\n    pass\n'
+    + '    # TAIL = {"fan": "fan-shaped"}   ← 注释里的提及不算\n';
+  if (deadTables(sampleBad).length !== 2 || deadTables(sampleOk).length !== 0
+      || !/^TAIL_HINTS\s*=\s*\[/m.test(sampleOk)) {
+    err('33-h 的判据自检不成立（合成样本：坏样本没认全 / 注释里的提及被误伤 / 好样本的 `TAIL_HINTS` 没认出）');
+    hBad++;
+  }
+
+  const defs = (py.match(/^TAIL_HINTS\s*=\s*\[/gm) || []).length;
+  const users = (py.match(/for\s+[A-Za-z_][A-Za-z0-9_]*\s*,\s*[A-Za-z_][A-Za-z0-9_]*\s+in\s+TAIL_HINTS\b/g) || []).length;
+  if (defs !== 1) {
+    err(`\`tools/gen-art.py\` 里 \`TAIL_HINTS\` 的定义有 ${defs} 处（必须恰好 1 处）—— `
+      + '尾型线索只能有一份真相'); hBad++;
+  }
+  if (users < 1) {
+    err('`TAIL_HINTS` 定义了却没有消费方（`for … in TAIL_HINTS` 一处都没有）—— '
+      + '尾型会从 362 条提示词里**静默消失**（画面只是「尾巴越来越像」）'); hBad++;
+  }
+  const alive = deadTables(py);
+  if (alive.length) {
+    err(`\`tools/gen-art.py\` 里又出现了已删的尾型表：${alive.join(' / ')} —— `
+      + 'Q4 已拍板「不重新启用 `tail` 维度」（尾型走 `TAIL_HINTS`），加回来只是多一份没人读的真相'); hBad++;
+  }
+  if (!hBad) {
+    ok(`尾型口径单源：\`TAIL_HINTS\` 一处定义 + ${users} 处迭代；`
+      + '已删的 `TAIL` / `TAIL_SHAPES` 没有复活（Q4 拍板口径由这条守）');
+  }
+})();
+
 /* ---------------- 34. 文档里写的「自检 N 节」必须就是本文件的节数 ----------------
    开发者文档 §8 出现过「数据自检 29 节」、GDD §目录树 写着「自检 15 节」，
    而本文件早就不是这个数了 —— 每加一节就过期一次，而且没人会去核对。

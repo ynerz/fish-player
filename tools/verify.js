@@ -726,6 +726,48 @@ let reqClaimCount = 0;
 });
 if (!reqClaimCount) { err('四份对外文档里都找不到「原本 N 个网络请求」（改了措辞就来更新这条断言）'); entryBad++; }
 
+/* 11-j `index.html` 的静态 id 必须有消费方（样式规则或代码里的引用）
+   同族：㉜（导出面）/ 32-g（数据字段）/ 32-h（存档键）—— 都是「零消费」。
+   实测（第 47 轮铺这个面时）：`id="idleToggle"` 从加进来起**谁都没读过**
+   （样式走 `.idle-toggle` 类、逻辑走 `#chkIdle`），与 2026-10-11 清掉的 3 处
+   `data-role` 是同一个形状：**死 id 不报错**，只会让人以为「这里接了线」，
+   下一个人照着它改名 / 删容器时才发现没人管。
+   消费方口径（三种，任一即可）：① 样式表里有 `#id` 规则；② 代码里出现过 `#id` 选择器
+   （`U.$('#x')` / `querySelector('#x')` / 拼装模板里的 `"#x"`）；③ `getElementById('id')`。
+   ⚠️ 判据**剥掉注释**再比（硬规矩 ①）：注释里提一句 id 不算「有人读」。
+   ⚠️ 已知网眼：`tools/test.js` 的 DOM 桩里抄了一份 id，所以「index.html 删了 id、
+   桩里还留着」这种情况本网看不出来 —— 那属于测试桩自身的漂移（另由 11-a 一族的
+   「桩必须照 index.html 建」这条惯例管），不为它把判据放宽（放宽 = 假报）。 */
+const htmlIds = [...htmlRaw.matchAll(/\bid\s*=\s*"([^"]+)"/g)].map(m => m[1]);
+const stripCmt = t => String(t)
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/^\s*\/\/.*$/gm, '');
+const cssAll = cssListed.map(r => fs.readFileSync(path.join(ROOT, r), 'utf8')).join('\n');
+const inlineJs = [...htmlRaw.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g)]
+  .map(m => m[1]).join('\n');
+let jsAll = inlineJs;
+(function walkJs(dir) {
+  fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+    const rel = dir + '/' + n;
+    if (fs.statSync(path.join(ROOT, rel)).isDirectory()) walkJs(rel);
+    else if (/\.js$/.test(n)) jsAll += '\n' + fs.readFileSync(path.join(ROOT, rel), 'utf8');
+  });
+})('src');
+jsAll += '\n' + fs.readFileSync(path.join(ROOT, 'shell/main.js'), 'utf8');
+const cssCode = stripCmt(cssAll), jsCode = stripCmt(jsAll);
+const deadIds = htmlIds.filter(id => {
+  const e = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const sel = new RegExp('(^|[^\\w-])#' + e + '(?![\\w-])');
+  const geb = new RegExp("getElementById\\(\\s*['\"]" + e + "['\"]");
+  return !sel.test(cssCode) && !sel.test(jsCode) && !geb.test(jsCode);
+});
+if (!htmlIds.length) { err('index.html 里一个 id 都没认出来（判据抓不到东西，先修本节自身）'); entryBad++; }
+if (deadIds.length) {
+  err(`index.html 里这些 id 全项目没人读（样式里没有 #id 规则、代码里也没引用过）：`
+    + deadIds.join('、') + '—— 删掉它，或者补上消费方（别留着让它看起来像接过线）');
+  entryBad++;
+}
+
 if (!entryBad) {
   ok(`入口 ${listed.length} 个脚本 == src/ 下 ${onDisk.length} 个模块，顺序正确`);
   ok(`按 index.html 顺序加载：${ranCount} 个模块在 Node 里跑通` +
@@ -733,6 +775,7 @@ if (!entryBad) {
   ok(`${WANT.length} 个全局模块齐全（G.CONFIG … G.Tutorial）`);
   ok(`文档里的请求数现算相符：index.html ${listed.length} 个脚本 + ${cssListed.length} 个样式表 + 自身 = ${realReq} 个`);
   ok(`版本号单一来源：config.js 与 docs/改进待办.md 头部基线都是 v${CFG.version}`);
+  ok(`index.html 的 ${htmlIds.length} 个静态 id 都有消费方（样式规则或代码引用）`);
 }
 
 

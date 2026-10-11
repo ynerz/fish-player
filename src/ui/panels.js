@@ -117,8 +117,12 @@ G.Panels = (function () {
     /* ⚠️ 守卫只看 `tankRAF`（自己有没有在跑），**不再判 `cancelAnimationFrame` 在不在** ——
        那是「平台有没有这个能力」的问题，已经由 `G.Platform.sys.cancelRaf` 兜底（含空值）。 */
     if (tankRAF) { G.Platform.sys.cancelRaf(tankRAF); tankRAF = 0; }
-    /* 面板关了就把列表的懒绘制观察器也断了（它一直握着已经脱离文档的节点） */
+    /* 面板关了就把**两个**懒绘制观察器都断掉（它们一直握着已经脱离文档的节点 ——
+       ⚠️ 被观察中的目标会被观察器扣住不放，格子连同 canvas 一起留在内存里）。
+       2026-10-11 第 44 轮补上 `bookIO`：原先只断了 `netIO`，图鉴那只是**函数局部**
+       变量，`close()` 够不着，于是每次开关图鉴都留下 300+ 个脱离文档的格子。 */
     if (netIO) { netIO.disconnect(); netIO = null; }
+    if (bookIO) { bookIO.disconnect(); bookIO = null; }
     /* 水族箱精灵跟着面板一起释放：它们只在这一次打开期间有用，
        而 dpr 换了（窗口拖到另一块屏）之后旧精度的图不能再用 —— close 时清掉最省事。 */
     tankSprites = {};
@@ -622,9 +626,19 @@ G.Panels = (function () {
       root.appendChild(wrap);
 
       /* ---- 列表：懒绘制（362 个 canvas 一次性画会明显卡顿） ---- */
+      /* 🔴 观察器必须在**重绘与关面板**时断掉 ⇒ 它得活到 render 之外，所以提到模块级
+         （`bookIO`，与鱼护 / 水族箱的 `netIO` 同款，两处在 `close()` 里一起断）。
+         ⚠️ 原先它写成 `render` 内的局部变量，结果 **两条断开路径都是死的**：
+            ① `paint()` 开头那句 `if (io) io.disconnect()` 走不到 —— `paint()` 每次
+               `render()` 只被调一次，那一刻 `io` 必然还是初始的 `null`；
+            ② `close()` 够不着它。⇒ 每按一次筛选（`refresh()` → 整个面板重渲染）
+               都会把上一只观察器连同它 300+ 个**已脱离文档**的格子丢在内存里。
+         ⚠️ 回调里 `unobserve` 仍用**局部 `io`**，理由同 `renderNet()`：重绘后
+            `bookIO` 已经指向新的一只，拿它去 unobserve 会打在错的对象上。 */
       var io = null;
 
       function paint() {
+        if (bookIO) { bookIO.disconnect(); bookIO = null; }
         var list = G.FISH.filter(function (f) {
           if (bookFilter.field !== 'ALL' && f.field !== bookFilter.field) return false;
           if (bookFilter.rarity >= 0 && f.rar !== bookFilter.rarity) return false;
@@ -634,7 +648,13 @@ G.Panels = (function () {
           return true;
         });
 
-        if (io) { io.disconnect(); io = null; }
+        /* 上面 `bookIO` 那一句已经把「上一只」断掉了（同一轮 render 里再 `paint()`
+           的情况也走它，例如搜索框）⇒ 这里只把局部句柄清掉，下面按需重建；
+           宿主没有该 API 时留 `null`，每个格子走 `item._paint()` 兜底。
+           ⚠️ 别在这里再写一遍 `if (io) io.disconnect()`：同一个事实写两遍，
+              改一处漏一处就是这个项目反复栽的坑（原先正是两处都写了、
+              而**两处都走不到**）。 */
+        io = null;
         wrap.innerHTML = '';
         cnt.textContent = '共 ' + list.length + ' 条';
 
@@ -651,6 +671,7 @@ G.Panels = (function () {
               if (en.target._paint) en.target._paint();
             });
           }, { root: bodyEl, rootMargin: '260px' });
+          bookIO = io;      // 交给模块级句柄 ⇒ 重绘与 close() 都能断掉它
         }
 
         var grid = U.el('div', 'book-grid');
@@ -799,6 +820,10 @@ G.Panels = (function () {
      ⚠️ 懒绘制的 canvas 必须**先定好尺寸**：不设 width/height 的话浏览器会给
      300×150 的默认值，行高会先被撑开、画完再回落。 */
   var netIO = null;
+
+  /* 图鉴那只懒绘制观察器（**与 `netIO` 成对**，两处都在 `close()` 里断掉）。
+     它为什么必须在模块级、以及原先两条断开路径为什么都是死的，见图鉴那段的注释。 */
+  var bookIO = null;
 
   var MINI_W = 96, MINI_H = 52;
 

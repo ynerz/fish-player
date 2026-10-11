@@ -6658,8 +6658,13 @@ G_('Panels · 图鉴懒绘制（IntersectionObserver 真路径）');
        「面板没开就不重绘」那条路，于是 chip 点击**只改筛选**、不炸 DOM（同 ⑤-b 的用法） */
     const modalEl = clickEl('div');
     modalEl.classList = { add: noop, remove: noop, toggle: noop, contains: () => true };
+    /* `Panels.init()` 会把 `#modal` / `#app` / `#modalTitle` / `#modalBody` / `#modalClose`
+       都抓一遍；缺一个就留 `null`，而 `close()` 里那句 `bodyEl.innerHTML = ''`
+       会当场抛「Cannot set properties of null」—— 关面板这条路就测不成。 */
+    const qmap = { '#modal': modalEl, '#app': mkEl('div'), '#modalTitle': mkEl('div'),
+                   '#modalBody': mkEl('div'), '#modalClose': clickEl('button') };
     global.document = {
-      createElement: clickEl, querySelector: (s) => (s === '#modal' ? modalEl : null),
+      createElement: clickEl, querySelector: (s) => qmap[s] || null,
       querySelectorAll: () => [], addEventListener: noop,
     };
     G.CardArt.setLoader(null); G.CardArt.reset();
@@ -6699,8 +6704,12 @@ G_('Panels · 图鉴懒绘制（IntersectionObserver 真路径）');
     ok(n2 > 0 && painted() === before2,
        'isIntersecting 为假时**一格都不画**（`if (!en.isIntersecting) return` 真在生效）',
        '喂 ' + n2 + ' 条、画了 ' + (painted() - before2));
-    /* ⏭ 观察器的**断开时机**（重绘 / 关面板）见本节的姊妹条 Q53 ——
-       那里会证明「重绘那只旧的没被断掉」并把它修掉；本节只证「画由谁触发」。 */
+    /* 重绘（换筛选 / 换稀有度都会走 `refresh()` → 整个面板重渲染）必须先把
+       **上一只**观察器断掉 —— 迭代观察中的目标会被观察器扣住不放，
+       不断就等于每按一次筛选把一整屏已脱离文档的格子丢在内存里（Q55）。 */
+    ok(io1.disc === true,
+       '🔴 重绘会先把**上一只**观察器断掉（不改的话每按一次筛选漏一整屏格子）',
+       '旧观察器 disc=' + io1.disc);
 
     /* ---------- ④ 切「全部钓场」⇒ 整张鱼表，依旧是懒的 ---------- */
     const chips = walk(r2, (n) => String(n.className).split(' ')[0] === 'chip');
@@ -6734,7 +6743,22 @@ G_('Panels · 图鉴懒绘制（IntersectionObserver 真路径）');
          '第二次喂了 ' + n4 + ' 条');
     }
 
-    /* ---------- ⑤ 兜底分支仍在：没有 IntersectionObserver 时立即全画 ---------- */
+    /* ---------- ⑤ 关面板也必须把观察器断掉（Q55） ---------- */
+    /* `close()` 要能跑就得先 `init()`（`modal` / `bodyEl` / `appEl` 是它赋的值） */
+    Panels.init();
+    const r5 = mkEl('div');
+    Panels.VIEWS.book.render(r5);
+    const io5 = made[made.length - 1];
+    ok(!!io5 && io5.disc === false, '关之前那只观察器是活的（前提）',
+       'disc=' + (io5 && io5.disc));
+    let closeErr = null;
+    try { Panels.close(); } catch (e) { closeErr = e; }
+    ok(!closeErr, 'Panels.close() 不抛（关闭路径本身没坏）', closeErr && closeErr.message);
+    ok(io5.disc === true,
+       '🔴 关面板会断掉图鉴的观察器（原先只有 `netIO` 被断 —— 图鉴那只是局部变量，close 够不着）',
+       'disc=' + (io5 && io5.disc));
+
+    /* ---------- ⑥ 兜底分支仍在：没有 IntersectionObserver 时立即全画 ---------- */
     delete global.IntersectionObserver;
     const nMade = made.length, before5 = painted();
     const r4 = mkEl('div');

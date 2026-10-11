@@ -1148,6 +1148,90 @@ def main():
         check(_rc == 0 and _snap() == _s0 and _man_now() == _m0,
               "再跑一次同一条命令就换回来（可反悔）")
 
+    print("\n[22] pick-card：`--only-missing` 的筛选方向（本轮修的第三个 bug）")
+    # 病根（2026-10-11 实测）：`cmd_list()` 里那个开关写成
+    #     `if only_missing and len(on_disk) < len(ks): continue`
+    #   ⇒ 把**版本没出齐的**那几条筛掉、留下**齐的** —— 与 help（「只列『版本没出齐』的」）
+    #   正好相反。它**不报错**，而且在现状下**完全看不出来**：盘上 26 条候选两版全在，
+    #   加不加这个开关输出一字不差（同族：Q14 的「静默跳过」）。
+    # 🔴 想验它就必须**造一个「缺一版」的样本**（真盘上没有这种鱼），
+    #    否则这条判据会因为「空集」而恒真 —— 所以这里用沙盒合成台账 + 少写一个文件。
+    #    ⚠️ 沙盒与 [21] 共用同一套路径改写手法（`PC.OUT` / `PC.MANIFEST` / `PC.TMP`），
+    #       全程不碰 `assets/cards/`。
+    if os.path.exists(pc_path):
+        # ⚠️ `PC` 在 [21] 里已经加载过同一个模块对象（`importlib` 不缓存但变量还在）
+        #    ⇒ 直接复用，重设路径即可；真缺了才重新加载（单独跑 [22] 的场合）。
+        if "PC" not in dir():
+            _s2 = importlib.util.spec_from_file_location("pick_card_onlymiss", pc_path)
+            PC = importlib.util.module_from_spec(_s2)
+            _s2.loader.exec_module(PC)
+        _sand2 = os.path.join(TMP, "pickcard-onlymiss")
+        if os.path.isdir(_sand2):
+            shutil.rmtree(_sand2)
+        os.makedirs(os.path.join(_sand2, "cards"))
+        PC.OUT = os.path.join(_sand2, "cards")
+        PC.MANIFEST = os.path.join(PC.OUT, "manifest.json")
+        PC.TMP = os.path.join(PC.OUT, "_tmp")
+        # 三条鱼：`OKA` 两版齐 / `MIS` 缺第 2 版的文件 / `MIS1` 缺第 1 版的文件
+        #   （两种「没出齐」都要认：缺哪一版都挑不了）
+        _man2 = {
+            "OKA": {"name": "两版齐的鱼",
+                    "morphs": {"shiny": {"label": "甲"}, "shiny-2": {"label": "乙"}}},
+            "MIS": {"name": "缺第二版的鱼",
+                    "morphs": {"shiny": {"label": "甲"}, "shiny-2": {"label": "乙"}}},
+            "MIS1": {"name": "缺第一版的鱼",
+                     "morphs": {"shiny": {"label": "甲"}, "shiny-2": {"label": "乙"}}},
+        }
+        with io.open(PC.MANIFEST, "w", encoding="utf-8") as _f:
+            _f.write(json.dumps(_man2, ensure_ascii=False, sort_keys=True))
+        for _p in ("OKA-shiny.png", "OKA-shiny-2.png",
+                   "MIS-shiny.png", "MIS1-shiny-2.png"):
+            with open(os.path.join(PC.OUT, _p), "wb") as _f:
+                _f.write(b"x")
+
+        def _runlist(*argv):
+            _old = sys.argv
+            sys.argv = ["pick-card.py"] + list(argv)
+            _buf = io.StringIO()
+            try:
+                with contextlib.redirect_stdout(_buf), contextlib.redirect_stderr(io.StringIO()):
+                    PC.main()
+                _rc = 0
+            except SystemExit as _e:
+                _rc = _e.code if isinstance(_e.code, int) else 1
+            finally:
+                sys.argv = _old
+            return _rc, _buf.getvalue()
+
+        _rc, _all = _runlist("--list")
+        check(_rc == 0 and "OKA" in _all and "MIS" in _all and "MIS1" in _all,
+              "`--list`（不筛）：三条都列（前提成立 —— 沙盒里真有一条是残缺的）")
+        _rc, _miss = _runlist("--list", "--only-missing")
+        check(_rc == 0 and "MIS" in _miss and "MIS1" in _miss,
+              "`--only-missing`：**缺版本的**两条都要列（缺第 1 版 / 缺第 2 版都算没出齐）")
+        check("OKA" not in _miss,
+              "`--only-missing`：**版本齐的那条不许出现**"
+              "（旧写法把这条留下、把残缺的两条筛掉 ⇒ 正好反了）")
+        check("版本没出齐" in _miss and "把某一版扶正" not in _miss,
+              "`--only-missing` 的表头写的是「版本没出齐」，且**不给**「把某一版扶正」的建议"
+              "（那几条真挑不了 —— 给这句话等于教人撞墙）")
+        # 反向验证的机器化版本：**同一个样本**上，新旧两种筛选方向给出的行集必须不相交
+        #   —— 否则说明样本没选对、上面的断言其实是恒真的（本项目踩过「判据条件写宽」）。
+        def _rows_of(_judge):
+            _out = []
+            for _fid in ("OKA", "MIS", "MIS1"):
+                _ks = ["shiny", "shiny-2"]
+                _od = [k for k in _ks
+                       if os.path.exists(os.path.join(PC.OUT, "%s-%s.png" % (_fid, k)))]
+                if _judge(len(_od), len(_ks)):
+                    _out.append(_fid)
+            return _out
+
+        check(_rows_of(lambda a, b: a < b) == ["MIS", "MIS1"]
+              and _rows_of(lambda a, b: not (a < b)) == ["OKA"],
+              "反向验证：新方向留 `MIS/MIS1`、旧方向留 `OKA`，两者**不相交** "
+              "⇒ 上面那两条断言在旧代码上必红（判据不是恒真）")
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

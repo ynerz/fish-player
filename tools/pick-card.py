@@ -80,7 +80,12 @@ def path_of(fid, key):
 
 
 def cmd_list(man, morph_filter, only_missing):
-    """按档列出「有第 2 版候选」的鱼 —— 给「挑哪一版」用。"""
+    """按档列出「有第 2 版候选」的鱼 —— 给「挑哪一版」用。
+
+    `only_missing=True`（`--only-missing`）时**只列版本没出齐的**：那几条**挑不了**
+    （`cmd_pick()` 会在「盘上缺文件」那一步 `die()`），列出来是为了回答
+    「清单里那条鱼为什么挑不动」—— 即「缺的是谁」。
+    """
     rows = []
     for fid in sorted(man):
         v = man[fid]
@@ -93,22 +98,38 @@ def cmd_list(man, morph_filter, only_missing):
             if len(ks) < 2:
                 continue
             on_disk = [k for k in ks if os.path.exists(path_of(fid, k))]
-            if only_missing and len(on_disk) < len(ks):
+            # 🔴 2026-10-11 修：这里原先写的是 `len(on_disk) < len(ks)` ⇒ **筛反了** ——
+            #    把「残缺的那几条」筛掉、留下「齐的」。而 `--only-missing` 的 help 与
+            #    本函数的意图都写着「只列版本没出齐的」，于是参数**接受了却干着相反的事**，
+            #    且**不报错**：当前盘上 26 条候选两版全在 ⇒ 加不加这个开关输出一字不差，
+            #    这个 bug 在现状里根本看不出来（同族：Q14 的「静默跳过」）。
+            #    ⚠️ 判据只许有一种写法：`on_disk ⊆ ks` ⇒ 「齐」就是 `len(on_disk) == len(ks)`。
+            if only_missing and len(on_disk) == len(ks):
                 continue
             sub = v.get("morphs") or {}
             cands = [v.get("morphVariant", {}).get(k) or (sub.get(k) or {}).get("label") or k
                      for k in ks]
             rows.append((fid, v.get("name", ""), morph, ks, cands))
     if not rows:
-        print("（没有「同一档有两版」的鱼 —— 要么还没出，要么已经挑完了）")
+        # 「一条都没有」在两种口径下意思完全不同 ⇒ 文案必须分开写：
+        # 不筛时是「没有可挑的鱼」，筛残缺时是「没有残缺的鱼」（= 全都齐，这是好消息）。
+        print("（没有版本没出齐的鱼 —— 每一档每一版都在盘上）" if only_missing
+              else "（没有「同一档有两版」的鱼 —— 要么还没出，要么已经挑完了）")
         return
-    print("有候选可挑的鱼 **%d 条**：\n" % len(rows))
+    print(("%s **%d 条**：\n" % ("版本没出齐（那几条挑不了）的鱼" if only_missing
+                                 else "有候选可挑的鱼", len(rows))))
     print("| id | 名字 | 档 | 第 1 版（正式） | 第 2 版（候选） |")
     print("|---|---|---|---|---|")
     for fid, name, morph, ks, cands in rows:
         print("| `%s` | %s | %s | %s | %s |"
               % (fid, name, morph, cands[0], cands[1] if len(cands) > 1 else "—"))
-    print("\n把某一版扶正：`python tools/pick-card.py <id> <档> <版号>`（例：`… A44 shiny 2`）")
+    if only_missing:
+        # ⚠️ 这一段**不能**照抄下面那句：这些鱼的某一版**不在盘上**，`cmd_pick()` 会
+        #    在「盘上缺文件」那一步 `die()` ⇒ 给一句「把某一版扶正」等于教人撞墙。
+        print("\n这些鱼先跑一轮出图补齐（`--skip-existing` 会认「档案缺了哪一版」），"
+              "齐了再来挑：`python tools/pick-card.py --list`")
+    else:
+        print("\n把某一版扶正：`python tools/pick-card.py <id> <档> <版号>`（例：`… A44 shiny 2`）")
 
 
 def cmd_pick(man, fid, morph, ver, dry):

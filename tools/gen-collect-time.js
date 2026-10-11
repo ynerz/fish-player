@@ -5,6 +5,9 @@
    内容：每个钓场每一条鱼的期望钓出时间；把颜色也算进去之后的期望时间。
    数据直接取自游戏本体（config / fields / fish / loot），
    改任何数值后重跑本脚本即可刷新。
+   ⚠️ 钓场等级的配色取自 `CFG.rankColor`（唯一真相在 `src/data/config.js`）——
+      这里**不许再内联那份七色表**（2026-10-11 第 49 轮收口；此前本文件里有三处拷贝，
+      与面板 / 说明书各漂一份且不报错）。
 
    用法： node tools/gen-collect-time.js
    ========================================================= */
@@ -234,7 +237,7 @@ const html = `<!DOCTYPE html>
       <th>最耗时的那条鱼</th>
     </tr>
     ${summaryRows.map(r => `<tr>
-      <td><span class="rk" style="background:${{D:'#8b98a5',C:'#5aa9d6',B:'#3f8f5f',A:'#2b6fc4',S:'#3b4a8f',SS:'#5b3fa8',SSS:'#a87a1f'}[r.rank]}">${r.rank}</span> ${r.name}</td>
+      <td><span class="rk" style="background:${CFG.rankColor[r.rank]}">${r.rank}</span> ${r.name}</td>
       <td class="num">${r.n}</td>
       <td class="num">${r.cyc.toFixed(1)} s</td>
       <td class="num"><b>${fmtHour(r.all)}</b></td>
@@ -280,7 +283,7 @@ const html = `<!DOCTYPE html>
         ${CFG.colorMorphs.map(cm => `<th class="num">${cm.name}</th>`).join('')}
       </tr>
       ${fieldData.map(d => `<tr>
-        <td><span class="rk" style="background:${{D:'#8b98a5',C:'#5aa9d6',B:'#3f8f5f',A:'#2b6fc4',S:'#3b4a8f',SS:'#5b3fa8',SSS:'#a87a1f'}[d.field.rank]}">${d.field.rank}</span> ${d.field.name}</td>
+        <td><span class="rk" style="background:${CFG.rankColor[d.field.rank]}">${d.field.rank}</span> ${d.field.name}</td>
         ${d.colorStat.map(cs => `<td class="num">${fmtHour(cs.hours)}</td>`).join('')}
       </tr>`).join('')}
     </table>
@@ -293,7 +296,7 @@ const html = `<!DOCTYPE html>
   <h2>三、各钓场逐条明细</h2>
 ${fieldData.map(d => `
   <h3 id="f-${d.field.id}">
-    <span class="rk" style="background:${{D:'#8b98a5',C:'#5aa9d6',B:'#3f8f5f',A:'#2b6fc4',S:'#3b4a8f',SS:'#5b3fa8',SSS:'#a87a1f'}[d.field.rank]}">${d.field.rank}</span>
+    <span class="rk" style="background:${CFG.rankColor[d.field.rank]}">${d.field.rank}</span>
     ${d.field.name}
     <span class="fmeta">· ${d.rows.length} 种 · 平均单竿 ${d.cyc.toFixed(1)} 秒 · 咬口倍率 ×${d.field.biteMul}</span>
   </h3>

@@ -14,12 +14,12 @@ G.Panels = (function () {
      而设置面板每重绘一次就会跑一遍 render() ⇒ 不拦着就会攒下一串回调。 */
   var voiceWired = false;
 
-  /* 钓场等级配色 —— **只此一份**。
-     原先在「钓场选择」「图鉴·各钓场进度」「统计·各钓场进度」三处各写了一遍，
-     而且兜底色还不一样（一处 #1f8fd6、一处 #8b98a5、一处干脆没有兜底）。
-     加一个新等级时只要漏改一处，同一张卡片就会在不同面板里变色。 */
-  var FIELD_RANK_COLOR = { D:'#8b98a5', C:'#5aa9d6', B:'#3f8f5f', A:'#2b6fc4', S:'#3b4a8f', SS:'#5b3fa8', SSS:'#a87a1f' };
-  function rankColor(rank) { return FIELD_RANK_COLOR[rank] || '#8b98a5'; }
+  /* 钓场等级配色 —— 表**只有一处**，在 `src/data/config.js` 的 `CFG.rankColor`。
+     这里只留取色入口（默认色也走表里的 D 档，别写第二个字面量）。
+     ⚠️ 本文件原来自己存了一份 7 色表（注释还写着「只此一份」）—— 那只对 `src/` 成立：
+        `docs/说明书.html` 与 `tools/gen-collect-time.js` 各抄了一份，改一处其余各自漂、
+        且不报错。2026-10-11 第 48 轮把表提到 config.js（三个消费方都加载它）。 */
+  function rankColor(rank) { return CFG.rankColor[rank] || CFG.rankColor.D; }
 
   /* 钓场解锁门槛 —— **从钓场数据现算**，绝不在文案里写死。
      规则：普通钓场「本场图鉴 ≥ collectionPct 就解锁下一个」，

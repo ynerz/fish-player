@@ -6778,6 +6778,98 @@ G_('Panels · 图鉴懒绘制（IntersectionObserver 真路径）');
   }
 })();
 
+/* =========================================================
+   钓场等级配色只许一处（第 48 轮）
+   =========================================================
+   病根：这七个色值原先在 5 个地方各写一遍 —— `src/ui/panels.js` 一份
+   （注释还自称「只此一份」）+ `docs/说明书.html` 两份 + `tools/gen-collect-time.js`
+   三处内联表。改一处、其余各自漂，**一句都不报错**（同一张钓场卡片在不同页面里
+   会变成两种颜色）。现在唯一真相 = `src/data/config.js` 的 `CFG.rankColor`，
+   三个消费方都加载 config.js ⇒ 都能读它。
+   ⚠️ 标记取 SSS 的色值（它最独特），**拼接构造**：本文件可能被下一轮的扫描面罩住，
+   写死字面量就会自己喂饱自己（同 ㉓ / 33-f 那个「自指喂饱」坑）。
+   ⚠️ 本判据的扫描面**只到 `src/` + `assets/` + `docs/说明书.html`** ——
+   `tools/gen-collect-time.js` 与它的生成物 `docs/收集耗时表.html` 还有 3 处内联表，
+   没进这张网（已登记待办：接上 `CFG.rankColor` 后把扫描面扩到 `tools/`）。
+   ========================================================= */
+G_('配色表只许一处 · config 是唯一真相，说明书 / 面板必须派生');
+(function () {
+  const MARK = '#' + 'a87a1f';                       // SSS 档色 —— 只在 config.js 出现
+  const OTHERS = ['5aa9d6', '3f8f5f', '2b6fc4', '3b4a8f', '5b3fa8', 'a87a1f']
+    .map(h => '#' + h);                              // 非 D 档 —— 说明书里一经出现就是又抄了一份
+
+  /* ① 表本身必须覆盖 fields.js 现算出来的全部档位（抓不到集合就说明判据会恒真） */
+  const ranks = [...new Set(G.FIELDS.map(f => f.rank))].sort();
+  ok(ranks.length >= 7, '钓场档位集合抓得到（抓不到 ⇒ 本判据会恒真）',
+     '实际 ' + ranks.length + ' 个：' + ranks.join('/'));
+  const bad = ranks.filter(r => !/^#[0-9a-f]{6}$/.test(String((CFG.rankColor || {})[r] || '')));
+  ok(bad.length === 0,
+     'CFG.rankColor 覆盖全部 ' + ranks.length + ' 个档位且都是 #rrggbb（唯一真相在 config.js）',
+     '缺/非法：' + bad.join(','));
+  /* 反向：表里不许有 fields 用不到的档位（多一个 = 又一个没人读的死键，同 §32-j 口径） */
+  const extra = Object.keys(CFG.rankColor || {}).filter(k => ranks.indexOf(k) < 0);
+  ok(extra.length === 0, 'CFG.rankColor 里没有 fields 用不到的档位（死键）',
+     '多出：' + extra.join(','));
+
+  /* ② 标记在 src/ + assets/ + docs/说明书.html 里恰好 1 次 = config.js 里那一处 */
+  const files = [];
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(nm => {
+      const rel = dir + '/' + nm;
+      if (fs.statSync(path.join(ROOT, rel)).isDirectory()) walk(rel);
+      else if (/\.(js|css)$/.test(nm)) files.push(rel);
+    });
+  })('src');
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(nm => {
+      const rel = dir + '/' + nm;
+      if (fs.statSync(path.join(ROOT, rel)).isDirectory()) walk(rel);
+      else if (/\.(js|css)$/.test(nm)) files.push(rel);
+    });
+  })('assets');
+  files.push('docs/说明书.html');
+  /* 🔴 只扫代码、不扫注释（硬规矩 ①）：否则「注释里提一句这个色值」就会误报 ——
+     反向验证里专有一组「注释写同样的词必须仍绿」。行注释要放过 `://`（说明书里有图片 URL）。 */
+  const stripCmt = t => t
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  const hits = files.map(rel => ({
+    rel: rel,
+    n: (stripCmt(fs.readFileSync(path.join(ROOT, rel), 'utf8')).match(new RegExp(MARK, 'g')) || []).length,
+  })).filter(x => x.n);
+  ok(hits.length === 1 && hits[0].rel === 'src/data/config.js' && hits[0].n === 1,
+     'SSS 档色（' + MARK + '）在 src/ + assets/ + 说明书里**恰好 1 次**（就是 config.js 那张表）',
+     hits.map(h => h.rel + '×' + h.n).join(' / ') || '一次都没出现（表被搬走了？）');
+
+  /* ③ 两个手写消费方必须真的派生（抓不到就报错，别让「没人读」静默通过） */
+  const man = stripCmt(fs.readFileSync(path.join(ROOT, 'docs/说明书.html'), 'utf8'));
+  ok(man.indexOf('CFG.rankColor') >= 0,
+     '说明书读的是 CFG.rankColor（不是自己那份表）—— 抓不到就是又抄回去了');
+  const manOther = OTHERS.filter(h => man.indexOf(h) >= 0);
+  ok(manOther.length === 0,
+     '说明书里不再出现那 6 个非 D 档色值（一经出现 = 又内联了一份表）',
+     '出现：' + manOther.join(','));
+  /* ⚠️ 判据**只看 `RAR_COLOR` 那一行的定义**：反向验证 H 组当场抓到第一版写成
+     「整个文件里出现过 `CFG.rarity.map`」⇒ 被同页「稀有度图例」那段的派生喂饱，
+     手抄回去照样绿（判据条件写宽 = 假报，硬规矩 ⑤）。 */
+  const rarDef = (man.match(/var\s+RAR_COLOR\s*=\s*[^\n;]*/) || [''])[0];
+  ok(/var\s+RAR_COLOR\s*=\s*CFG\.rarity\./.test(rarDef),
+     '说明书的稀有度四色是从 CFG.rarity 现算的（原先手抄一份，与图例那段分家）',
+     rarDef || '找不到 RAR_COLOR 定义 ⇒ 判据会恒真');
+  const pnl = stripCmt(fs.readFileSync(path.join(ROOT, 'src/ui/panels.js'), 'utf8'));
+  ok(pnl.indexOf('CFG.rankColor') >= 0, '面板 rankColor() 从 CFG.rankColor 取色');
+  ok(pnl.indexOf(MARK) < 0, '面板里不再留着那份 7 色内联表（SSS 档色已消失）');
+  /* ④ 收集耗时表的生成器同理（它此前有 **3 处**内联表 —— 本项目拷贝最多的一处）。
+     ⚠️ 它的**生成物** `docs/收集耗时表.html` 不在扫描面内：那里面是**渲染结果**，
+        靠重跑生成器同步（实测：改完重跑，`git diff` 为空 = 逐字节等价）。 */
+  const gct = stripCmt(fs.readFileSync(path.join(ROOT, 'tools/gen-collect-time.js'), 'utf8'));
+  ok(gct.indexOf('CFG.rankColor') >= 0, '收集耗时表的生成器读 CFG.rankColor（抓不到 = 又抄回去了）');
+  const gctOther = OTHERS.filter(h => gct.indexOf(h) >= 0);
+  ok(gctOther.length === 0,
+     '生成器里不再出现那 6 个非 D 档色值（此前 3 处内联表 ⇒ 已收口）',
+     '出现：' + gctOther.join(','));
+})();
+
 /* ---------- 汇总 ---------- */
 console.log('\n' + '='.repeat(52));
 if (fail) { console.log(`\u2716 测试未通过：${pass} 通过 / ${fail} 失败\n`); process.exit(1); }

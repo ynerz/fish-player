@@ -9,7 +9,6 @@
     --ink:#1d3446; --ink2:#5b7488; --ink3:#93a9b8;
     --line:#d8e6f0; --bg:#eef6fb; --card:#fff;
     --pri:#1f8fd6; --gold:#e8901a;
-    --r0:#8b98a5; --r1:#2b8fe0; --r2:#8b5cf6; --r3:#e8901a;
   }
   *{box-sizing:border-box;}
   body{
@@ -595,8 +594,14 @@
 <script>
 (function () {
   var U = G.U, FA = G.FishArt, CFG = G.CONFIG;
-  var RAR_COLOR = ['#8b98a5', '#2b8fe0', '#8b5cf6', '#e8901a'];
+  /* 颜色**一律从游戏数据现算**，本页不许再抄一份（第 48 轮）：
+     · 稀有度四色 ← `CFG.rarity[].color`（图例那一段本来就这么取，只有下面那几处是手抄的）
+     · 钓场等级七色 ← `CFG.rankColor`（唯一真相在 config.js，面板与生成器共用同一张表）
+     ⚠️ 手抄的代价不是「不好看」而是**静默分家**：改 config 之后本页仍是旧色，一句都不报错。
+     `tools/test.js` 的「钓场等级配色只许一处」盯着这一页不许再出现那七个色值。 */
+  var RAR_COLOR = CFG.rarity.map(function (r) { return r.color; });
   var RAR_NAME  = ['普通', '稀有', '史诗', '传说'];
+  var RK = CFG.rankColor;
   FA.setStyle('flat');   // 先用原画风
 
   var dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -624,14 +629,13 @@
   var ft = document.getElementById('fieldTable');
   G.FIELDS.forEach(function (f) {
     var n = G.FISH_BY_FIELD[f.id].length;
-    var rk = { D:'#8b98a5', C:'#5aa9d6', B:'#3f8f5f', A:'#2b6fc4', S:'#3b4a8f', SS:'#5b3fa8', SSS:'#a87a1f' };
     var cond = f.requires == null ? '开局即开放'
       : (f.requireFull ? f.requires.join('~') + ' 全部 ' + Math.round(f.collectionPct * 100) + '%'
                        : f.requires + ' 图鉴 ' + Math.round(f.collectionPct * 100) + '%');
     ft.insertAdjacentHTML('beforeend',
       '<tr><td><span style="display:inline-block;width:24px;height:24px;line-height:24px;text-align:center;' +
-      'border-radius:7px;background:' + rk[f.rank] + ';color:#fff;font-weight:800;font-size:12px">' + f.rank + '</span></td>' +
-      '<td><b>' + f.name + '</b>' + (f.hidden ? ' <span style="color:#a87a1f;font-size:11px">隐藏</span>' : '') +
+      'border-radius:7px;background:' + RK[f.rank] + ';color:#fff;font-weight:800;font-size:12px">' + f.rank + '</span></td>' +
+      '<td><b>' + f.name + '</b>' + (f.hidden ? ' <span style="color:' + RK.SSS + ';font-size:11px">隐藏</span>' : '') +
       '<div style="font-size:11.5px;color:#93a9b8">' + f.desc.slice(0, 30) + '…</div></td>' +
       '<td class="num">' + n + '</td>' +
       '<td>' + cond + '</td>' +
@@ -663,9 +667,8 @@
     var list = G.FISH_BY_FIELD[f.id];
     var blk = document.createElement('div');
     blk.className = 'fieldblock';
-    var rk = { D:'#8b98a5', C:'#5aa9d6', B:'#3f8f5f', A:'#2b6fc4', S:'#3b4a8f', SS:'#5b3fa8', SSS:'#a87a1f' };
     blk.innerHTML =
-      '<div class="fb-head" style="background:' + rk[f.rank] + '">' +
+      '<div class="fb-head" style="background:' + RK[f.rank] + '">' +
         '<div class="rk">' + f.rank + '</div>' +
         '<b>' + f.name + '</b>' +
         '<span style="font-size:12px;opacity:.85">' + f.sub + '</span>' +

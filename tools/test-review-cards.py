@@ -21,8 +21,10 @@ import contextlib
 import hashlib
 import importlib.util
 import io
+import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -1048,6 +1050,103 @@ def main():
         check(len(re.findall(r"def normalize_argv\(", _rr_code)) == 1,
               "`normalize_argv()` 只有一处实现（实得 %d 处）—— 两份必然分家"
               % len(re.findall(r"def normalize_argv\(", _rr_code)))
+
+    print("\n[21] pick-card：干跑形态真能跑、且真不落盘（本轮修的第二个 bug）")
+    # 病根（2026-10-11 实测）：`tools/pick-shiny.cmd` 把 `%2` 当**版号**原样转给
+    #   `pick-card.py`（`… %ID% shiny %VER%`），而它的文件头与 `docs/开发者文档.md`
+    #   都把干跑写成 `pick-shiny.cmd A44 dry` ⇒ 实际到达 `pick-card.py A44 shiny dry`
+    #   ⇒ argparse 报 `invalid int value: 'dry'`（退出码 2）；另一种写法
+    #   `pick-shiny.cmd A44 --dry` 能过 argparse，但版号缺了 ⇒ 报用法错。
+    #   ⇒ **两种广告写法都跑不通**（和 [20] 那个 `check` / `30` 同族）。
+    # 🔴 这一段会在**临时沙盒**里做一次**真的对换**（合成台账 + 两个假文件）：
+    #     绝不碰 `assets/cards/`。这正是「工具跑成功 ≠ 产物能用」那条教训的正解 ——
+    #     判据要真跑一次那条路径（对换是**不可逆**的动作，只有真跑一次才看得见它写没写）。
+    pc_path = os.path.join(TOOLS, "pick-card.py")
+    if os.path.exists(pc_path):
+        _specp = importlib.util.spec_from_file_location("pick_card_args", pc_path)
+        PC = importlib.util.module_from_spec(_specp)
+        _specp.loader.exec_module(PC)
+        _sand = os.path.join(TMP, "pickcard-sandbox")
+        if os.path.isdir(_sand):
+            shutil.rmtree(_sand)
+        os.makedirs(os.path.join(_sand, "cards"))
+        PC.OUT = os.path.join(_sand, "cards")
+        PC.MANIFEST = os.path.join(PC.OUT, "manifest.json")
+        PC.TMP = os.path.join(PC.OUT, "_tmp")
+        _man = {"A44": {"name": "沙盒测试鱼",
+                        "morphs": {"shiny": {"label": "甲", "candidate": "shiny/1"},
+                                   "shiny-2": {"label": "乙", "candidate": "shiny/7"}},
+                        "morphVariant": {}}}
+        with io.open(PC.MANIFEST, "w", encoding="utf-8") as _f:
+            _f.write(json.dumps(_man, ensure_ascii=False, sort_keys=True))
+        _pa = os.path.join(PC.OUT, "A44-shiny.png")
+        _pb = os.path.join(PC.OUT, "A44-shiny-2.png")
+        with open(_pa, "wb") as _f:
+            _f.write(b"AAA")
+        with open(_pb, "wb") as _f:
+            _f.write(b"BB")
+
+        def _snap():
+            """两张**图**的 md5（对换的直接证据）。
+
+            ⚠️ 台账**不能**一起取字节 md5：`save_manifest()` 会把 JSON 按自己的
+               `indent=1 / sort_keys=True` 重写 ⇒ 换回来之后字节也跟合成样本不同，
+               判据会假红（第一版就是这么栽的）。台账按**语义**比（json 相等）。
+            """
+            _o = {}
+            for _p in (_pa, _pb):
+                with open(_p, "rb") as _fp:
+                    _o[os.path.basename(_p)] = hashlib.md5(_fp.read()).hexdigest()
+            return _o
+
+        def _man_now():
+            return json.load(io.open(PC.MANIFEST, encoding="utf-8"))["A44"]["morphs"]
+
+        def _runpick(*argv):
+            _old = sys.argv
+            sys.argv = ["pick-card.py"] + list(argv)
+            _buf = io.StringIO()
+            try:
+                # `die()` 抛的是 `SystemExit("❌ …")`（字符串码）⇒ 接住并把文案当报告，
+                # 不让「参数面坏了」把整个测试宿主带崩（同 [20]）
+                with contextlib.redirect_stdout(_buf), contextlib.redirect_stderr(io.StringIO()):
+                    PC.main()
+                _rc = 0
+            except SystemExit as _e:
+                _rc = _e.code if isinstance(_e.code, int) else 1
+                if isinstance(_e.code, str):
+                    _buf.write(_e.code)
+            finally:
+                sys.argv = _old
+            return _rc, _buf.getvalue()
+
+        check(PC.normalize_dry(["A44", "shiny", "dry"]) == ["A44", "shiny", "--dry"]
+              and PC.normalize_dry(["--dry"]) == ["--dry"],
+              "裸词 `dry` 归一到 `--dry`（唯一一处；选项形态原样通过）")
+        _s0 = _snap()
+        _m0 = _man_now()
+        for _arg, _what in ((("A44", "shiny", "dry"), "`dry`（裸词，.cmd 文件头广告的写法）"),
+                            (("A44", "shiny", "--dry"), "`--dry`（省版号）"),
+                            (("A44", "shiny", "2", "--dry"), "`2 --dry`（带版号）")):
+            _rc, _t = _runpick(*_arg)
+            check(_rc == 0 and "对换" in _t,
+                  "%s：退出 0 且真打出了「会发生什么」（实得 rc=%d）" % (_what, _rc))
+            check(_snap() == _s0 and _man_now() == _m0,
+                  "%s：**一个字节都没写**（两张图与台账都没动）" % _what)
+        _rc, _t = _runpick("A44", "shiny")
+        check(_rc != 0 and "用法" in _t and _snap() == _s0 and _man_now() == _m0,
+              "不带 `--dry` 又省版号 ⇒ 报用法错且不落盘"
+              "（防手滑把「少打一个数字」直接变成一次真换 —— 那一步不可逆）")
+        _rc, _t = _runpick("A44", "shiny", "2")
+        _now = _man_now()
+        with open(_pa, "rb") as _f:
+            _pa_bytes = _f.read()
+        check(_rc == 0 and _snap() != _s0 and _now["shiny"]["label"] == "乙"
+              and _now["shiny-2"]["label"] == "甲" and _pa_bytes == b"BB",
+              "真换：**文件与台账一起**换（只换文件 = 台账开始描述另一张图，而且不报错）")
+        _rc, _t = _runpick("A44", "shiny", "2")
+        check(_rc == 0 and _snap() == _s0 and _man_now() == _m0,
+              "再跑一次同一条命令就换回来（可反悔）")
 
     print("\n" + "=" * 52)
     if fails:

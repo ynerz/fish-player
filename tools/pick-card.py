@@ -19,6 +19,11 @@
     python tools/pick-card.py A44 shiny 2          # 把 A44 的闪光第 2 版扶正
     python tools/pick-card.py A44 shiny 2 --dry    # 只看会发生什么，不落盘
 
+🔴 **干跑（`--dry`）时可省版号**，默认看「第 2 版」—— `pick-shiny.cmd A44 dry` /
+   `pick-shiny.cmd A44 --dry` 这两种写法都走这条路（`pick-shiny.cmd` 把 `%2` 当版号
+   原样转过来，所以位置形态的 `dry` 由 `normalize_dry()` 归一）。
+   **不带 `--dry` 必须显式给版号** —— 那一步是真的对换文件与台账。
+
 ⚠️ 扶正之后那张图会**立刻**成为游戏里显示的那张（`<id>-<档>.png`）；
    评审台的缩略图重新跑一次 `python tools/review-cards.py` 才会刷新。
 """
@@ -162,6 +167,22 @@ def cmd_pick(man, fid, morph, ver, dry):
     print("   · **再跑一次同一条命令就换回来**（想反悔不用别的操作）")
 
 
+def normalize_dry(argv):
+    """把**位置形态**的 `dry` 归一成 `--dry` —— 唯一一处做这件事。
+
+    🔴 为什么（2026-10-11 实测出来的真 bug）：
+      `tools/pick-shiny.cmd` 把 `%2` 当**版号**原样转给本脚本
+      （`pick-card.py %ID% shiny %VER%`），而它的文件头与 `docs/开发者文档.md`
+      都把干跑写成 `pick-shiny.cmd A44 dry` ⇒ 实际到达的是
+      `pick-card.py A44 shiny dry` ⇒ argparse 报 `invalid int value: 'dry'`（退出码 2）。
+      另一种写法 `pick-shiny.cmd A44 --dry` 能过 argparse，但版号缺了 ⇒
+      本脚本报「❌ 用法：<id> <档> <版号>」，**两种广告写法都跑不通**。
+    ⚠️ 归一只在这一处做；`.cmd` 里不许再拼参数（它只能纯 ASCII，且本项目的工具
+       执行不了 cmd.exe ⇒ 写在那边等于没验证）。
+    """
+    return ['--dry' if a == 'dry' else a for a in argv]
+
+
 def main():
     ap = argparse.ArgumentParser(description="把同一档的某一版扶正成正式卡（对换，可反悔）")
     ap.add_argument("id", nargs="?", default="", help="鱼 id，如 A44 / SS47 / SSS100")
@@ -172,7 +193,8 @@ def main():
     ap.add_argument("--only-missing", action="store_true",
                     help="配合 --list：只列「版本没出齐」的（那几条挑不了）")
     ap.add_argument("--dry", action="store_true", help="只打印，不落盘")
-    args = ap.parse_args()
+    # 位置形态的 `dry` 在这里归一成 `--dry`，见 normalize_dry() 的注释
+    args = ap.parse_args(normalize_dry(sys.argv[1:]))
 
     if not os.path.isdir(OUT):
         die("找不到 %s" % os.path.relpath(OUT, ROOT))
@@ -181,9 +203,18 @@ def main():
     if args.list or not args.id:
         cmd_list(man, args.morph_filter, args.only_missing)
         return
-    if not args.morph or not args.ver:
+    if not args.morph:
         die("用法：`python tools/pick-card.py <id> <档> <版号>`，或 `--list` 先看看有哪些")
-    cmd_pick(man, args.id, args.morph, args.ver, args.dry)
+    ver = args.ver
+    if not ver and args.dry:
+        # 🔴 `--dry` 是**只读路径** ⇒ 允许省版号，默认看「第 2 版」（挑的就是它）。
+        #    不带 `--dry` 时**一律要求显式版号** —— 那一步是**真的对换文件与台账**，
+        #    让「少打一个数字」直接变成一次落盘，属不可逆的手滑（§9.1 第 4 条）。
+        ver = 2
+    if not ver:
+        die("用法：`python tools/pick-card.py <id> <档> <版号>`"
+            + "（只看会发生什么就加 `--dry`，那时版号可省），或 `--list` 先看看有哪些")
+    cmd_pick(man, args.id, args.morph, ver, args.dry)
 
 
 if __name__ == "__main__":

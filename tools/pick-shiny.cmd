@@ -9,6 +9,9 @@ rem
 rem    double-click           -> list the legendary fish that still have 2 versions
 rem    pick-shiny.cmd A44     -> swap in version 2 for A44 (defaults to version 2)
 rem    pick-shiny.cmd A44 2   -> same thing, explicit
+rem    pick-shiny.cmd A44 dry -> DRY RUN: prints what would happen, writes nothing
+rem                              ("--dry" works too; the bare word is normalised in
+rem                               tools\pick-card.py, not here)
 rem
 rem  WHAT A SWAP MEANS: the pair is SWAPPED (files + the manifest records together),
 rem  so the chosen image becomes the live card assets\cards\A44-shiny.png and the

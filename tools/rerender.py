@@ -12,10 +12,11 @@
    （`--skip-existing` 与 `--stale` 共用同一份）。这里只负责
    「自检 → 报数 → 反复调 gen-art → 提示下一步」。
 
-用法：
+用法（**两种写法都认** —— `.cmd` 的文件头与开发者文档写的是位置形态，命令行习惯写选项形态）：
     python tools/rerender.py                 # 自检 → 报数 → 开跑（不限时长）
-    python tools/rerender.py --check         # **只自检 + 报数**，一张都不出（安全）
-    python tools/rerender.py -m 30           # 每 30 分钟收一次工，然后接着跑
+    python tools/rerender.py check           # **只自检 + 报数**，一张都不出（安全）＝ --check
+    python tools/rerender.py 30              # 每 30 分钟收一次工，然后接着跑      ＝ -m 30
+    python tools/rerender.py --check / -m 30 # 等价的选项形态（脚本 / 门禁里用这个）
 """
 import argparse
 import io
@@ -140,12 +141,55 @@ def next_steps():
     say('=' * 59)
 
 
+def normalize_argv(argv):
+    """把**位置形态**归一成 argparse 认识的选项 —— 唯一一处做这件事。
+
+    🔴 为什么必须有它（2026-10-11 实测的真 bug）：
+      `tools/gen-art-loop.cmd` 是**双击入口**，它的文件头写着
+      `gen-art-loop.cmd check`（只看一眼要出多少张）与 `gen-art-loop.cmd 30`
+      （每 30 分钟收工），`docs/开发者文档.md` 与 `docs/改进待办.md` 也照着写。
+      而 argparse 只认 `--check` / `-m N`：那两个位置词会被当成
+      「不认识的参数」**直接退出码 2**（`unrecognized arguments: check`）。
+      ⇒ 最常用的「先看看有多少张」照着文档敲就报错，且看起来像脚本坏了。
+
+    ⚠️ 归一只在这一处做（两处写法会被下一轮改乱）；`.cmd` 里不许再拼参数
+       （它只能纯 ASCII，且本项目的工具执行不了 cmd.exe ⇒ 写在那边等于没验证）。
+
+    ⚠️ **必须跳过「选项的值」**：`-m 30` / `--budget-min 30` 里的 `30` 是上一个选项的值，
+       不能当成位置形态再归一一次（第一版没跳 ⇒ `argv` 变成 `['-m','--budget-min','30']`，
+       实测报 `argument -m/--budget-min: expected one argument`，退出码 2）。
+       判据用一条**通用**规则而不是列选项名：**紧跟在「以 `-` 开头的 token」后面那个 token 原样放行**
+       （列选项名就等于把选项名写第二份，改名时两边不会一起动）。
+    """
+    out = []
+    prev_opt = False
+    for a in argv:
+        if prev_opt:
+            out.append(a)              # 上一个 token 是选项 ⇒ 这个是它的值，原样放行
+            prev_opt = False
+            continue
+        if a == 'check':
+            out.append('--check')
+        elif a.startswith('-'):
+            out.append(a)
+            prev_opt = True
+        elif a.replace('.', '', 1).isdigit():
+            # 裸数字 = 每段多少分钟。⚠️ 只认十进制数字串（`-5` / `1e3` / `3.5.7` 都落到 else，
+            #    交给 argparse 去报错，免得把明显写错的输入悄悄解释成别的东西）
+            out.append('--budget-min')
+            out.append(a)
+        else:
+            out.append(a)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description='一键重出（编排层，判据在 gen-art.py）')
     ap.add_argument('--check', action='store_true', help='只自检 + 报数，一张都不出')
     ap.add_argument('-m', '--budget-min', type=float, default=0,
                     help='每段多少分钟（0 = 不限，一口气跑完）')
-    args = ap.parse_args()
+    # 位置形态（`check` / `30`）在这里归一成上面两条选项，见 normalize_argv() 的注释
+    args = ap.parse_args(normalize_argv(sys.argv[1:]))
 
     head('钓鱼人生 · 重出卡片（过期的那些）')
     say('工作目录：%s' % ROOT)

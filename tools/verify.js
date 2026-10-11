@@ -8515,11 +8515,101 @@ let skipBad = 0;
     }
   }
 
+  /* ⑦ 🆕 2026-10-11（自动化第 44 轮）：**`.cmd` 广告的用法必须真能跑**。
+     实测出来的真 bug：`tools/gen-art-loop.cmd` 的文件头、`docs/开发者文档.md` 与
+     `docs/改进待办.md` 都写着 `gen-art-loop.cmd check`（先看一眼要出多少张）与
+     `gen-art-loop.cmd 30`（每 30 分钟收工），而 `tools/rerender.py` 的 argparse 只认
+     `--check` / `-m N` ⇒ 那两个**位置形态会直接退出码 2**（实测报
+     `unrecognized arguments: check`）。最常用的「先看量」照着文档敲就是报错，
+     而且报的是 usage 而不是「你参数写错了」，看起来像脚本坏了。
+     修法 = 在 `rerender.py` 里**唯一一处**归一（`normalize_argv()`），两种写法都认。
+
+     判据（全在源码上；verify 跑不了外部命令，真行为由反向验证与探针证明）：
+       a) `def normalize_argv(` **恰好一处** —— 归一只许有一份；
+       b) `main()` 的 `parse_args()` 收的**确实是它**（写了没人用 = 白写，且不报错的静默失效）；
+       c) 两种位置形态都被覆盖：`check` 的字面量 + 「纯数字 → `--budget-min`」的判据；
+       d) **`.cmd` 的用法行里广告的形态**必须每一种都能在归一函数里找到 ——
+          抓不到用法行就报错（别让它静默退化成一条恒真的空断言）。
+
+     ⚠️ 判据跑在**剥过注释与 docstring** 的源码上：`rerender.py` 的 docstring 里就写着
+        `python tools/rerender.py check`（那是给用户看的用法说明），不剥的话 (c) 会被
+        **文档本身喂饱** —— 反向验证第 ③ 组（把归一段删掉）当场就会是假绿。
+     ⚠️ 行尾注释也要剥（硬规矩 ㊵）：`x = 1  # 'check'` 那种能喂饱子串判据。 */
+  if (fs.existsSync(rr)) {
+    /* 剥 `"""` / `'''` 块 + 行内 `#` 注释；引号内的 `#` 不算注释（逐字符扫，不靠正则猜） */
+    const stripPyAll = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
+      .split(String.fromCharCode(10)).map(line => {
+        let q = null;
+        for (let i = 0; i < line.length; i++) {
+          const c = line[i];
+          if (q) { if (c === q && line[i - 1] !== '\\') q = null; }
+          else if (c === '"' || c === "'") q = c;
+          else if (c === '#') return line.slice(0, i);
+        }
+        return line;
+      }).join(String.fromCharCode(10));
+    /* 判据自检：剥注释有没有真的剥掉（整行 / 行尾两种），以及引号里的 `#` 有没有被误剥 */
+    const SELF_SRC = '# def normalize_argv(a): pass' + String.fromCharCode(10)
+      + 'x = "a#b"  # def normalize_argv(b): pass' + String.fromCharCode(10);
+    const selfStripped = stripPyAll(SELF_SRC);
+    if ((selfStripped.match(/^def normalize_argv\(/gm) || []).length !== 0
+        || selfStripped.indexOf('"a#b"') < 0) {
+      err('第 51 节 ⑦ 的判据自检不成立：剥注释没剥干净（整行 / 行尾），'
+        + '或把字符串里的 `#` 当成注释剥掉了 —— 判据会假绿 / 假红');
+      skipBad++;
+    }
+    const rrCode = stripPyAll(fs.readFileSync(rr, 'utf8'));
+    const normDefs = (rrCode.match(/^def normalize_argv\(/gm) || []).length;
+    if (normDefs !== 1) {
+      err("`tools/rerender.py` 的 `def normalize_argv(` 有 " + normDefs + ' 处（应恰 1 处）—— '
+        + '位置形态的归一只许有一份；两份必然分家，而分家的表现是'
+        + '「照文档敲报 usage」或「静默把某个参数解释成别的东西」');
+      skipBad++;
+    }
+    const nb = bodyOf(rrCode, 'def normalize_argv(') || '';
+    const rrMainBody = bodyOf(rrCode, 'def main(') || '';
+    if (!has(rrMainBody, 'parse_args(normalize_argv(')) {
+      err('`tools/rerender.py` 的 `main()` 没有把 `normalize_argv()` 的结果交给 `parse_args()`'
+        + ' —— 归一函数写了没人用，`gen-art-loop.cmd check` 照旧退出码 2（静默失效）');
+      skipBad++;
+    }
+    const LIT_CHECK = "'check'";
+    if (!has(nb, LIT_CHECK) || !has(nb, '--budget-min') || !has(nb, 'isdigit()')) {
+      err('`tools/rerender.py` 的 `normalize_argv()` 没同时覆盖两种位置形态'
+        + '（要 `check` 的字面量 + 「纯数字 → `--budget-min`」的判据）'
+        + ' —— 少一种就是 `.cmd` 上写着的一种用法跑不通');
+      skipBad++;
+    }
+    /* `.cmd` 的用法行：`... MODE:  gen-art-loop.cmd <形态> ...` */
+    const usageForm = [];
+    if (fs.existsSync(loopCmd)) {
+      fs.readFileSync(loopCmd, 'utf8').split(String.fromCharCode(10)).forEach(l => {
+        const m = /MODE:\s*gen-art-loop\.cmd\s+(\S+)/.exec(l);
+        if (m) usageForm.push(m[1]);
+      });
+    }
+    if (usageForm.length < 2) {
+      err('`tools/gen-art-loop.cmd` 里找不到「用法行」（形如 `... MODE:  gen-art-loop.cmd check`）'
+        + ' —— 找不到就报错，不许让 ⑦-d 静默变成一条恒真的空断言'
+        + '（真要改这句广告的写法，就来更新本节的正则）');
+      skipBad++;
+    } else {
+      const notKnown = usageForm.filter(f => (/^\d+(\.\d+)?$/.test(f) ? !has(nb, 'isdigit()')
+        : !has(nb, "'" + f + "'")));
+      if (notKnown.length) {
+        err('`tools/gen-art-loop.cmd` 广告了 `normalize_argv()` 不认的用法形态：'
+          + notKnown.join('、') + ' —— 用户照着文件头敲就是报错（这正是本轮修的 bug）');
+        skipBad++;
+      }
+    }
+  }
+
   if (!skipBad) {
     ok('生图管线判据同源：`card_state()` 一处定义、`--skip-existing` 与 `--stale` 共用它，'
       + '覆盖 文件 / 派生 / 提示词 / 步数 四项，清单收尾自动刷新，耗时估计有实测来源；'
       + '**互斥锁判据也只有 `lock_state()` 一处，启动器（`.cmd` → `rerender.py`）走 `--who` 问它、'
-      + '自己不判锁，且四份启动器都是纯 ASCII**');
+      + '自己不判锁，且四份启动器都是纯 ASCII；`.cmd` 广告的位置形态（`check` / `30`）'
+      + '由 `rerender.py` 唯一一处 `normalize_argv()` 归一，照着文件头敲真能跑**');
   }
 })();
 

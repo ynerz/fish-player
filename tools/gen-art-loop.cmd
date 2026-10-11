@@ -18,6 +18,8 @@ rem
 rem  SAFE MODE:  gen-art-loop.cmd check   -> preflight + summary ONLY, renders
 rem              nothing. Use it to see how much is left without starting a batch.
 rem  TIMED MODE: gen-art-loop.cmd 30      -> wrap up every 30 min, then continue.
+rem  Both spellings work: "check" == "--check", "30" == "-m 30". The bare forms are
+rem  normalised in tools\rerender.py (normalize_argv) -- keep the logic there, NOT here.
 rem
 rem  NOTE: keep this file ASCII-only (see above).
 rem ===========================================================================

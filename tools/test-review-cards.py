@@ -17,6 +17,7 @@
                                                # （会闪一个控制台，几秒后自己关）
 """
 import argparse
+import contextlib
 import hashlib
 import importlib.util
 import io
@@ -971,6 +972,82 @@ def main():
     _bl = _pcode.split("def bleed(")[1].split("\ndef ")[0]
     check('SPEC["defringe"]["rounds"]' in _bl and "SPEC[\"alphaMin\"]" in _bl,
           "轮数 / 羽化下界都从 SPEC 现算（`alphaMin` 以前是个零消费的规格键，这里才第一次读它）")
+
+    print("\n[20] 一键启动器的参数面：`.cmd` 广告的用法必须真能跑")
+    # 病根（2026-10-11 实测出来的真 bug）：`tools/gen-art-loop.cmd` 的文件头 +
+    #   `docs/开发者文档.md` + `docs/改进待办.md` 都写着 `gen-art-loop.cmd check`
+    #   （先看一眼要出多少张）与 `gen-art-loop.cmd 30`（每 30 分钟收工），
+    #   而 `rerender.py` 的 argparse 只认 `--check` / `-m N` ⇒ 那两个**位置形态
+    #   直接退出码 2**（`unrecognized arguments: check`）。最常用的「先看量」
+    #   照着文档敲就是报错 —— 而且报的是 usage，看起来像脚本坏了。
+    # 为什么放在这里、而不是 verify 里：这是**行为**判据（真 import、真调 main()）。
+    #   `verify`（第 51 节 ⑦）只能看源码结构，而结构对了行为照样能错 ——
+    #   第一版就是：`normalize_argv()` 在、`main()` 也调了它，但**没跳过「选项的值」**，
+    #   于是 `-m 30` 变成 `['-m','--budget-min','30']` ⇒ argparse 报
+    #   `expected one argument`。那种 bug 只有真调一次才看得见。
+    rr_test = os.path.join(TOOLS, "rerender.py")
+    if os.path.exists(rr_test):
+        _spec = importlib.util.spec_from_file_location("rerender_args", rr_test)
+        _RR = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(_RR)          # __name__ != "__main__" ⇒ main() 不会自己跑
+        _trace = {}
+
+        def _fake_render(budget):
+            _trace["budget"] = budget
+            return 0
+
+        _RR.preflight = lambda: True           # 不连 ComfyUI
+        _RR.summary = lambda: 0                # 不调 gen-art.py
+        _RR.render = _fake_render              # **绝不出图**
+
+        def _run(*argv):
+            _trace.clear()
+            _old = sys.argv
+            sys.argv = ["rerender.py"] + list(argv)
+            try:
+                # ⚠️ `SystemExit` 必须接住（argparse 参数写错时它抛 `SystemExit(2)`）：
+                #    不接的话，一条“参数面坏了”的注入会把整个测试宿主带崩、退 2 且
+                #    **一句报告都没有**（硬规矩 15 同族：源文件写崩 ⇒ 退出码 1 却看不到
+                #    「自检未通过」那一行，与「注入没生效」长得一模一样）。
+                #    接住之后，失败态就只是一条红灯，报告照常打。
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    _rc = _RR.main()
+            except SystemExit as _e:
+                _rc = _e.code if isinstance(_e.code, int) else 2
+            finally:
+                sys.argv = _old
+            return _rc, dict(_trace)
+
+        _rc, _t = _run("--check")
+        check(_rc == 0 and "budget" not in _t,
+              "--check：退出 0 且**没进 render**（只自检 + 报数）")
+        _rc, _t = _run("check")
+        check(_rc == 0 and "budget" not in _t,
+              "`check`（位置形态，`.cmd` 文件头广告的就是它）：退出 0 且没进 render"
+              "（实得 rc=%d）—— 修前是 argparse 报 unrecognized arguments / 退出码 2" % _rc)
+        _rc, _t = _run("-m", "30")
+        check(_rc == 0 and _t.get("budget") == 30,
+              "-m 30：退出 0 且 render 收到 30（实得 rc=%d / budget=%r）" % (_rc, _t.get("budget")))
+        _rc, _t = _run("30")
+        check(_rc == 0 and _t.get("budget") == 30,
+              "`30`（位置形态）：退出 0 且 render 收到 30（实得 rc=%d / budget=%r）"
+              "—— 修前退出码 2" % (_rc, _t.get("budget")))
+        _rc, _t = _run()
+        check(_rc == 0 and _t.get("budget") == 0, "无参数：退出 0 且 render 收到 0（不限时长）")
+        # 🔴 回归：归一**必须跳过「选项的值」**（上面那个真 bug 的正面判据）
+        check(_RR.normalize_argv(["-m", "30"]) == ["-m", "30"],
+              "归一跳过选项的值：`-m 30` 原样不动（第一版把 30 二次归一 ⇒ "
+              "`['-m','--budget-min','30']` ⇒ `expected one argument`）")
+        check(_RR.normalize_argv(["check"]) == ["--check"]
+              and _RR.normalize_argv(["30"]) == ["--budget-min", "30"]
+              and _RR.normalize_argv(["--budget-min", "30"]) == ["--budget-min", "30"],
+              "两种位置形态各归到正确的选项上，选项形态原样通过")
+        _rr_src = io.open(rr_test, encoding="utf-8").read()
+        _rr_code = re.sub(r'"""[\s\S]*?"""', "", _rr_src)
+        _rr_code = re.sub(r"#[^\n]*", "", _rr_code)
+        check(len(re.findall(r"def normalize_argv\(", _rr_code)) == 1,
+              "`normalize_argv()` 只有一处实现（实得 %d 处）—— 两份必然分家"
+              % len(re.findall(r"def normalize_argv\(", _rr_code)))
 
     print("\n" + "=" * 52)
     if fails:

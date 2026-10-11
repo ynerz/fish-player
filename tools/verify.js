@@ -3485,7 +3485,9 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
    不写死任何鱼名、档位名、条数：
      ① 条数 / 序号 / id：与 `fish.js` 一一对应，序号 1..N 连续；
      ② 表头：每条标题的「名字（钓场 · 最小体重 · 价格）」必须等于现算值 ——
-        它由 `_tmp/merge_captions.py` 一次性生成，改完数值没人重算就**永远停在旧数上**；
+        它由 `tools/refresh-captions.py` 生成（2026-10-11 前的 `_tmp/merge_captions.py` 是
+        一次性合并脚本、分卷已不在仓库里）⇒ 改完数值没人重算就**永远停在旧数上**；
+        **报红时直接跑** `python tools/refresh-captions.py`（它只改标题行、正文一个字不动，带 `--check`）；
      ③ 档位：分界**从 `CFG.rarity` 现算**（`epic` 那个下标）——
         普通 / 稀有只写「原色 + 闪光」，史诗 / 传说写全五档（用户口径）；
      ④ 正文不许把**生图提示词**抄进来（用户口径「图鉴文案中不需要有生成图的提示词」）；
@@ -3539,7 +3541,7 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
   const missing = G.FISH.filter(f => !cnt[f.id]).map(f => f.id);
   if (missing.length) { err(`${rel} 漏了 ${missing.length} 条鱼：${missing.slice(0, 8).join(' / ')}`); bad++; }
 
-  /* ② 表头三个数必须现算。体重口径**与 merge_captions.py 同源**：
+  /* ② 表头三个数必须现算。体重口径**与 tools/refresh-captions.py 同源**：
       <1kg → g、<1000kg → kg、再往上 吨 / 万吨 / 亿吨 / 万亿吨。
       ⚠️ 与游戏内 `U.kg()`（一律 g/kg）**不是同一个口径**，是有意的（文件头写明）。 */
   function handKg(w) {
@@ -3564,7 +3566,8 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
   });
   if (metaBad.length) {
     err(`${rel} 的表头有 ${metaBad.length} 处与数据对不上（前 6 处：${metaBad.slice(0, 6).join('；')}）—— `
-      + '表头是「现算」的，改完数值要重算；它是最容易被手抄成旧值的一处'); bad++;
+      + '表头是「现算」的，改完数值要重算；它是最容易被手抄成旧值的一处 —— '
+      + '**跑 `python tools/refresh-captions.py` 就能改回来**（它只改标题行、正文不动，带 --check）'); bad++;
   }
 
   /* ③ 档位覆盖：分界从 CFG.rarity 现算 */

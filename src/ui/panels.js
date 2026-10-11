@@ -2125,7 +2125,7 @@ G.Panels = (function () {
       tip.style.margin = '0 0 10px';
       tip.innerHTML = '账号只存在**本机浏览器**里：uid 与密码用来区分档案、防止误改，' +
         '**不是安全凭证**（清掉浏览器数据就会重置）。' +
-        (P.isSecure() ? '' : ' ⚠️ 当前环境没有 crypto.subtle，密码走降级弱哈希。') +
+        (P.isSecure() ? '' : ' ⚠️ 当前环境没有可用的加密模块（subtle），密码走降级弱哈希。') +
         (P.note() ? '　·　' + P.note() : '');
       root.appendChild(tip);
 

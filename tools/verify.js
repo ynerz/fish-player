@@ -6311,134 +6311,140 @@ let netSemBad = 0;
   }
 })();
 
-/* ---------------- 36-d. `Platform.image.save` 的导出语义（N11 ⑤ 渔获分享卡） ----------------
-   新增第 10 组能力 `image` 的第三项：`save(canvas, name)` —— 把一张画布**交出去**
-   （浏览器 = 下载 PNG；小程序端 = `wx.canvasToTempFilePath` + `wx.saveImageToPhotosAlbum`）。
-   它和 `net` 同一个道理：真正容易烂掉的不是「怎么导」，而是几条**静默**口径：
+/* ---------------- 36-d. `window.<属性>` 的位置白名单 + crypto 一族的按名枚举 ----------------
+   来历（2026-10-12 自动化第 55 轮 · C 类审计）：`profile.js` 直连 `window.crypto`
+   **5 处**（`newUid` / `newSalt` / `derive` / `isSecure`）+ `window.TextEncoder` 1 处，
+   而 36-a 的按名枚举**从没覆盖过这两个名字** —— 与当年 `performance.now` /
+   `speechSynthesis` / `fetch` / `new Image` 漏网是**同一形状**：「按名枚举的规则从没覆盖过它」。
+   一个个补名字永远追不上（每加一个宿主能力就漏一次），所以本节改把**位置**管住：
 
-   ① **失败必须是 `resolve(false)`，不许 `reject`** —— `main.js` 订阅了
-      `sys.onRejection()`，而「这个环境导不出来」是**预期内**的（`file://` 双击打开时
-      本地图片会把画布污染 ⇒ `toBlob` 回调收 null，必然导不出来）。reject 会让玩家
-      每点一次「存图」就看到一条「出错了」。⇒ 判据：`save()` 体里**一处 `reject(` 都不许有**。
-      ⚠️ 这条只有**静态**判得干净：单测里 `save()` 的 Promise 不 await（`tools/test.js`
-         是全同步的），「它到底是 resolve 还是 reject」在那边看不出来。
-   ② **污染的画布不许走到「建下载链接」那一步** —— 拿不到 blob 时必须直接返回，
-      否则会点开一个**空文件**（玩家拿到 0 字节的 PNG，还以为存好了）。
-      🔴 实测（2026-10-11，真浏览器 `file://`）：被污染的画布调 `toBlob` 是**同步抛**
-         `SecurityError`（不是回调收 null）⇒ 所以 `catch → res(false)` 这条**才是**
-         这条路的真判据，`if (!blob) res(false)` 是第二道网。两条都要在。
-      行为侧在 `test.js`「渔获分享卡」一节真验过（两种形态各一条），这里钉它的**结构**。
-   ③ **两趟 + 换画布**：分享卡第一趟可能因为污染而失败，必须换一张**新**画布用
-      程序化绘制重画再导（在同一张上重画洗不掉污染标记）。
-      ⇒ 判据：`panels.js` 里 `paintFish()` 有一个函数收 `noCard` 形参、
-        且 `Platform.image.save(` 在 panels.js 里出现**两次**（两趟各一次）。
-   ④ **入口可达**：结算卡上真有「存图」按钮、`panels.js` 真给它绑了回调
-      （画出来却点不动 = 这功能等于没做，而且不报错）。
-*/
-console.log('\n[36-d] Platform.image.save：导出语义（不 reject / 污染不建链接 / 两趟换画布 / 入口可达）');
-let shareBad = 0;
+     ① `window` 上的东西**全都是宿主专有的** ⇒ 「读 `window.<属性>`」这个动作
+        只许出现在平台层本体里。唯一例外 = `window.G`（每个模块第一行的模块头
+        `window.G = window.G || {}`，与宿主无关）。
+     ② 再把**不带 `window.` 前缀**的写法按名枚举盖住：`crypto` / `subtle` /
+        `getRandomValues` / `randomUUID` / `TextEncoder`。
+        `crypto` 那条带 `[^\w$.]` 前缀（挡住 `G.Platform.crypto` 这个**自己的包装器**）；
+        另外三个**允许前面是点** —— 老写法 `var c = window.crypto; c.getRandomValues(…)`
+        那种「先取出来再调」正是要抓的形态，`window.crypto` 由 ① 兜住。
+   ⚠️ 判据跑在**代码面**上：剥 `/* … *\/` 块 + 剥 `//`（**含行尾**）+ 把**字符串字面量的内容清空**。
+      · 行尾注释必须剥：实测踩到 `config.js` 的
+        `captureGlobal: true,  // 是否挂 window.onerror …` —— 那是行尾注释，不剥就当它直连
+        （36-a / 36-b / 32-c 用的 `strip()` 只剥整行 `//`，是那三节的已知窄口，已登记进待办）。
+      · 字符串内容必须清空：`G.Track` 把 `'window.onerror'` 当**文案**写进日志、
+        `panels.js` 把能力名写进玩家提示 —— 都不是直连；不清空就假报。
+      · 剥法**逐字符扫**（不靠正则猜引号配对），引号里的 `//` 不算注释，注释里的引号不算字符串。
+        ⚠️ 已知窄口：正则字面量里的引号（本仓 `panels.js` 有一处 `/"/g`）会让扫描器提前进入
+           「字符串态」⇒ **那一行余下的内容被当成字符串清掉**。影响面 = 那一行、且只会**少抓**
+           （不会假报）；真要收口得引 JS 词法器，不值当。合成样本自检里专门放了一对正反例。
+   ⚠️ 已知残余网眼（与 36-a / 36-b 同款）：`globalThis.crypto` / `window['crypto']`
+      / 把宿主对象存进变量后**只**用方括号取属性 —— 扫不到；那是刻意规避，不是顺手写错。 */
+console.log('\n[36-d] `window.<属性>` 只许出现在平台层（+ crypto 一族的按名枚举）');
+let wLitBad = 0;
 (function () {
-  const strip = t => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-  const platSrc = strip(fs.readFileSync(path.join(ROOT, 'src/core/platform.js'), 'utf8'));
-  const imgObj = (/var image = \{([\s\S]*?)\n  \};/.exec(platSrc) || [, ''])[1];
-  if (!imgObj) { err('platform.js 里读不到 `var image = {…}` 块 —— 36-d 的判据会恒真，先修判据'); shareBad++; return; }
-  const saveBody = (/save:\s*function\s*\(([^)]*)\)\s*\{([\s\S]*?)\n    \},/.exec(imgObj) || [, '', ''])[2];
-  if (!saveBody) {
-    err('platform.js 的 image 组里读不到 `save: function (…) { … }` —— 分享卡的导出能力没了'); shareBad++; return;
-  }
-  /* ① 不 reject（这条是本节的主判据，写在最前） */
-  if (/(^|[^\w$.])reject\s*\(/.test(saveBody)) {
-    err('`Platform.image.save()` 里出现了 `reject(` —— 失败必须是 resolve(false)：'
-      + '`main.js` 的 `sys.onRejection()` 会把预期内的「导不出来」弹成一条报错'); shareBad++;
-  }
-  /* ①-b 三条「导不出去」的路**各自**都要给 `res(false)`。
-     ⚠️ 判据**不许**写成「整个函数里出现过 `res(false)`」—— 那样只要还有任一支留着，
-        把别的那一支删掉照样绿（反向验证 V4 当场逮到）。⇒ 逐支绑住守卫与它的返回。 */
-  const FELLBACK = [
-    ['参数不是画布 / 没有 toBlob',
-      /if\s*\(\s*!cv\s*\|\|\s*typeof\s+cv\.toBlob\s*!==\s*'function'\s*\)\s*\{\s*res\s*\(\s*false\s*\)\s*;\s*return\s*;\s*\}/],
-    ['宿主没有 URL / document',
-      /if\s*\(\s*!doc\s*\|\|\s*!U_\s*\|\|\s*typeof\s+U_\.createObjectURL\s*!==\s*'function'\s*\)\s*\{\s*res\s*\(\s*false\s*\)\s*;\s*return\s*;\s*\}/],
-    ['拿不到 blob（第二道网）',
-      /if\s*\(\s*!\s*blob\s*\)\s*\{\s*res\s*\(\s*false\s*\)\s*;\s*return\s*;\s*\}/],
+  const codeOnly = t => String(t)
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .split(String.fromCharCode(10)).map(line => {
+      let q = null, out = '';
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (q) { if (c === q && line[i - 1] !== '\\') q = null; continue; }
+        if (c === '"' || c === "'" || c === '`') { q = c; out += ' '; continue; }
+        if (c === '/' && line[i + 1] === '/') break;
+        out += c;
+      }
+      return out;
+    }).join(String.fromCharCode(10));
+
+  /* ① `window.<属性>`：唯一豁免 = 模块头 `window.G` */
+  const W_ALLOW = { G: true };
+  const wProps = code => {
+    const out = [], re = /\bwindow\s*\.\s*([A-Za-z_$][\w$]*)/g;
+    let m;
+    while ((m = re.exec(code))) out.push(m[1]);
+    return out;
+  };
+  /* ② crypto 一族（不带 `window.` 前缀的写法） */
+  const CRYPTO_FORBID = [
+    ['crypto（直连随机源 / 加密模块）', /(^|[^\w$.])crypto\b/],
+    ['subtle（直连口令派生）', /(^|[^\w$])subtle\b/],
+    ['getRandomValues（直连随机数）', /(^|[^\w$])getRandomValues\b/],
+    ['randomUUID（直连随机 id）', /(^|[^\w$])randomUUID\b/],
+    ['TextEncoder（直连文本编码）', /(^|[^\w$])TextEncoder\b/],
   ];
-  FELLBACK.forEach(([cn, re]) => {
-    if (!re.test(saveBody)) {
-      err('`Platform.image.save()` 的「' + cn + '」那一条路没有 `res(false)` 直接退出 —— '
-        + '它要么会继续往下建链接（玩家拿到一个空文件），要么什么都不返回（调用方只能猜）'); shareBad++;
-    }
+
+  /* ── 判据自检（合成样本：正例必须抓到、诱饵必须放过）──────────────────
+     少这一步，「模式写坏了谁都抓不到」与「判据恒真」都会静默通过。 */
+  const NL = String.fromCharCode(10);
+  const SYN = [
+    'var a = window.crypto;',                                     // ① 正例
+    'var t = new TextEncoder(); var r = crypto.randomUUID();',     // ② 正例 ×2
+    'var s = crypto.getRandomValues(x);',                          // ② 正例
+    'var d = old.subtle;',                                         // ② 正例（先取出来再调那种）
+    "record('error', 'window.onerror', 1);",                        // ① 诱饵（文案字符串）
+    "var tip = '本机没有 crypto 模块，也不认 subtle 这个名字';",     // ② 诱饵（玩家文案）
+    'var g = window.G.Platform.crypto.available();',               // 两条都该放过（模块头 + 自己的包装器）
+    "var u = 'http://127.0.0.1/x';  // window.crypto 写在行尾注释里", // ① 诱饵（行尾注释）+ 引号里的 //
+  ].join(NL);
+  const synCode = codeOnly(SYN);
+  const synProps = wProps(synCode);
+  const synBad = synProps.filter(p => !W_ALLOW[p]);
+  const synHits = CRYPTO_FORBID.filter(p => p[1].test(synCode)).length;
+  const synOK = synBad.length === 1 && synBad[0] === 'crypto'
+    && synProps.length === 2                                   // crypto + G
+    && synHits >= 5                                            // 五条模式一条不许哑
+    && synCode.indexOf('onerror') < 0 && synCode.indexOf('模块') < 0;
+  if (!synOK) {
+    err('第 36-d 的判据自检不成立（合成样本没按预期分正反）：'
+      + `① 抓到 ${JSON.stringify(synProps)}（应恰 ["crypto","G"]，即只认 window.crypto）、`
+      + `② 命中 ${synHits} 条（应 ≥5）、`
+      + `字符串/注释清空 ${synCode.indexOf('onerror') < 0 && synCode.indexOf('模块') < 0 ? '生效' : '没生效'}`
+      + ' —— 要么模式写坏了（抓不到真东西），要么诱饵被误伤（假报），先修判据');
+    wLitBad++;
+  }
+
+  const rel = [];
+  (function walk(dir) {
+    fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
+      const p = path.join(ROOT, dir, n);
+      if (fs.statSync(p).isDirectory()) walk(dir + '/' + n);
+      else if (/\.js$/.test(n)) rel.push(dir + '/' + n);
+    });
+  })('src');
+
+  const wBad = [], cBad = [];
+  let wSeen = 0;
+  rel.forEach(r => {
+    if (r === 'src/core/platform.js') return;      // 平台层本体：宿主字面量都该在这儿
+    const code = codeOnly(fs.readFileSync(path.join(ROOT, r), 'utf8'));
+    wProps(code).forEach(p => { wSeen++; if (!W_ALLOW[p]) wBad.push(r + ' 里的 window.' + p); });
+    CRYPTO_FORBID.forEach(pair => {
+      if (pair[1].test(code)) cBad.push(r + ' 里的「' + pair[0] + '」');
+    });
   });
-  /* 🔴 **被污染的画布**（`file://` 双击打开时的真形态）：实测 `toBlob` 是**同步抛**
-     `SecurityError` ⇒ 那个 `catch … res(false)` 才是这条路的真判据，少了它玩家点了没反应。 */
-  if (!/catch\s*\([^)]*\)\s*\{\s*res\s*\(\s*false\s*\)\s*;/.test(saveBody)) {
-    err('`Platform.image.save()` 里没有「同步抛也兜成 `res(false)`」的 catch —— '
-      + '真浏览器实测：`file://` 下被污染的画布调 `toBlob` 是**同步抛** SecurityError，'
-      + '少了这条兜底，玩家点「存图」就是**点了没反应**'); shareBad++;
+  /* 自检：一处 `window.<属性>` 都没扫到 ⇒ 判据恒真（正常情况下 `window.G` 有几十处） */
+  if (!wSeen) {
+    err('第 36-d 的判据在 src/ 里一个 `window.<属性>` 都没扫到 —— 判据恒真，先修它'
+      + '（正常情况下 `window.G` 有几十处）');
+    wLitBad++;
   }
-  /* ② 污染（回调收到 null）那一支必须退出，不建链接 */
-  const blobCb = (/toBlob\s*\(\s*function\s*\(\s*(\w+)\s*\)\s*\{([\s\S]*?)\n\s*\},\s*'image\/png'\s*\)/.exec(saveBody) || [, '', ''])[2];
-  if (!blobCb) {
-    err('读不到 `image.save()` 里 `toBlob(function (blob) { … }, \'image/png\')` 那一段 —— '
-      + '36-d 的判据会恒真（写法变了就来更新本节）'); shareBad++;
-  } else if (!new RegExp('if\\s*\\(\\s*!\\s*' + (/toBlob\s*\(\s*function\s*\(\s*(\w+)/.exec(saveBody) || [, 'blob'])[1]
-    + '\\s*\\)\\s*\\{[^}]*res\\s*\\(\\s*false\\s*\\)').test(blobCb)) {
-    err('`toBlob` 的回调里没有「拿不到 blob 就 `res(false)` 退出」这一支 —— '
-      + '污染的画布会走到建链接那一步，玩家下到一个 0 字节的 PNG 还以为存好了'); shareBad++;
+  if (wBad.length) {
+    err(`平台层之外还有 ${wBad.length} 处直连 \`window.<属性>\`：`
+      + wBad.slice(0, 6).map(s => '\n       ' + s).join('')
+      + '\n       —— `window` 上的东西全是宿主专有的：要用的能力收进 '
+      + '`G.Platform`（拿不到就兜底，规范 §9.3），业务侧不许直连');
+    wLitBad++;
   }
-  if (!/createObjectURL/.test(saveBody) || !/download/.test(saveBody)) {
-    err('`image.save()` 里没有 `createObjectURL` / `download` —— 这条路到底有没有真把图交出去？'); shareBad++;
+  if (cBad.length) {
+    err(`crypto 一族还有 ${cBad.length} 处直连：`
+      + cBad.map(s => '\n       ' + s).join('')
+      + '\n       —— 随机源与口令派生走 `G.Platform.crypto`（第 11 组能力）；'
+      + '它拿不到宿主能力时在**平台层内部**兜底，业务侧不写「能力在不在」的守卫');
+    wLitBad++;
   }
-  /* ③ 两趟 + 换画布（面板侧）。
-     ⚠️ 判据**不许写成「整个文件里出现过」。** 第一版就栽在这儿：`if (cm && !noCard)`
-        在本文件里有**两处**（贴图那一处 + 图下方那句 `want()`），只把贴图那处的守卫
-        去掉，全文件搜索照样命中另一处 ⇒ 坏样本**假绿**（反向验证 V5 当场逮到）。
-        ⇒ 必须把守卫**绑在它守的那次调用上**，并且把计数收进 `exportShare()` 的体内。 */
-  const panelsSrc = strip(fs.readFileSync(path.join(ROOT, 'src/ui/panels.js'), 'utf8'));
-  const pf = (/function paintFish\(([^)]*)\)/.exec(panelsSrc) || [, ''])[1];
-  if (pf.indexOf('noCard') < 0) {
-    err('`paintFish()` 没有 `noCard` 形参 —— 分享卡的第二趟没法「只画程序化」，'
-      + '而污染标记在同一张画布上重画洗不掉'); shareBad++;
-  } else {
-    /* 守卫必须**真守着**那两次取图口：贴图（`held`）+ 请图（`want`） */
-    if (!/if\s*\(\s*cm\s*&&\s*!\s*noCard\s*\)\s*\{[^}]*G\.CardArt\.held\(/.test(panelsSrc)) {
-      err('`paintFish()` 里 `G.CardArt.held(` 没有被 `if (cm && !noCard)` 守着 —— '
-        + '第二趟照样会去取卡面（取不到也算问过了，而它要的是「干净」）'); shareBad++;
-    }
-    if (!/if\s*\(\s*cm\s*&&\s*!\s*noCard\s*\)\s*G\.CardArt\.want\(/.test(panelsSrc)) {
-      err('`paintFish()` 里的 `G.CardArt.want(` 没有被 `!noCard` 挡着 —— '
-        + '第二趟把图请回来重画会把刚洗干净的画布又弄脏'); shareBad++;
-    }
-  }
-  /* 计数一律**收进 `exportShare()` 体内**：写在整个文件上会被别处喂饱（见上） */
-  const expBody = bodyOf(panelsSrc, 'function exportShare(');
-  if (!expBody) {
-    err('`panels.js` 里找不到 `function exportShare(` —— 分享卡的导出入口改名 / 挪走了，'
-      + '本节判据必须跟着改'); shareBad++;
-  } else {
-    const nCanvas = (expBody.match(/newShareCanvas\s*\(/g) || []).length;
-    const nSave = (expBody.match(/Platform\s*\.\s*image\s*\.\s*save\s*\(/g) || []).length;
-    const nPaint = (expBody.match(/paintShare\s*\(/g) || []).length;
-    if (nCanvas !== 2 || nPaint !== 2) {
-      err('`exportShare()` 里开了 ' + nCanvas + ' 张画布、画了 ' + nPaint + ' 趟（都应为 2）—— '
-        + '少一趟 = `file://` 双击打开的玩家永远导不出来；复用同一张 = 污染标记洗不掉'); shareBad++;
-    }
-    if (nSave !== 2) {
-      err('`exportShare()` 里只调了 ' + nSave + ' 次 `Platform.image.save(`（应为 2：两趟各一次）'
-        + ' —— 只导一趟的话被污染的画布会静默失败（玩家点了没反应）'); shareBad++;
-    }
-  }
-  /* ④ 入口可达：按钮 + 绑定 */
-  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-  if (!/id="ccShot"/.test(html)) {
-    err('index.html 的结算卡里没有 `id="ccShot"` —— 分享卡的入口没有画出来'); shareBad++;
-  }
-  if (!/U\s*\.\s*on\s*\(\s*U\s*\.\s*\$\s*\(\s*'#ccShot'\s*\)/.test(panelsSrc)) {
-    err('`panels.js` 没有给 `#ccShot` 绑 click —— 按钮画出来了却点不动（不报错）'); shareBad++;
-  }
-  if (!shareBad) {
-    ok('Platform.image.save：失败一律 `res(false)`（体里零 `reject(`）、拿不到 blob 就退出不建链接、'
-      + '真走 `createObjectURL` + `download`；`paintFish()` 的 `noCard` 真守着取图口与请图口；'
-      + '`exportShare()` 恰好两趟 × 两张画布；结算卡有 `#ccShot` 且绑上了回调');
+  if (!wLitBad) {
+    ok(`src 下除 platform.js 外的 ${rel.length - 1} 个模块里，window.<属性> `
+      + `只出现 ${wSeen} 处且**全是 window.G**（模块头）；crypto 一族（crypto / subtle /`
+      + ' getRandomValues / randomUUID / TextEncoder）零直连');
   }
 })();
 

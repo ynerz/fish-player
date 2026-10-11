@@ -8,7 +8,7 @@
    这样将来上微信小程序时，只需要再写一份 platform.weapp.js
    在 index.html（或 app.json 入口）里替换掉本文件，逻辑层一行不用改。
 
-   接口（10 组）：
+   接口（11 组）：
      storage    get / set / kind
      audio      createContext() / load(url) → Promise<AudioBuffer|null> / playFile（小程序占位）
                 —— 小程序要换成 wx.createInnerAudioContext
@@ -27,6 +27,10 @@
      net        kind() / base() / available() / request(path,opts) → Promise
                 —— 云存档（N8 ③）的通道；小程序换成 wx.request；**兜底不抛**（离线 reject
                    `{off:true}`），业务侧一律当「离线」静默降级，不写「能力在不在」的守卫
+     crypto     available() / pbkdf2(pw,saltU8,iter,bits) → Promise<Uint8Array>
+                randomBytes(n) → Uint8Array / randomId() → string
+                —— 账号档案（N1）的随机源与口令派生；小程序换成 wx.getRandomValues；
+                   **两个随机能力永远有兜底**，subtle 没有 ⇒ 用 `available()` 如实回报
 
    ⚠️ 上面只列**现行**接口。这里曾多列过 `storage.remove` 与 `sys.size()` 两个 ——
       2026-10-08 全项目 API 扫描实测它们**零消费**，已删（进了 `verify` 32-b 的 REMOVED 名单；
@@ -494,6 +498,72 @@ G.Platform = (function () {
     },
   };
 
+  /* ---------------- 随机源与口令派生（第 11 组能力；2026-10-12） ----------------
+     账号档案（N1）要三样东西：**随机 id**、**随机 salt**、**口令派生函数**。
+     Web 端它们都挂在 `crypto` 上（`randomUUID` / `getRandomValues` / `subtle`），
+     但 `crypto` 与 `TextEncoder` 都是**宿主专有**的：
+       · 小程序（非小游戏）页面里没有 `window.crypto`，随机数要换 `wx.getRandomValues`；
+       · `crypto.subtle` 更不是哪儿都有（老 WebView / 小程序都没有）—— 而本项目
+         已经有一条口径：拿不到 subtle 就退到内置弱哈希，并**如实回报**
+         （`profile.js` 的 `weakHash` / `isSecure()`，界面照实说）。
+     ⇒ 与 `speech` / `net` 同款：能力收在这里，业务代码**不写**「能力在不在」的守卫
+        （规范 §9.3）。两个随机能力**永远可用**（兜底在内部，不抛）；
+        `subtle` 那条**没有兜底**（口令强度是业务口径，不是平台能决定的）。
+
+     ⚠️ 这组能力的来历（别当成「照着基础设施清单加的」）：`profile.js` 过去
+        **直连 `window.crypto` 5 处**（`newUid` / `newSalt` / `derive` / `isSecure`），
+        而第 ㊱ 节的按名枚举**从没覆盖过 `crypto`** —— 与当年 `performance.now` /
+        `speechSynthesis` / `fetch` 漏网是**同一形状**（「按名枚举的规则从没覆盖过这个名字」）。
+        补网时同一轮加了两条：① `window.<属性>` 的**位置**白名单（除本文件外只许 `window.G`）；
+        ② `crypto` / `TextEncoder` / `getRandomValues` 的按名枚举。
+
+     子能力（每个都必须有调用方 —— ㉜ 与 32-c 的零消费网盯着）：
+       · `available()`   有没有**真的** subtle（`Profile.isSecure()` 与降级分叉共用它）
+       · `pbkdf2()`      口令派生（只在 available() 为真时调用）
+       · `randomBytes()` 取 n 字节随机
+       · `randomId()`    取一个短 id */
+  function cryptoSrc() { try { return window.crypto || null; } catch (e) { return null; } }
+  function encoderOK() { return typeof window.TextEncoder === 'function'; }
+
+  var crypt = {
+    available: function () {
+      var c = cryptoSrc();
+      return !!(c && c.subtle && encoderOK());
+    },
+    /* 口令派生：**唯一一处** importKey + deriveBits。
+       ⚠️ 这里**不做兜底、不吞错** ⇒ 没能力时 reject（调用方只在 `available()` 为真时进来）。
+       兜底成「弱哈希」那条路是**业务口径**（要在界面上如实说明），不许藏在平台层里。 */
+    pbkdf2: function (pw, saltU8, iter, bits) {
+      var c = cryptoSrc();
+      if (!c || !c.subtle || !encoderOK()) {
+        return Promise.reject(new Error('本端没有可用的口令派生能力'));
+      }
+      var subtle = c.subtle;
+      return subtle.importKey('raw', new window.TextEncoder().encode(String(pw)),
+        'PBKDF2', false, ['deriveBits'])
+        .then(function (k) {
+          return subtle.deriveBits(
+            { name: 'PBKDF2', salt: saltU8, iterations: iter, hash: 'SHA-256' }, k, bits || 256);
+        })
+        .then(function (buf) { return new Uint8Array(buf); });
+    },
+    /* n 字节随机：Web 走 getRandomValues，拿不到就用 Math.random 填满（**不抛**）。
+       ⚠️ 兜底那条**强度弱**，但它的消费方只是 salt / uid —— 弱随机的后果是
+          「salt 可猜」，不是「密码泄漏」（密码本身永不落盘）。 */
+    randomBytes: function (n) {
+      var out = new Uint8Array(n), i, c = cryptoSrc();
+      if (c && c.getRandomValues) { c.getRandomValues(out); return out; }
+      for (i = 0; i < n; i++) out[i] = Math.floor(Math.random() * 256);
+      return out;
+    },
+    /* 短 id（16 位十六进制）：优先 randomUUID，拿不到退回「时间 + 随机」 */
+    randomId: function () {
+      var c = cryptoSrc();
+      if (c && c.randomUUID) return c.randomUUID().replace(/-/g, '').slice(0, 16);
+      return 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    },
+  };
+
   return {
     storage: storage,
     audio: audio,
@@ -505,5 +575,6 @@ G.Platform = (function () {
     image: image,
     speech: speech,
     net: net,
+    crypto: crypt,
   };
 })();

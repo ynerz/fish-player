@@ -390,6 +390,51 @@ G_('Profile · 本机档案（uid / 存档键 / 老档迁移）');
   ok(typeof PF.NAME_MAX === 'number' && typeof PF.PW_MIN === 'number',
      '昵称 / 密码的长度约束从这里出（界面文案与它同源）');
 
+  /* ── 第 55 轮：随机源与口令派生收进 G.Platform.crypto（第 11 组能力）─────────
+     ⚠️ 本文件是**全同步**的（见文件头），而 `pbkdf2()` 天生是 Promise ⇒ 这里只钉
+        **同步就能证明的那一半**：能力组的形状、`available()` 与 `isSecure()` 同源、
+        两个随机能力**真出数**、以及**拿不到宿主能力时的兜底**（把 `window.crypto`
+        真拿走再放回 —— 这是「平台层兜底、业务侧不写守卫」这条口径唯一的机器证据）。
+        真派生的正确性（32 字节 / 与 PBKDF2 一致）由**真跑**证明，见本轮台账。 */
+  const PC = G.Platform && G.Platform.crypto;
+  ok(!!PC && ['available', 'pbkdf2', 'randomBytes', 'randomId'].every(k => typeof PC[k] === 'function'),
+     'Platform.crypto 四个子能力都在（available / pbkdf2 / randomBytes / randomId）');
+  if (PC) {
+    ok(PF.isSecure() === PC.available(),
+       'isSecure() 与 Platform.crypto.available() 是**同一个答案**（不再各判一份宿主能力）');
+    const id1 = PC.randomId(), id2 = PC.randomId();
+    ok(typeof id1 === 'string' && id1.length >= 8 && id1 !== id2,
+       'randomId() 给得出短 id 且两次不同（' + id1 + '）');
+    const b1 = PC.randomBytes(16), b2 = PC.randomBytes(16);
+    ok(b1 instanceof Uint8Array && b1.length === 16 && b1.some(v => v !== 0)
+       && b1.join() !== b2.join(),
+       'randomBytes(16) 给得出 16 字节真随机（不是全 0、两次不同）');
+    const der = PC.pbkdf2('pw1234', new Uint8Array([1, 2, 3, 4]), 1000, 256);
+    ok(!!der && typeof der.then === 'function',
+       'pbkdf2(...) 返回 Promise（唯一一处 importKey + deriveBits）—— 结果由真跑核对');
+
+    /* 🔴 兜底路径：把宿主能力**拿走**再放回。两个随机能力必须照旧出数（内部兜底、不抛），
+       `available()` 必须如实变 false —— 这就是「拿不到能力就兜底」的机器证据。
+       ⚠️ `window` 在 test.js 里就是 global，所以直接改 `window.crypto` 等于换一个宿主。 */
+    const realCrypto = global.window.crypto;
+    try {
+      Object.defineProperty(global.window, 'crypto',
+        { value: undefined, configurable: true, writable: true });
+      ok(PC.available() === false && PF.isSecure() === false,
+         '宿主拿掉 crypto 后 available() / isSecure() 都如实变 false（口径同源）');
+      ok(typeof PC.randomId() === 'string' && PC.randomId().length >= 8,
+         '🔴 拿不到 crypto 也能拿到 id（兜底在平台层内部，业务侧不写守卫）');
+      const fb = PC.randomBytes(8);
+      ok(fb instanceof Uint8Array && fb.length === 8 && fb.some(v => v !== 0),
+         '🔴 拿不到 crypto 也能拿到随机字节（同上）');
+    } finally {
+      Object.defineProperty(global.window, 'crypto',
+        { value: realCrypto, configurable: true, writable: true });
+    }
+    ok(PC.available() === true && PF.isSecure() === true,
+       '放回 crypto 后能力立刻恢复（判据没有把宿主改坏）');
+  }
+
   /* 收尾：留一个干净档，别影响后面的用例 */
   Object.keys(store).forEach(k => delete store[k]);
   PF.init();

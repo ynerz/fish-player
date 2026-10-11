@@ -15,6 +15,8 @@
    · 密码**绝不存明文**：`crypto.subtle` 的 PBKDF2-SHA256（每账号独立 salt，12 万次迭代）。
      实测 `file://` 下 `isSecureContext === true`、`crypto.subtle` 可用；
      真遇到拿不到 subtle 的老环境，退到内置弱哈希（`weakHash`）并在 `isSecure()` 里如实回报。
+     🔴 随机源 / 口令派生**都不在本文件里直连宿主**：走 `G.Platform.crypto`（第 11 组能力）
+        —— 小程序端没有 `window.crypto`，换的是平台层那一份，不是这里。
    · **无密码档案**：`hash === ''` 表示这个档案不设密码（免登录，默认档案就是这样）。
    · 一切失败都不抛异常：掉存储、脏 JSON、uid 对不上，一律降级到「能玩」。
    ========================================================================= */
@@ -34,6 +36,10 @@ G.Profile = (function () {
   var note = '';            // 给设置面板看的一句话（迁移提示等）
 
   function PS() { return (G.Platform && G.Platform.storage) || null; }
+  /* 随机源与口令派生一律走平台层（第 11 组能力）—— 业务侧不写「能力在不在」的守卫：
+     `randomId()` / `randomBytes()` 拿不到宿主能力时**在平台层内部兜底**，
+     `available()` 则如实回答「这个端有没有真的 subtle」。见 platform.js 那一组。 */
+  function PC() { return G.Platform.crypto; }
 
   function readRaw() {
     var ps = PS(); if (!ps) return null;
@@ -55,23 +61,13 @@ G.Profile = (function () {
   function keyRescue() { return key() + '.rescue'; }
 
   /* ---------------- uid / salt ---------------- */
-  function newUid() {
-    var c = window.crypto;
-    if (c && c.randomUUID) return c.randomUUID().replace(/-/g, '').slice(0, 16);
-    return 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-  }
+  function newUid() { return PC().randomId(); }
   function hex(u8) {
     var s = '', i;
     for (i = 0; i < u8.length; i++) s += ('0' + u8[i].toString(16)).slice(-2);
     return s;
   }
-  function newSalt() {
-    var a = new Uint8Array(16), i;
-    var c = window.crypto;
-    if (c && c.getRandomValues) c.getRandomValues(a);
-    else for (i = 0; i < 16; i++) a[i] = Math.floor(Math.random() * 256);
-    return hex(a);
-  }
+  function newSalt() { return hex(PC().randomBytes(16)); }
   function bytesOf(hexStr) {
     var n = Math.floor(hexStr.length / 2), out = new Uint8Array(n), i;
     for (i = 0; i < n; i++) out[i] = parseInt(hexStr.substr(i * 2, 2), 16) || 0;
@@ -96,21 +92,20 @@ G.Profile = (function () {
   }
 
   function derive(pw, saltHex) {
-    var c = window.crypto, subtle = c && c.subtle;
-    if (!subtle || !window.TextEncoder) {
+    var pc = PC();
+    if (!pc.available()) {
       return Promise.resolve(weakHash(pw, saltHex, WEAK_ITER));
     }
-    try {
-      return subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveBits'])
-        .then(function (k) {
-          return subtle.deriveBits(
-            { name: 'PBKDF2', salt: bytesOf(saltHex), iterations: ITER, hash: 'SHA-256' }, k, 256);
-        })
-        .then(function (bits) { return hex(new Uint8Array(bits)); })
-        .catch(function () { return weakHash(pw, saltHex, WEAK_ITER); });
-    } catch (e) {
-      return Promise.resolve(weakHash(pw, saltHex, WEAK_ITER));
-    }
+    /* 派生本身交给平台层（唯一一处 importKey + deriveBits）。
+       ⚠️ 这里还留着一条「运行时失败也退回弱哈希」的兜底（与改造前的行为一致）。
+          已知的**不精确**：那种情况下 `isSecure()` 仍会答 true —— 它答的是
+          「这个端有没有真的 subtle」，不是「上一次派生真走了哪条路」。
+          不改口径的理由：hash 的用途是**防误改 / 多档案区分**（不是安全边界，
+          见文件头），为极罕见的失败引入第三种状态不划算；真要精确，得让
+          `isSecure()` 改成「最近一次派生用的哪条路」，那是另一件事。 */
+    return pc.pbkdf2(pw, bytesOf(saltHex), ITER).then(function (u8) {
+      return hex(u8);
+    }).catch(function () { return weakHash(pw, saltHex, WEAK_ITER); });
   }
 
   /* ---------------- 账号表 ---------------- */
@@ -244,7 +239,7 @@ G.Profile = (function () {
     rename: rename, setPassword: setPassword, remove: remove,
     note: function () { return note; },
     /* 界面要照实说：false 表示这个环境只用了降级弱哈希 */
-    isSecure: function () { return !!(window.crypto && window.crypto.subtle); },
+    isSecure: function () { return PC().available(); },
     NAME_MAX: NAME_MAX, PW_MIN: PW_MIN,   /* 界面文案与这里同源 */
   };
 })();

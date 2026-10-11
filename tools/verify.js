@@ -410,26 +410,22 @@ const N = 40000;
 });
 
 /* ---------------- 8. 经济曲线单调 ----------------
-   用「游戏真实售价函数」估算平均鱼价：基础价 × 重量系数 × 颜色系数。
-   这里刻意不断言具体数值（那是 balance.js 的活儿），
-   只断言「曲线不许倒退」这个设计不变量。 */console.log('\n[8] 各场每小时金币应单调递增');
+   用「游戏真实售价函数」的**解析期望** `Loot.expectPrice()` 估算平均鱼价：
+   基础价 × 重量系数 × 颜色系数，对掉率与重量分布求期望。
+   ⚠️ 2026-10-11 第 50 轮从「抽 20000 竿取样本均值」改成解析期望 ——
+      售价尾部极重（巨物 ×1.55 叠在本来就贵的那几条上），两千 / 两万样本的均值
+      本身就能差 16~40%，同一张表会被采样噪声带着走（玩家向说明书 §⑦ 曾因此
+      出现 SS 46,059 > SSS 44,951，与它自己那句「逐场递增」当场打架）。
+      现在与 `G.Loot.price()`、玩家向说明书、`tools/balance.js ②` 是**同一份口径**。
+   这里刻意不断言具体数值（那是 balance.js 的活儿），只断言「曲线不许倒退」这个设计不变量。 */console.log('\n[8] 各场每小时金币应单调递增');
 const income = [];
 G.FIELDS.forEach(field => {
   const tot = field.rarity.reduce((a, b) => a + b, 0);
   let cycle = 0;
   [0, 1, 2, 3].forEach(t => {
-    cycle += (field.rarity[t] / tot) * (biteExpect(t, field) + CFG.misc.fightExpect[t]);
+    cycle += (field.rarity[t] / tot) * (L.biteExpect(t, { field: field }) + CFG.misc.fightExpect[t]);
   });
-  /* 抽 20000 竿算平均售价。样本必须够大 ——
-     A/S/SS/SSS 的传说鱼只占 0.02~0.5%，样本少了会被单条大鱼带跑。 */
-  let sum = 0;
-  const N = 20000;
-  const opt = { bait: null, rod: null, idle: false };
-  for (let i = 0; i < N; i++) {
-    const pick = L.rollFish(field, opt);
-    sum += L.price(pick.fish, L.rollKg(pick.fish), L.rollColor(pick.rar), false);
-  }
-  income.push({ rank: field.rank, v: 3600 / cycle * (sum / N) });
+  income.push({ rank: field.rank, v: 3600 / cycle * L.expectPrice(field) });
 });
 for (let i = 0; i < income.length; i++) {
   const cur = income[i], prev = income[i - 1];
@@ -2263,7 +2259,11 @@ console.log('\n[32-b] 已清理过的死接口不许复活（运行时按路径�
        实际 `return buf.length` 与 count() 一模一样）。它靠 `panels.js` 的 `r.kinds`
        （渔获结果局部量）与 `test.js` 的 `oc.kinds` 两个**同名局部量**混过了 ㉜ 很久，
        2026-10-08 把 ㉜ 的判据硬化（消费方必须指向该模块）后才现形。 */
-    'Track.kinds'];
+    'Track.kinds',
+    /* 按权重抽取的通用工具。它是「长得像基础设施」那一类：唯一的调用方是
+       `tools/balance.js` 里那份**重复**的抽鱼实现（2026-10-11 第 50 轮删掉、
+       改走 `G.Loot.rollFish`）⇒ 同一批清掉。 */
+    'U.weighted'];
   const at = p => p.split('.').reduce((o, k) => (o == null ? undefined : o[k]), sandbox.G);
   const back = REMOVED.filter(p => at(p) !== undefined);
   if (back.length) {
@@ -4602,6 +4602,247 @@ console.log('\n[33-k] `docs/说明书.html` 的节号与目录必须对得上');
     ok(`${MANUAL} 的 ${numbered.length} 个小节节号 ①…${numbered[numbered.length - 1].num} 连续、`
       + `与目录逐条同名同序（另有 ${heads.length - numbered.length} 个有意不编号的小节），`
       + '目录里没有悬空锚点');
+  }
+})();
+
+
+/* ---------------- 33-l. 说明书 / GDD 的「数值表」必须与唯一来源同源（2026-10-11 第 50 轮）----------
+   由来：玩家向说明书的 ⑤ 上鱼节奏（时间表 / 节奏表）、⑥ 胜率表、⑦ 每小时收益表
+   此前**全是页内手写常量**，数字来自数值工具的输出。实测到的后果：
+     · 同一个「D 场每小时金币」在说明书的 ⑤ 写着 2,532（手抄）、⑦ 写着 4,277
+       （页内 2000 次抽样的噪声值），而工具算的是 9,702 —— **三个数并存、一句不报错**；
+     · ⑦ 的曲线还偶尔倒挂（SS 46,059 > SSS 44,951），与它自己那句「逐场递增」当场打架；
+     · 胜率表被 `config.js` 里 `fight.*` 的改动静默甩下（改难度不会改这张表）。
+   现在收成两条来源，本节把它们钉住：
+     · **解析期望**（能算的）：`CFG.rarity[].timeMin~timeMax` · `CFG.misc.fightExpect` ·
+       `G.Loot.expectPrice()` —— 说明书**页内现算**，GDD 的同一张表必须与现值逐格相同；
+     · **仿真结论**（页内算不出来的胜率）：唯一来源 = `docs/balance-figures.js`
+       （`node tools/balance.js --emit` 的产物）—— 说明书**引用**它，不许手抄。
+   判据（抓不到任何一处就报错，防「空集 ⇒ 恒真」）：
+     ① 生成物在盘上、结构合法（seed / rounds / gen / 4 档 fight / 7 场 pace，且 id 与 config 对齐）；
+        生成命令字符串必须指向 `tools/balance.js`（改了指路就等于没有来源）；
+     ② 说明书的脚本面**必须读** `G.BALANCE_FIGURES`（读不到 = 胜率又被抄回去了）；
+     ③ 说明书的 HTML **不许出现**这四张表**渲染之后**的数字（手抄回去必红）——
+        只挑「够独特、不会误伤」的那几个：胜率串（`77.4%` 之类）与收益串（4~5 位数）；
+     ④ GDD §6.4 的节奏表必须与 `CFG` + `G.Loot.expectPrice()` **逐格相同**（网格把数字钉死）；
+     ⑤ `CFG.economy.kgMulMin/Max` 必须被 `Loot.price()` 真读到（否则「夹取」又是两份字面量）；
+     ⑥ 解析器自检：拿一份**合成**的坏样本（手抄数字塞回 HTML / 生成物少一行）必须报红。 */
+console.log('\n[33-l] 说明书 / GDD 的数值表必须与唯一来源同源（解析期望 · 生成物 · 不手抄）');
+(function () {
+  const MANUAL = 'docs/说明书.html';
+  const FIG = 'docs/balance-figures.js';
+  const GDD = 'docs/GDD.md';
+  let lBad = 0;
+  const read = (rel) => { try { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); } catch (e) { return null; } };
+
+  const manRaw = read(MANUAL);
+  if (manRaw === null) { err(`读不到 \`${MANUAL}\` —— 33-l 抓不到要判的地方（先修判据本身）`); return; }
+  const figRaw = read(FIG);
+  if (figRaw === null) {
+    err(`缺 \`${FIG}\` —— 它是胜率表的唯一来源（\`node tools/balance.js --emit\` 生成）；` +
+        '没有它说明书就只能手抄');
+    return;
+  }
+
+  /* ① 生成物结构：在隔离沙盒里求值，拿到真正的对象 */
+  let FIGV = null;
+  try {
+    const box = { window: {}, G: {} };
+    box.window = box;
+    (new Function('window', 'G', figRaw))(box, box.G);
+    FIGV = box.G && box.G.BALANCE_FIGURES;
+  } catch (e) { FIGV = null; }
+  if (!FIGV) {
+    err(`\`${FIG}\` 求值后拿不到 \`G.BALANCE_FIGURES\`（结构被改坏了？）`);
+    return;
+  }
+  const gen = String(FIGV.gen || '');
+  if (gen.indexOf('tools/balance.js') < 0 || !(FIGV.seed > 0) || !(FIGV.rounds > 0)) {
+    err(`${FIG} 的 \`gen\` / \`seed\` / \`rounds\` 不合法（gen=「${gen}」）—— ` +
+        '生成物必须写清「谁生成的、种子多少、每档几场」，否则它就不是可复现的来源');
+    lBad++;
+  }
+  const fights = Array.isArray(FIGV.fight) ? FIGV.fight : [];
+  const paces = Array.isArray(FIGV.pace) ? FIGV.pace : [];
+  if (fights.length !== CFG.rarity.length) {
+    err(`${FIG} 的 fight 有 ${fights.length} 行，\`CFG.rarity\` 有 ${CFG.rarity.length} 档 —— 对不上`);
+    lBad++;
+  } else {
+    fights.forEach((r, i) => {
+      if (r.rar !== i || r.name !== CFG.rarity[i].name) {
+        err(`${FIG} 的 fight 第 ${i + 1} 行（rar=${r.rar} / ${r.name}）与 \`CFG.rarity[${i}]\`（${CFG.rarity[i].name}）对不上`);
+        lBad++;
+      }
+      ['skillWin', 'skillSec', 'normWin', 'normSec', 'snap'].forEach(k => {
+        if (typeof r[k] !== 'number' || !isFinite(r[k])) {
+          err(`${FIG} 的 fight 第 ${i + 1} 行缺数字字段 \`${k}\``);
+          lBad++;
+        }
+      });
+    });
+  }
+  if (paces.length !== G.FIELDS.length) {
+    err(`${FIG} 的 pace 有 ${paces.length} 行，钓场有 ${G.FIELDS.length} 个 —— 对不上`);
+    lBad++;
+  } else {
+    paces.forEach((r, i) => {
+      if (r.rank !== G.FIELDS[i].rank) {
+        err(`${FIG} 的 pace 第 ${i + 1} 行的档位（${r.rank}）与 \`G.FIELDS[${i}]\`（${G.FIELDS[i].rank}）对不上`);
+        lBad++;
+      }
+    });
+  }
+
+  /* ② 说明书必须读生成物（胜率表的唯一来源）+ 必须走解析期望。
+     ⚠️ 判据要落在**代码**上，不能只查「全文里出现过这个名字」——
+        反向验证当场逮到过两次假绿：散文里那句 `<code>G.Loot.expectPrice()</code>`
+        与被注入的坏样本无关地把名字喂饱了 ⇒ 改成切到**函数体**里查（`bodyOf()`，
+        与 ㊷ 同一把尺子），注释与散文都够不着。 */
+  const manCode = manRaw.replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  const statsBody = bodyOf(manCode, 'function fieldStats(');
+  if (!statsBody) {
+    err(`${MANUAL} 里找不到 \`function fieldStats(\` —— ⑤ 的节奏表与 ⑦ 的收益表本该共用它（先修判据？）`);
+    lBad++;
+  } else if (statsBody.indexOf('G.Loot.expectPrice(') < 0) {
+    err(`${MANUAL} 的 \`fieldStats()\` 不再走 \`G.Loot.expectPrice()\` —— `
+      + '收益表又变成抽样估计 / 手抄常量了（同一页会重新出现两个「每小时金币」）');
+    lBad++;
+  }
+  if (manCode.indexOf('G.BALANCE_FIGURES') < 0) {
+    err(`${MANUAL} 不再读 \`G.BALANCE_FIGURES\` —— 胜率表又被抄成页内常量了（改 config 的 fight.* 不会再动它）`);
+    lBad++;
+  }
+
+  /* ③ 说明书不许再手抄「渲染之后」的数字。
+     只挑够独特的：胜率 / 耗时串（`77.4%` / `39.0 s`）与每小时金币（4~5 位数）。
+     ⚠️ 两条纪律都在这里：① **剥注释**再查（HTML 注释 / 块注释 / 行注释，且放过 `://`）——
+        否则「注释里写一句 77.4% 的说明」会被判成手抄（反向验证 I 组逮到的假红）；
+        ② 不挑 `76` / `37.0` 这种短串 —— CSS 与正文里到处都有，判据一写就假报。 */
+  const manFlat = manCode.replace(/\s+/g, ' ');
+  const ghosts = [];
+  fights.forEach(r => {
+    [r.skillWin, r.normWin].forEach(v => ghosts.push(v.toFixed(1) + '%'));
+    [r.skillSec, r.normSec].forEach(v => ghosts.push(v.toFixed(1) + ' s'));
+  });
+  paces.forEach(r => {
+    if (Math.abs(r.income) >= 1000) ghosts.push(String(r.income));
+    if (Math.abs(r.price) >= 100) ghosts.push(r.price.toFixed(1));
+  });
+  const hit = [...new Set(ghosts)].filter(g => manFlat.indexOf(g) >= 0);
+  if (hit.length) {
+    err(`${MANUAL} 里又出现了这些**渲染之后的数字**：${hit.join(' / ')} —— ` +
+        '这四张表必须现算（时间 / 节奏 / 收益）或读 `G.BALANCE_FIGURES`（胜率），不许手抄');
+    lBad++;
+  }
+  if (ghosts.length < 20) {
+    err(`33-l 的「手抄数字」样本只组出 ${ghosts.length} 条（应 ≥ 20）—— 判据会退化成摆设，先修本节自身`);
+    lBad++;
+  }
+
+  /* ④ GDD §6.4 的节奏表必须与现算值逐格相同 */
+  const gddRaw = read(GDD);
+  if (gddRaw === null) { err(`读不到 \`${GDD}\`（33-l 的节奏表对拍抓不到数据）`); return; }
+  const gddFlat = gddRaw.replace(/\r\n/g, '\n');
+  let rowOk = 0;
+  G.FIELDS.forEach((field, i) => {
+    const w = L.rarityWeights(field, {});
+    const tw = w.reduce((a, b) => a + b, 0);
+    let wait = 0, fight = 0;
+    [0, 1, 2, 3].forEach(t => {
+      wait += (w[t] / tw) * L.biteExpect(t, { field: field });
+      fight += (w[t] / tw) * CFG.misc.fightExpect[t];
+    });
+    const cyc = wait + fight, perHour = 3600 / cyc, price = L.expectPrice(field);
+    const cells = [wait.toFixed(1) + ' s', fight.toFixed(1) + ' s', cyc.toFixed(1) + ' s',
+                   String(Math.round(perHour)), price.toFixed(1)];
+    const esc1 = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    /* ⚠️ 最后一格（每小时金币）在 GDD 里是加粗的 `**7,016**` ⇒ 两边都容 `**`；
+       其余格子必须精确（多一位少一位都算漂了）。 */
+    const re = new RegExp('^\\|\\s*' + field.rank + '\\s*\\|'
+      + cells.map(c => '\\s*' + esc1(c) + '\\s*\\|').join('')
+      + '\\s*\\*{0,2}\\s*' + esc1(Math.round(perHour * price).toLocaleString('en-US')) + '\\s*\\*{0,2}\\s*\\|', 'm');
+    if (!re.test(gddFlat)) {
+      err(`${GDD} §6.4 的 ${field.rank} 那一行与现算值不符 —— 期望：| ${field.rank} | `
+        + cells.join(' | ') + ' |');
+      lBad++;
+    } else rowOk++;
+  });
+  if (!rowOk) {
+    err('33-l 在 `docs/GDD.md` 里一行节奏表都没认出来（表格格式变了？）—— 判据会恒真，先修本节自身');
+    lBad++;
+  }
+
+  /* ⑤ 重量夹取的上下界：`Loot.price()` 必须读 config（不许字面量）
+     ⚠️ 同样要切到**函数体**里查：`loot.js` 里 `kgMulExpect()` 也读这两个键，
+        只查「全文出现过」的话，把 `price()` 换回 `0.40, 2.60` 照样绿（反向验证 H 组逮到过）。 */
+  const lootSrc = fs.readFileSync(path.join(ROOT, 'src/core/loot.js'), 'utf8')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const priceBody = bodyOf(lootSrc, 'function price(');
+  if (!priceBody) {
+    err('`src/core/loot.js` 里找不到 `function price(` —— 33-l 的夹取判据够不着（先修判据？）');
+    lBad++;
+  } else if (priceBody.indexOf('CFG.economy.kgMulMin') < 0 || priceBody.indexOf('CFG.economy.kgMulMax') < 0) {
+    err('`Loot.price()` 没在读 `CFG.economy.kgMulMin/Max` —— 「重量夹取」的上下界又变回字面量了'
+      + '（`expectPrice()` 要复算同一个夹取 ⇒ 分家不报错）');
+    lBad++;
+  }
+  if (!(CFG.economy.kgMulMin > 0) || !(CFG.economy.kgMulMax > CFG.economy.kgMulMin)) {
+    err('`CFG.economy.kgMulMin/Max` 区间不合法（应 0 < Min < Max）');
+    lBad++;
+  }
+  /* 解析期望必须跟「真抽几竿」对得上 —— 判据自己证伪一次，防止 expectPrice 变成一句空话。
+     ⚠️ 容差按**实测噪声**定：售价尾部极重，4 万样本的均值本身就有几个点的误差
+     （实测 4 万样本平均 3~6%、5 万样本 3%），所以给到 10%——它要抓的是「分布分家了」
+     （那会是几十个点），不是采样噪声。 */
+  const probeN = 40000;
+  let mcSum = 0;
+  G.FIELDS.forEach(field => {
+    let s = 0;
+    for (let i = 0; i < probeN; i++) {
+      const pick = L.rollFish(field, {});
+      s += L.price(pick.fish, L.rollKg(pick.fish), L.rollColor(pick.rar), false);
+    }
+    mcSum += Math.abs(s / probeN - L.expectPrice(field)) / L.expectPrice(field);
+  });
+  const mcDev = mcSum / G.FIELDS.length;
+  if (mcDev > 0.10) {
+    err(`\`Loot.expectPrice()\` 与「真抽 ${probeN} 竿」的偏差（平均 ${(mcDev * 100).toFixed(1)}%）过大`
+      + ' —— 解析期望与实际的抽卡 / 重量 / 颜色分布已经分家');
+    lBad++;
+  }
+  /* 咬口时长的解析期望同理：它承载了 biteMul（深度倍率只作用于普通 / 稀有档）——
+     写错一个分支就会让后期钓场的节奏表整体偏掉，而「期望」这种东西不跑一次抽样看不出来。 */
+  const bDev = G.FIELDS.map(field => {
+    const want = L.biteExpect(1, { field: field });
+    let s = 0;
+    const n = 4000;
+    for (let i = 0; i < n; i++) s += L.biteTime(1, { field: field });
+    return Math.abs(s / n - want) / want;
+  }).reduce((a, b) => a + b, 0) / G.FIELDS.length;
+  if (bDev > 0.02) {
+    err(`\`Loot.biteExpect()\` 与真抽 4000 次的均值偏差 ${(bDev * 100).toFixed(2)}% 过大`
+      + ' —— 「区间中点 × 倍率」这个期望与 `biteTime` 的实际分布分家了（biteMul 分支？）');
+    lBad++;
+  }
+
+  /* ⑥ 自检：合成坏样本必须报红（手抄数字塞回 HTML / 生成物缺行） */
+  const ghost0 = fights.length ? fights[0].skillWin.toFixed(1) + '%' : '1.0%';
+  const selfOk = manFlat.indexOf(ghost0) < 0
+    && (manFlat + ' ' + ghost0).indexOf(ghost0) >= 0
+    && fights.length === CFG.rarity.length
+    && (!paces.length || paces[0].rank === G.FIELDS[0].rank);
+  if (!selfOk) {
+    err('33-l 的判据自检不成立（手抄检测认不出注入 / 生成物对齐关系读不出来）');
+    lBad++;
+  }
+
+  if (!lBad) {
+    ok(`${FIG} 结构合法（${fights.length} 档胜率 + ${paces.length} 场节奏，种子 ${FIGV.seed}、`
+      + `每档 ${FIGV.rounds} 场）· 说明书真读它且不再手抄那四张表的数字（挡住 ${new Set(ghosts).size} 个手抄串）`
+      + `· GDD §6.4 的 ${rowOk} 行节奏与现算逐格一致 · \`Loot.price()\` 读 \`CFG.economy.kgMulMin\` / \`CFG.economy.kgMulMax\``
+      + `· 解析期望与真抽 ${probeN} 竿平均偏差 ${(mcDev * 100).toFixed(2)}%`
+      + `· 期望咬口与真抽偏差 ${(bDev * 100).toFixed(2)}%`);
   }
 })();
 

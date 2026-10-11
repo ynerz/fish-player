@@ -17,19 +17,11 @@ G.U = (function () {
     return min + (max - min) * t;
   }
 
-  /* 按权重抽取：items 需有 w 字段（weightKey 可指定） */
-  function weighted(items, weightKey) {
-    weightKey = weightKey || 'w';
-    var total = 0, i;
-    for (i = 0; i < items.length; i++) total += (items[i][weightKey] || 0);
-    if (total <= 0) return items[0] || null;
-    var r = Math.random() * total;
-    for (i = 0; i < items.length; i++) {
-      r -= (items[i][weightKey] || 0);
-      if (r <= 0) return items[i];
-    }
-    return items[items.length - 1];
-  }
+  /* ⚠️ 这里原有一个 `weighted(items, weightKey)`（按权重抽取）——
+     它自 2026-10-11 起**全项目零消费**：唯一的调用方是 `tools/balance.js` 自己那份
+     「抽鱼」的重复实现，而那一份已经删掉（改走 `G.Loot.rollFish`）。
+     零消费的导出只会被后来的人当成「基础设施」（U 里 `rnd` / `irange` 那批就是教训）⇒
+     连同 `U.weighted` 一起删；`tools/test.js`「Util · 导出面」与 `verify 32-b` 都盯住它别回来。 */
 
   /* ---------------- 数学 ---------------- */
   function clamp(v, a, b) { return v < a ? a : (v > b ? b : v); }
@@ -123,7 +115,7 @@ G.U = (function () {
 
   return {
     range: range,
-    skew: skew, weighted: weighted,
+    skew: skew,
     clamp: clamp, lerp: lerp, easeOut: easeOut,
     hex2rgb: hex2rgb, rgb2hex: rgb2hex, mix: mix, lighten: lighten,
     darken: darken, rgba: rgba,

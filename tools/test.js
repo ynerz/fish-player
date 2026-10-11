@@ -1747,11 +1747,14 @@ console.error = realErrLoad;
 G_('Util · 导出面（不留零消费的死函数）');
 const UTIL_KEYS = ['$', '$$', 'clamp', 'clock', 'coin', 'darken', 'dayKey', 'dur', 'easeOut',
   'el', 'hex2rgb', 'kg', 'lerp', 'lighten', 'mix', 'num', 'on', 'range',
-  'rgb2hex', 'rgba', 'skew', 'weighted'];
+  'rgb2hex', 'rgba', 'skew'];
 ok(Object.keys(U).sort().join(',') === UTIL_KEYS.join(','),
    'G.U 的导出集合与白名单完全一致（共 ' + UTIL_KEYS.length + ' 个）',
    Object.keys(U).sort().join(','));
-['rnd', 'irange', 'pick', 'chance', 'normalize'].forEach(k => {
+/* `weighted` = 按权重抽取。它自己就是「长得像基础设施」的典型：唯一的调用方是
+   `tools/balance.js` 里那份重复的「抽鱼」实现（2026-10-11 删掉、改走 `G.Loot.rollFish`）
+   ⇒ 同一批清掉，并在这里钉住别回来。 */
+['rnd', 'irange', 'pick', 'chance', 'normalize', 'weighted'].forEach(k => {
   ok(U[k] === undefined, '零调用死函数 U.' + k + ' 已从导出面移除');
 });
 

@@ -124,31 +124,103 @@ G.Loot = (function () {
      `G.Integrity` 的「物理不可能」判据要的是「两竿最短可能间隔」，那是下界不是采样值。
      ⚠️ 两条路共用**同一段乘子代码**：以后给 `biteTime` 加新乘子，下界会自动跟上。
         分开写两份必然分家 —— 判据会静默失效（要么永不报、要么误报正常玩家）。 */
-  function biteSpan(rarityIdx, opts, lo) {
+  function biteMulOf(rarityIdx, opts) {
     opts = opts || {};
-    var r = CFG.rarity[rarityIdx] || CFG.rarity[0];
-    var t = lo ? r.timeMin : U.range(r.timeMin, r.timeMax);
+    var mul = 1;
     if (rarityIdx <= 1) {
-      var mul = 1;
       if (opts.field && opts.field.biteMul) mul = opts.field.biteMul;
       else if (opts.fieldId && G.FIELD_MAP[opts.fieldId]) mul = G.FIELD_MAP[opts.fieldId].biteMul || 1;
-      t *= mul;
     }
-    if (opts.bait && opts.bait.speed) t *= opts.bait.speed;
-    return t;
+    if (opts.bait && opts.bait.speed) mul *= opts.bait.speed;
+    return mul;
+  }
+  function biteSpan(rarityIdx, opts, lo) {
+    var r = CFG.rarity[rarityIdx] || CFG.rarity[0];
+    var t = lo ? r.timeMin : U.range(r.timeMin, r.timeMax);
+    return t * biteMulOf(rarityIdx, opts);
   }
   function biteTime(rarityIdx, opts) { return biteSpan(rarityIdx, opts, false); }
   /* 咬口时长的下界（秒）：反作弊判据用，别在调用方另写一份公式 */
   function biteTimeMin(rarityIdx, opts) { return biteSpan(rarityIdx, opts, true); }
+  /* 咬口时长的**期望**（秒）= 区间中点 × 倍率。
+     ⚠️ **只有这一处实现**：玩家向说明书、GDD 的节奏表、`verify §8`、`tools/balance.js ②`
+        全都调它 —— 不要在各自那边再写一遍「(timeMin+timeMax)/2」（同一个事实写 N 遍，
+        改一处其余各自漂，而且**不报错**；`verify §33-l` 会把 GDD 的表与它逐格对拍）。 */
+  function biteExpect(rarityIdx, opts) {
+    var r = CFG.rarity[rarityIdx] || CFG.rarity[0];
+    return (r.timeMin + r.timeMax) / 2 * biteMulOf(rarityIdx, opts);
+  }
 
   /* ---------------- 售价 ----------------
-     售价 = 鱼种基础价 × 重量系数 × 颜色系数 ×（首次捕获奖励） */
+     售价 = 鱼种基础价 × 重量系数 × 颜色系数 ×（首次捕获奖励）
+     ⚠️ 夹取上下界读 `CFG.economy.kgMulMin/Max` —— 它们原先是这里的字面量，
+        而 `expectPrice()`（下面的解析期望）要复算同一个夹取 ⇒ 分家不报错。 */
   function price(fish, kg, color, isNew) {
     var mid = Math.max(1e-6, (fish.minKg + fish.maxKg) / 2);
-    var kgMul = U.clamp(kg / mid, 0.40, 2.60);
+    var kgMul = U.clamp(kg / mid, CFG.economy.kgMulMin, CFG.economy.kgMulMax);
     var p = fish.price * kgMul * (color ? color.valueMul : 1) * CFG.economy.sellMul;
     if (isNew) p *= CFG.economy.firstCatchBonus;
     return Math.max(1, Math.round(p));
+  }
+
+  /* ---------------- 期望售价（解析，确定性） ----------------
+     为什么不用蒙特卡洛：售价的尾部极重（巨物 ×1.55 叠在本来就贵的那几条上），
+     实测「每场随便一竿的平均鱼价」在两万 / 五万样本之间的波动高达 **16%**
+     ⇒ 同一张表刷新一次就变一个数，还会**非单调**（说明书 §⑦ 曾出现 SS 46,059 > SSS 44,951，
+     与它自己那句「逐场递增」当场打架）。解析期望一步到位：稳定、可复现、还能被断言。
+
+       E[售价] = Σ_鱼 P(鱼) · 基础价 · sellMul · E[重量系数] · E[颜色系数]
+       · P(鱼)    = (稀有度权重占比) × (档内权重占比)     —— 与 rollFish 同源
+       · E[重量系数] = ∫₀¹ clamp(kg(u)/中位, lo, hi) du，kg(u) = 最小 + (最大−最小)·u^skew
+                      （再叠「巨物」那一支：kg × giantMul，概率 giantProb）—— 与 rollKg 同源
+                      夹取把积分切成三段，**解析求**（无求积误差）
+       · E[颜色系数] = Σ 颜色概率 · valueMul ÷ Σ 颜色概率       —— 与 rollColor 同源
+     ⚠️ 这是**期望值**口径（不含首次捕获的 ×firstCatchBonus，也不含挂机权重）；
+        与 `verify §8`、`tools/balance.js ②`、玩家向说明书用的是同一份。 */
+  function segExpect(min, max, mid, k, lo, hi) {
+    if (!(max > min)) return U.clamp(min / mid, lo, hi);      // 退化成一个点
+    function uAt(t) {                                        // kg(u)/mid = t 的 u
+      var x = (t * mid - min) / (max - min);
+      if (!(x > 0)) return 0;
+      if (x >= 1) return 1;
+      return Math.pow(x, 1 / k);
+    }
+    var u1 = uAt(lo), u2 = uAt(hi);
+    var F = function (u) { return (min * u + (max - min) * Math.pow(u, k + 1) / (k + 1)) / mid; };
+    return lo * u1 + (F(u2) - F(u1)) + hi * (1 - u2);
+  }
+  function kgMulExpect(fish) {
+    var k = CFG.weight.skew, p = CFG.weight.giantProb, g = CFG.weight.giantMul;
+    var mid = Math.max(1e-6, (fish.minKg + fish.maxKg) / 2);
+    var lo = CFG.economy.kgMulMin, hi = CFG.economy.kgMulMax;
+    return (1 - p) * segExpect(fish.minKg, fish.maxKg, mid, k, lo, hi)
+         + p * segExpect(fish.minKg * g, fish.maxKg * g, mid, k, lo, hi);
+  }
+  function colorMulExpect(rarIdx) {
+    var s = 0, t = 0;
+    for (var i = 0; i < CFG.colorMorphs.length; i++) {
+      var q = colorProb(CFG.colorMorphs[i], rarIdx);
+      s += q * CFG.colorMorphs[i].valueMul; t += q;
+    }
+    return t > 0 ? s / t : 1;
+  }
+  function expectPrice(field, opts) {
+    opts = opts || {};
+    var w = rarityWeights(field, opts);
+    var tw = 0, i;
+    for (i = 0; i < w.length; i++) tw += w[i];
+    var sum = 0;
+    var list = G.FISH_BY_FIELD[field.id] || [];
+    for (i = 0; i < list.length; i++) {
+      var f = list[i];
+      var bucket = G.FISH_BY_FIELD_RARITY[field.id][f.rar] || [];
+      var bw = 0, j;
+      for (j = 0; j < bucket.length; j++) bw += bucket[j].w || 0;
+      if (!(bw > 0) || !(tw > 0)) continue;
+      var pick = (w[f.rar] / tw) * ((f.w || 0) / bw);
+      sum += pick * f.price * CFG.economy.sellMul * kgMulExpect(f) * colorMulExpect(f.rar);
+    }
+    return sum;
   }
 
   /* ---------------- 水族箱被动收益（单条，金/小时） ----------------
@@ -176,7 +248,7 @@ G.Loot = (function () {
        与档内抽鱼），不该出现在导出面上 —— 全项目零外部调用。 */
     colorProb: colorProb, colorProbTotal: colorProbTotal,
     rarityWeights: rarityWeights, rollFish: rollFish,
-    biteTime: biteTime, biteTimeMin: biteTimeMin,
-    price: price, generate: generate, tankYield: tankYield,
+    biteTime: biteTime, biteTimeMin: biteTimeMin, biteExpect: biteExpect,
+    price: price, expectPrice: expectPrice, generate: generate, tankYield: tankYield,
   };
 })();

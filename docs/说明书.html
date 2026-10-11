@@ -278,12 +278,12 @@
   <div class="card">
     <p>从抛竿到鱼咬钩的等待时间，由这条鱼的稀有度决定：</p>
     <table id="timeTable"></table>
-    <h3>各钓场实测节奏</h3>
+    <h3>各钓场节奏（等待 / 拉扯，按数值表解析期望）</h3>
     <table id="paceTable"></table>
     <div class="note">
       <b>关于「平均 20 秒一条」：</b>原始设定里同时写了「平均 20s 中一条」和「稀有鱼 40s~10 分钟」，
-      这两件事数学上无法同时成立。本作的取舍是：<b>普通鱼单竿约 48 秒（D 钓场），
-      随钓场等级递增到 SSS 的约 118 秒</b>（后期钓场的普通鱼咬口会变慢，最多 3.5 倍 ——
+      这两件事数学上无法同时成立。本作的取舍是：<b>普通鱼单竿约 <span id="k1"></span> 秒（D 钓场），
+      随钓场等级递增到 SSS 的约 <span id="k2"></span> 秒</b>（后期钓场的普通鱼咬口会变慢，最多 3.5 倍 ——
       这是「让后期自然变慢」的唯一手段，见下表 biteMul）。既保住了普通鱼很快上钩的手感，
       又给稀有鱼留足了仪式感。
     </div>
@@ -301,7 +301,7 @@
       <li>进度过 20% 后鱼开始力竭，最多减 22% 挣扎强度，所以后期会越来越顺</li>
       <li><b>断线要花钱修线</b>：修理费 = 鱼线价 × 2%（保底 20 金），所以认真躲逃窜是划算的</li>
     </ul>
-    <h3>实测胜率（各 6 万次对局）</h3>
+    <h3>实测胜率（<span id="winRounds"></span>）</h3>
     <table id="winTable"></table>
     <div class="note">
       「熟练」= 反应 0.15 秒、看到预警就松手；「普通」= 反应 0.32 秒、节奏更迟钝。
@@ -335,8 +335,10 @@
   <div class="card">
     <table id="incomeTable"></table>
     <div class="note">
-      每小时金币<b>逐场递增</b>（每进一个新钓场至少 +24%），不会出现「越玩越亏」。
-      这张表是用游戏真实的抽卡与售价函数现算的，改数值会自动跟着变。
+      每小时金币<b>逐场递增</b>（每进一个新钓场至少 +<span id="incMin"></span>%），不会出现「越玩越亏」。
+      这张表与上面 ⑤ 的节奏表用的是<b>同一份现算函数</b>（<code>G.Loot.expectPrice()</code> 的解析期望）——
+      改任何数值两张表一起变。（曾经这里用两千次抽样估计，同一个「D 场每小时金币」
+      在同一页里出现过三个互相打架的数，而且曲线还会偶尔倒挂。）
     </div>
   </div>
 
@@ -591,6 +593,8 @@
 <script src="../src/core/util.js"></script>
 <script src="../src/core/loot.js"></script>
 <script src="../src/render/fishart.js"></script>
+<!-- 仿真结论（`node tools/balance.js --emit` 的产物）：胜率表页内算不出来，只能引用 -->
+<script src="balance-figures.js"></script>
 <script>
 (function () {
   var U = G.U, FA = G.FishArt, CFG = G.CONFIG;
@@ -738,37 +742,64 @@
         '<td>' + note + '</td></tr>';
     }).join('');
 
-  /* ---------------- 时间表 ---------------- */
+  /* ---------------- 上鱼节奏 ----------------
+     🔴 这四张表**全部现算 / 引用生成物**，一个数字都不许手抄（2026-10-11 第 50 轮）：
+        · 抛竿→咬钩 = `CFG.rarity[].timeMin~timeMax`（现算）
+        · 拉扯耗时   = `CFG.misc.fightExpect`（现算，与 paceTable 的「平均拉扯」同源）
+        · 节奏 / 收益 = 解析期望 `fieldStats()`（与 §⑦ 的收益表**同一份函数**）
+        · 胜率表     = `G.BALANCE_FIGURES`（**仿真结论**，页内算不出来 ⇒ 只能由
+                       `node tools/balance.js --emit` 产出、这里引用；见 `docs/balance-figures.js`）
+     此前这四张表都是页内手写常量：同一个「D 场每小时金币」在同一页里同时写着
+     2,532（手抄）与 4,277（页内 2000 次抽样的噪声值），而数值工具算的是 9,702 ——
+     三个数、一句都不报错；手抄的胜率表还会被 `config.js` 里 `fight.*` 的改动静默甩下。 */
+  var FIG = (G.BALANCE_FIGURES || { fight: [], rounds: 0 });
+  /* 单竿节奏与期望收益 —— **唯一一处**（⑤ 的节奏表与 ⑦ 的收益表都读它）。
+     咬口期望与鱼价期望都走 `G.Loot` 的唯一实现，本页不自己写公式。 */
+  function fieldStats(f) {
+    var w = G.Loot.rarityWeights(f, {}), tw = 0, i;
+    for (i = 0; i < w.length; i++) tw += w[i];
+    var wait = 0, fight = 0;
+    for (i = 0; i < 4; i++) {
+      wait  += (w[i] / tw) * G.Loot.biteExpect(i, { field: f });
+      fight += (w[i] / tw) * CFG.misc.fightExpect[i];
+    }
+    var cycle = wait + fight, perHour = 3600 / cycle, price = G.Loot.expectPrice(f);
+    return { field: f, wait: wait, fight: fight, cycle: cycle,
+             perHour: perHour, price: price, income: perHour * price };
+  }
+  var pace = G.FIELDS.map(fieldStats);
+
   document.getElementById('timeTable').innerHTML =
     '<tr><th>稀有度</th><th class="num">抛竿 → 咬钩</th><th class="num">拉扯耗时</th><th>整体手感</th></tr>' +
-    [['普通','8 ~ 22 秒','7 秒','很快就来'],['稀有','38 ~ 100 秒','20 ~ 23 秒','要有耐心'],
-     ['史诗','150 ~ 320 秒','30 秒','值得等'],['传说','380 ~ 600 秒','35 ~ 38 秒','一场硬仗']]
-    .map(function (r) { return '<tr><td>' + r[0] + '</td><td class="num">' + r[1] +
-      '</td><td class="num">' + r[2] + '</td><td>' + r[3] + '</td></tr>'; }).join('');
+    CFG.rarity.map(function (r, i) {
+      return '<tr><td>' + r.name + '</td><td class="num">' + r.timeMin + ' ~ ' + r.timeMax + ' 秒</td>' +
+        '<td class="num">' + CFG.misc.fightExpect[i].toFixed(1) + ' 秒</td>' +
+        '<td>' + ['很快就来', '要有耐心', '值得等', '一场硬仗'][i] + '</td></tr>';
+    }).join('');
 
   document.getElementById('paceTable').innerHTML =
     '<tr><th>钓场</th><th class="num">平均等待</th><th class="num">平均拉扯</th><th class="num">单竿合计</th>' +
     '<th class="num">每小时竿数</th><th class="num">平均鱼价</th><th class="num">每小时金币</th></tr>' +
-    [['D',37.1,11.2,48.3,75,34.0,2532],['C',36.9,11.7,48.6,74,38.8,2873],
-     ['B',52.6,13.5,66.1,54,66.3,3613],['A',81.9,16.9,98.8,36,176.0,6414],
-     ['S',102.0,17.8,119.8,30,283.9,8530],['SS',96.0,13.6,109.6,33,301.6,9911],
-     ['SSS',106.4,12.0,118.4,30,466.4,14182]]
-    .map(function (r) {
-      return '<tr><td><b>' + r[0] + '</b></td>' + r.slice(1, 7).map(function (v) {
-        return '<td class="num">' + v + '</td>'; }).join('') + '</tr>';
+    pace.map(function (s) {
+      return '<tr><td><b>' + s.field.rank + '</b></td>' +
+        [s.wait.toFixed(1), s.fight.toFixed(1), s.cycle.toFixed(1), s.perHour.toFixed(0),
+         s.price.toFixed(1), s.income.toFixed(0)].map(function (v) {
+          return '<td class="num">' + v + '</td>'; }).join('') + '</tr>';
     }).join('');
 
   /* ---------------- 胜率 ---------------- */
+  document.getElementById('winRounds').textContent =
+    '每档每种玩法 ' + FIG.rounds + ' 场对局';
   document.getElementById('winTable').innerHTML =
     '<tr><th>稀有度</th><th class="num">熟练玩家胜率</th><th class="num">耗时</th>' +
     '<th class="num">普通玩家胜率</th><th class="num">耗时</th><th>主要失败原因</th></tr>' +
-    [['普通','100.0%','7.3 s','100.0%','7.2 s','—'],
-     ['稀有','99.5%','22.0 s','93.8%','19.9 s','断线 6.2%'],
-     ['史诗','90.3%','30.6 s','90.5%','30.4 s','断线 8.1%'],
-     ['传说','77.4%','39.0 s','75.2%','35.2 s','断线 24.8%']]
-    .map(function (r) {
-      return '<tr><td>' + r[0] + '</td>' + r.slice(1, 5).map(function (v) {
-        return '<td class="num">' + v + '</td>'; }).join('') + '<td>' + r[5] + '</td></tr>';
+    FIG.fight.map(function (r) {
+      var note = r.normWin >= 100 ? '—' : '断线 ' + r.snap.toFixed(1) + '%';
+      return '<tr><td>' + r.name + '</td>' +
+        [r.skillWin.toFixed(1) + '%', r.skillSec.toFixed(1) + ' s',
+         r.normWin.toFixed(1) + '%', r.normSec.toFixed(1) + ' s'].map(function (v) {
+          return '<td class="num">' + v + '</td>'; }).join('') +
+        '<td>' + note + '</td></tr>';
     }).join('');
 
   /* ---------------- 装备 ---------------- */
@@ -809,30 +840,17 @@
         U.num(r.price) + '</td><td>' + r.desc + '</td></tr>';
     }).join('');
 
-  /* 每小时收益不再写死 —— 用游戏真实的抽卡/售价函数现场蒙特卡洛，
-     改任何数值后这张表自动跟着变，不会像以前那样跟代码脱节。 */
-  function fieldIncome(f) {
-    var tot = 0, i;
-    for (i = 0; i < 4; i++) tot += f.rarity[i];
-    var cycle = 0;
-    for (i = 0; i < 4; i++) {
-      cycle += (f.rarity[i] / tot) *
-        ((CFG.rarity[i].timeMin + CFG.rarity[i].timeMax) / 2 * (i <= 1 ? f.biteMul : 1) +
-         CFG.misc.fightExpect[i]);
-    }
-    var sum = 0, N = 2000;
-    for (var k = 0; k < N; k++) {
-      var pick = G.Loot.rollFish(f, {});
-      sum += G.Loot.price(pick.fish, G.Loot.rollKg(pick.fish), G.Loot.rollColor(pick.rar), false);
-    }
-    return Math.round(3600 / cycle * (sum / N));
-  }
-  var baseIncome = fieldIncome(G.FIELDS[0]);
+  /* 每小时收益不再写死，也不再抽样 —— 直接读上面 `fieldStats()` 的解析期望。
+     ⚠️ 原来这里有一段 2000 次抽样的蒙特卡洛（`fieldIncome`），而 ⑤ 的节奏表是**另一份手抄常量**：
+     同一个「D 场每小时金币」在同一页里同时写着 2,532 与 4,277，而数值工具算的是 9,702
+     —— 三个数、不报错；而且两千次采样在这么重的尾分布下噪声极大（曲线偶尔倒挂，
+     与它下面那句「逐场递增」当场打架）⇒ 2026-10-11 第 50 轮收成一份。 */
+  var baseIncome = pace[0].income;
   document.getElementById('incomeTable').innerHTML =
     '<tr><th>钓场</th><th class="num">每小时金币</th><th class="num">对比 D 钓场</th>' +
       '<th class="num">本场全程约能攒</th><th>该场适合的鱼竿</th></tr>' +
-    G.FIELDS.map(function (f, fi) {
-      var inc = fieldIncome(f);
+    pace.map(function (s) {
+      var f = s.field, inc = s.income;
       var total = inc * (f.estOwnHours || 0);
       /* 「适合本场的鱼竿」= 价格不超过本场总收入的最高一档（与定价规则一致） */
       var best = G.RODS[0];
@@ -844,6 +862,12 @@
         '</td><td class="num">' + (inc / baseIncome).toFixed(1) + '×</td><td class="num">' +
         U.num(total) + '</td><td>' + label + '</td></tr>';
     }).join('');
+  /* ⑤ / ⑦ 两处散文里引用的数字也现算（不许手抄） */
+  document.getElementById('k1').textContent = Math.round(pace[0].cycle);
+  document.getElementById('k2').textContent = Math.round(pace[pace.length - 1].cycle);
+  var minStep = 1e9;
+  for (var pi = 1; pi < pace.length; pi++) minStep = Math.min(minStep, pace[pi].income / pace[pi - 1].income);
+  document.getElementById('incMin').textContent = Math.floor((minStep - 1) * 100);
 
   /* ---------------- 天气 / 时段 ---------------- */
   var WX = CFG.weather;

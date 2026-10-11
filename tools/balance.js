@@ -1,22 +1,42 @@
 /* =========================================================
    tools/balance.js  —  数值仿真（Node 运行，不参与游戏本体）
-   用法： node tools/balance.js
+   用法： node tools/balance.js           # 只跑仿真、打印结论
+          node tools/balance.js --emit    # 另外把「胜率表」写进 docs/balance-figures.js
+          node tools/balance.js --check   # 不写盘，只比对盘上那份是不是最新的（退出码 0/1）
    作用： 用「模拟玩家」跑大量对局，验证
           ① 各稀有度的拉扯胜率是否合理
           ② 拉扯时长是否在预期范围
           ③ 各钓场每小时收益曲线
           ④ 集齐图鉴（100%）的预估耗时
+
+   ⚠️ 两种「口径」分工（2026-10-11 第 50 轮统一）：
+      · **仿真结论**（① 的胜率 / 耗时）—— 只能跑对局得到 ⇒ `--emit` 写进
+        `docs/balance-figures.js`，说明书 / GDD 引用它（**不许手抄**）。
+      · **解析期望**（② 的节奏 / 鱼价 / 收益）—— 能从 `config` + `G.Loot` 一步算出
+        ⇒ 直接调 `G.Loot.expectPrice()` 与 `CFG.misc.fightExpect`，
+        与 `verify §8`、玩家向说明书**同一份口径**。
+      （此前 ② 用 4000 场仿真的样本均值，尾重分布下**样本均值本身**就能差 40%
+        —— 同一个「D 场每小时金币」在说明书里同时写着 2,532 / 4,277 / 9,702 三个数。）
    ========================================================= */
 const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 
+/* 写回目标：**唯一一处声明**（同 `solve-drop.js` / `gen-collect-time.js`）——
+   写完之后照它打印清单与还原命令，`verify [14-b]` 会拿它与真写盘路径对拍。 */
+const WRITES = ['docs/balance-figures.js'];
+
+const SEED = 20260101;
+const argv = process.argv.slice(2);
+const EMIT = argv.indexOf('--emit') >= 0;
+const CHECK = argv.indexOf('--check') >= 0;
+
 /* ---------- 固定随机种子 ----------
-   本工具是全项目「每小时收益 / 收集耗时」这些数字的唯一来源，文档也照抄它的输出。
+   本工具是「拉扯胜率」这类**仿真结论**的唯一来源，`docs/balance-figures.js` 就是它的产物。
    用 Math.random 的话每次跑出来的数都略有不同，文档里的表就永远对不上。
    换成定种子 LCG（Lehmer），保证同一份数据每次得到完全一样的结论。 */
-let _seed = 20260101;
+let _seed = SEED;
 Math.random = function () { _seed = (_seed * 48271) % 2147483647; return _seed / 2147483647; };
 
 /* 模拟浏览器环境：window 即全局，window.G 同时也裸写成 G */
@@ -71,44 +91,29 @@ function simulate(fish, kg, tensionMax, reelMul, prof) {
   return { result: res, time: t };
 }
 
-/* ---------------- 单竿耗时 ---------------- */
-/* ⚠️ 必须把 field 传进 Loot.biteTime —— 它会给「普通 / 稀有」两档乘 biteMul。
-   之前这里漏了参数，导致 B/A/S/SS/SSS 场的每小时收益被系统性高估
-   （SSS 报 24313、实际只有 12176）。游戏本体走的是同一条路径。 */
-function waitTime(rar, field) {
-  return G.Loot.biteTime(rar, { field: field });
-}
-
-/* ---------------- 抽鱼 ---------------- */
-function rollFish(field, bait, rodRareMul, idleOn) {
-  const weights = field.rarity.slice();
-  if (idleOn) {
-    for (let i = 1; i < weights.length; i++) weights[i] *= CFG.idle.rareWeightMul;
-  }
-  // 鱼饵 / 鱼竿对稀有档的加成
-  const boost = (bait ? bait.rareMul : 1) * (rodRareMul || 1);
-  weights[1] *= boost;
-  weights[2] *= boost * (bait && bait.legendMul ? 1 : 1);
-  weights[3] *= boost * (bait && bait.legendMul ? bait.legendMul : 1);
-
-  const rar = pickWeighted(weights);
-  const buckets = G.FISH_BY_FIELD_RARITY[field.id][rar];
-  return { fish: U.weighted(buckets, 'w'), rar };
-}
-
-function pickWeighted(w) {
-  const total = w.reduce((a, b) => a + b, 0);
-  let r = Math.random() * total;
-  for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) return i; }
-  return w.length - 1;
-}
+/* ---------------- 抽鱼 / 单竿耗时 ----------------
+   这里原先有 `rollFish()` / `pickWeighted()` / `waitTime()` 三份**本地实现** ——
+   它们是 `G.Loot` 出现之前的遗留，与 `Loot.rollFish` / `Loot.biteTime` **各写一遍**。
+   2026-10-11 第 50 轮清掉：② 段改走 `G.Loot` 之后它们就再没人调用了，
+   而「同一套掉率写两份」正是本项目最容易静默分家的形状（biteMul 那次就是）。
+   ⇒ 抽鱼一律 `G.Loot.rollFish()`；咬口时长一律 `G.Loot.biteTime()`。 */
 
 const rollKg = (fish) => G.Loot.rollKg(fish);
 
 /* ---------------- 主流程 ---------------- */
 const ROUNDS = 4000;
 
-console.log('\n=== ① 张力拉扯胜率 / 耗时（6 万次对局）===');
+/* 收进生成物的数必须与**打印出来的那一串**逐字一致：
+   ⚠️ 不能用 `Math.round(x*10)/10` —— 它与 `x.toFixed(1)` 在「恰好 .x5」上会分家
+   （实测 史诗·普通玩家胜率 = 90.55%：`toFixed(1)` → "90.5"、`Math.round` → 90.6
+   ⇒「控制台说 90.5、生成物说 90.6」，同一张表两种说法且不报错）。
+   统一走 `Number(x.toFixed(n))`：页面再 `.toFixed(n)` 回来与这里逐字相同。 */
+const r1 = (x) => Number(x.toFixed(1));
+const r0 = (x) => Number(x.toFixed(0));
+
+/* ① 的结论要写进 `docs/balance-figures.js` ⇒ 收集成结构化行，而不是只往 stdout 打 */
+const fightRows = [];
+console.log(`\n=== ① 张力拉扯胜率 / 耗时（每档每种玩法 ${ROUNDS} 场）===`);
 console.log('稀有度   熟练胜率  熟练耗时   普通胜率  普通耗时   断线率  脱钩率  超时率');
 for (let rar = 0; rar < 4; rar++) {
   const stat = {};
@@ -133,41 +138,51 @@ for (let rar = 0; rar < 4; rar++) {
     `${(b.win * 100).toFixed(1).padStart(7)}%  ${b.time.toFixed(1).padStart(7)}s  ` +
     `${(b.snap * 100).toFixed(1).padStart(6)}%  ${(b.esc * 100).toFixed(1).padStart(5)}%  ${(b.tout * 100).toFixed(1).padStart(5)}%`
   );
+  /* ⚠️ 必须与上面打印出来的那一串逐字一致 —— 见文件里 r1() 上面那段说明 */
+  fightRows.push({ rar: rar, name: CFG.rarity[rar].name,
+                   skillWin: r1(a.win * 100), skillSec: r1(a.time),
+                   normWin: r1(b.win * 100), normSec: r1(b.time), snap: r1(b.snap * 100) });
 }
 
-/* ⚠️ 本节的「平均拉扯」用的是 CFG.misc.fightExpect（期望值），
-   而 ① 段是真实对局仿真 —— 两者略有差异（史诗 30.6s vs 30~31s，传说 39s vs 35~39s）。
-   这里刻意用期望值：它与 main.js 的 avgCycle()、离线补算、GDD/说明书里的收益表
-   是**同一份口径**，改 ① 的数字不会悄悄改掉经济表。 */
-console.log('\n=== ② 各钓场节奏（每竿：等待 + 拉扯）===');
+/* ② 走**解析期望**（不是 4000 场仿真的样本均值）。
+   理由见文件头：售价尾部极重，样本均值本身就能差 40%（同一个「D 场每小时金币」
+   在说明书里曾同时写着 2,532 / 4,277 / 9,702 三个数）。
+   这里刻意与 `verify §8`、`main.js: avgCycle()`、离线补算、`G.Loot.expectPrice()`
+   用**同一份口径** ⇒ 改 ① 的仿真结论不会悄悄改掉经济表。 */
+function biteExpect(rar, field) {      // 咬口时长的期望：**只有 Loot 一处实现**，这里只是转调
+  return G.Loot.biteExpect(rar, { field: field });
+}
+console.log('\n=== ② 各钓场节奏（每竿：等待 + 拉扯，解析期望）===');
 console.log('钓场    平均等待   平均拉扯   单竿合计   每小时竿数  平均鱼价   每小时金币');
-const rodFor = (fid) => G.RODS[0];
 /* ②的结果要留给 ⑤（水族箱产出复核）用，所以顺手存下来 */
 const activeIncome = {};   // fid -> 金/小时
 const avgPriceOf = {};     // fid -> 平均鱼价
 const samplePrices = {};   // fid -> 该场鱼价样本（用于算「顶配水族箱」上界）
+const paceRows = [];
 for (const field of G.FIELDS) {
-  let sumWait = 0, sumFight = 0, sumValue = 0, n = ROUNDS;
-  const prices = [];
-  for (let i = 0; i < n; i++) {
-    const { fish } = rollFish(field, G.BAITS[0], 1.0, false);
-    const kg = rollKg(fish);
-    sumWait += waitTime(fish.rar, field);
-    const r = simulate(fish, kg, 100, 1.0, PROFILE["熟练"]);
-    sumFight += r.result === 'success' ? r.time : r.time * 0.6;
-    /* 用游戏真实的售价函数：鱼种基础价 × 重量系数 × 颜色系数
-       （此前只乘了重量，漏了颜色，收益被低估约 15~50%） */
-    const pv = G.Loot.price(fish, kg, G.Loot.rollColor(fish.rar), false);
-    sumValue += pv;
-    prices.push(pv);
+  const w = G.Loot.rarityWeights(field, {});
+  const tw = w.reduce((a, b) => a + b, 0);
+  let avgWait = 0, avgFight = 0;
+  for (let t = 0; t < 4; t++) {
+    avgWait += (w[t] / tw) * biteExpect(t, field);
+    avgFight += (w[t] / tw) * CFG.misc.fightExpect[t];
   }
-  const avgWait = sumWait / n, avgFight = sumFight / n;
   const perFish = avgWait + avgFight;
   const perHour = 3600 / perFish;
-  const avgVal = sumValue / n;
+  const avgVal = G.Loot.expectPrice(field);          // 解析期望鱼价（确定性）
   activeIncome[field.id] = perHour * avgVal;
   avgPriceOf[field.id] = avgVal;
+  /* ⑤ 的「顶配」是「该场最贵的 24 条」——它要的是**分布上界**而不是均值，
+     所以这里仍然采一批样本（不跑对局，只要价格）。 */
+  const prices = [];
+  for (let i = 0; i < ROUNDS; i++) {
+    const pick = G.Loot.rollFish(field, {});
+    prices.push(G.Loot.price(pick.fish, G.Loot.rollKg(pick.fish), G.Loot.rollColor(pick.rar), false));
+  }
   samplePrices[field.id] = prices;
+  paceRows.push({ rank: field.rank, name: field.name,
+                  wait: r1(avgWait), fight: r1(avgFight), cycle: r1(perFish),
+                  perHour: r0(perHour), price: r1(avgVal), income: r0(perHour * avgVal) });
   console.log(
     `${field.rank.padEnd(5)}  ${avgWait.toFixed(1).padStart(7)}s  ` +
     `${avgFight.toFixed(1).padStart(7)}s  ${perFish.toFixed(1).padStart(8)}s  ` +
@@ -350,4 +365,59 @@ G.FIELDS.forEach((f, i) => {
 });
 console.log(`\n全部 7 个钓场 100% 收满 ≈ ${c.toFixed(0)} 小时`);
 console.log('');
+
+/* ---------------- 收尾：把「仿真结论」写进 docs/balance-figures.js ----------------
+   ① 的胜率表 / ② 的节奏表都收进同一个生成物：
+     · 胜率是**仿真结论**（说明书页内算不出来）⇒ 说明书 / GDD 必须引用它，不许手抄；
+     · 节奏表顺手一起写，好让 `verify §33-l` 能拿「页面里显示的」与「工具算出来的」对拍。
+   写回目标在文件头的 `WRITES` 一处声明（`verify [14-b]` 会与真写盘路径对拍）。 */
+function figuresSource() {
+  const dump = (rows, keys) => rows.map(r =>
+    '    { ' + keys.map(k => `${k}: ${JSON.stringify(r[k])}`).join(', ') + ' },').join('\n');
+  return `/* =========================================================
+   docs/balance-figures.js  —  《说明书》与《GDD》共用的「数值结论」
+   =========================================================
+   🔴 **本文件由 \`node tools/balance.js --emit\` 生成，不要手改。**
+      手改会在下次 --emit 时被覆盖；\`node tools/balance.js --check\` 会当场报红。
+   · 为什么要有这个文件：\`fight\` 那一节是**仿真结论**（4 档 × 2 档玩家 × ${ROUNDS} 场对局），
+     玩家向说明书在页内**算不出来** —— 只能由生成器产出、页面引用。
+     此前它是一张页内手抄常量表，改 \`config.js\` 的 \`fight.*\` 不会动它，**一句都不报错**。
+   · \`pace\` 那一节是**解析期望**（页面自己也能算，见 \`G.Loot.expectPrice\`），
+     写在这里是为了让门禁能把「页面显示的」与「工具算出来的」逐格对拍。
+   · 复现： \`${'node tools/balance.js --emit'}\`   （种子固定 ${SEED}，两次跑逐字节相同）
+   ========================================================= */
+window.G = window.G || {};
+G.BALANCE_FIGURES = {
+  seed: ${SEED},
+  rounds: ${ROUNDS},                 // ① 每档每种玩法的对局数
+  gen: 'node tools/balance.js --emit',
+  fight: [
+${dump(fightRows, ['rar', 'name', 'skillWin', 'skillSec', 'normWin', 'normSec', 'snap'])}
+  ],
+  pace: [
+${dump(paceRows, ['rank', 'name', 'wait', 'fight', 'cycle', 'perHour', 'price', 'income'])}
+  ],
+};
+`;
+}
+if (EMIT || CHECK) {
+  const target = WRITES[0];
+  const next = figuresSource();
+  const cur = fs.existsSync(path.join(ROOT, target)) ? fs.readFileSync(path.join(ROOT, target), 'utf8') : null;
+  const norm = (s) => s === null ? null : s.replace(/\r\n/g, '\n');
+  if (CHECK) {
+    if (norm(cur) === norm(next)) {
+      console.log(`\n✔ ${target} 与实跑结论一致（种子 ${SEED}、每档 ${ROUNDS} 场）。`);
+    } else {
+      console.log(`\n✖ ${target} 已过期 —— 与实跑结论不一致。`);
+      console.log(`   重跑：node tools/balance.js --emit` +
+                  `   （不想留这次改动：git checkout -- ${WRITES.join(' ')}）`);
+      process.exitCode = 1;
+    }
+  } else {
+    fs.writeFileSync(path.join(ROOT, WRITES[0]), next);
+    console.log(`\n写 ${WRITES[0]}（不想留这次改动：git checkout -- ${WRITES.join(' ')}）`);
+    console.log(`  fight ${fightRows.length} 行 / pace ${paceRows.length} 行 · 种子 ${SEED} · 每档 ${ROUNDS} 场`);
+  }
+}
 

@@ -73,7 +73,10 @@ G.Panels = (function () {
 
     U.on(closeBtn, 'click', function () { G.Audio.click(); close(); });
     U.on(modal, 'click', function (e) { if (e.target === modal) close(); });
-    U.on(document, 'keydown', function (e) { if (e.key === 'Escape') close(); });
+    /* Esc 关面板走**平台层**（第 43 轮 C 类审计：原来是 `U.on(document, 'keydown')` 直连，
+       与同族代码不一致 —— hud.js 的空格是走 `Platform.input.key` 的）。
+       平台层是端差异唯一允许出现的地方，而键盘在部分宿主（小程序页面版）里根本没有。 */
+    G.Platform.input.key(function (e) { if (e.key === 'Escape') close(); }, true);
   }
 
   function isOpen() { return !modal.classList.contains('hidden'); }

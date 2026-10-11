@@ -4077,6 +4077,15 @@ let platBad = 0;
        blur、focus 一直裸挂在 DOM 上。现在必须走 G.Platform.sys.on*。 */
     ['U.on(window, 生命周期事件)', /U\s*\.\s*on\s*\(\s*window\s*,\s*(['"])(?:resize|visibilitychange|blur|focus|orientationchange)\1/],
     ['U.on(document, 生命周期事件)', /U\s*\.\s*on\s*\(\s*document\s*,\s*(['"])(?:resize|visibilitychange|blur|focus|orientationchange)\1/],
+    /* ⚠️ 同一族的另一半（第 43 轮 C 类审计翻出来）：上面那条生命周期规则**只枚举了 5 个事件名**，
+       而**输入事件**直连同样绕开平台层 —— 平台层明明有 `input.key` / `input.down|up`。
+       实测漏了两处：① `panels.js` 的 Esc 关面板写的是 `U.on(document, 'keydown')`，
+       而同族代码（`hud.js` 的空格）走的是 `Platform.input.key` —— 已改走平台层；
+       ② `main.js` 的 `U.on(window, 'beforeunload')` 属**生命周期**，平台层确实没有
+       「页面卸载前」这个能力 ⇒ **不在本条目范围内**（要不要给平台层加 `sys.onUnload` 是另一件事，
+       已登记进待办）。判据只认「事件名字面量」这种形态，绕开写（`node['on']`）扫不到 —— 刻意规避不算。 */
+    ['U.on(window, 输入事件)', /U\s*\.\s*on\s*\(\s*window\s*,\s*(['"])(?:key|pointer|mouse|click|touch|wheel|input|change)[a-z]*\1/i],
+    ['U.on(document, 输入事件)', /U\s*\.\s*on\s*\(\s*document\s*,\s*(['"])(?:key|pointer|mouse|click|touch|wheel|input|change)[a-z]*\1/i],
     ['document.hidden', /(^|[^\w$.])document\s*\.\s*hidden/],
     /* 启动时机也收进平台层（sys.onReady）：业务代码不再自己判 readyState */
     ['document.readyState', /document\s*\.\s*readyState/],

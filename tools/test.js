@@ -19,6 +19,11 @@ function near(a, b, tol, msg) { ok(Math.abs(a - b) <= tol, msg, `期望 ${b}±${
 
 /* ---------- 模拟浏览器环境 ---------- */
 global.window = global;
+/* 窗上的事件注册：第 43 轮把面板的 Esc 收进平台层（`Platform.input.key` ⇒ `window.addEventListener('keydown')`）
+   之后，`Panels.init()` 也会走到这里。Node 没有这个函数 ⇒ 给一个**会记录**的桩：
+   它既是兜底，也是「Esc 到底挂在哪儿」的行为证据（下面 Panels 那一节拿它派发按键）。 */
+const winListeners = [];
+global.addEventListener = function (ev, fn) { winListeners.push({ ev: ev, fn: fn }); };
 const H = { G: {} };
 Object.defineProperty(global, 'G', { get() { return H.G; }, set(v) { H.G = v; }, configurable: true });
 const store = {};
@@ -2860,6 +2865,7 @@ G_('Panels · 装备店与三个选择器（Node 侧真渲染）');
      返回 1（真值）会让锁**永久闩住** ⇒ 第二次之后所有 refresh 都被守卫吞掉
      （实测症状：切「鱼竿」好使、切「鱼线」什么都不画）。 */
   global.setTimeout = function (fn) { fn(); return 0; };
+  const nWinBefore = winListeners.length;
   Panels.init();
 
   /* ---- ① 装备店：默认屏 + 两个 tab 的**点击** ---- */
@@ -2924,6 +2930,20 @@ G_('Panels · 装备店与三个选择器（Node 侧真渲染）');
   try { Panels.open('panels-not-exist'); } catch (err) { ghost = err; }
   ok(!ghost || panelText(body).length === 0,
      '打开一个不存在的面板：要么抛错、要么什么都不画（不许留下上一个面板的内容）');
+
+  /* ---- ④ Esc 关面板：路由走**平台层**（node 侧只能验路由；真通道靠浏览器探针）---- */
+  const kdNew = winListeners.slice(nWinBefore).filter(l => l.ev === 'keydown');
+  ok(kdNew.length > 0,
+     '面板初始化把 Esc 挂到了 **window 的 keydown** 上（走 Platform.input.key）—— '
+     + '原来写的是 U.on(document, 键事件) 直连（同族代码 hud.js 的空格早就走平台层了）');
+  body.children.length = 0;
+  Panels.open('pickerBait');
+  ok(!modalCls.has('hidden'), '打开面板后弹层不再隐藏（下面两条才有意义）');
+  const kdFn = kdNew[kdNew.length - 1].fn;
+  kdFn({ key: 'a', preventDefault() {} });
+  ok(!modalCls.has('hidden'), '按别的键不会关面板（负对照 —— 否则「Esc 能关」这条会假通过）');
+  kdFn({ key: 'Escape', preventDefault() {} });
+  ok(modalCls.has('hidden'), '按 Esc 真的关掉了面板（平台层的 keydown 把 close() 调到了）');
 
   global.document = realDoc;
   G.Audio = prevAudio;

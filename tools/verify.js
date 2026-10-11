@@ -4033,6 +4033,200 @@ console.log('\n[32-r] 工具自报的「下一步命令」必须真能跑（照�
   }
 })();
 
+/* ---------------- 32-s. `tools/*.js` 的命令行**契约**：未知开关 / 缺值 / 互斥（第 54 轮）------
+   同一个「工具入口面」的第四层，**换到 js 侧**：§32-l / §32-p / §32-q / §32-r 全部只扫 `tools/*.py`
+   （那边走 argparse，天然有校验），而 `tools/` 里的 js 工具是**手写** argv 解析
+   （`const DRY = argv.indexOf('--dry') >= 0` / `opt.size = argv[++i]`）—— 一整类
+   **不报错、退出码 0** 的坏法在这侧此前一张网都没有（32-m 只判「开关有没有人读」）。
+   2026-10-12 实测到的五条（全部**退出码 0**、全部一行提示都没有）：
+     ① `node tools/build.js --out --release` ⇒ 把 `--release` 当成 `--out` 的**值**，
+        **真写出一个名为 `--release` 的文件**（实测 944 KB），还报告「构建通过」；
+     ② `node tools/build.js --out`（漏值）⇒ 静默落回默认路径 `dist/fish-player.html`；
+     ③ `node tools/build.js --check --out x.html` ⇒ `--out` 被静默丢掉（`--check` 从不写盘）；
+     ④ `node tools/balance.js --emit --check` ⇒ `--check` 优先，`--emit` 被静默吃掉；
+     ⑤ `node tools/browser-probe.js --zzz --wait 500` ⇒ 未知开关被 `pos.push()` 收成位置参数
+        ⇒ `--zzz` 顶上了 `<url>`，报的是「Cannot navigate to invalid URL」（指不到真原因）。
+   修法 = 契约收进**唯一一处** `tools/argv.js`（`fail` / `checkKnown` / `needValue` / `checkExclusive`），
+   各工具只**声明**自己的 `KNOWN` / `EXCLUSIVE` 并调用它们。判据四组（全部剥注释）：
+     (a) `tools/argv.js` 存在、导出那四个名字、坏用法只有**一个出口**（`process.exit(2)` 全项目仅此一处）；
+     (b) 每个手写解析 argv 的 js 工具都 `require('./argv')` + 调 `checkKnown(argv, KNOWN, …)`，
+         且同文件的 `KNOWN` 与「真正比对的开关」**双向相等**（多 = 零消费登记；少 = 会被误报成未知开关）；
+     (c) 值类开关必须经 `needValue()`（文件里不许再有裸 `argv[++i]`）；
+         声明了 `EXCLUSIVE` 的文件必须交给 `checkExclusive()`，且 `build.js` / `balance.js` 那两张非空；
+     (d) 判据自检（开关抽取的正/负控）+「扫不到 5 个解析 argv 的文件就报错」（空集自检）。
+   ⚠️ 本节判的是**机制在不在**；「真报错了吗」由行为面兜 —— `tools/test.js` 的
+      「CLI · js 工具的命令行契约」那一节**真 spawn** 每个坏用法，断言**退出码 2** + 报错文案，
+      并复核沙盒目录里没留下垃圾文件。 */
+console.log('\n[32-s] `tools/*.js` 的命令行契约：未知开关 / 缺值 / 互斥都要报错');
+(function () {
+  let sBad = 0;
+  /* 剥注释：行注释 + 块注释（同 §32-m / §32-p / §32-h 口径） */
+  const stripJs = t => String(t).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  const readJs = (rel) => {
+    try { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); }
+    catch (e) { err(`读不到 \`${rel}\` —— 32-s 抓不到要判的地方（先修判据本身）`); sBad++; return null; }
+  };
+  const uniq = a => Array.from(new Set(a)).sort();
+  const sameFlags = (a, b) => uniq(a).join(',') === uniq(b).join(',');
+
+  /* ---- 开关抽取：**只认三种「比对位」形态** ----
+     ⚠️ 不能拿「文件里出现的 `'--x'` 字面量」当比对（提示文案 / 用法行里也写着开关名 ⇒ 假报）；
+        也不能只认 `indexOf`（有值开关是 `argv[i] === '--x'` + `needValue(argv, i, '--x', …)`）。 */
+  const USE_RES = [
+    /argv\s*\.\s*indexOf\(\s*['"](--[\w-]+)['"]/g,              // 布尔：argv.indexOf('--x') >= 0
+    /argv\s*\[\s*i\s*\]\s*===\s*['"](--[\w-]+)['"]/g,           // 循环里逐个比对
+    /needValue\(\s*argv\s*,\s*[^,]+,\s*['"](--[\w-]+)['"]/g,    // 有值：needValue(argv, i, '--x', …)
+  ];
+  const useFlags = (code) => {
+    const out = [];
+    USE_RES.forEach(r => { const re = new RegExp(r.source, 'g'); let m; while ((m = re.exec(code))) out.push(m[1]); });
+    return out;
+  };
+  const declKnown = (code) => {
+    const m = /const\s+KNOWN\s*=\s*\[([\s\S]*?)\]/.exec(code);
+    return m ? (m[1].match(/['"](--[\w-]+)['"]/g) || []).map(s => s.replace(/['"]/g, '')) : null;
+  };
+  const declExcl = (code) => /const\s+EXCLUSIVE\s*=\s*\[([\s\S]*?)\];/.exec(code);
+
+  /* ---- 判据自检：开关抽取的正/负控（判据恒真或恒假时先在这里报红）---- */
+  const selfUse = useFlags("const r = argv.indexOf('--a') >= 0; const s = argv[i] === '--b';"
+    + " const t = needValue(argv, i, '--c', 'x.js');");
+  const selfDecl = declKnown("const KNOWN = ['--a', '--b', '--c'];");
+  if (!selfDecl || !sameFlags(selfDecl, selfUse)) {
+    err('32-s 的判据自检不成立（开关抽取：三种比对位没能与 KNOWN 认成同一组）—— 这条网会假红');
+    sBad++;
+  } else if (sameFlags(declKnown("const KNOWN = ['--a'];"), useFlags("const r = argv.indexOf('--b') >= 0;"))) {
+    err('32-s 的判据自检不成立（少登记一个开关居然被判成相等）—— 这条网会假绿');
+    sBad++;
+  } else if (declKnown('const KNOWN = 7;') !== null || declKnown("const x = ['--a'];") !== null) {
+    err('32-s 的判据自检不成立（没有 `const KNOWN = [...]` 时应当返回 null）');
+    sBad++;
+  }
+
+  /* ---- (a) `tools/argv.js`：唯一实现 + 唯一的坏用法出口 ---- */
+  const argvRaw = readJs('tools/argv.js');
+  if (argvRaw !== null) {
+    const code = stripJs(argvRaw);
+    const ex = /module\.exports\s*=\s*\{([^}]*)\}/.exec(code);
+    const exported = ex ? ex[1] : '';
+    ['fail', 'checkKnown', 'needValue', 'checkExclusive'].forEach(n => {
+      if (!new RegExp('(^|[^\\w$])' + n + '\\s*[,:}]').test(exported + ',')) {
+        err(`\`tools/argv.js\` 没有导出 \`${n}\` —— 命令行契约的四个助手缺一个，各工具就会自己再写一份`);
+        sBad++;
+      }
+    });
+    const cap = (code.match(/const\s+EXIT_BAD_USAGE\s*=/g) || []).length;
+    if (cap !== 1) {
+      err(`\`tools/argv.js\` 的 \`EXIT_BAD_USAGE\` 声明有 ${cap} 处（应恰 1 处）—— 退出码只许一处真相`);
+      sBad++;
+    }
+    const fb = bodyOf(code, 'function fail(');
+    if (!fb) {
+      err('切不到 `tools/argv.js` 的 `function fail(` —— 32-s(a) 会恒真，先修本节自身');
+      sBad++;
+    } else {
+      const exits = (fb.match(/process\s*\.\s*exit\s*\(/g) || []).length;
+      if (exits !== 1 || !new RegExp('process\\s*\\.\\s*exit\\s*\\(\\s*EXIT_BAD_USAGE\\s*\\)').test(fb)) {
+        err('`tools/argv.js` 的 `fail()` 里必须**恰好一次** `process.exit(EXIT_BAD_USAGE)`'
+          + '（坏用法的唯一出口；退出码不许散在各工具里）');
+        sBad++;
+      }
+    }
+  }
+
+  /* ---- 扫描面：手写解析 argv 的 js 工具（现算，别写死名单）---- */
+  let allJs = [];
+  try { allJs = fs.readdirSync(path.join(ROOT, 'tools')).filter(f => /\.js$/.test(f)); }
+  catch (e) { err('读不到 `tools/` 目录 —— 32-s 的扫描面作废（先修判据本身）'); sBad++; }
+  /* ⚠️ 门禁宿主自己不算「工具」：`verify.js` / `test.js` 里当然会出现 `process.argv`
+     （它们要启动别的进程 / 自己读 argv），也会在**报错文案里**提到这些写法 ⇒ 一律排除。 */
+  const HOSTS = ['verify.js', 'test.js'];
+  const parseFiles = [];
+  allJs.forEach(f => {
+    if (f === 'argv.js' || HOSTS.indexOf(f) >= 0) return;   // 契约的实现本身不解析命令行
+    const raw = readJs('tools/' + f);
+    if (raw !== null && has(stripJs(raw), 'process.argv')) parseFiles.push(f);
+  });
+  const MIN_PARSE_FILES = 5;
+  if (parseFiles.length < MIN_PARSE_FILES) {
+    err(`32-s(b) 只认出 ${parseFiles.length} 个「手写解析 argv 的 js 工具」（少于 ${MIN_PARSE_FILES}）——`
+      + ' 扫描面多半坏了（判据按「文件里出现 process.argv」现算）');
+    sBad++;
+  }
+  const exit2Files = [];
+  parseFiles.forEach(f => {
+    const raw = readJs('tools/' + f);
+    if (raw === null) return;
+    const code = stripJs(raw);
+    /* 坏用法必须走 `fail()`：工具自己再写一份 `process.exit(2)` ⇒ 报错文案与退出码会各写一套 */
+    if (/process\s*\.\s*exit\s*\(\s*2\s*\)/.test(code)) exit2Files.push(f);
+    /* (b) 契约接线 + 合法开关表双向 */
+    if (!has(code, "require('./argv')")) {
+      err(`\`tools/${f}\` 解析了 argv 却没引用 \`./argv\` —— 未知开关 / 缺值 / 互斥的判定各写一份必然分家`);
+      sBad++;
+      return;
+    }
+    const known = declKnown(code);
+    if (known === null) {
+      err(`\`tools/${f}\` 没有声明 \`const KNOWN = [...]\`（合法开关表）—— 未知开关没法判`);
+      sBad++;
+      return;
+    }
+    if (!/checkKnown\(\s*(?:argv|process\.argv\.slice\(\s*2\s*\))\s*,\s*KNOWN\s*,/.test(code)) {
+      err(`\`tools/${f}\` 没把 \`KNOWN\` 交给 \`checkKnown(argv, KNOWN, …)\` ——`
+        + ' 未知开关会被静默当成位置参数（实测：`--zzz` 顶上 `<url>`，报的是后面的「invalid URL」）');
+      sBad++;
+    }
+    const used = useFlags(code);
+    if (!sameFlags(known, used)) {
+      const onlyKnown = uniq(known).filter(k => used.indexOf(k) < 0);
+      const onlyUsed = uniq(used).filter(k => known.indexOf(k) < 0);
+      err(`\`tools/${f}\` 的 \`KNOWN\` 与真正比对的开关**对不上**：`
+        + `只在 KNOWN 里（零消费登记）：${onlyKnown.join(' ') || '（无）'}；`
+        + `只在比对里（没登记 ⇒ 用户一给就被当成未知开关拒掉）：${onlyUsed.join(' ') || '（无）'}`);
+      sBad++;
+    }
+    /* (c) 有值开关一律经 `needValue()`。
+       ⚠️ 针串**拼接造**：直接写出来，本节的报错文案会把自己喂饱（反向验证时踩到过一次）。 */
+    const BARE_RE = new RegExp('argv' + '\\s*\\[\\s*\\+\\+\\s*i\\s*\\]');
+    if (BARE_RE.test(code)) {
+      err(`\`tools/${f}\` 里还有裸 \`argv[` + `++i]\` —— 有值开关一律经 \`needValue()\`：`
+        + ' 缺值 / 值写成另一个开关都要报错（旧写法实测写出了一个叫 `--release` 的文件）');
+      sBad++;
+    }
+    /* (c') 互斥表不许零消费 */
+    if (declExcl(code) && !/checkExclusive\([^)]*EXCLUSIVE/.test(code)) {
+      err(`\`tools/${f}\` 声明了 \`EXCLUSIVE\` 却没把它交给 \`checkExclusive()\` —— 互斥表成了零消费`);
+      sBad++;
+    }
+  });
+  if (exit2Files.length) {
+    err(`这些 js 工具里还有自己的 \`process.exit(2)\`：${exit2Files.join(' ')} ——`
+      + ' 坏用法必须走 `tools/argv.js` 的 `fail()`（否则报错文案与退出码会各写一套）');
+    sBad++;
+  }
+  /* 空集自检：两张非空的互斥表（**实测过**的互斥事实；空了 = 这条口径被拿掉）*/
+  const exclSrc = {};
+  parseFiles.forEach(f => {
+    const raw = readJs('tools/' + f);
+    if (raw !== null) exclSrc[f] = stripJs(raw);
+  });
+  ['build.js', 'balance.js'].forEach(f => {
+    if (!(f in exclSrc)) return;                     // 名字变了 ⇒ 上面的扫描面会先报红
+    const ex = declExcl(exclSrc[f]);
+    if (!ex || !/['"]--[\w-]+['"]/.test(ex[1])) {
+      err(`\`tools/${f}\` 的 \`EXCLUSIVE\` 空了 —— 「哪两个开关互斥」这条口径被拿掉（空集会让本节恒真）`);
+      sBad++;
+    }
+  });
+  if (!sBad) {
+    ok(`\`tools/*.js\` 的 ${parseFiles.length} 个手写 argv 工具都走 \`tools/argv.js\` 的契约：`
+      + '不认识的开关 / 有值开关缺值 / 互斥同给一律报错（退出码 2），'
+      + '`KNOWN` 与真正比对的开关**双向相等**，坏用法只有 `fail()` 一个出口'
+      + '（行为侧断言见 `tools/test.js` 的「CLI · js 工具的命令行契约」）');
+  }
+})();
+
 /* ---------------- 33. 体型数量：文档 / 出图工具必须与代码一致 ----------------
    代码里是 **9 种**（`TPL.fish / eel / ray / squid / jelly / oarfish / shark / whale / dragon`），
    而 GDD 两处 + 开发者文档一处都写着「10 种体型」，开发者文档 §5.2 自己又写着 9 ——

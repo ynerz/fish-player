@@ -3,6 +3,9 @@
    用法： node tools/balance.js           # 只跑仿真、打印结论
           node tools/balance.js --emit    # 另外把「胜率表」写进 docs/balance-figures.js
           node tools/balance.js --check   # 不写盘，只比对盘上那份是不是最新的（退出码 0/1）
+   ⚠️ `--emit` 与 `--check` **互斥**（一个要写、一个只比对）：同给退出码 2、报错说明；
+      旧行为是 `--check` 静默吃掉 `--emit`（退出码 0、一行提示都没有 —— 实测过）。
+   用法错（不认识的开关 / 互斥同给）退出码 2，判定在 `tools/argv.js`（唯一实现）。
    作用： 用「模拟玩家」跑大量对局，验证
           ① 各稀有度的拉扯胜率是否合理
           ② 拉扯时长是否在预期范围
@@ -22,6 +25,8 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
+/* 命令行契约的唯一实现（判定 + 报错口径都在那儿，工具只声明自己的开关表） */
+const { checkKnown, checkExclusive } = require('./argv');
 
 /* 写回目标：**唯一一处声明**（同 `solve-drop.js` / `gen-collect-time.js`）——
    写完之后照它打印清单与还原命令，`verify [14-b]` 会拿它与真写盘路径对拍。 */
@@ -29,6 +34,14 @@ const WRITES = ['docs/balance-figures.js'];
 
 const SEED = 20260101;
 const argv = process.argv.slice(2);
+/* 合法开关表 / 互斥表由本工具声明，`verify §32-s` 与文件里真正比对的开关逐项双向对拍。
+   ⚠️ 判定放在**重活之前**：互斥同给要在开跑几万场仿真前就报错，别白跑一轮再说参数不对。 */
+const KNOWN = ['--emit', '--check'];
+const EXCLUSIVE = [['--emit', '--check', '--check 只比对、从不写盘，--emit 会被静默忽略']];
+{
+  const seen = checkKnown(argv, KNOWN, 'balance.js');
+  checkExclusive(seen, EXCLUSIVE, 'balance.js');
+}
 const EMIT = argv.indexOf('--emit') >= 0;
 const CHECK = argv.indexOf('--check') >= 0;
 

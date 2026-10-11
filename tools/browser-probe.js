@@ -23,6 +23,10 @@
          🔴 工具会先往页面里注入 **`__raf1()`**（等一帧的助手）：凡是「刚触发了面板渲染 /
             refresh 就立刻读 DOM」的地方，一律 `await __raf1()` 再读 ——
             同步读会**漏掉刚画上去的那一行**，而且每次漏的行还不一样（见下面那条实测）。
+   用法错（**不认识的开关** / 有值开关缺值 / 位置参数多于 3 个）退出码 2，判定在 `tools/argv.js`
+   （唯一实现）。⚠️ 旧行为把未知开关静默收成位置参数 —— `--zzz` 会顶上 `<url>`，报出来的是
+   「Cannot navigate to invalid URL」（指不到真原因）；实测过。
+   退出码：0 = 跑通且无页面报错 / 1 = 跑通但有页面报错 / **2 = 命令行用法错** / 3 = 探针没跑成。
    例：
      node tools/browser-probe.js "file:///D:/fish%20player/docs/%E5%8D%A1%E7%89%87%E8%AF%84%E5%AE%A1.html" _tmp/a.png
      node tools/browser-probe.js http://127.0.0.1:8770/ _tmp/b.png _tmp/probe-review.js
@@ -33,16 +37,27 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+/* 命令行契约的唯一实现（判定 + 报错口径都在那儿，工具只声明自己的开关表） */
+const { fail, checkKnown, needValue } = require('./argv');
 
 const argv = process.argv.slice(2);
+/* 命令行契约（唯一实现在 `tools/argv.js`）：**未知开关必须报错**。
+   旧行为是把它 `pos.push()` 成位置参数 ⇒ `--zzz` 变成了要打开的 URL，
+   报出来的是「Cannot navigate to invalid URL」（指不到真原因）；有值开关缺值也会静默用默认值。 */
+const KNOWN = ['--exe', '--wait', '--port', '--size'];
+checkKnown(argv, KNOWN, 'browser-probe.js');
 const opt = {};
 const pos = [];
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i] === '--exe') opt.exe = argv[++i];
-  else if (argv[i] === '--wait') opt.wait = Number(argv[++i]);
-  else if (argv[i] === '--port') opt.port = Number(argv[++i]);
-  else if (argv[i] === '--size') opt.size = argv[++i];   // 例：--size 1440,900（默认 800x600 —— 太小会让布局与真实桌面差一截）
+  if (argv[i] === '--exe') opt.exe = needValue(argv, i, '--exe', 'browser-probe.js');
+  else if (argv[i] === '--wait') opt.wait = Number(needValue(argv, i, '--wait', 'browser-probe.js'));
+  else if (argv[i] === '--port') opt.port = Number(needValue(argv, i, '--port', 'browser-probe.js'));
+  else if (argv[i] === '--size') opt.size = needValue(argv, i, '--size', 'browser-probe.js');   // 例：--size 1440,900（默认 800x600 —— 太小会让布局与真实桌面差一截）
   else pos.push(argv[i]);
+}
+if (pos.length > 3) {
+  fail('browser-probe.js', '位置参数最多 3 个（<url> [截图.png] [探针.js]），多给了：' + pos.slice(3).join(' ')
+    + '（多出来的那些会被静默忽略）');
 }
 const url = pos[0];
 const shot = pos[1] || path.join(os.tmpdir(), 'probe.png');
@@ -66,16 +81,14 @@ const CANDIDATES = [
 const EXE = opt.exe || CANDIDATES.find(p => { try { return fs.existsSync(p); } catch (e) { return false; } });
 
 if (!url) {
-  console.error('用法：node tools/browser-probe.js <url> [截图.png] [探针.js] [--exe 浏览器] [--wait ms] [--port 9333] [--size 1440,900]');
-  process.exit(2);
+  fail('browser-probe.js', '缺 <url>。用法：node tools/browser-probe.js <url> [截图.png] [探针.js]'
+    + ' [--exe 浏览器] [--wait ms] [--port 9333] [--size 1440,900]');
 }
 if (!EXE) {
-  console.error('没找到浏览器 —— 用 --exe 指定，或设 CHROME_PATH 环境变量。已找过：\n  ' + CANDIDATES.join('\n  '));
-  process.exit(2);
+  fail('browser-probe.js', '没找到浏览器 —— 用 --exe 指定，或设 CHROME_PATH 环境变量。已找过：\n  ' + CANDIDATES.join('\n  '));
 }
 if (probeFile && !fs.existsSync(probeFile)) {
-  console.error('探针文件不存在：' + probeFile);
-  process.exit(2);
+  fail('browser-probe.js', '探针文件不存在：' + probeFile);
 }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -264,5 +277,8 @@ main().then(o => {
   process.exit(bad ? 1 : 0);
 }).catch(e => {
   console.error('探针失败：' + e.message);
-  process.exit(2);
+  /* 退出码口径（2026-10-12 第 54 轮统一）：**2 全局留给「命令行用法错」**（`tools/argv.js` 的
+     `fail()`，与 argparse 对齐）⇒ 探针自己没跑成改用 3。三种码各有各的含义：
+       0 = 跑通且无页面报错；1 = 跑通但有页面报错；2 = 命令行用法错；3 = 探针没跑成。 */
+  process.exit(3);
 });

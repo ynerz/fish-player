@@ -19,12 +19,18 @@
 
    用法： node tools/solve-drop.js          # 求解并写回
           node tools/solve-drop.js --dry    # 只打印不写回
+   用法错（不认识的开关）退出码 2，判定在 `tools/argv.js`（唯一实现）——
+   ⚠️ 判定在**读取 src/ 之前**，所以打错开关绝不会走到写回那一步。
    写回： `WRITES` 那张清单（`fields.js` 的 rarity + `fish.js` 的 w）——
           跑完它会自己把清单与还原命令打出来；`verify [14-b]` 盯着这张清单。
    ========================================================= */
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
+/* 命令行契约的唯一实现 —— 判定放在**任何读取 / 写回之前**（打错开关时一个字节都不碰盘） */
+const { checkKnown } = require('./argv');
+const KNOWN = ['--dry'];
+checkKnown(process.argv.slice(2), KNOWN, 'solve-drop.js');
 
 global.window = global;
 const H = { G: {} };

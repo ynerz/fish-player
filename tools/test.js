@@ -3187,6 +3187,75 @@ G_('Hud · 比试芯片在挂机时补一句');
 
 
 /* =========================================================
+   CLI · js 工具的命令行契约（**真 spawn**，判退出码）
+   =========================================================
+   为什么必须真跑：这一族的坏法全是「**退出码 0 + 一行提示都没有**」——
+   实测 2026-10-12（第 54 轮）之前：`build.js --out --release` 把 `--release` 当成
+   `--out` 的**值**、**真写出一个名为 `--release` 的文件**（944 KB）还报告「构建通过」；
+   `--out` 漏值静默落回默认路径；`balance.js --emit --check` 静默吃掉 `--emit`；
+   `browser-probe.js --zzz` 把开关收成位置参数（`--zzz` 顶上 `<url>`）。
+   纯源码断言只能看「有没有那行判定」，判不了「**退出码真是 2、盘上真没留下东西**」
+   ⇒ 这一节一律 `spawnSync` 真跑，并复核沙盒目录与两个会被写回的数据文件。
+   （静态那一半在 `verify §32-s`：契约只有 `tools/argv.js` 一处实现、`KNOWN` 双向相等。） */
+G_('CLI · js 工具的命令行契约（未知开关 / 缺值 / 互斥必须报错，退出码 2）');
+(function () {
+  const { spawnSync } = require('child_process');
+  const crypto = require('crypto');
+  const SANDBOX = path.join(ROOT, '_tmp', 'argv-sandbox');
+  fs.mkdirSync(SANDBOX, { recursive: true });
+  /* 沙盒里**事先清空**：下面要断言「坏用法没在盘上留下东西」 */
+  fs.readdirSync(SANDBOX).forEach(f => { try { fs.rmSync(path.join(SANDBOX, f), { recursive: true, force: true }); } catch (e) { /* 忽略 */ } });
+  const md5 = (rel) => crypto.createHash('md5').update(fs.readFileSync(path.join(ROOT, rel))).digest('hex');
+  const run = (rel, args) => spawnSync(process.execPath, [path.join(ROOT, 'tools', rel)].concat(args),
+    { cwd: SANDBOX, encoding: 'utf8', timeout: 60000 });
+  const fishMd5 = md5('src/data/fish.js'), fieldsMd5 = md5('src/data/fields.js');
+
+  /* ① 用法错一律**退出码 2** + 报错文案说到点子上 */
+  const BAD = [
+    ['build.js', ['--out', '--release'], '看起来是另一个开关'],
+    ['build.js', ['--out'], '缺一个值'],
+    ['build.js', ['--check', '--out', 'x.html'], '不能同时用'],
+    ['build.js', ['--zzz'], '不认识的开关'],
+    ['balance.js', ['--emit', '--check'], '不能同时用'],
+    ['balance.js', ['--zzz'], '不认识的开关'],
+    ['browser-probe.js', ['--zzz'], '不认识的开关'],
+    ['browser-probe.js', ['--wait'], '缺一个值'],
+    ['browser-probe.js', ['a', 'b', 'c', 'd'], '位置参数最多 3 个'],
+    ['fix-rarity-price.js', ['--zzz'], '不认识的开关'],
+    ['solve-drop.js', ['--zzz'], '不认识的开关'],
+  ];
+  let sawNoUsage = 0;
+  BAD.forEach(([rel, args, needle]) => {
+    const r = run(rel, args);
+    const err = String(r.stderr || '');
+    ok(r.status === 2, `${rel} ${args.join(' ')} ⇒ 退出码 2（用法错，不是 1 也不是 0）`,
+      `实际退出码 ${r.status}`);
+    if (err.indexOf(needle) < 0) sawNoUsage++;
+    ok(err.indexOf(needle) >= 0, `  …文案说到点子上（含「${needle}」）`,
+      err.trim().split('\n').slice(-2).join(' / ').slice(0, 140));
+  });
+  ok(sawNoUsage === 0, '11 组坏用法全部给出了**能指到原因**的文案（不是笼统的「参数错误」）');
+
+  /* ② 坏用法**不许在盘上留下任何东西**（旧行为写出了一个叫 `--release` 的 944 KB 文件） */
+  const left = fs.readdirSync(SANDBOX);
+  ok(left.length === 0, '坏用法在沙盒工作目录里没留下任何文件（旧行为写出过一个叫 `--release` 的产物）',
+    left.join(' '));
+  ok(md5('src/data/fish.js') === fishMd5 && md5('src/data/fields.js') === fieldsMd5,
+     '打错开关**没碰**会被写回的两个数据文件（`fish.js` / `fields.js` 逐字节未变）');
+
+  /* ③ 合法用法不受影响（正控：判据不能只认「任何调用都报错」） */
+  const good = run('build.js', ['--check']);
+  ok(good.status === 0, '正控：`build.js --check` 合法用法仍退出码 0（判定没误伤）',
+    `实际 ${good.status}`);
+  const good2 = run('build.js', ['--out', path.join(SANDBOX, 'ok.html')]);
+  ok(good2.status === 0 && fs.existsSync(path.join(SANDBOX, 'ok.html')),
+     '正控：`--out <正常路径>` 仍真写盘（`needValue()` 没有把正常值也拦掉）');
+  ok(run('build.js', ['--zzz']).status !== good.status,
+     '对照：同一个工具，坏用法与好用法**退出码不同**（否则说明判据恒真或恒假）');
+})();
+
+
+/* =========================================================
    Build —— 单文件打包（tools/build.js）
    ========================================================= */
 const B = require(path.join(ROOT, 'tools/build.js'));

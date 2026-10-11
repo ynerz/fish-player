@@ -21,12 +21,17 @@
      · 自检「不动点上再套一遍必须 0 条改动」，不是 0 直接退出码 1。
 
    用法： node tools/fix-rarity-price.js [--dry]
+   用法错（不认识的开关）退出码 2，判定在 `tools/argv.js`（唯一实现），且判定在**读取价格之前**
+   —— 打错开关不会走到写回那一步。
    流程： python tools/gen-fish.py && node tools/solve-drop.js
           && node tools/fix-rarity-price.js && node tools/balance.js
           && node tools/verify.js
    ========================================================= */
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
+/* 命令行契约的唯一实现 */
+const { checkKnown } = require('./argv');
+const KNOWN = ['--dry'];
 
 /* 写回目标：**唯一一处声明**（与 `solve-drop.js` / `gen-collect-time.js` 同一口径）——
    写回调用只许走这张清单，`verify [14-b]` 会拿它与真实的 `writeFileSync` 对拍，
@@ -209,6 +214,8 @@ function dryRun() {
 
 /* ---------- 主流程 ---------- */
 function main() {
+  /* 判定在**读取价格之前**：打错开关时一个字节都不碰盘（本脚本的写回不可逆） */
+  checkKnown(process.argv.slice(2), KNOWN, 'fix-rarity-price.js');
   const DRY = process.argv.indexOf('--dry') >= 0;
   const first = computeScales();
   first.rows.forEach(r => console.log(r));

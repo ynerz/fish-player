@@ -17,6 +17,9 @@
      node tools/build.js --check                # 只跑断言，不写文件
 
    断言不通过时退出码为 1。
+   命令行**用法错**（不认识的开关 / `--out` 缺值 / `--check` 与 `--out` 同给）退出码为 2，
+   判定在 `tools/argv.js`（唯一实现）；`--check` 只校验、从不写盘，所以它与 `--out` 互斥
+   —— 旧行为是**静默丢掉 `--out`**（退出码 0、一行提示都没有，实测过）。
    collectScripts / collectStyles / assemble / auditBundle / auditHtml / build
    都是纯函数，导出给 tools/test.js 与 tools/verify.js 复用。
 
@@ -26,6 +29,8 @@
    ========================================================= */
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
+/* 命令行契约的唯一实现（判定 + 报错口径都在那儿，工具只声明自己的开关表） */
+const { checkKnown, needValue, checkExclusive } = require('./argv');
 
 const STYLE_RE  = /<link\s+rel="stylesheet"\s+href="([^"]+)"\s*>/g;
 const SCRIPT_RE = /<script\s+src="([^"]+)"[^>]*>\s*<\/script>/g;
@@ -209,13 +214,23 @@ function build(opts) {
   return { html, meta, errors, warns, sizes };
 }
 
-/* ---------------- CLI ---------------- */
+/* ---------------- CLI ----------------
+   合法开关表 / 互斥表由本工具**自己声明**（它才是这两件事的事实），`tools/argv.js` 只负责判定；
+   `verify §32-s(b)` 会把它与下面**真正比对**的开关逐项双向对拍（多一个 = 零消费登记、少一个 = 真比对却没登记）。 */
+const KNOWN = ['--release', '--check', '--out'];
+const EXCLUSIVE = [['--check', '--out', '--check 只跑断言、从不写盘，--out 会被静默忽略']];
+
 function main(argv) {
+  const seen = checkKnown(argv, KNOWN, 'build.js');
+  checkExclusive(seen, EXCLUSIVE, 'build.js');
   const release = argv.indexOf('--release') >= 0;
   const dry     = argv.indexOf('--check') >= 0;
   const oi      = argv.indexOf('--out');
-  const outPath = (oi >= 0 && argv[oi + 1])
-    ? path.resolve(process.cwd(), argv[oi + 1])
+  /* ⚠️ `--out` 的值必须**经 `needValue()`** 取：缺值 / 值写成另一个开关都报错。
+     旧写法 `(oi >= 0 && argv[oi + 1]) ? … : 默认路径` 有两种静默坏法（第 54 轮实测）：
+     ① `--out --release` ⇒ 写了一个叫 `--release` 的文件；② `--out` ⇒ 静默落回默认路径。 */
+  const outPath = (oi >= 0)
+    ? path.resolve(process.cwd(), needValue(argv, oi, '--out', 'build.js'))
     : path.join(ROOT, 'dist', release ? 'fish-player.release.html' : 'fish-player.html');
 
   console.log('\n钓鱼人生 · 单文件构建');

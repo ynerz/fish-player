@@ -16,7 +16,7 @@ ai 知识库里面有，你可以开多个对话，使用规范化标准格式�
   python tools/ai-traits.py --merge      # 校验通过后合进 fish-traits.json
 ⚠️ 解释器：managed python（只用标准库）
 """
-import argparse, glob, json, os, re, sys
+import argparse, glob, json, os, re, shutil, sys
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(TOOLS)
@@ -75,11 +75,10 @@ def ref_of(fid):
     return d.get("text", "") if d.get("ok") else ""
 
 
-def cmd_build():
+def cmd_build(dry=False):
     os.makedirs(OUTDIR, exist_ok=True)
-    for old in glob.glob(os.path.join(OUTDIR, "in-*.json")):
-        os.remove(old)
     fish = load_fish()
+    plans = []
     n_files = 0
     for i in range(0, len(fish), BATCH):
         chunk = fish[i:i + BATCH]
@@ -91,23 +90,45 @@ def cmd_build():
                           "ref": " ".join(ref_of(f["id"]).split())[:900]})
         n_files += 1
         p = os.path.join(OUTDIR, "in-%02d.json" % n_files)
-        json.dump({"batch": n_files, "items": items},
-                  open(p, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+        plans.append((p, {"batch": n_files, "items": items}))
     n_ref = sum(1 for f in fish if ref_of(f["id"]))
+    # 🔴 删旧的只许删**自己这一套命名**（`in-NN.json`）—— 原先的 glob 是 `in-*.json`，
+    #    它会连 `in-fic-*.json`（虚构批次）与 **`in-extra.json`**（手工批次，入库文件、
+    #    **没有任何东西会重建它**）一起删掉，而输出只说「已生成 19 个输入批次」，
+    #    一个字都不提删了谁 ⇒ 跑一次 `--build` 就永久丢掉那 26 条。
+    mine = re.compile(r'^in-\d+\.json$')
+    olds = [os.path.basename(p) for p in glob.glob(os.path.join(OUTDIR, "in-*.json"))]
+    drop = [o for o in olds if mine.match(o)]
+    keepOther = [o for o in olds if not mine.match(o)]
+    if dry:
+        print("[dry] 会删掉自己的 %d 个旧批次（`in-NN.json`）并写 %d 个批次"
+              "（每批 %d 条，共 %d 条现实物种）" % (len(drop), len(plans), BATCH, len(fish)))
+        print("      另有 %d 个别的 `in-*` 文件**不会动**：%s"
+              % (len(keepOther), ", ".join(keepOther[:6]) or "（无）"))
+        print("      其中 %d 条带百科原文（ref 非空 → 必须 grounded）／ %d 条只有模型知识"
+              % (n_ref, len(fish) - n_ref))
+        print("      **一个字节都没写**；真跑之后要还原：git checkout -- tools/ai-traits/in-*.json")
+        return
+    for o in drop:
+        os.remove(os.path.join(OUTDIR, o))
+    for p, payload in plans:
+        json.dump(payload, open(p, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print("已生成 %d 个输入批次（每批 %d 条，共 %d 条现实物种）" % (n_files, BATCH, len(fish)))
     print("其中 **%d 条带百科原文**（ref 非空 → 必须 grounded）／ %d 条只有模型知识"
           % (n_ref, len(fish) - n_ref))
+    if keepOther:
+        print("   （另有 %d 个别的 `in-*` 文件没有动：%s）"
+              % (len(keepOther), ", ".join(keepOther[:6])))
+    print("   写盘了；还原：git checkout -- tools/ai-traits/in-*.json")
 
 
-def cmd_build_fictional():
+def cmd_build_fictional(dry=False):
     """为**虚构生物 + 游戏造名**生成输入批次 → `in-fic-NN.json`。
 
     输入不带 `ref`（它们没有百科原文——本来就不存在），但**必须带 `shape`**：
     提示词会在 form 前面自动接一句体型模板，描述必须和它兼容（见 SPEC 附节 §4）。
     """
     os.makedirs(OUTDIR, exist_ok=True)
-    for old in glob.glob(os.path.join(OUTDIR, "in-fic-*.json")):
-        os.remove(old)
     allf = json.load(open(LIST, encoding="utf-8"))
     have = {k for k in (json.load(open(TRAITS, encoding="utf-8"))
                         if os.path.exists(TRAITS) else {}) if not k.startswith("_")}
@@ -116,17 +137,31 @@ def cmd_build_fictional():
     left = [f for f in allf if not is_fictional(f["id"]) and f["id"] not in have]
     items = fic + left
     n_files = 0
+    plans = []
     for i in range(0, len(items), BATCH):
         chunk = items[i:i + BATCH]
         n_files += 1
-        json.dump({"batch": n_files, "kind": "fictional",
-                   "items": [{"id": f["id"], "name": f["name"], "shape": f.get("shape", "fish"),
-                              "maxKg": f.get("maxKg", 0), "bodyRatio": f.get("body_ratio", 0),
-                              "ref": ""} for f in chunk]},
-                  open(os.path.join(OUTDIR, "in-fic-%02d.json" % n_files), "w", encoding="utf-8"),
-                  ensure_ascii=False, indent=1)
+        plans.append((os.path.join(OUTDIR, "in-fic-%02d.json" % n_files),
+                      {"batch": n_files, "kind": "fictional",
+                       "items": [{"id": f["id"], "name": f["name"], "shape": f.get("shape", "fish"),
+                                  "maxKg": f.get("maxKg", 0), "bodyRatio": f.get("body_ratio", 0),
+                                  "ref": ""} for f in chunk]}))
+    if dry:
+        olds = glob.glob(os.path.join(OUTDIR, "in-fic-*.json"))
+        print("[dry] 会删掉自己的 %d 个旧虚构批次（`in-fic-NN.json`）并写 %d 个；**一个字节都没写**"
+              % (len(olds), len(plans)))
+        print("      虚构/造名共 %d 条（SS/SSS %d + 未入表现实 %d）"
+              % (len(items), len(fic), len(left)))
+        print("      真跑之后要还原：git checkout -- tools/ai-traits/in-fic-*.json")
+        return
+    # 同样只删自己这一套命名（见 `cmd_build` 的说明）
+    for old in glob.glob(os.path.join(OUTDIR, "in-fic-*.json")):
+        os.remove(old)
+    for p, payload in plans:
+        json.dump(payload, open(p, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print("虚构/造名共 %d 条（SS/SSS %d + 未入表现实 %d）→ %d 个批次"
           % (len(items), len(fic), len(left), n_files))
+    print("   写盘了；还原：git checkout -- tools/ai-traits/in-fic-*.json")
 
 
 def validate(fid, e):
@@ -219,10 +254,15 @@ def cmd_check():
 
 def cmd_merge():
     have = json.load(open(TRAITS, encoding="utf-8")) if os.path.exists(TRAITS) else {}
+    # 🔴 写盘前先备份：`fish-traits.json` 是**入库**文件。这份表有三个写者
+    #    （本脚本 / `trait-rewrite.py --merge` / `normalize-traits.py --apply`），
+    #    备份与「空值不覆盖」这两条必须三处一致 —— 少一处就是「谁最后跑谁说了算」，不报错。
+    if os.path.exists(TRAITS):
+        shutil.copyfile(TRAITS, TRAITS + ".bak")
     # 同上：合表要用**全表**，虚构条目也要进 `fish-traits.json`（gen-art 只认 id）
     fish = {f["id"]: f for f in json.load(open(LIST, encoding="utf-8"))}
     n_real = len(load_fish())
-    added = overwritten = skipped = 0
+    added = overwritten = skipped = guarded = 0
     for p in sorted(glob.glob(os.path.join(OUTDIR, "out-*.json"))):
         for fid, e in json.load(open(p, encoding="utf-8")).items():
             if fid not in fish or not e.get("form"):
@@ -239,7 +279,13 @@ def cmd_merge():
                 # 只在**新条目是 grounded** 时覆盖旧条目（grounded 依据同一批百科原文，
                 # 但英文是 AI 直译、比短语表拼出来的通顺）。model 条目不覆盖已有内容。
                 if e["source"] == "grounded":
-                    have[fid] = entry
+                    # ⚠️ **逐字段**填、空值不覆盖 —— 与 `trait-rewrite.py --merge` 同一条口径。
+                    #    整条替换会把已有的 fins / markings 清成空串，而工具一句都不报错。
+                    for fk, fv in entry.items():
+                        if fv:
+                            have[fid][fk] = fv
+                        elif have[fid].get(fk):
+                            guarded += 1
                     overwritten += 1
                 else:
                     skipped += 1
@@ -247,6 +293,10 @@ def cmd_merge():
                 have[fid] = entry
                 added += 1
     json.dump(have, open(TRAITS, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    print("   备份 %s.bak　还原：cp \"%s.bak\" \"%s\"（或 git checkout -- tools/fish-traits.json）"
+          % (os.path.relpath(TRAITS, TOOLS), os.path.relpath(TRAITS, TOOLS), os.path.relpath(TRAITS, TOOLS)))
+    if guarded:
+        print("   ⚠️ 守住 %d 处空值（原本会把已入表的内容清掉）" % guarded)
     ks = [k for k in have if not k.startswith("_")]
     fic_n = sum(1 for k in ks if have[k].get("source", "").startswith("设计上虚构"))
     real_n = len(ks) - fic_n
@@ -262,17 +312,20 @@ def main():
                     help="为虚构生物（SS/SSS）+ 游戏造名生成输入批次")
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--merge", action="store_true")
+    ap.add_argument("--dry", action="store_true",
+                    help="只跟 --build / --build-fictional 搭配：只报「会删几个 / 会写几个批次」，"
+                         "一个字节都不写（`in-*.json` 是入库文件，会被删掉重建）")
     a = ap.parse_args()
     if a.build:
-        cmd_build()
+        cmd_build(a.dry)
     elif a.build_fictional:
-        cmd_build_fictional()
+        cmd_build_fictional(a.dry)
     elif a.check:
         sys.exit(cmd_check())
     elif a.merge:
         cmd_merge()
     else:
-        sys.exit("要 --build / --check / --merge 之一")
+        sys.exit("要 --build / --build-fictional / --check / --merge 之一")
 
 
 if __name__ == "__main__":

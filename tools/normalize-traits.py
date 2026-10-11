@@ -20,7 +20,7 @@
   python tools/normalize-traits.py --miss       # 只看没命中的从句（补短语表用）
 ⚠️ 解释器：managed python（只用标准库）
 """
-import argparse, json, os, re, sys
+import argparse, json, os, re, shutil, sys
 from collections import Counter
 
 TOOLS = os.path.dirname(os.path.abspath(__file__))
@@ -291,12 +291,31 @@ def main():
     if args.miss:
         print("\n".join(allmiss[:60]))
     if args.apply:
+        # 🔴 写盘前先备份：`fish-traits.json` 是**入库**文件，而这一份草稿是短语表拼出来的
+        #    （本来就是「宁缺勿猜」的产物，缺字段是常态）⇒ 空值只许「不覆盖」。
+        #    同一条口径在 `trait-rewrite.py --merge` 与 `ai-traits.py --merge` 里各有一份，
+        #    三个写者各写一套守卫 = 必然有一个把已入表的内容清空，而且一句都不报错。
+        shutil.copyfile(TRAITS, TRAITS + ".bak")
         n = 0
+        guarded = 0
         for k, v in draft.items():
-            have[k] = v
+            if k not in have:
+                have[k] = v
+                n += 1
+                continue
+            for fk in ("name", "species", "form", "fins", "markings", "colour", "source"):
+                fv = v.get(fk)
+                if fv:
+                    have[k][fk] = fv
+                elif have[k].get(fk):
+                    guarded += 1
             n += 1
         json.dump(have, open(TRAITS, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
-        print("已合并 %d 条进 %s" % (n, TRAITS))
+        print("已合并 %d 条进 %s" % (n, os.path.relpath(TRAITS, TOOLS)))
+        if guarded:
+            print("   ⚠️ 守住 %d 处空值（原本会把已入表的内容清掉）" % guarded)
+        print("   备份 %s.bak　还原：cp \"%s.bak\" \"%s\"（或 git checkout -- tools/fish-traits.json）"
+              % (os.path.relpath(TRAITS, TOOLS), os.path.relpath(TRAITS, TOOLS), os.path.relpath(TRAITS, TOOLS)))
 
 
 if __name__ == "__main__":

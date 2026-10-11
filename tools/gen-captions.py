@@ -515,6 +515,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--list", default="")
     ap.add_argument("--audit", action="store_true")
+    ap.add_argument("--dry", action="store_true",
+                    help="只算不写：报「与盘上的 docs/图鉴文案.md 差多少行」，一个字节都不写")
     args = ap.parse_args()
 
     import importlib.util
@@ -573,8 +575,22 @@ def main():
         L.append("")
 
     out = os.path.join(ROOT, "docs", "图鉴文案.md")
+    if args.dry:
+        # 🔴 `--dry`：这个脚本会**整份重写** docs/图鉴文案.md，在此之前想看一眼结果
+        #    就只能真写一次（写完才发现不对，得自己回滚）。干跑报逐行差异 + 还原命令，
+        #    一个字节都不写。
+        import difflib
+        old = open(out, encoding="utf-8").read().split("\n") if os.path.exists(out) else []
+        new = "\n".join(L).split("\n")
+        d = list(difflib.unified_diff(old, new, lineterm="", n=0))
+        add = sum(1 for x in d if x.startswith("+") and not x.startswith("+++"))
+        rem = sum(1 for x in d if x.startswith("-") and not x.startswith("---"))
+        print("[dry] 盘上 %d 行 / 这次会写成 %d 行 ⇒ 新增 %d 行、删除 %d 行（**一个字节都没写**）"
+              % (len(old), len(new), add, rem))
+        print("      真跑之后要还原：git checkout -- docs/图鉴文案.md")
+        return
     open(out, "w", encoding="utf-8").write("\n".join(L))
-    print("已写出：%s" % out)
+    print("已写出：%s（还原：git checkout -- docs/图鉴文案.md）" % out)
 
 
 if __name__ == "__main__":

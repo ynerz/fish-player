@@ -3,14 +3,21 @@
 
 用法（managed python）：
   python tools/trait-rewrite.py --split 5      # 把需要改写的条目切成 5 批 → in-XX.json
+  python tools/trait-rewrite.py --split 5 --dry  # 干跑：只报「会写几个批文件 / 共几条」，一个字节都不写
   python tools/trait-rewrite.py --status       # 看哪些批已经产出
   python tools/trait-rewrite.py --check        # 校验 out-*.json（硬失败 + 可疑项报告）
-  python tools/trait-rewrite.py --merge        # 合回 tools/fish-traits.json（先备份）
+  python tools/trait-rewrite.py --merge        # 合回 tools/fish-traits.json（先备份 .bak）
 
 ⚠️ 校验分两层，别混：
   · **硬失败**：黑名单术语 / 阿拉伯数字 / 句号 / 大写起头 / 超长 / 条目对不上 —— 必须改到过。
   · **可疑项报告**：改写后出现的新词（原文没有的）。「不许新增特征」这条**没法完全自动查**，
     所以工具只把新词列出来给人看，**不当成失败**。别把报告当通过。
+
+🔴 `--merge` 与 `--check` 共用同一份硬失败判定（`hard_of()`）：
+  硬失败的条目**一律不写回**（跳过并逐条列出来）。原先 merge 是纯写入：
+  `if nf: t[i]["form"] = nf` 有守卫、`t[i]["fins"] = nfin` **没有** ⇒ 批次里某条缺 fins 时
+  会把**已经入表**的 fins 静默清空；而 `--check` 明明在报「D09 fins 变空了」，
+  却没有任何东西把两者连起来（实测：这个红一直挂在那里没人跑）。
 """
 import argparse
 import glob
@@ -131,16 +138,16 @@ def do_status():
         print("  缺：%s" % ", ".join(sorted(want - done)[:30]))
 
 
-def do_check(verbose):
-    t = load_traits()
+def hard_of(out, t):
+    """把「硬失败」判定收成**一处** —— `--check` 与 `--merge` 共用（见文件头 🔴）。
+    返回 (want, hardmap)：want = 应当产出的 id 集合；hardmap = {id: [原因,…]}。"""
     want = set()
     for p in sorted(glob.glob(os.path.join(OUTDIR, "in-*.json"))):
         want |= set(x["id"] for x in json.load(io.open(p, encoding="utf-8"))["items"])
-    out = load_outs()
-    hard, soft = [], []
+    hardmap = {}
     for i in sorted(out):
         if i not in want:
-            hard.append((i, "不在应改写清单里（id 对不上或凭空出现）"))
+            hardmap.setdefault(i, []).append("不在应改写清单里（id 对不上或凭空出现）")
             continue
         nf, nfin = out[i]
         src = t.get(i) or {}
@@ -150,16 +157,31 @@ def do_check(verbose):
             #    第一版把 fins 也拿 `of`（原文 form）去比 → 误报 30 条「fins 变空了」。
             #    这类错法在本项目查过很多次：**同名变量跨字段复用 = 假报/漏报**。
             if not val and orig and i not in EMPTY_OK:
-                hard.append((i, "%s 变空了" % label))
+                hardmap.setdefault(i, []).append("%s 变空了" % label)
             if len(val) > lim:
-                hard.append((i, "%s 超长 %d>%d" % (label, len(val), lim)))
+                hardmap.setdefault(i, []).append("%s 超长 %d>%d" % (label, len(val), lim))
             h = hit_black(val)
             if h:
-                hard.append((i, "%s 命中黑名单：%s" % (label, "、".join(sorted(set(h))[:4]))))
+                hardmap.setdefault(i, []).append("%s 命中黑名单：%s" % (label, "、".join(sorted(set(h))[:4])))
             if val.rstrip().endswith("."):
-                hard.append((i, "%s 以句号结尾" % label))
+                hardmap.setdefault(i, []).append("%s 以句号结尾" % label)
             if val[:1].isupper():
-                hard.append((i, "%s 大写起头" % label))
+                hardmap.setdefault(i, []).append("%s 大写起头" % label)
+    return want, hardmap
+
+
+def do_check(verbose):
+    t = load_traits()
+    out = load_outs()
+    want, hardmap = hard_of(out, t)
+    hard = [(i, why) for i in sorted(hardmap) for why in hardmap[i]]
+    soft = []
+    for i in sorted(out):
+        if i not in want:
+            continue
+        nf, nfin = out[i]
+        src = t.get(i) or {}
+        of, ofin = src.get("form") or "", src.get("fins") or ""
         new = (tokens(nf) | tokens(nfin)) - (tokens(of) | tokens(ofin)) - ALLOW
         if new:
             soft.append((i, src.get("name"), sorted(new)[:12]))
@@ -185,24 +207,78 @@ def do_merge():
     out = load_outs()
     if not out:
         print("没有 out-*.json 可合并"); return 1
+    # 与 `--check` 共用同一份硬失败判定：**判红的东西不许被写进去**
+    want, hardmap = hard_of(out, t)
     shutil.copyfile(TRAITS, TRAITS + ".bak")
-    n = 0
+    n = 0; guarded = 0; skipped = []
     for i, (nf, nfin) in out.items():
         if i not in t:
             print("  跳过不存在的 id：%s" % i); continue
+        if i in hardmap:
+            skipped.append((i, "；".join(hardmap[i]))); continue
+        of = t[i].get("form") or ""
+        ofin = t[i].get("fins") or ""
+        # ⚠️ 两个字段**都要**非空守卫：空值只许「不覆盖」，绝不许把已入表的内容清掉。
+        #    （原先只有 form 有守卫、fins 裸赋 —— 同一件事两处写法，实测会把 D09 的 fins 清空。）
         if nf:
             t[i]["form"] = nf
-        t[i]["fins"] = nfin
+        elif of:
+            guarded += 1
+        if nfin:
+            t[i]["fins"] = nfin
+        elif ofin:
+            guarded += 1
         n += 1
     io.open(TRAITS, "w", encoding="utf-8", newline="\n").write(
         json.dumps(t, ensure_ascii=False, indent=1))
-    print("已合并 %d 条 → %s（备份 %s.bak）" % (n, TRAITS, TRAITS))
+    print("已合并 %d 条 → %s" % (n, os.path.relpath(TRAITS, HERE)))
+    if guarded:
+        print("   ⚠️ 守住 %d 处空值（原本会把已入表的内容清掉）" % guarded)
+    if skipped:
+        print("   ⏭ 跳过 %d 条硬失败（**没有写回**，先修批次再合并）：" % len(skipped))
+        for i, why in skipped[:20]:
+            print("       %-7s %s" % (i, why))
+        print("       （跑 `--check` 看全量硬失败）")
+    print("   备份 %s.bak　还原：cp \"%s.bak\" \"%s\"（或 git checkout -- tools/fish-traits.json）"
+          % (os.path.relpath(TRAITS, HERE), os.path.relpath(TRAITS, HERE),
+             os.path.relpath(TRAITS, HERE)))
     return 0
+
+
+def do_split(n, dry=False):
+    t = load_traits()
+    ids = [k for k in sorted(t) if needs_rewrite(t.get(k))]
+    size = (len(ids) + n - 1) // n
+    plans = []
+    for b in range(n):
+        part = ids[b * size:(b + 1) * size]
+        if not part:
+            continue
+        items = [{"id": i, "name": (t[i].get("name") or ""),
+                  "form": t[i].get("form") or "", "fins": t[i].get("fins") or ""} for i in part]
+        plans.append((os.path.join(OUTDIR, "in-%02d.json" % (b + 1)), items))
+    # 🔴 `--dry`：`in-*.json` 是**入库**文件（会被删掉重建）⇒ 没有干跑就等于
+    #    「想看一眼会切成什么样」也要先毁掉现盘上的批次。干跑只报数、一个字节都不写。
+    if dry:
+        print("[dry] 需改写 %d 条 → 会写 %d 个批文件（**一个字节都没写**）：" % (len(ids), len(plans)))
+        for p, items in plans:
+            print("   %s  %d 条" % (os.path.basename(p), len(items)))
+        print("   干跑不写盘；真跑之后要还原：git checkout -- tools/trait-rewrite/in-*.json")
+        return 0
+    for p, items in plans:
+        io.open(p, "w", encoding="utf-8", newline="\n").write(
+            json.dumps({"items": items}, ensure_ascii=False, indent=1))
+    print("需改写 %d 条 → %d 批" % (len(ids), len(plans)))
+    for p, items in plans:
+        print("   %s  %d 条" % (os.path.basename(p), len(items)))
+    print("   写盘了；还原：git checkout -- tools/trait-rewrite/in-*.json")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--split", type=int, default=0)
+    ap.add_argument("--dry", action="store_true",
+                    help="只跟 --split 搭配：只报「会写几个批文件 / 共几条」，一个字节都不写")
     ap.add_argument("--status", action="store_true")
     ap.add_argument("--check", action="store_true")
     ap.add_argument("--verbose", action="store_true")
@@ -210,7 +286,7 @@ if __name__ == "__main__":
     a = ap.parse_args()
     os.makedirs(OUTDIR, exist_ok=True)
     if a.split:
-        do_split(a.split)
+        sys.exit(do_split(a.split, a.dry))
     elif a.status:
         do_status()
     elif a.check:

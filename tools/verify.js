@@ -3379,6 +3379,152 @@ console.log('\n[32-n] `shell/main.js` 的探针字段：采了就得有人看（
 })();
 
 
+/* ---------------- 32-o. 形态表的三个写者：`.bak` 备份 + 空值守卫 + 还原提示（第 51 轮）----
+   由来（第 51 轮实测）：`tools/fish-traits.json` 是**入库**文件，而它有**三个**写者 ——
+   `tools/ai-traits.py --merge` · `tools/trait-rewrite.py --merge` · `tools/normalize-traits.py --apply`，
+   三处各写一套「怎么把批次产出填回已有条目」：
+     · `trait-rewrite.py` 里 `t[i]["form"] = nf` 有 `if nf:` 守卫、`t[i]["fins"] = nfin` **没有**
+       ⇒ 批次里某条缺 fins 时会把**已经入表**的 fins 清空；而它自己的 `--check` 明明在报
+       「D09 fins 变空了」（退出码 1）—— 判定与写回之间没有任何联动，那个红一直挂着没人跑；
+     · `ai-traits.py --merge` / `normalize-traits.py --apply` 既没有 `.bak` 备份，
+       又对已有条目**整条覆盖**（`have[fid] = entry`）⇒ 空字段直接盖掉旧值。
+   三套口径 = 「谁最后跑谁说了算」，而且**一句都不报错**（属「同一件事写 N 遍」那一族）。
+   本节判据（剥 `#` 注释与三引号 docstring 之后静态扫；判据自带合成样本）：
+     ① 三个脚本写盘前都必须 `shutil.copyfile(TRAITS, TRAITS + ".bak")`；
+     ② 「把变量填进已有条目的某个字段」（`X[K][字段] = VAR`，含变量下标形态）每一处都必须在
+        **它之前**出现同名的非空守卫 `if VAR:` —— 漏一处就是那个字段会被空值清掉；
+     ③ 自报里必须出现「还原：cp」那行（带上 `.bak`）——「怎么还原」不许只留在上一个人的脑子里；
+     ④ `ai-traits.py` 的 `cmd_merge()` 体内不许出现 `have[fid] = entry`（整条覆盖）；
+     ⑤ 抓不到 3 个脚本 / 4 处赋值就报错（判据自己也会烂）。 */
+console.log('\n[32-o] 形态表的三个写者：.bak 备份 + 空值守卫 + 还原提示');
+(function () {
+  const WRITERS = ['tools/ai-traits.py', 'tools/trait-rewrite.py', 'tools/normalize-traits.py'];
+  const MIN_ASSIGN = 4;
+  let oBad = 0;
+  /* 只扫代码：摘三引号整块（= 散文），再摘行内 `#` 注释（引号里的 `#` 不算注释）。
+     ⚠️ 行尾注释也要剥：`t[i]["fins"] = nfin` 就写在 `trait-rewrite.py` 的文件头说明里。 */
+  const stripPy = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
+    .split('\n').map(line => {
+      let q = null;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (q) { if (c === q && line[i - 1] !== '\\') q = null; }
+        else if (c === '"' || c === "'") q = c;
+        else if (c === '#') return line.slice(0, i);
+      }
+      return line;
+    }).join('\n');
+  /* 「填进已有条目」的赋值：`X[K]["字段"] = VAR` 与 `X[K][字段] = VAR` 两种形态都算 */
+  const ASSIGN = /(\w+)\[[^\]]+\]\[[\w"']+\]\s*=\s*(\w+)/g;
+  const unguarded = code => {
+    const bad = [];
+    let mm;
+    ASSIGN.lastIndex = 0;
+    while ((mm = ASSIGN.exec(code))) {
+      if (code.lastIndexOf('if ' + mm[2] + ':', mm.index) < 0) bad.push(mm[0].trim());
+    }
+    return bad;
+  };
+  /* 判据自检：有守卫 → 0 处 / 没守卫 → 1 处 / **只出现在注释里** → 0 处（注释不算代码） */
+  const S_OK = 'if nf:\n    t[i]["form"] = nf\n';
+  const S_BAD = 't[i]["fins"] = nfin\n';
+  const S_COMMENT = '# 反例：t[i]["fins"] = nfin 这种写法不许再出现\n';
+  if (unguarded(S_OK).length !== 0 || unguarded(S_BAD).length !== 1
+      || unguarded(stripPy(S_COMMENT)).length !== 0) {
+    err('32-o 的判据自检不成立（有守卫的样本被判成没有 / 没守卫的样本漏判 / 注释没剥干净）'
+      + ' —— 这条网会假绿或假红');
+    oBad++;
+  }
+  let totalAssign = 0;
+  const codes = {};
+  WRITERS.forEach(rel => {
+    let raw = '';
+    try { raw = fs.readFileSync(path.join(ROOT, rel), 'utf8'); }
+    catch (e) { err(`读不到 \`${rel}\` —— 32-o 抓不到要判的地方（先修判据本身）`); oBad++; return; }
+    const code = stripPy(raw);
+    codes[rel] = code;
+    if (!has(code, 'shutil.copyfile(TRAITS, TRAITS + ".bak")')) {
+      err(`\`${rel}\` 写盘前没有 \`.bak\` 备份 —— 这三个脚本写的是**同一份入库文件** `
+        + '`tools/fish-traits.json`，没有备份就没有退路（补 `shutil.copyfile(TRAITS, TRAITS + ".bak")`）');
+      oBad++;
+    }
+    if (!has(code, '还原：cp')) {
+      err(`\`${rel}\` 写盘后的自报里没有还原提示（要出现带 \`.bak\` 的那行「还原：cp …」）`
+        + ' —— 换个人来接手就不知道该怎么退回去了');
+      oBad++;
+    }
+    const bad = unguarded(code);
+    totalAssign += (code.match(ASSIGN) || []).length;
+    bad.forEach(sn => {
+      err(`\`${rel}\` 里这一处「填进已有条目」的赋值没有非空守卫：\`${sn}\``
+        + '\n       —— 必须在它之前出现同名的 `if <那个变量>:`；否则批次里那个字段为空时，'
+        + '会把**已经入表**的内容清掉（实测：D09 的 fins 就是这么没的）');
+      oBad++;
+    });
+  });
+  if (totalAssign < MIN_ASSIGN) {
+    err(`32-o 只认出 ${totalAssign} 处「填进已有条目」的赋值（少于 ${MIN_ASSIGN}）—— `
+      + '`X[K][字段] = VAR` 的抽取要跟着改（写法变了就来更新这条判据）');
+    oBad++;
+  }
+  const aiCode = codes['tools/ai-traits.py'] || '';
+  /* ④ 整条覆盖只许出现在**新条目**那一支 —— 这一条是逐字段守卫的**结构前提**：
+     `ai-traits.py` 原先在「已有条目 + grounded」那一支里也是 `have[fid] = entry`，
+     空字段直接盖掉已入表的值。判法 = 「整条赋值」在 `cmd_merge` 里**恰好一处**
+     （= 新条目那一支）；写成两处就说明已有条目那一支又在整条覆盖了。 */
+  const mb = bodyOf(aiCode, 'def cmd_merge(');
+  if (!mb) {
+    err('切不到 `tools/ai-traits.py` 的 `cmd_merge()` 函数体 —— 判据会恒真，先修本节自身');
+    oBad++;
+  } else {
+    if (!has(mb, 'for fk, fv in entry.items():') || !has(mb, 'have[fid][fk] =')) {
+      err('`ai-traits.py: cmd_merge()` 里找不到「逐字段填」的形态'
+        + '（`for fk, fv in entry.items():` + `have[fid][fk] = …`）—— 覆盖已有条目必须逐字段');
+      oBad++;
+    }
+    const wholeCount = (mb.match(/have\[fid\] = entry/g) || []).length;
+    if (wholeCount !== 1) {
+      err(`\`ai-traits.py: cmd_merge()\` 里整条赋值 \`have[fid] = entry\` 有 ${wholeCount} 处`
+        + '（应恰 1 处 = **新条目**那一支）—— 多出来的那些在整条覆盖已有条目，空字段会一并写进去');
+      oBad++;
+    }
+  }
+  /* ⑤ 删盘也要只删**自己这一套命名**（与 `trait-rewrite.py --split --dry` 同一条口径）：
+     `ai-traits.py: cmd_build()` 原先删 `glob("in-*.json")` ⇒ 连 `in-fic-*.json`（虚构批次）
+     与 **`in-extra.json`**（手工批次、入库文件、**没有任何东西会重建它**）一起删掉，
+     而输出只说「已生成 19 个输入批次」，一个字都不提删了谁
+     （实测：跑一次 `--build` 会静默删掉 21 个入库文件）。另外它必须有干跑：这一支是
+     「先删再写」，没有干跑就意味着一句「想看一眼」也要先毁掉现盘的批次。 */
+  const cb = bodyOf(aiCode, 'def cmd_build(');
+  if (!cb) {
+    err('切不到 `tools/ai-traits.py` 的 `cmd_build()` 函数体 —— 判据会恒真，先修本节自身');
+    oBad++;
+  } else {
+    if (has(cb, 'for old in glob.glob(os.path.join(OUTDIR, "in-*.json")):')) {
+      err('`ai-traits.py: cmd_build()` 把宽 glob `"in-*.json"` 直接当删除循环用 —— 它会连 '
+        + '`in-fic-*.json` 与 `in-extra.json`（入库、无重建路径）一起删掉，且不报名字。'
+        + '枚举可以宽，**删只许删自己这一套命名**（`in-\\d+\\.json`）');
+      oBad++;
+    }
+    if (!has(cb, 're.compile') || !has(cb, 'mine.match(')) {
+      err('`ai-traits.py: cmd_build()` 里找不到「只删自己命名」的收窄那一步'
+        + '（`re.compile(...)` + `mine.match(o)`）—— 改法变了就来更新这条判据，别把网拆掉');
+      oBad++;
+    }
+    if (!has(aiCode, 'def cmd_build(dry=False)') || !has(cb, 'if dry:')) {
+      err('`ai-traits.py: cmd_build()` 没有干跑（签名要带 `dry=False`，且体内要有 `if dry:` 分支）'
+        + ' —— 「想看一眼会怎么切」不该以毁掉现盘批次为代价');
+      oBad++;
+    }
+  }
+  if (!oBad) {
+    ok(`形态表（\`tools/fish-traits.json\`）的三个写者都做到了「写盘前 .bak 备份 + `
+      + `${totalAssign} 处逐字段赋值全带非空守卫 + 自报还原路径」，`
+      + '`--build` 也只删自己这一套命名（`in-NN.json`，不动 `in-extra.json` / `in-fic-*`）'
+      + '（`ai-traits.py` / `trait-rewrite.py` / `normalize-traits.py`）');
+  }
+})();
+
 /* ---------------- 33. 体型数量：文档 / 出图工具必须与代码一致 ----------------
    代码里是 **9 种**（`TPL.fish / eel / ray / squid / jelly / oarfish / shark / whale / dragon`），
    而 GDD 两处 + 开发者文档一处都写着「10 种体型」，开发者文档 §5.2 自己又写着 9 ——

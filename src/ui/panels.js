@@ -622,7 +622,9 @@ G.Panels = (function () {
       tools.appendChild(cnt);
       root.appendChild(tools);
 
-      var wrap = U.el('div', 'bk-list-wrap');
+      /* ⚠️ 这里原先写作 `U.el('div', 'bk-list-wrap')` —— 那个类名全项目没有一条规则、
+         也没人按类查询（纯装饰标记），第 52 轮清掉（`verify 11-k` 同族）。别再随手加回来。 */
+      var wrap = U.el('div');
       root.appendChild(wrap);
 
       /* ---- 列表：懒绘制（362 个 canvas 一次性画会明显卡顿） ---- */
@@ -689,7 +691,8 @@ G.Panels = (function () {
 
           var cv = G.Platform.canvas.create();
           cv.width = 260; cv.height = 112;
-          cv.className = 'bi-canvas';
+          /* ⚠️ 这里原先还有 `cv.className = 'bi-canvas'` —— 那个类名全项目没有规则、
+             也没人按类查询（版式来自 `.book-item canvas`），第 52 轮清掉。 */
           item.appendChild(cv);
 
           var sub = U.el('div', 'bi-name', e ? f.name : '？？？');

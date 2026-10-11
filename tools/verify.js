@@ -734,7 +734,12 @@ if (!reqClaimCount) { err('四份对外文档里都找不到「原本 N 个网�
    ⚠️ 已知网眼：`tools/test.js` 的 DOM 桩里抄了一份 id，所以「index.html 删了 id、
    桩里还留着」这种情况本网看不出来 —— 那属于测试桩自身的漂移（另由 11-a 一族的
    「桩必须照 index.html 建」这条惯例管），不为它把判据放宽（放宽 = 假报）。 */
-const htmlIds = [...htmlRaw.matchAll(/\bid\s*=\s*"([^"]+)"/g)].map(m => m[1]);
+/* ⚠️ `htmlRaw` → `htmlCode`：**先剥 HTML 注释**再抽 id / class（硬规矩 ①：注释里提一句不算数）。
+   由来（第 52 轮）：写 `11-k` 的反向验证时，负对照「把 class 只写在 `<!-- -->` 里」当场被
+   判成「纯装饰」报红 —— 抽出的是**注释里的那个词**。同一个口子 `11-j` 也有（只是方向相反：
+   注释里写个 id 会让它被当成「真存在的 id」再去报「没人读」）。 */
+const htmlCode = htmlRaw.replace(/<!--[\s\S]*?-->/g, '');
+const htmlIds = [...htmlCode.matchAll(/\bid\s*=\s*"([^"]+)"/g)].map(m => m[1]);
 const stripCmt = t => String(t)
   .replace(/\/\*[\s\S]*?\*\//g, '')
   .replace(/^\s*\/\/.*$/gm, '');
@@ -764,6 +769,54 @@ if (deadIds.length) {
   entryBad++;
 }
 
+/* 11-k `index.html` 的静态 class 必须有「外观」消费方（样式规则或代码查询）
+   同族：11-j（静态 id）—— 这次看的是 **class 属性**。由来（第 52 轮）：
+   `class="deck-right"` 与 `class="tb-text"` 在样式表里**一条规则都没有**
+   （只有 `.deck-left` 与 `.tut-bubble`），代码里也没人按类查询（那个元素走的是 `#tutText`）
+   ⇒ 它们是纯装饰：读 markup 的人会以为这两个类有版式作用，改版式时还会去改它们。
+   消费方口径（两种，任一即可）：① 样式表里有 `.<类名>` 规则；
+   ② 代码里有以它为类选择器的查询（`querySelector*` / `closest` / `matches` /
+   `getElementsByClassName`）。
+   ⚠️ 剥注释再比（硬规矩 ①）。⚠️ 判据**只管静态 markup**：`src/` 里 `U.el(…, '…')` 写进去的
+   类名有大量是**拼**出来的（`'at-' + place` / `'rar' + f.rar` / `'r' + i`），第 52 轮实测
+   那一侧「用了但没规则」的 5 个候选里 3 个是拼接碎片 ⇒ 那一侧不做网（会被假报淹），
+   只把查出来的死标记**逐个核实后清掉**（本轮清了 `bi-canvas` / `bk-list-wrap`）。 */
+const htmlClasses = [];
+[...htmlCode.matchAll(/\bclass\s*=\s*"([^"]*)"/g)].forEach(m => {
+  m[1].split(/\s+/).forEach(c => { if (c && htmlClasses.indexOf(c) < 0) htmlClasses.push(c); });
+});
+const isClassQueryIn = (code, name) => {
+  const e = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const hit = new RegExp('\\.' + e + '(?![\\w-])');
+  const q = /(?:querySelector(?:All)?|closest|matches)\(\s*['"]([^'"]+)['"]/g;
+  let m;
+  while ((m = q.exec(code))) if (hit.test(m[1])) return true;
+  return new RegExp("getElementsByClassName\\(\\s*['\"]" + e + "['\"]").test(code);
+};
+const isClassQuery = (name) => isClassQueryIn(jsCode, name);
+const deadClasses = htmlClasses.filter(c => {
+  const e = c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (new RegExp('\\.' + e + '(?![\\w-])').test(cssCode)) return false;
+  return !isClassQuery(c);
+});
+/* 自检（合成样本）：**两条豁免路都要真生效**。「样式规则」那条由真表承重（61 个里绝大多数
+   走它）；「按类查询」那条**当前真实数据里一个消费者都没有** ⇒ 只能靠这里承重：
+   合成一句 `querySelectorAll('.zz-q-c')` 必须认得、认不出的名字必须放过。 */
+const SELF_JS = "document.querySelectorAll('.zz-q-c'); el.closest('.zz-q-b');";
+const selfOk = isClassQueryIn(SELF_JS, 'zz-q-c') && !isClassQueryIn(SELF_JS, 'zz-q-miss');
+if (htmlClasses.length < 40 || !selfOk) {
+  err(`入口的静态 class 判据自检不成立（扫描面只认出 ${htmlClasses.length} 个 class；`
+    + `「按类查询」豁免路的合成样本自检 = ${selfOk}）`
+    + ' —— 判据会退化成摆设，先修本节自身');
+  entryBad++;
+}
+if (deadClasses.length) {
+  err('index.html 里这些 class 是**纯装饰**（样式里没有同名规则、代码里也没人按类查询）：'
+    + deadClasses.join('、') + ' —— 删掉它，或者补上消费方'
+    + '（留着会让人以为它有版式作用）');
+  entryBad++;
+}
+
 if (!entryBad) {
   ok(`入口 ${listed.length} 个脚本 == src/ 下 ${onDisk.length} 个模块，顺序正确`);
   ok(`按 index.html 顺序加载：${ranCount} 个模块在 Node 里跑通` +
@@ -772,6 +825,7 @@ if (!entryBad) {
   ok(`文档里的请求数现算相符：index.html ${listed.length} 个脚本 + ${cssListed.length} 个样式表 + 自身 = ${realReq} 个`);
   ok(`版本号单一来源：config.js 与 docs/改进待办.md 头部基线都是 v${CFG.version}`);
   ok(`index.html 的 ${htmlIds.length} 个静态 id 都有消费方（样式规则或代码引用）`);
+  ok(`index.html 的 ${htmlClasses.length} 个静态 class 都有外观消费方（样式规则或类选择器查询）`);
 }
 
 

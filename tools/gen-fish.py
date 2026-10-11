@@ -6,11 +6,13 @@ tools/gen-fish.py  —  生成 src/data/fish.js
 每个钓场的鱼种数、档位分布、外形模板、体重区间、基础价都在下面这张表里。
 档内权重 w 由 tools/solve-drop.js 反推写入，这里只放占位值 1。
 
-用法： python tools/gen-fish.py
+用法： python tools/gen-fish.py          # 生成并写回 src/data/fish.js
+       python tools/gen-fish.py --dry    # 只算不写：报「盘上的那份和现在算出来的是不是一致」
 """
-import io, os
+import io, os, sys
 
 OUT = os.path.join(os.path.dirname(__file__), '..', 'src', 'data', 'fish.js')
+REL_OUT = 'src/data/fish.js'          # 打印 / 还原提示里用的仓库相对路径（唯一一处）
 
 # =============================================================
 # 每场鱼价乘数 —— 唯一控制「经济曲线」的旋钮
@@ -662,9 +664,26 @@ def build():
     return "\n".join(lines)
 
 if __name__ == '__main__':
-    txt = build()
-    io.open(OUT, 'w', encoding='utf-8').write(txt)
-    print("生成 %s" % os.path.abspath(OUT))
+    dry = '--dry' in sys.argv[1:]
+    txt = build()                      # 先把新内容算进变量、再 open+write（文档 §8 硬规矩）
+    cur = io.open(OUT, encoding='utf-8').read() if os.path.exists(OUT) else None
+    same = (cur == txt)
+    if dry:
+        # 干跑**只报事实**，而且报的是「差异行数」这个能核对的数：
+        # ⚠️ 盘上那份是**跑完整条链**之后的产物（`solve-drop.js` 写 `w:`、`fix-rarity-price.js` 写 `price`），
+        #    本脚本的原始输出里这两样是占位值 ⇒ 「不一致」是**常态**，不是错误；
+        #    真跑会把它们重置，所以必须在同一轮里接着跑 ② ③ 步（顺序见 docs/开发者文档.md）。
+        n = 0
+        if cur is not None:
+            a, b = cur.split('\n'), txt.split('\n')
+            n = sum(1 for i in range(max(len(a), len(b))) if (a[i] if i < len(a) else None) != (b[i] if i < len(b) else None))
+        print('（--dry：没有写盘。%s）' % ('盘上的 %s 与本脚本的原始输出**逐行相同**' % REL_OUT
+              if same else '与盘上的 %s 差 %d 行 —— 这些差异就是后续链写回的 `w:` / `price`；'
+              '真跑会重置它们，所以必须接着跑 solve-drop 与 fix-rarity-price' % (REL_OUT, n)))
+    else:
+        io.open(OUT, 'w', encoding='utf-8').write(txt)
+        print('生成 %s（%s）' % (os.path.abspath(OUT), '内容与原来一致，未产生改动' if same else '已改动'))
+        print('  不想留这次改动：git checkout -- ' + REL_OUT)
     for fid in ['D','C','B','A','S','SS','SSS']:
         rows = FIELD_FISH[fid]
         c = [0,0,0,0]

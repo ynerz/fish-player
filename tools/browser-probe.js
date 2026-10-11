@@ -121,9 +121,23 @@ async function main() {
     const ws = new WebSocket(list[0].webSocketDebuggerUrl);
     const pend = new Map();
     let id = 0;
+    /* 🔴 每个 CDP 请求都带超时（2026-10-11 第 48 轮）：`ws.send` 只是把帧丢出去，
+       对端**不答就永远是 pending** —— 实测 `docs/说明书.html`（高 25843px）上
+       `Page.captureScreenshot{captureBeyondViewport:true}` 一次都不回，于是整条探针
+       **挂死**：零输出、零报错、退出码得靠外部 timeout 杀（实测 200s 仍不返回）。
+       「工具自己不报错、只是不返回」是最难查的一类，所以超时是**兜底**（不是主修）——
+       主修是下面截图前的**高度预检**：明知会不返回就别发那个请求。 */
+    const CDP_TIMEOUT_MS = 30000;
     const send = (method, params = {}) => new Promise((res, rej) => {
       const n = ++id;
-      pend.set(n, { res, rej });
+      const t = setTimeout(() => {
+        pend.delete(n);
+        rej(new Error('CDP 请求超时 ' + (CDP_TIMEOUT_MS / 1000) + 's 未返回：' + method));
+      }, CDP_TIMEOUT_MS);
+      pend.set(n, {
+        res: v => { clearTimeout(t); res(v); },
+        rej: e => { clearTimeout(t); rej(e); },
+      });
       ws.send(JSON.stringify({ id: n, method, params }));
     });
     const events = { error: [], console: [] };
@@ -195,10 +209,23 @@ async function main() {
        页会长大（鱼越多越长），工具不能跟着报废 ⇒ 全页失败就退回**视口截图**，
        并在 `shotFallback` 里写明原因（别让人以为截图本来就是这样的）。 */
     let png, shotFallback = null;
+    /* 🔴 截图前先量页面高度（2026-10-11 第 48 轮）：Chromium 对「超出纹理上限」的全页截图
+       不是回错误、而是**不答**（实测 `docs/说明书.html` 高 25843px ⇒ 请求永不返回 ⇒
+       整条探针挂死）。所以超过 CAPTURE_H_MAX 就**根本不发**那个请求，直接截视口。
+       阈值取保守值：Chromium 的纹理边长上限 16384，再留一截余量。 */
+    const CAPTURE_H_MAX = 12000;
+    let pageH = 0;
+    try { pageH = Number(await evalJs('document.documentElement.scrollHeight')) || 0; } catch (e) { pageH = 0; }
     try {
-      png = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
+      if (pageH > CAPTURE_H_MAX) {
+        shotFallback = '页面高 ' + pageH + 'px > 上限 ' + CAPTURE_H_MAX +
+          'px（Chromium 的全页截图会**不返回**）⇒ 只截视口';
+        png = await send('Page.captureScreenshot', { format: 'png' });
+      } else {
+        png = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
+      }
     } catch (e) {
-      shotFallback = String((e && e.message) || e).slice(0, 120);
+      shotFallback = String((e && e.message) || e).slice(0, 160);
       png = await send('Page.captureScreenshot', { format: 'png' });
     }
     fs.writeFileSync(shot, Buffer.from(png.data, 'base64'));

@@ -6870,6 +6870,44 @@ G_('配色表只许一处 · config 是唯一真相，说明书 / 面板必须�
      '出现：' + gctOther.join(','));
 })();
 
+/* =========================================================
+   真浏览器探针必须「要么给出结果、要么报错」（第 48 轮）
+   =========================================================
+   病根：`tools/browser-probe.js` 的 `send()` 只是把 CDP 帧丢出去、**没有超时**，
+   而 Chromium 对「超出纹理上限」的全页截图**不是回错误、而是不答** ⇒ 实测
+   `docs/说明书.html`（高 25843~33514px）上整条探针**挂死**：零输出、零报错、
+   要等外部 timeout 杀（200s 仍不返回）。「工具自己不报错、只是不返回」最难查。
+   现在两处都钉住：① 截图前先量高度、超限就**不发**那个请求（直接截视口 + 写明原因）；
+   ② 每个 CDP 请求 30s 不返回就报错。判据**按位置**验（高度分支必须在全页截图之前），
+   避免「句子在文件里出现过就算过」（判据条件写宽 = 假报）。
+   ========================================================= */
+G_('真浏览器探针 · 卡住的请求必须能自己报出来');
+(function () {
+  const bp = fs.readFileSync(path.join(ROOT, 'tools/browser-probe.js'), 'utf8');
+  const sendBody = bp.slice(bp.indexOf('const send = '), bp.indexOf('const events = '));
+  ok(sendBody.length > 0, '切得到 `send()` 的函数体（切不到 ⇒ 本判据会恒真）');
+  /* ⚠️ 判据盯的是**机制**不是名字：第一版只查「出现过 CDP_TIMEOUT_MS」——
+     反向验证当场证伪：把常量改个名（运行时其实会 ReferenceError）它照样绿。
+     改成「定时器到点真的 `rej(`」+「有 clearTimeout」，改名 / 删掉整段都会红。 */
+  ok(/setTimeout\(/.test(sendBody) && /clearTimeout\(/.test(sendBody) &&
+     /setTimeout\([\s\S]*?rej\(/.test(sendBody),
+     '每个 CDP 请求都带超时，且定时器到点真的 reject（不带 ⇒ 对端不答就永远 pending ⇒ 探针静默挂死）',
+     'send() 体长 ' + sendBody.length);
+  const shotBlock = bp.slice(bp.indexOf('let png, shotFallback'), bp.indexOf('out.screenshot = '));
+  ok(shotBlock.length > 0, '切得到截图那一段（切不到 ⇒ 本判据会恒真）');
+  const atMax = shotBlock.indexOf('CAPTURE_H_MAX'), atFull = shotBlock.indexOf('captureBeyondViewport');
+  /* ⚠️ 同样按**比较表达式**判（`pageH > CAPTURE_H_MAX`），而不是「文件里提过这个常量」：
+     第一版写成 `indexOf('CAPTURE_H_MAX') >= 0` —— 反向验证把比较改成 `pageH > 1e9`
+     （等于把预检关掉）它照样绿。
+     ⚠️ **边界（写清，别当成万能）**：这是**存在性 + 顺序**判据 —— 能抓「整段超时被删掉」
+     与「上限被调成永不触发」，抓不住 `if (pageH > CAPTURE_H_MAX && false)` 这类**语义短路**
+     （同 §32-l 那句「只判有没有，判不了对不对」）。语义那一半由**真跑**兜：
+     长页面（说明书 33514px）实测从「挂死 200s+」变成「12s 内返回 + shotFallback 写明原因」。 */
+  ok(/pageH\s*>\s*CAPTURE_H_MAX/.test(shotBlock) && atMax >= 0 && atFull >= 0 && atMax < atFull,
+     '全页截图前先按高度上限预检、超限直接截视口（顺序反了 = 先发了那个不会返回的请求）',
+     'CAPTURE_H_MAX@' + atMax + ' / captureBeyondViewport@' + atFull);
+})();
+
 /* ---------- 汇总 ---------- */
 console.log('\n' + '='.repeat(52));
 if (fail) { console.log(`\u2716 测试未通过：${pass} 通过 / ${fail} 失败\n`); process.exit(1); }

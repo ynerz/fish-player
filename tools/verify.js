@@ -13586,6 +13586,78 @@ console.log('\n[32-ac] 音频素材的「来源可复现」：配方（`tools/ge
   }
 })();
 
+console.log('\n[32-ad] 数据表的 key 唯一：重复 id 会静默互相覆盖（第 64 轮）');
+(function () {
+  /* 【由头】第 64 轮铺的新面 = 「**一张表里的 id 有没有重复**」。
+     重复 id 的失败形态**全是静默的**（本项目的最高频坑型）：
+       · `fish.js` 走后 `G.FISH_ID[id] = f` 建映射 ⇒ 后一条**盖掉**前一条，图鉴里两条都画，
+         但「这条鱼钓没钓到 / 权重查表」只认后一条；
+       · `goals.js` 的彩蛋进度是 `stats.eggs[id]`、成就是按 `id` 记 ⇒ 重号 = 两条共用一个进度；
+       · `story.js` 的 `evById[ev.id]`（§50 自己就在用）同上。
+     已另外有网的两张**不重复建**（避免同一件事两处判）：`G.QUEST_TPL` / `G.WEEKLY_TPL`
+     （§16 判「模板 id 重复 / metric 重复」）、引导步骤 `tutorial`（§10 判 id 重复）。
+     ⚠️ **不做**「JS **对象字面量**表的键唯一」（`G.STORY_NPCS` / `G.ASSISTANT_LINES`）：
+        对象字面量里的重复键会被**语法层静默去重**（`Object.keys()` 只剩一个），
+        运行期判据**原理上**抓不到；要判只能解析源码文本，收益 < 成本 ⇒ 明确不做（留档，
+        省得下一轮当漏网重扫）。 */
+  const G2 = (sandbox && sandbox.G) || null;
+  if (!G2) { err('32-ad 拿不到沙箱里的 `G`（先修判据本身）'); return; }
+  const SAMPLE = [{ id: 'a' }, { id: 'a' }, { id: 'b' }, { nope: 1 }];
+  const dupsOf = (arr, key) => {
+    const seen = Object.create(null), out = [];
+    arr.forEach(o => {
+      const k = key ? (o && o[key]) : o;
+      if (k === undefined || k === null) return;
+      if (seen[k]) out.push(k); else seen[k] = 1;
+    });
+    return out;
+  };
+  if (dupsOf(SAMPLE, 'id').join(',') !== 'a' || dupsOf(SAMPLE, 'id').length !== 1
+      || dupsOf(['a', 'a', 'b']).join(',') !== 'a') {
+    err('32-ad 的判据自检不成立（合成样本里重号认不出来）—— 这条断言会静默失效，先修判据本身');
+    return;
+  }
+  const TABLES = [['FISH', 'id'], ['FIELDS', 'id'], ['BAITS', 'id'], ['RODS', 'id'], ['LINES', 'id'],
+    ['DECORS', 'id'], ['EASTER_EGGS', 'id'], ['ACHIEVEMENTS', 'id'], ['STORY_EVENTS', 'id'],
+    ['STORY_BANTER', 'id']];
+  /* ⚠️ `STORY_BANTER` 判的是 `id`（`firstChat` / `tideChat` / `nightChat`），
+     **不是 `pair`** —— 同一个 pair 可以有多段对话（实测 3 条同 pair）。
+     第一版拿 `pair` 当 key，当场上演假红（数组被 `seen[k]` 强制成 `'hai,chuan'` 字符串），
+     见 §4 台账第 3 条。 */
+  let aBad = 0, total = 0, missing = [];
+  TABLES.forEach(pair => {
+    const name = 'G.' + pair[0], arr = G2[pair[0]];
+    if (!Array.isArray(arr) || !arr.length) { missing.push(name); return; }
+    total += arr.length;
+    const d = dupsOf(arr, pair[1]);
+    if (d.length) {
+      err(`${name} 里有 ${d.length} 个重复的 \`${pair[1]}\`：${[...new Set(d)].slice(0, 8).join('、')}`
+        + ' —— 重复的那几条会**静默互相覆盖**（映射表只认最后一个 / 进度按 id 记 ⇒ 两条共用一个）');
+      aBad++;
+    }
+  });
+  if (missing.length) {
+    err(`32-ad 在沙箱里读不到这些表：${missing.join('、')} —— 挂载名或加载顺序变了（先修判据本身）`);
+    aBad++;
+  }
+  if (total < 500) {
+    err(`32-ad 只数到 ${total} 条数据（少于 500）—— 扫描面多半坏了，不许让这条判据静默退化成空断言`);
+    aBad++;
+  }
+  /* 映射表必须与数组**逐条对齐**（重号会让映射少一项 / 指错对象 —— 这是重号真正咬人的地方） */
+  const mapBad = [];
+  (G2.FISH || []).forEach(f => { if (G2.FISH_ID[f.id] !== f) mapBad.push('G.FISH_ID[' + f.id + ']'); });
+  (G2.FIELDS || []).forEach(f => { if (G2.FIELD_MAP[f.id] !== f) mapBad.push('G.FIELD_MAP[' + f.id + ']'); });
+  if (mapBad.length) {
+    err(`映射表与数据表对不上：${mapBad.slice(0, 8).join('、')} —— 多半是 id 重号（后一条盖掉了前一条）`
+      + '，或者建表那段被改过'); aBad++;
+  }
+  if (!aBad) {
+    ok(`${TABLES.length} 张 keyed 数据表（共 ${total} 条）key 全部唯一，且 \`G.FISH_ID\` / \`G.FIELD_MAP\` `
+      + '与数组逐条对齐（对象字面量那两张表原理上判不了，明确不做）');
+  }
+})();
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

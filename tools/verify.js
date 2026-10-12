@@ -13658,6 +13658,98 @@ console.log('\n[32-ad] 数据表的 key 唯一：重复 id 会静默互相覆盖
   }
 })();
 
+console.log('\n[48-c] 文档的小节号在同一份文档里只许出现一次（重号 = 两份内容共用一个号）');
+(function () {
+  /* 【由头】第 62 轮**真撞上**：`docs/开发者文档.md` 里 `§17.47` / `§17.48` **各两份**
+     （一次复制粘贴事故），下一轮引用它时「照它翻文档会翻错一节」。
+     `[33-k]` 管的是**说明书**（①…⑳ 连续 + 目录对得上）、`[48]` 管「源码 → 文档」的引用，
+     **编号文档自身的重号**一直没有网。判据：`docs/*.md` 的标题行里，同一个节号只许出现一次。
+     ⚠️ 认法要**宽松地认、精确地取**：节号取「最长的一串数字」，再看**紧跟其后的那个字符** ——
+        · `-` ⇒ 这是**变体留档**（`### 3.2-原 待拍板…`，优化队列的历史写法）⇒ **不计号**；
+        · `.` / `、` / `:` / `：` / 空白 ⇒ 记为这个号；别的字符 ⇒ 不是节号标题，跳过。
+      （第一版正则写成「数字后面必须是分隔符」的回溯式 lookahead ⇒ `3.2-原` 被截成 `3`、
+        当场上演假红 —— 反向验证 R 组逮到的，见 §4 台账。） */
+  const dir = path.join(ROOT, 'docs');
+  let files = [];
+  try { files = fs.readdirSync(dir).filter(f => f.endsWith('.md')); }
+  catch (e) { err('48-c 读不到 `docs/`（先修判据本身）'); return; }
+  const re = /^#{2,4}[ \t]*§?[ \t]*([0-9]+(?:\.[0-9]+)*)/gm;
+  const numsOf = raw => {
+    const out = [];
+    let m;
+    re.lastIndex = 0;
+    while ((m = re.exec(raw))) {
+      const nxt = raw.charAt(m.index + m[0].length);
+      if (nxt === '-') continue;                       /* 变体留档：`3.2-原` 不占号 */
+      if (!/[.、:：\s]/.test(nxt)) continue;            /* 数字后面不是分隔符 ⇒ 不是节号标题 */
+      out.push(m[1]);
+    }
+    return out;
+  };
+  /* 判据自检：合成样本（重号认得出、`3.2-原` 不计号、日期标题不算节号） */
+  const S = '## 1. a\n### 1.1 b\n## 1. c\n## 3.2-原 d\n## 2 e\n## 2026-10-13 f\n';
+  const sNums = numsOf(S);
+  if (sNums.join(',') !== '1,1.1,1,2' || numsOf('## 3.2-原 x\n').length !== 0) {
+    err(`48-c 的判据自检不成立（实得 [${sNums.join(',')}]，应当认成 [1,1.1,1,2]）`
+      + '—— 这条断言会静默失效，先修判据本身');
+    return;
+  }
+  let cBad = 0, headings = 0, dups = 0;
+  files.forEach(f => {
+    let raw = '';
+    try { raw = fs.readFileSync(path.join(dir, f), 'utf8'); } catch (e) { return; }
+    const nums = numsOf(raw);
+    headings += nums.length;
+    const seen = Object.create(null), d = [];
+    nums.forEach(n => { if (seen[n]) d.push(n); else seen[n] = 1; });
+    if (d.length) {
+      err(`\`docs/${f}\` 里这些节号出现了不止一次：${[...new Set(d)].join('、')}`
+        + ' —— 两份不同的内容共用一个号，引用它的人会翻错一节（第 62 轮真撞上过一次）');
+      dups += d.length; cBad++;
+    }
+  });
+  if (files.length < 10) { err(`48-c 只扫到 ${files.length} 份 \`docs/*.md\`（少于 10）—— 扫描面多半坏了`); cBad++; }
+  if (headings < 100) { err(`48-c 只认出 ${headings} 个带节号的标题（少于 100）—— 认法要跟着改`); cBad++; }
+  if (!cBad) ok(`${files.length} 份 \`docs/*.md\` 共 ${headings} 个带节号的标题，节号全部唯一（0 处重号）`);
+})();
+
+console.log('\n[32-af] 每个面板都要在 `tools/test.js` 里留下 Node 侧的真渲染证据（新增面板别再三零覆盖）');
+(function () {
+  /* 【由头】第 56 轮审计发现 `VIEWS.profile` 是 14 个面板里**唯一**在 `tools/test.js` 里
+     连名字都没出现过的，而它正好是**全项目唯一**渲染「玩家自己写的文本」的面板
+     （昵称裸拼进 `innerHTML`）—— 两个毛病一直没人看见，就因为它零覆盖。
+     那一次是**人工**盘出来的（`test.js` 里写着「14 个面板里真渲染过 13 个」）。
+     ⇒ 这条网把它变成机器判据：`panels.js` 的每个 `VIEWS.<键>` 都必须在
+        `tools/test.js` 里被**点名**（`'<键>'` / `VIEWS.<键>` / `open('<键>')` 三种形态
+        都算 —— 三个 picker 是走**表循环**的，只认 `VIEWS.<键>` 会当场三处假红）。
+     ⚠️ 这条网只保证「有人点过名」，**不保证**渲染强度 —— 真正的强度由那一节的断言把关；
+        与 `[32-z]`（面板可达性）同一层：**可达 ≠ 测过**，两条网都要。
+     ⚠️ 行为侧的另一半在 `test.js` 的「Panels · 全量真渲染」一节（逐个 `open()` 真跑一遍）。 */
+  let P = '', T = '';
+  try {
+    P = stripComments(fs.readFileSync(path.join(ROOT, 'src/ui/panels.js'), 'utf8'));
+    T = stripComments(fs.readFileSync(path.join(ROOT, 'tools/test.js'), 'utf8'));
+  } catch (e) { err('32-af 读不到 `panels.js` / `test.js`（先修判据本身）'); return; }
+  const keys = [...new Set([...P.matchAll(/VIEWS\.([A-Za-z][A-Za-z0-9_]*)\s*=/g)].map(m => m[1]))];
+  const named = (text, k) => has(text, "'" + k + "'") || has(text, '"' + k + '"') || has(text, 'VIEWS.' + k);
+  const SAMPLE = ["Panels.VIEWS.book.render(r)", "Panels.open('diary')", "  ['pickerBait', 'x'],"];
+  if (keys.length && !(named(SAMPLE[0], 'book') && named(SAMPLE[1], 'diary') && named(SAMPLE[2], 'pickerBait'))) {
+    err('32-af 的判据自检不成立（三种写法里有一种认不出来）—— 这条断言会静默失效，先修判据本身');
+    return;
+  }
+  if (keys.length < 10) {
+    err(`32-af 只从 \`panels.js\` 认出 ${keys.length} 个面板（少于 10）—— 取键的锚点要跟着改`); return;
+  }
+  const miss = keys.filter(k => !named(T, k));
+  if (miss.length) {
+    err(`这些面板在 \`tools/test.js\` 里**一次都没被点名**：${miss.join('、')}`
+      + ' —— 新增面板忘了配测试就是这个形状（第 56 轮的 `profile` 就是它），'
+      + '而面板渲染的坏法（读 undefined 白屏 / 没转义 / 文案说反）**只有真渲染才看得见**');
+    return;
+  }
+  ok(`${keys.length} 个面板全部在 \`tools/test.js\` 里被点名（与行为侧「全量真渲染」一节一起看）`);
+})();
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

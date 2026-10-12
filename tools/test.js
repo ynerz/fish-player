@@ -7412,6 +7412,91 @@ G_('真浏览器探针 · 卡住的请求必须能自己报出来');
      'CAPTURE_H_MAX@' + atMax + ' / captureBeyondViewport@' + atFull);
 })();
 
+/* =========================================================
+   Panels · 全量真渲染（14 个面板逐个 open() 一遍）
+   =========================================================
+   【由头】第 64 轮：`verify [32-af]` 保证每个 `VIEWS.<键>` 在本文件里**被点名**，
+   而这一节是它的**行为侧另一半** —— 逐个走真实入口 `Panels.open(<键>)` 渲染一遍，钉住三件事：
+     ① 每个面板都能在 Node 里跑完、不抛错；
+     ② 每个面板都画出了内容（不是空白 —— 渲染里读 undefined 会白屏）；
+     ③ 产出里不许出现字面量 `undefined` / `NaN`（「面板在说谎」的经典形态）。
+   为什么值得单独一节：`VIEWS.profile` 曾是 14 个里**唯一**连名字都没出现过的（第 56 轮审计），
+   而它正好是唯一渲染「玩家自己写的文本」的面板 —— 昵称没转义 / markdown 星号两个毛病
+   因此一直没人看见。**新增面板忘了配测试就是这个形状**。
+   ⚠️ 走 `open()` 而不是 `VIEWS.x.render()`：`open()` 是真实入口（切 tab / 底栏槽位都走它），
+      能顺带覆盖「open → current → renderCurrent」整条链。
+   ⚠️ 桩必须能自己 `querySelector`（面板建完控件会去取 `#pfMake` 那种载体），
+      且 `G.Audio` 用**任意方法都返回空函数**的代理 —— 面板会在渲染里顺手播几个音效。
+   ========================================================= */
+G_('Panels · 全量真渲染（14 个面板逐个 open 一遍）');
+(function () {
+  const realDoc = global.document;
+  const prevAudio = G.Audio;
+  const qnode = tag => {
+    const el = mkEl(tag);
+    el._q = {};
+    /* 面板要读 `childNodes.length`（真 DOM 有、`mkEl` 没有 ⇒ 会当场抛）
+       —— 挂一个活 getter 指回 `children`，与 `appendChild` 的口径一致。 */
+    Object.defineProperty(el, 'childNodes', { get() { return el.children; } });
+    Object.defineProperty(el, 'firstChild', { get() { return el.children[0] || null; } });
+    /* 画布元素要给一个「什么都不做」的 2d 上下文：面板真的会 `setTransform` / `fillRect`，
+       而 `mkEl().getContext()` 恒返回 null ⇒ `paintBookItem` 当场抛。
+       ⚠️ `measureText` 必须返回**带 width 的对象**（返回函数的话下游算出来是 NaN，
+         会被下面「产出里不许有 NaN」那条判据误伤 —— 假绿的反面：假红）。 */
+    const ctxOf = () => new Proxy({}, {
+      get: (t, k) => (k === 'canvas' ? el
+        : (k === 'measureText' ? (() => ({ width: 0 })) : (() => ctxOf()))),
+      set: () => true,
+    });
+    el.getContext = () => ctxOf();
+    el.querySelector = function (sel) {
+      if (!el._q[sel]) { const c = mkEl('input'); c.value = ''; c._sel = sel; el._q[sel] = c; }
+      return el._q[sel];
+    };
+    return el;
+  };
+  const modalCls = new Set(['hidden']);
+  const modalStub = { classList: { contains: c => modalCls.has(c), add: c => modalCls.add(c),
+    remove: c => modalCls.delete(c), toggle() {} }, addEventListener() {} };
+  const body = qnode('div');
+  const qmap = { '#modal': modalStub, '#modalTitle': qnode('div'), '#modalBody': body,
+                 '#modalClose': qnode('button'), '#app': qnode('div') };
+  global.document = { createElement: t => qnode(t), querySelector: s => qmap[s] || null,
+    querySelectorAll: () => [], addEventListener() {} };
+  G.Audio = new Proxy({}, { get: () => function () {} });
+  /* 图鉴 / 鱼护要画鱼的剪影：真 `G.FishArt` 在这套桩下没有 2d 上下文可用，
+     桩成两个空函数（**画面像素那部分交给真浏览器** —— 与「图鉴懒绘制」那节同一口径）。 */
+  const prevFishArt = G.FishArt;
+  G.FishArt = { draw: () => {}, drawSilhouette: () => {} };
+  Panels.init();
+
+  const keys = Object.keys(Panels.VIEWS);
+  ok(keys.length >= 10, `panels.js 挂上了 ${keys.length} 个面板（少于 10 ⇒ 取键的方式变了）`);
+  const threw = [], blank = [], dirty = [];
+  keys.forEach(k => {
+    body.children.length = 0;
+    let e = null;
+    try { Panels.open(k); } catch (err) { e = err; }
+    if (e) { threw.push(k + '（' + e.message + ' @ ' + String(e.stack).split('\n')[1] + '）'); return; }
+    const html = panelText(body);
+    if (!html.length) { blank.push(k); return; }
+    /* ⚠️ 只在**可见文本**里找这两个词（面板会写出 `undefined` 这种字面量就该报红）
+       —— 判据按 `indexOf` 逐处取，报告里带上下文，方便一眼看出是哪个字段漏兜底。 */
+    [ 'undefined', 'NaN' ].forEach(w => {
+      const at = html.indexOf(w);
+      if (at >= 0) dirty.push(k + ' 里的 ' + w + '：…' + html.slice(Math.max(0, at - 30), at + 30) + '…');
+    });
+  });
+  ok(!threw.length, `${keys.length} 个面板逐个 Panels.open() 都不抛错`, threw.join(' / '));
+  ok(!blank.length, '每个面板都画出了内容（空白 ⇒ 渲染里读了不存在的字段）', blank.join('、'));
+  ok(!dirty.length, '面板产出里没有字面量 undefined / NaN', dirty.join(' / '));
+
+  Panels.close();
+  global.document = realDoc;
+  G.Audio = prevAudio;
+  G.FishArt = prevFishArt;
+})();
+
 /* ---------- 汇总 ---------- */
 console.log('\n' + '='.repeat(52));
 if (fail) { console.log(`\u2716 测试未通过：${pass} 通过 / ${fail} 失败\n`); process.exit(1); }

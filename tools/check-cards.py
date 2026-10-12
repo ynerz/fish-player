@@ -36,7 +36,7 @@
   · 把「判定」按**档**归并 = 「同一档的多版只判其中一个、另一个沿用别人的结论」——
     留下那张 ok、被挤掉那张本该 fail 也照样写 ok（验收工具里的假阴性通道）。见 `slot_verdicts()`。
 
-用法：
+用法（`-h` 看全量用法；参数面走 argparse，未知开关**报错退出 2**）：
   python tools/check-cards.py                 # 查全部卡片（母版 + 5 档）
   python tools/check-cards.py A01 A02         # 查指定几条（**裸 id 会把它的各档一起拉进来**）
   python tools/check-cards.py A01 A01-golden  # 点名某一张：带 `-档` 后缀就只查那一张
@@ -50,6 +50,7 @@
    `-normal`），不是从母版算出来的，它们出错的方式（写实金鱼 / 背景漂移 / 裁切）
    和母版完全一样，必须一起进验收。
 """
+import argparse
 import os, re, sys
 
 from PIL import Image, ImageChops
@@ -409,11 +410,29 @@ def slot_tally(slots, verdicts):
     return fails, drift
 
 
-def main():
-    args = sys.argv[1:]
-    if args:
+def parse_args(argv=None):
+    """参数面走 **argparse**（Q90，2026-10-12 第 58 轮）。
+
+    ⚠️ 为什么非改不可：手写 `sys.argv[1:]` 的工具**没有 `-h/--help` 出口**，
+       于是 `--help` 被当成一个鱼 id / 文件名照跑 —— 实测本仓 `gen-fish.py --help`
+       **真的重写了 `src/data/fish.js` 362 行**、退出码 0（`--help` 是最不该有副作用的输入）。
+       走 argparse 之后：`-h/--help` ⇒ 退出 0、未知开关 ⇒ 退出 **2**（与 `tools/argv.js`
+       在 js 侧约定的「2 = 用法错」同源）。
+    """
+    ap = argparse.ArgumentParser(
+        prog="check-cards.py",
+        description="图鉴卡面自动验收：六条单张判据（硬性 FAIL 三条 + 提示三条）+ 一条跨档提示。")
+    ap.add_argument("targets", nargs="*", metavar="id|文件名",
+                    help="要查的裸 id（A01，会连它的各档一起拉进来）或卡片文件名；"
+                         "不给 = 查 assets/cards/ 下全部母版与档位图")
+    return ap.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(argv)
+    if args.targets:
         names = []
-        for a in args:
+        for a in args.targets:
             a = a.strip()
             # 裸 id ⇒ 连它的各档一起查（跨档判据要有整组才算得出来，这也是文件头写的用法）
             if re.match(r"^[A-Z]+\d+$", a):

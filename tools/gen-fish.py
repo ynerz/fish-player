@@ -6,9 +6,17 @@ tools/gen-fish.py  —  生成 src/data/fish.js
 每个钓场的鱼种数、档位分布、外形模板、体重区间、基础价都在下面这张表里。
 档内权重 w 由 tools/solve-drop.js 反推写入，这里只放占位值 1。
 
-用法： python tools/gen-fish.py          # 生成并写回 src/data/fish.js
+用法（参数面走 argparse；`-h` 看全量用法，未知开关**报错退出 2**）：
+       python tools/gen-fish.py          # 生成并写回 src/data/fish.js
        python tools/gen-fish.py --dry    # 只算不写：报「盘上的那份和现在算出来的是不是一致」
+
+🔴 为什么参数面必须走 argparse（Q90，2026-10-12 第 58 轮）：
+   原先只有一句 `dry = '--dry' in sys.argv[1:]` ⇒ `--help` / 任何写错的开关都
+   **被当成位置参数忽略**，然后**照常重写整张鱼表**（362 行）。实测就是这么把
+   `src/data/fish.js` 写掉的、退出码还是 0 —— 这是数值链里最不可逆的一步，
+   而 `--help` 恰恰是最不该有副作用的输入。
 """
+import argparse
 import io, os, sys, json
 
 OUT = os.path.join(os.path.dirname(__file__), '..', 'src', 'data', 'fish.js')
@@ -680,8 +688,20 @@ def build():
     lines.append("")
     return "\n".join(lines)
 
+def parse_args(argv=None):
+    """参数面走 **argparse**（Q90，2026-10-12 第 58 轮）：`-h/--help` ⇒ 退出 0 且**不写盘**，
+    未知开关 ⇒ 退出 **2**（与 `tools/argv.js` 在 js 侧约定的「2 = 用法错」同源）。"""
+    ap = argparse.ArgumentParser(
+        prog="gen-fish.py",
+        description="生成 src/data/fish.js（整张鱼表重写 —— 数值链的第 ① 步）。")
+    ap.add_argument("--dry", action="store_true",
+                    help="只算不写：报「盘上的那份和现在算出来的是不是一致」")
+    return ap.parse_args(argv)
+
+
 if __name__ == '__main__':
-    dry = '--dry' in sys.argv[1:]
+    args = parse_args()
+    dry = args.dry
     txt = build()                      # 先把新内容算进变量、再 open+write（文档 §8 硬规矩）
     cur = io.open(OUT, encoding='utf-8').read() if os.path.exists(OUT) else None
     same = (cur == txt)

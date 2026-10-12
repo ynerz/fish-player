@@ -12084,6 +12084,79 @@ console.log('\n[32-u] 事件总线：emit ↔ on 双向必须对上（零消费�
      ⑥ 合成样本自检：取函数体 / 数调用点两个原语各认对一次。
    ⚠️ 行为面（真 spawn 一次，看退出码与文案）在 `tools/test-review-cards.py` 的 **[26]** 节——
       `verify` 起不了外部命令（本机 `spawnSync` 返回 EBUSY，见第 39 节的注释）。 */
+console.log('\n[32-x] `tools/*.py` 每个都必须有 `-h/--help` 出口（手写 argv 会把 `--help` 当参数照跑）');
+(function () {
+  /* 【由头】第 57 轮开工第一量就撞上（Q90）：`python tools/gen-fish.py --help`
+     **真的重写了 `src/data/fish.js` 362 行**、退出码 0 —— 手写 argv 只做
+     `'--dry' in sys.argv[1:]`，`--help` 被当成位置参数忽略，然后照常跑完整条数值链里
+     **最不可逆**的那一步（整张鱼表重写）。`--help` 恰恰是最不该有副作用的输入。
+     同族（逐条实测）：`check-fishdata-drift.py --help` **抛 traceback**（`REV` 拿到 "--help"）、
+     `check-cards.py --help` 把它当成文件名 `--help.png`、`measure-shine.py --help` 当成一个鱼 id、
+     `facet-count.py` / `measure-palette-facets.py` 无声忽略一切参数照跑。
+     修法 = 一律改用 stdlib **`argparse`**（`tools/` 另外那些工具本来就走它 ⇒ 口径同源）：
+     `-h/--help` ⇒ 退出 0，未知开关 ⇒ 退出 **2**（与 `tools/argv.js` 在 js 侧约定的
+     「`0` 跑通 / `1` 失败 / **`2` 用法错**」同源，第 54 轮 Q79 立的）。
+     判据（跑在**剥过注释与 docstring** 的 py 源码上）：
+       ① `tools/*.py` 每个文件都必须有 `ArgumentParser(`（= 有一个 usage 出口）；
+       ② 不许再出现「手写开关判定」`in sys.argv` —— 那正是「`--help` 被静默吃掉」的成因形态；
+       ③ **抓不到就报错**（扫到的文件数 / 有出口的文件数少于阈值 ⇒ 报红；
+          正则因排版变化失效时不许退化成一条恒真的空断言）。
+     ⚠️ 行为面（真 spawn `-h`，断言退出码 0 + 打得出 usage + **盘上数据文件 md5 未变**）
+        在 `tools/test-review-cards.py` 的 **[28]** 节 —— 本机 node 侧 `spawnSync` 起不了
+        外部命令（见第 39 节的注释），而 python 宿主的 `subprocess` 一直正常。 */
+  const dir = path.join(ROOT, 'tools');
+  let files = [];
+  try { files = fs.readdirSync(dir).filter(f => f.endsWith('.py')); }
+  catch (e) { err('32-x 读不到 `tools/`（先修判据本身）'); return; }
+
+  /* 拼接造针串：本节的报错文案里也写着这些词，直接写字面量会被自己喂饱（项目惯例） */
+  const NEEDLE_PARSER = 'Argument' + 'Parser(';
+  const NEEDLE_HAND = 'in ' + 'sys.argv';
+  const MIN_FILES = 25, MIN_EXIT = 25;
+
+  /* 判据自检：两种原语各认对一次（好样本必须认得出、坏样本也必须认得出） */
+  const selfOk = has('ap = argparse.' + NEEDLE_PARSER + 'prog="x")', NEEDLE_PARSER)
+    && has('if "--dry" ' + NEEDLE_HAND + '[1:]:', NEEDLE_HAND);
+  if (!selfOk) {
+    err('32-x 的判据自检不成立（认不出 `Argument' + 'Parser(` 或认不出手写开关判定）—— '
+      + '那两条判据会静默失效，先修判据本身');
+    return;
+  }
+  let xBad = 0, scanned = 0;
+  const noExit = [], hand = [];
+  files.forEach(f => {
+    let code;
+    try { code = stripPy(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (e) { return; }
+    scanned++;
+    if (!has(code, NEEDLE_PARSER)) noExit.push('tools/' + f);
+    if (has(code, NEEDLE_HAND)) hand.push('tools/' + f);
+  });
+  if (scanned < MIN_FILES) {
+    err(`32-x 只扫到 ${scanned} 个 \`tools/*.py\`（少于 ${MIN_FILES}）—— 扫描面多半坏了，`
+      + '不许让这条判据静默退化成恒真的空断言'); xBad++;
+  }
+  if (scanned - noExit.length < MIN_EXIT) {
+    err(`32-x 只有 ${scanned - noExit.length} 个工具认得出 usage 出口（少于 ${MIN_EXIT}）—— `
+      + '`Argument' + 'Parser(` 的认法要跟着改，否则这条判据会静默失效'); xBad++;
+  }
+  if (noExit.length) {
+    err(`${noExit.length} 个 \`tools/*.py\` 没有 usage 出口（文件里找不到 \`${NEEDLE_PARSER}\`）—— `
+      + '手写 argv 的工具会把 `--help`（乃至任何拼错的开关）**当成位置参数照跑**：\n       '
+      + noExit.join('\n       ')
+      + '\n       ⇒ 参数面改用 stdlib `argparse`（`-h` 退出 0 / 未知开关退出 2）'); xBad++;
+  }
+  if (hand.length) {
+    err(`${hand.length} 个 \`tools/*.py\` 还在用手写开关判定（\`${NEEDLE_HAND}\`）—— `
+      + '这种写法**不看值也不报错**，判错的开关静默落进默认分支：\n       '
+      + hand.join('\n       ') + '\n       ⇒ 一律走 `argparse` 的 `args.<dest>`'); xBad++;
+  }
+  if (!xBad) {
+    ok(`\`tools/*.py\` 的 ${scanned} 个工具都有 usage 出口（\`${NEEDLE_PARSER}\`），`
+      + `且 0 处手写开关判定（\`${NEEDLE_HAND}\`）—— \`-h\` 退出 0 / 未知开关退出 2 `
+      + '（行为面在 `tools/test-review-cards.py` [28]）');
+  }
+})();
+
 console.log('\n[32-w] 洗注释只有顶层两个入口：py 的 `stripPy()` / js 的 `stripComments()`（第 57 轮）');
 (function () {
   /* 【由头】第 55 轮（Q83）把 JS 侧的洗注释收成了顶层 `stripComments()`（14 处局部 `strip` 改指向它），

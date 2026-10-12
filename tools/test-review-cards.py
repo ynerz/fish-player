@@ -1574,6 +1574,66 @@ def main():
         check(hashlib.md5(_fh.read()).hexdigest() == _fish_md5,
               "这一节只动沙盒：`src/data/fish.js` 一个字节都没变")
 
+    print("\n[28] `tools/*.py` 的用法面：`-h` 退出 0、未知开关退出 2、且**一个字节都不写盘**")
+    # 病根（Q90，2026-10-12 第 57 轮实测）：`python tools/gen-fish.py --help` **真的重写了
+    #   `src/data/fish.js` 362 行**、退出码 0 —— 手写 argv 的工具把 `--help` 当成位置参数忽略，
+    #   然后照常跑完整条数值链里最不可逆的那一步（`--dry` 那一句只看 `'--dry' in sys.argv`）。
+    #   同族：`check-fishdata-drift.py --help` 抛 traceback、`check-cards.py --help` 当文件名、
+    #   `measure-shine.py --help` 当鱼 id、`facet-count` / `measure-palette-facets` 忽略一切参数。
+    # 判法：**逐个真 spawn**。这是行为面唯一的办法 —— 静态判据（`verify [32-x]`）只能证明
+    #   「文件里有 ArgumentParser」，证不了「`-h` 真的在**任何写盘动作之前**退出」。
+    #   ⚠️ 被盯的数据文件 md5 必须**同一节内比对**：只读工具任何写盘都是事故。
+    _watch28 = [os.path.join(ROOT, "src", "data", "fish.js"),
+                os.path.join(ROOT, "src", "data", "fields.js"),
+                os.path.join(ROOT, "tools", "fish-traits.json")]
+    _b28 = {}
+    for _p in _watch28:
+        with io.open(_p, "rb") as _fh:
+            _b28[_p] = hashlib.md5(_fh.read()).hexdigest()
+
+    # 宿主自己不参与（它跑完就会 `sys.exit`，而且正在运行的就是它）
+    _me28 = os.path.basename(os.path.abspath(__file__))
+    _pys28 = sorted(f for f in os.listdir(TOOLS)
+                    if f.endswith(".py") and f != _me28)
+
+    def run_py28(name, *a):
+        return subprocess.run([sys.executable, os.path.join(TOOLS, name)] + list(a),
+                              capture_output=True, text=True, errors="replace", cwd=ROOT)
+
+    check(len(_pys28) >= 20,
+          "`tools/*.py` 扫到 %d 个（少于 20 ⇒ 扫描面坏了，这一节会变成空断言）" % len(_pys28))
+
+    _no_help, _no2 = [], []
+    for _name in _pys28:
+        _r = run_py28(_name, "--help")
+        # ⚠️ 退出码 0 **且**打得出 usage：只判退出码放得过「静默忽略参数照样跑完」的那种
+        if _r.returncode != 0 or "usage" not in (_r.stdout + _r.stderr).lower():
+            _no_help.append("%s（退出码 %d）" % (_name, _r.returncode))
+        _r2 = run_py28(_name, "--zzz-unknown")
+        if _r2.returncode != 2:
+            _no2.append("%s（退出码 %d）" % (_name, _r2.returncode))
+    check(not _no_help,
+          "每个 `tools/*.py` 的 `--help` 都退出 0 且打得出 usage（另有 %d 个不合格：%s）"
+          % (len(_no_help), "、".join(_no_help) or "无"))
+    check(not _no2,
+          "每个 `tools/*.py` 的未知开关都退出 **2**（用法错）—— 另有 %d 个不合格：%s"
+          % (len(_no2), "、".join(_no2) or "无"))
+
+    # 🔴 本节的**正题**：`--help` 一个字节都不许写盘（上面那条事故就是这么发生的）
+    _moved28 = [p for p in _watch28
+                if hashlib.md5(io.open(p, "rb").read()).hexdigest() != _b28[p]]
+    check(not _moved28,
+          "跑完全部 `--help` / 未知开关之后，被盯的数据文件**一个字节都没变**：%s"
+          % (("、".join(os.path.basename(p) for p in _moved28)) or "未变"))
+
+    # 正控：这些工具**正常跑**时要真能干活（否则「`-h` 退出 0」可能只是「什么都干不了」）
+    _fc = run_py28("facet-count.py", "--ref")
+    check(_fc.returncode == 0 and "每千px" in _fc.stdout,
+          "正控 `facet-count.py --ref` 真量出靶子（退出码 0 + 有「每千px」那一列）")
+    _gf = run_py28("gen-fish.py", "--dry")
+    check(_gf.returncode == 0 and "没有写盘" in _gf.stdout,
+          "正控 `gen-fish.py --dry` 真跑且明说「没有写盘」")
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

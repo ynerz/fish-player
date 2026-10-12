@@ -14,9 +14,10 @@
   ② **面片密度**（要 `assets/cards/*.png` + PIL + `tools/facet-count.py`）：各档抽 24 张取中位，
      靶子 = `facet-count.py` 的 `REF`（v9 ≈ 3.6；<2.5 偏少、>5 发碎）。
 
-用法（要 PIL ⇒ **系统 conda** 解释器）：
+用法（要 PIL ⇒ **系统 conda** 解释器；参数面走 argparse，`-h` 看全量用法、未知开关报错退出 2）：
     C:/Users/15001/miniconda3/python.exe tools/measure-palette-facets.py
 """
+import argparse
 import colorsys
 import glob
 import importlib.util
@@ -110,7 +111,22 @@ def part_facets():
     print('\n（样本每次同一批 —— seed 固定；要扩大样本改本文件顶部的 N_SAMPLE）')
 
 
-def main():
+def parse_args(argv=None):
+    """参数面走 **argparse**（Q90，2026-10-12 第 58 轮）。
+
+    ⚠️ 原先**完全不看 argv**：`--help`（乃至任何拼错的开关）都被无声忽略、
+       然后照常跑完整量测 —— 没有 usage 出口，用的人也看不出自己写错了什么。
+       走 argparse 后：`-h/--help` ⇒ 退出 0、未知开关 ⇒ 退出 **2**
+       （与 `tools/argv.js` 在 js 侧约定的「2 = 用法错」同源）。
+    """
+    ap = argparse.ArgumentParser(
+        prog="measure-palette-facets.py",
+        description="量传说档配色的色相分布（12 个 30° 带）+ 各档的面片密度中位。")
+    return ap.parse_args(argv)
+
+
+def main(argv=None):
+    parse_args(argv)                   # 只为用法面（本工具没有开关）；写法错在这里就以 2 退出
     rows = read_fish()
     part_hues(rows)
     part_facets()

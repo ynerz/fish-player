@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """check-fishdata-drift.py — 改了**鱼表数据**（名字 / 体型 / 形态描述）之后，确认「只有该变的变了」。
 
-用法： python tools/check-fishdata-drift.py [rev]      # 默认 HEAD~1
+用法（参数面走 argparse，`-h` 看全量用法、未知开关报错退出 2）：
+    python tools/check-fishdata-drift.py [rev]      # 默认 HEAD~1
 
 🔴 为什么不能用 `tools/check-prompt-drift.py`：它把**当前**的鱼表喂给新旧两个模块
    （`prompts_of(mod, fish)`）⇒ 「改鱼名 / 改体型 / 改 form」这类**数据侧**的改动它一条都测不出来
@@ -17,6 +18,7 @@
 （`prompts_of(mod, fish)`），于是「改鱼名 / 改体型」这类**数据侧**的改动它一条都测不出来
 —— 那是它的设计（它只管 gen-art.py 的代码口径漂移）。本轮换的恰恰是数据 ⇒ 得自己对。
 """
+import argparse
 import io, os, json, subprocess, importlib.util, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -24,7 +26,29 @@ ROOT = os.path.dirname(HERE)
 os.chdir(ROOT)
 
 NODE = r"C:/Users/15001/.workbuddy/binaries/node/versions/22.22.2-6/node.exe"
-REV = (sys.argv[1] if len(sys.argv) > 1 else "HEAD~1")
+
+
+def parse_args(argv=None):
+    """参数面走 **argparse**（Q90，2026-10-12 第 58 轮）。
+
+    ⚠️ 原先 `REV = (sys.argv[1] if len(sys.argv) > 1 else "HEAD~1")` —— 挂在本脚本
+       **模块顶层**。于是 `--help` 被当成一个 **rev 名**，接着 `git show --help:src/data/fish.js`
+       失败 ⇒ **抛 traceback**（不是「打印用法」，也不是「退出 2」）。
+       走 argparse 后：`-h/--help` ⇒ 退出 0、未知开关 ⇒ 退出 **2**
+       （与 `tools/argv.js` 在 js 侧约定的「2 = 用法错」同源）。
+       ⚠️ 这一段必须**排在所有真实动作之前**（本脚本的正文就是顶层语句）—— 这样 `--help`
+          在任何文件读写发生之前就退出。
+    """
+    ap = argparse.ArgumentParser(
+        prog="check-fishdata-drift.py",
+        description="改了鱼表数据（名字 / 体型 / 形态描述）之后，确认「只有该变的变了」。")
+    ap.add_argument("rev", nargs="?", default="HEAD~1", metavar="rev",
+                    help="对拍的另一端（默认 HEAD~1）")
+    return ap.parse_args(argv)
+
+
+_args = parse_args()
+REV = _args.rev
 
 
 def git_show(rel):

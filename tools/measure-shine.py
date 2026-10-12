@@ -15,7 +15,7 @@
       变成了均匀的浅色面，局部对比被洗掉 ⇒ 闪不起来**。
       闪光的视觉本质是「局部高对比的亮点」，不是"亮"。
 
-跑法（**要 PIL，走 conda 的 python**）：
+跑法（**要 PIL，走 conda 的 python**；参数面走 argparse，`-h` 看全量用法、未知开关报错退出 2）：
     C:/Users/15001/miniconda3/python.exe tools/measure-shine.py              # 所有闪光卡
     C:/Users/15001/miniconda3/python.exe tools/measure-shine.py D16 D14      # 指定 id
     C:/Users/15001/miniconda3/python.exe tools/measure-shine.py _tmp/x.png   # 直接给文件（A/B 用）
@@ -34,6 +34,7 @@
       中位数也算亮）—— 第一版就是这么被骗的。
     · 本地对比 = `|L − 5×5 均值|` 的均值（叠加亮片会把它抬起来）；亮度 = 区域平均 L。
 """
+import argparse
 import os
 import sys
 
@@ -141,8 +142,27 @@ def line(name, r):
     return HEAD % (name, h[0], h[1], h[2], u[0], u[1], u[2], l[0], l[1], l[2], u[1] - h[1], u[1] - l[1])
 
 
-def main():
-    args = sys.argv[1:]
+def parse_args(argv=None):
+    """参数面走 **argparse**（Q90，2026-10-12 第 58 轮）。
+
+    ⚠️ 原先 `args = sys.argv[1:]` + 猜「带路径分隔符 / 以 .png 结尾的就是文件，其余当 id」：
+       没有 `-h` 出口，而且**写错的开关会变成一个「id」**、被印成「(没有闪光卡)」
+       （看着像「这条鱼没出过闪光图」，实际是开关拼错了）。
+       走 argparse 后：`-h/--help` ⇒ 退出 0、未知开关 ⇒ 退出 **2**
+       （与 `tools/argv.js` 在 js 侧约定的「2 = 用法错」同源）。
+       「文件 vs id」这条猜测口径**保持不变**（它是本工具的既有语义，不是这次要改的东西）。
+    """
+    ap = argparse.ArgumentParser(
+        prog="measure-shine.py",
+        description="分区量「闪度」：头部 / 背部 / 腹部各自有多闪（需要闪光卡的真 alpha）。")
+    ap.add_argument("targets", nargs="*", metavar="id|png",
+                    help="鱼 id（如 D16）或图片路径；不给 = 扫全部闪光卡")
+    return ap.parse_args(argv)
+
+
+def main(argv=None):
+    _ns = parse_args(argv)
+    args = list(_ns.targets)
     files = [a for a in args if os.sep in a or a.endswith(".png")]
     ids = [a for a in args if a not in files]
     if not ids and not files:

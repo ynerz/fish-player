@@ -22,12 +22,13 @@
   ② 只留最大连通块（去掉碎屑）
   ③ 鱼身内按亮度量化（步长 4），数面积 ≥ 25px 的独立色块
 
-用法：
+用法（参数面走 argparse；`-h` 看全量用法，未知开关**报错退出 2**）：
   python tools/facet-count.py docs/images/标准/fish_normal.jpg assets/cards/A01.png
   python tools/facet-count.py --ref        # 只跑 v9 标准图，看靶子还在不在
 
 ⚠️ 解释器：系统 conda（需要 PIL）：`C:/Users/15001/miniconda3/python.exe`
 """
+import argparse
 import os, sys
 from collections import deque
 
@@ -103,10 +104,26 @@ def facet_density(path):
     return blocks, len(body), base
 
 
-def main():
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    if "--ref" in sys.argv or not args:
-        args = [REF]
+def parse_args(argv=None):
+    """参数面走 **argparse**（Q90，2026-10-12 第 58 轮）。
+
+    ⚠️ 原先是手写 `[a for a in sys.argv[1:] if not a.startswith("--")]`：
+       **任何** `--xxx` 都被静默丢掉（写错开关名 = 一言不发照跑默认那一路），
+       而且没有 `-h` 出口。走 argparse 后：`-h/--help` ⇒ 退出 0、未知开关 ⇒ 退出 **2**
+       （与 `tools/argv.js` 在 js 侧约定的「2 = 用法错」同源）。
+    """
+    ap = argparse.ArgumentParser(
+        prog="facet-count.py",
+        description="面片密度测量：鱼身剪影内独立亮度色块数 ÷ 千像素（靶子 v9 ≈ 3.6）。")
+    ap.add_argument("files", nargs="*", metavar="png",
+                    help="要量的图；不给（或给 --ref）= 只量 v9 标准图")
+    ap.add_argument("--ref", action="store_true", help="只量 v9 标准图（看靶子还在不在）")
+    return ap.parse_args(argv)
+
+
+def main(argv=None):
+    a = parse_args(argv)
+    args = a.files if (a.files and not a.ref) else [REF]
     print("%-46s %8s %10s %8s" % ("file", "色块数", "鱼身px", "每千px"))
     for p in args:
         if not os.path.exists(p):

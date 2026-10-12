@@ -162,6 +162,20 @@ function blankStrings(t) {
     return out;
   }).join(NL);
 }
+/* 第三个顶层入口：**HTML / CSS**（含 `<style>` 与 `<script>` 混排的 `.html`）。
+   三种注释一起剥：HTML 注释（尖括号感叹号）、CSS / JS 的块注释、行内 `//`（页内 JS）——
+   而 `//` 必须**放过 `://`**：`url(https://…)` 与 `href="http://…"` 会被一刀切成半句，
+   判据再也找不到那个 URL（与 `stripPy()` 那条「引号里的 `#` 不许动」同一类坑）。
+   ⚠️ 为什么**不能**用 `stripComments()`：它只认 JS 的 `//` 与块注释，
+      HTML 注释整片留下 ⇒ 拿它洗 `.html` 会把 HTML 注释当正文（判据假绿）。
+   为什么**不能**用 `stripPy()`：它只认 `#`（第 57 轮 §53 就是这么栽的）。
+   ⇒ 三个入口按语言分派，`[32-w]` 盯着不许再抄第四份（Q91，2026-10-12 第 58 轮）。 */
+function stripMarkup(t) {
+  return String(t)
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+}
 /* 再把 **Python 源码的注释** 剥掉：三引号 docstring → 空串，然后**整行 `#` 与行尾 `#` 都剥**
    （引号态感知 ⇒ `'#a87a1f'` 这种字符串里的 `#` 一个字节都不许动）。
    ⚠️ 为什么不复用 `stripComments()`：那是 **JS** 口径（剥 `//` 与块注释），
@@ -212,6 +226,21 @@ function stripPy(t) {
       || !has(R, "'#a87a1f'") || !has(R, "'a # b'") || !has(R, 'v = 1')) {
     err('顶层助手 `stripPy()` 的自检不成立（整行 `#` / 行尾 `#` / docstring 三种要剥、'
       + '字符串里的 `#` 不许剥）—— 用它的判据会假绿或假红');
+  }
+})();
+/* `stripMarkup()` 的自检（四种形态：HTML 注释 / 块注释 / 行内 `//` 都要剥；
+   `://`（`url(https://…)` 与 `href="http://…"`）一个字节都不许动）。 */
+(function () {
+  const NL = String.fromCharCode(10);
+  const S = '<!-- html comment -->' + NL + '<p>a</p>' + NL
+    + '<style>.x { background: url(https://a/b.png); /* css block */ }</style>' + NL
+    + '<a href="http://c/d">t</a>' + NL + '<script>var y = 1; // js tail' + NL
+    + '// js whole line' + NL + '</script>';
+  const R = stripMarkup(S);
+  if (has(R, 'html comment') || has(R, 'css block') || has(R, 'js tail') || has(R, 'js whole line')
+      || !has(R, 'url(https://a/b.png)') || !has(R, 'http://c/d') || !has(R, 'var y = 1;')) {
+    err('顶层助手 `stripMarkup()` 的自检不成立（HTML 注释 / 块注释 / 行内 `//` 要剥、'
+      + '`://` 不许被撕开）—— 用它的判据会假绿或假红');
   }
 })();
 
@@ -9631,9 +9660,11 @@ let storyBad = 0;
         写死了，verify.js 自己就成了 32-g 眼里的一个消费方。
      ⚠️ 判据一律吃**剥过注释**的那两份源码（硬规矩 第 1 条），而且要**连行尾注释一起剥**
         （`x = 1; // 这里写着 resolve('xxx')`）—— §50 那只 `strip` 只认「整行都是注释」，
-        行尾那种剥不掉 ⇒ 这一组单用 `stripAll`。不剥的话，注释里那一句就能把「值域」或
-        「收尾早于回调」喂饱（反向验证 V1c / V2c 就是专门为这一口设计的）。 */
-  const stripAll = t => String(t).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+        行尾那种剥不掉 ⇒ 这一组走顶层的 `stripComments()`（第 58 轮 Q91：原先这里有一份
+        **不看引号**的局部 `stripAll`，会把 `'http://x'` 从中间撕开；顶层那份是引号感知的，
+        只会**保留更多文本**，所以口径更宽而不是更窄）。不剥的话，注释里那一句就能把
+        「值域」或「收尾早于回调」喂饱（反向验证 V1c / V2c 就是专门为这一口设计的）。 */
+  const stripAll = stripComments;
   const fishSrc = stripAll(fs.readFileSync(path.join(ROOT, 'src/core/fishing.js'), 'utf8'));
   const fightSrc = stripAll(fs.readFileSync(path.join(ROOT, 'src/core/fight.js'), 'utf8'));
   const outcomes = [];
@@ -11484,10 +11515,10 @@ console.log('\n[53] 卡面后处理：规格单源 + 派生物已 ignore + 文�
 console.log('\n[53-b] 样式里定义的自定义属性必须有消费方（零消费的删掉）');
 (function () {
   let vBad = 0;
-  const stripAll = (t) => String(t)
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  /* ⚠️ 洗注释改用**按语言分派的第三个顶层入口** `stripMarkup()`（Q91，第 58 轮）：
+     这里扫 `.html` 与 `.css`，原来那份局部 `stripAll` 与它逐字符等价（HTML 注释 + 块注释 +
+     行内 `//` 且放过 `://`）⇒ 收口到顶层那一份，口径要改时不会漏掉这一处。 */
+  const stripAll = stripMarkup;
   /* 每个「单元」= 一组文件：定义在该单元里，消费也在该单元里找。
      `style.css` 被 `index.html` 引用 ⇒ 两者算一个单元（跨文件用同一个变量是正常的）。 */
   const units = [];
@@ -12282,7 +12313,7 @@ console.log('\n[32-y] 工具在仓库里留的一次性产物：必须进 `.giti
   }
 })();
 
-console.log('\n[32-w] 洗注释只有顶层两个入口：py 的 `stripPy()` / js 的 `stripComments()`（第 57 轮）');
+console.log('\n[32-w] 洗注释只有顶层三个入口：py 的 `stripPy()` / js 的 `stripComments()` / html+css 的 `stripMarkup()`（第 57~58 轮）');
 (function () {
   /* 【由头】第 55 轮（Q83）把 JS 侧的洗注释收成了顶层 `stripComments()`（14 处局部 `strip` 改指向它），
      但 **py 侧那一半漏了**：本轮开工一量，`verify.js` 里 `stripPy` 被**抄了 12 遍、四种口径** ——
@@ -12297,31 +12328,54 @@ console.log('\n[32-w] 洗注释只有顶层两个入口：py 的 `stripPy()` / j
        `.js|.html`，却一律喂 `stripPy()` —— 而它只认 `#`，`.js` 的 `//` 注释整片留下，
        当时只是因为有一份局部洗法顺手也剥了 `//` 才没错报。收口后它当场报红，已按扩展名分派。
      判据：
-       ① **不许再出现局部 `stripPy` 定义**（扫 verify.js 自己 —— 只有顶层那一处 `function`）；
-       ② 顶层 `stripPy(` 必须**真的是函数**，且四种形态**行为**都对（整行 `#` / 行尾 `#` /
-          三引号 docstring 都要剥；引号里的 `#` 一个字节都不许动）—— 直接喂合成样本判行为，
-          不判文本（判文本会被那句注释喂饱）；
+       ① **不许再出现局部**的洗注释**定义**（扫 verify.js 自己）—— 只许写「指向顶层入口的别名」
+          （`const strip = stripComments;`），不许再抄一份函数表达式；
+       ② 顶层那三个入口（`stripPy` / `stripComments` / `stripMarkup`）必须**真的是函数**，
+          且行为都对（`stripPy` 喂合成样本判四种形态；`stripMarkup` 判 HTML 注释 / 块注释 /
+          行内 `//` 要剥、`://` 不许被撕开）—— 直接判行为，不判文本（判文本会被注释喂饱）；
        ③ 抓不到就报错（不是函数 / 行为不对 ⇒ 报红，不许静默跳过）。
-     ⚠️ 明确**还没做**的一件（已立成新条目，不在本轮）：`stripAll` 仍有 3 处局部定义，
-       而且它们各自服务于**不同语言**（`.js` 的 `//`、`.html` 的 `<!-- -->`、还要放过 `://`）
-       ⇒ 收口要先定「洗注释按语言分派」的口径，那是另一个条目的体量。 */
+     📌 第 58 轮（Q91）补上第三档：`stripAll` 当时还有 **3 份局部定义、三种口径**（一份是
+       `.js` 的引号盲剥、一份要放过 `://`，还有一份已在第 57 轮顺手删掉）—— 它们各自服务
+       **不同语言**（js / html+css），所以不能并入 `stripComments()`。
+       口径 = **按语言分派的三个顶层入口**：`stripPy()`（`#`）/ `stripComments()`（JS 的
+       `//` + 块注释，引号感知）/ `stripMarkup()`（HTML + CSS + 页内 JS，且放过 `://`）；
+       各节要用就写别名。⚠️ **不许**把 `.html` 那处换成 `stripComments()`：它只认 JS 注释，
+       HTML 注释整片留下 = 判据假绿（第 57 轮 §53 那条「靠巧合成立」就是同一类）。
+     ⚠️ 还剩一族**没做**（已立成新条目 Q94）：`stripC` / `stripJs` / `stripCode` / `stripCss` /
+       `stripPyAll` / `stripCmt` 这些名字下还有十几份局部函数表达式。本轮**只收口 `stripAll`**
+       （Q91 的正文范围）—— 上面 ① 这条判据暂时只盯 `stripPy` 与 `stripAll` 两个名字，
+       等 Q94 把整族收完再扩到全部名字（一次性放开会当场报出十几条，分不清哪条是本轮引入的）。 */
   const SELF = path.join(ROOT, 'tools', 'verify.js');
   let raw;
   try { raw = fs.readFileSync(SELF, 'utf8'); }
   catch (e) { err('32-w 读不到 `tools/verify.js` 自己（先修判据本身）'); return; }
   const C = blankStrings(stripComments(raw));
-  const DEF_MARK = 'const ' + 'stripPy ' + '= ';      /* 拼接造针串（别把本节的报错文案喂给自己） */
+  /* 拼接造针串（别把本节的报错文案喂给自己）。扫的是**剥过注释与字符串**的代码面。 */
+  const WASH_NAMES = ['strip' + 'Py', 'strip' + 'All'];
   let wBad = 0;
 
-  const nLocal = C.split(DEF_MARK).length - 1;
-  if (nLocal > 0) {
-    err(`32-w：\`verify.js\` 里又出现了 ${nLocal} 处局部 \`stripPy\` 定义 ⇒ 洗 py 注释的口径`
-      + '会再次分家（改一处忘一处 = 判据假绿或假红）。用顶层那一份，别再抄');
+  /* ① 局部「洗注释」只许写**别名**（`const strip = stripComments;`）——
+     右值不是裸标识符（写成箭头函数 / 一串 `.replace(`）= 又抄了一份实现 ⇒ 报红。 */
+  const aliasBad = [];
+  WASH_NAMES.forEach(nm => {
+    const re = new RegExp('const\\s+' + nm + '\\s*=\\s*([^\\n;]*)', 'g');
+    let mm;
+    while ((mm = re.exec(C)) !== null) {
+      const rhs = mm[1].trim();
+      if (!/^[A-Za-z_$][\w$]*$/.test(rhs)) aliasBad.push(nm + ' = ' + rhs.slice(0, 48));
+    }
+  });
+  if (aliasBad.length) {
+    err(`32-w：\`verify.js\` 里又出现了 ${aliasBad.length} 处局部**洗注释实现** ⇒ 口径会再次`
+      + '分家（改一处忘一处 = 判据假绿或假红）。只许写别名：\n       ' + aliasBad.join('\n       ')
+      + '\n       ⇒ 按语言选顶层入口：py 走 `stripPy()`、js 走 `stripComments()`、'
+      + 'html+css 走 `stripMarkup()`');
     wBad++;
   }
 
-  if (typeof stripPy !== 'function') {
-    err('32-w：顶层 `stripPy()` 不是函数 ⇒ 用它的判据全都在假绿，先修判据本身');
+  if (typeof stripPy !== 'function' || typeof stripMarkup !== 'function') {
+    err('32-w：顶层 `stripPy()` / `stripMarkup()` 有一个不是函数 ⇒ 用它的判据全都在假绿，'
+      + '先修判据本身');
     return;
   }
   const NL2 = String.fromCharCode(10);
@@ -12342,9 +12396,31 @@ console.log('\n[32-w] 洗注释只有顶层两个入口：py 的 `stripPy()` / j
       + '。用它的判据会假绿（注释喂饱）或假红（色值被撕掉）');
     wBad++;
   }
+  /* ② 第三个入口 `stripMarkup()` 的行为：HTML 注释 / 块注释 / 行内 `//` 都要剥，
+     `://`（`url(https://…)` / `href="http://…"`）一个字节都不许动。 */
+  const MARKUP = '<!-- html 注释 -->' + NL2 + '<p>a</p>' + NL2
+    + '<style>.x { background: url(https://a/b.png); /* css 块 */ }</style>' + NL2
+    + '<a href="http://c/d">t</a>' + NL2 + '<script>var y = 1; // js 行尾' + NL2
+    + '// js 整行' + NL2 + '</script>';
+  const RM = stripMarkup(MARKUP);
+  const mForms = {
+    'HTML 注释': !has(RM, 'html 注释'),
+    'CSS 块注释': !has(RM, 'css 块'),
+    '页内 JS 行尾 `//`': !has(RM, 'js 行尾'),
+    '页内 JS 整行 `//`': !has(RM, 'js 整行'),
+    '`://` 不许被撕开（`url(https://…)`）': has(RM, 'url(https://a/b.png)'),
+    '`://` 不许被撕开（`href="http://…"`）': has(RM, 'http://c/d'),
+  };
+  const mBroken = Object.keys(mForms).filter(k => !mForms[k]);
+  if (mBroken.length) {
+    err('32-w：顶层 `stripMarkup()` 的行为不对 —— ' + mBroken.join('、')
+      + '。拿它洗 `.html` / `.css` 的判据会假绿（注释当正文）或假红（URL 被切成半句）');
+    wBad++;
+  }
   if (!wBad) {
-    ok('洗注释只有顶层两个入口：`stripPy()`（py 的 `#`，整行 / 行尾 / docstring 都剥、'
-      + "引号里的 `#` 不动）+ `stripComments()`（js），且 verify.js 里 0 处局部 `stripPy`");
+    ok('洗注释只有顶层三个入口：`stripPy()`（py 的 `#`，整行 / 行尾 / docstring 都剥、'
+      + '引号里的 `#` 不动）+ `stripComments()`（js）+ `stripMarkup()`（html+css+页内 js，'
+      + '放过 `://`），且 verify.js 里 0 处局部实现（只剩别名）');
   }
 })();
 

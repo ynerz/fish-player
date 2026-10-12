@@ -47,6 +47,12 @@ tools/_fishlist.json
 # 但进程被强杀 / 中途抛异常时就留在盘上 —— 那时它长得像「有人手滑加进来的工具」，
 # 而 `git status` 会一直脏 ⇒ 按 Q92 补进 ignore（脚本里另有 try/finally 的清理）。
 tools/_drift_old.py
+# 同族第二处（2026-10-13 第 61 轮 Q102 才被 `[32-y]` 的抽取器逮到）：
+# `tools/check-prompt-drift.py` 把**指定 rev 的 gen-art.py** 落到这里来对比提示词口径，
+# 理由同上（必须是 tools/ 下的文件，才能在 `tools/` 原地找到 `fish-traits.json` 与 `src/`）。
+# ⚠️ 它此前**没进 ignore** —— 而 `[32-y]` 的报错文案当时还会**崩**（模板串里套反引号），
+#    所以这条违规一直报不出来。清理同样在 `finally` 里。
+tools/_promptdrift_old.py
 
 # A/B 探针图（一次性中间产物，可重跑出图；几十张 / 几十 MB，进库只会把仓库撑肿）
 # 例外：被文档引用的对拍留痕（verify §33-c 与开发者文档 §17.3 都点名了它），必须进库

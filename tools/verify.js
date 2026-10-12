@@ -1093,6 +1093,23 @@ console.log('\n[14-b] 数值链工具的写回目标：一处声明 + 文档的�
      喂饱 —— 实测就是如此：第一版把 `const WRITES = ['a/b.js']` 与一行真的 `writeFileSync(...)`
      写进源码，于是 `want` 里凭空多出一个 `a/b.js`。 */
   const W = 'WRITES', WFS = 'writeFileSync';
+  /* 🔴 写盘形态（第 61 轮 Q102 扩）：此前只认 `writeFileSync` **一种**写法 —— 同一个
+     「判据的扫描面按**写法**取、而不是按**身份**取」的洞（本轮 `[32-s]` 也是它）：
+     谁要是用 `fs.writeFile(` / `appendFileSync(` / `createWriteStream(` 写回目标，
+     `[14-b]` 与 `[14-c](a)` 都**看不见它**，于是「会写盘的工具必须声明 WRITES」这条规矩
+     对它**不成立**。（实测本仓当前 0 处 —— 这是**防将来**的收窄，不是修活 bug。）
+     自指防线：针串**拼接造**，源码里不出现带点的调用名（老坑：判据自己的文案把自己喂饱）。 */
+  const WF_NAMES = ['writeFileSync', 'writeFile', 'appendFileSync', 'createWriteStream'];
+  const WRITE_CALL = new RegExp('\\.(?:' + WF_NAMES.join('|') + ')\\s*\\(');
+  const SAMPLE2 = 'fs.write' + 'File(p, h, cb);';
+  const SAMPLE3 = "const s = 'just a string with " + WFS + " in it';";
+  if (!WRITE_CALL.test(SAMPLE2) || WRITE_CALL.test(SAMPLE3)) {
+    /* ⚠️ 文案里**不许**写出「点 + 调用名 + 左括号」那三个字符连在一起 ——
+       判据自己的报错文案会把自己喂饱（本条上线时当场踩到：写了一次就报 `verify.js 会写盘`）。 */
+    err('14-b 的写盘形态抽取自检不成立（异步写盘那种形态应当被抓到；'
+      + '只出现名字的**字符串**应当放过）');
+    wBad++;
+  }
   const SAMPLE = 'const ' + W + " = ['a/b.js'];\n"
     + 'fs.' + WFS + "(path.join(ROOT, 'a/b.js'), x);\n"
     + 'fs.' + WFS + '(path.join(ROOT, ' + W + '[0]), y);';
@@ -1107,7 +1124,7 @@ console.log('\n[14-b] 数值链工具的写回目标：一处声明 + 文档的�
     const src = fs.readFileSync(p, 'utf8');
     const body = stripC(src);
     const calls = parseCalls(src);
-    const writes = /\.writeFileSync\s*\(/.test(body);   /* 带点：真实调用总是 `fs.writeFileSync(`，而判据自己的文案里那个名字没有点（自指防线） */
+    const writes = WRITE_CALL.test(body);   /* 第 61 轮：四种形态；针串拼接造（自指防线） */
     if (!calls.length) {
       if (writes && !WRITE_EXEMPT[rel]) {
         err(`${rel} 会写盘，但 14-b 认不出它的写回目标（路径是变量 / 拼出来的）—— `
@@ -7145,6 +7162,82 @@ console.log('\n[38] 源码子串比对必须走 has()/idx()/at()（折行不许�
   ok('has() 实测能接回「折行」与「引号 换行 引号」隐式拼接（裸 indexOf 在同样输入下找不到）');
 })();
 
+/* ---------------- 38-b. 模板串后面接「点 + 成员名」再接一个模板串 = 手滑（只在报红时才炸）-----
+   由来（2026-10-13 第 61 轮，Q102 · **第二个实例**）：
+   `[32-y]` 的报错文案本来是「模板串里再套一对反引号」来引用 `.gitignore` 这个名字 ——
+   写出来就是「反引号 文本 反引号 点 gitignore 反引号」这一串。它**语法是合法的**：
+   反引号收尾后 `.gitignore` 成了「在字符串上取属性」，紧跟着的那个反引号又被解析成
+   **标签模板调用** ⇒ 整句 = err( (字符串).gitignore 模板调用 )。于是它躲过了
+   「文件写崩 ⇒ verify 根本跑不起来」这条直觉，**只在那一行真的执行时才炸**：实测抛
+   TypeError: notIg.length.gitignore is not a function，那条「谁没进 .gitignore」的清单
+   一个字都打不出来 —— 退出码 1、却没有「自检未通过」那一行，与「注入没生效」长得一模一样。
+   （第一个实例记在 `docs/改进待办.md` 2026-10-10 那条，形态是**套单引号** ⇒
+    双引号串 + 字面量 + 双引号串；两种形态同病：**手滑把反引号/引号当普通引号用，
+    语法合法、运行才炸**。⚠️ 本条注释**故意不把那串字面写出来** —— 写出来就喂饱本条判据。）
+   判据（单行、原文、先跳过纯注释行）：
+     表达式起点（左括号 / 左方括号 / 逗号 / 等号） + 一个模板串 + 点 + 成员名 + 又一个模板串
+     ⇒ 报红。
+   为什么带「表达式起点」这个前置条件：不加它，「字符串里连着提到 .html 与 .css 两个扩展名」
+   那种文案会被当成手滑（实测 5 处假报）—— 加了之后全仓**恰好只剩那 1 处真问题**。
+   ⚠️ 已知窄口（写在明面上，别当它全覆盖）：
+     · 模板串起点不是上面那四种的（例如接在加号后面）扫不到；
+     · **套单引号**那种形态（2026-10-10 的实例）这条网扫不到 —— 它靠「新增判据后必须真让它红一次」
+       这条纪律兜（静态判不了：双引号串里写单引号是合法的）。
+     · 扫描面 = `src/` + `tools/*.js` + `docs/*.html`（含页内脚本），**不做**剥注释 ——
+       纯注释行整行跳过（注释里的手滑不执行，无害）；实测 59 个文件 0 假报。 */
+console.log('\n[38-b] 模板串 + `.成员` + 模板串 = 把反引号当普通引号用（语法合法，只在报红时才炸）');
+(function () {
+  const NL = String.fromCharCode(10);
+  /* 针串**拼接造**（本文件自己的注释里就写着这个形态，直接写字面量会把自己喂饱）。 */
+  const BT = String.fromCharCode(96), SQ = String.fromCharCode(39), DQ = String.fromCharCode(34);
+  const SLIP_RE = new RegExp('[([,=]\\s*' + BT + '[^' + BT + SQ + DQ + NL + ']{1,200}' + BT
+    + '\\s*\\.\\s*[A-Za-z_$][\\w$]*\\s*' + BT);
+  /* 判据自检：正例（真手滑）必须命中；两个诱饵必须放过
+     （字符串里提到两个扩展名；模板串后面直接跟普通属性访问）。 */
+  const SYN_BAD = 'err(' + BT + 'abc' + BT + '.foo' + BT + ' rest' + BT + ');';
+  const SYN_D1 = 'const m = ' + SQ + '把它洗 ' + BT + '.html' + BT + ' / ' + BT + '.css' + BT
+    + ' 应当' + SQ + ';';
+  const SYN_D2 = 'const y = ' + BT + 'abc' + BT + '.length > 0;';
+  if (!SLIP_RE.test(SYN_BAD) || SLIP_RE.test(SYN_D1) || SLIP_RE.test(SYN_D2)) {
+    err('38-b 的判据自检不成立（正例必须命中；「字符串里提两个扩展名」与「模板串后直接取属性」'
+      + '必须放过）—— 这条网会假报或恒真');
+    return;
+  }
+  let b38Files = [];
+  try {
+    b38Files = fs.readdirSync(path.join(ROOT, 'tools')).filter(f => /\.js$/.test(f)).map(f => 'tools/' + f);
+    fs.readdirSync(path.join(ROOT, 'src')).forEach(f => { if (/\.js$/.test(f)) b38Files.push('src/' + f); });
+    ['core', 'data', 'render', 'ui'].forEach(d => fs.readdirSync(path.join(ROOT, 'src', d))
+      .forEach(f => { if (/\.js$/.test(f)) b38Files.push('src/' + d + '/' + f); }));
+    fs.readdirSync(path.join(ROOT, 'docs')).forEach(f => { if (/\.html$/.test(f)) b38Files.push('docs/' + f); });
+  } catch (e) { err('38-b 读不到扫描面（先修判据本身）：' + e.message); return; }
+  const MIN_FILES = 25;
+  if (b38Files.length < MIN_FILES) {
+    err(`38-b 只扫到 ${b38Files.length} 个文件（少于 ${MIN_FILES}）—— 扫描面多半坏了`);
+    return;
+  }
+  const bad38 = [];
+  b38Files.forEach(rel => {
+    let raw;
+    try { raw = fs.readFileSync(path.join(ROOT, rel), 'utf8'); } catch (e) { return; }
+    raw.split(NL).forEach((ln, i) => {
+      const t = ln.trim();
+      if (t.slice(0, 2) === '//' || t.charAt(0) === '*') return;   // 纯注释行：手滑不执行，无害
+      SLIP_RE.lastIndex = 0;
+      if (SLIP_RE.test(ln)) bad38.push(rel + ':' + (i + 1) + '  ' + ln.trim().slice(0, 80));
+    });
+  });
+  if (bad38.length) {
+    err(`${bad38.length} 处「模板串 + .成员 + 模板串」= 把反引号当普通引号用了 ——`
+      + ' 语法合法，但**那一行执行时才炸**（`TypeError: … is not a function`），'
+      + '报错清单一个字都打不出来（第 61 轮 Q102 实测）：' + NL + '       ' + bad38.join(NL + '       ')
+      + NL + '       ⇒ 文案里引用代码片段请用「」或转义后的反引号');
+  } else {
+    ok(`扫描面 ${b38Files.length} 个文件：没有「模板串 + .成员 + 模板串」的手滑形态`
+      + '（自检：正例命中 / 两个诱饵放过）');
+  }
+})();
+
 
 /* ---------------- 39. 拼装 HTML 的工具：产物脚本必须真 check 过 ----------------
    🔴 回归（2026-10-08，用户报「咋现在卡片评审台打不开了？」）：
@@ -12565,8 +12658,10 @@ console.log('\n[32-y] 工具在仓库里留的一次性产物：必须进 `.giti
   catch (e) { err('32-y 读不到 `tools/`（先修判据本身）'); return; }
   const MIN_PY = 25, MIN_TMP = 1;
 
-  /* 「仓库内一次性产物」的两种写法（都是本仓真出现过的形态）：
-     ① 直接字符串 `"_tmp/old-fish.js"`；② `os.path.join("tools", "_drift_old.py")`。 */
+  /* 「仓库内一次性产物」的写法（本仓真出现过 + 第 61 轮补的一种）：
+     ① 直接字符串 `"_tmp/old-fish.js"`；② `os.path.join("tools", "_drift_old.py")`；
+     ③ `os.path.join(ROOT, "tools", "_x.py")`（**先拼 ROOT 再拼目录** —— 同一个「按写法取」
+        的洞：旧版只认前两种，换个写法就整条网看不见它）。 */
   const scanPaths = (code) => {
     const out = new Set();
     const A = /["']((?:tools|_tmp|docs|assets|src)\/[A-Za-z0-9._\/-]*)["']/g;
@@ -12577,8 +12672,28 @@ console.log('\n[32-y] 工具在仓库里留的一次性产物：必须进 `.giti
       const rel = m[1] + '/' + m[2];
       if (/\/_|^_tmp\//.test(rel)) out.add(rel);
     }
+    const C = /os\.path\.join\(\s*ROOT\s*,\s*["'](tools|_tmp|docs|assets|src)["']\s*,\s*["']([^"']+)["']/g;
+    while ((m = C.exec(code))) {
+      const rel = m[1] + '/' + m[2];
+      if (/\/_|^_tmp\//.test(rel)) out.add(rel);
+    }
     return [...out];
   };
+  /* 抽取器自检：三种写法各命中一次，**正控**（`tools/check-cards.py` 不是一次性产物）不命中。
+     样本**拼接造**（判据自己的源码不出现那些字面量）。 */
+  const _sq = String.fromCharCode(39), _dq = '"';
+  const SYN_PATH = [
+    'p = ' + _dq + 'tools/_drift_old.py' + _dq,
+    'q = os.path.join(' + _dq + 'tools' + _dq + ', ' + _dq + '_x.py' + _dq + ')',
+    'r = os.path.join(ROOT, ' + _dq + 'tools' + _dq + ', ' + _dq + '_y.json' + _dq + ')',
+    'k = os.path.join(' + _dq + 'tools' + _dq + ', ' + _dq + 'check-cards.py' + _dq + ')',
+  ].join(String.fromCharCode(10));
+  const synPaths = scanPaths(SYN_PATH);
+  if (synPaths.length !== 3 || synPaths.indexOf('tools/check-cards.py') >= 0) {
+    err('32-y 的路径抽取器自检不成立（三种写法应当各命中一次、非一次性产物不该命中；'
+      + '实得 ' + JSON.stringify(synPaths) + '）');
+    return;
+  }
 
   const paths = [];
   files.forEach(f => {
@@ -12596,7 +12711,14 @@ console.log('\n[32-y] 工具在仓库里留的一次性产物：必须进 `.giti
   }
   const notIg = paths.filter(p => !ignoredBy(p.rel));
   if (notIg.length) {
-    err(`${notIg.length} 个「仓库内一次性产物」**没进 `.gitignore`** —— `
+    /* 🔴 2026-10-13（第 61 轮，Q102）：这一行的文案原先写成
+       「模板串里再套一对**反引号**」——语法合法（反引号后面接了 `.gitignore` 又接一个模板串
+       ⇒ 被解析成「字符串上取属性再当标签模板调用」），于是它**只在真要报红时才炸**：
+       抛 `TypeError: notIg.length.gitignore is not a function`，那条「谁没进 .gitignore」
+       的清单一个字都打不出来。**退出码 1、却没有「自检未通过」那一行** ——
+       与「注入没生效」长得一模一样（待办 2026-10-10 那条同款，这是第二个实例；
+       那次的形态是套单引号，这次的形态是套反引号）。⇒ 文案里的代码片段一律用「」或转义后的反引号。 */
+    err(`${notIg.length} 个「仓库内一次性产物」**没进 .gitignore** —— `
       + '工具中途抛异常 / 被强杀时它们会留在盘上，`git status` 从此一直脏：\n       '
       + notIg.map(p => `${p.rel}（${p.file}）`).join('\n       ')
       + '\n       ⇒ 在 `.gitignore` 补一行（另外清理也要走 `finally`）'); yBad++;

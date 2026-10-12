@@ -88,6 +88,8 @@ STEPS_BY_MORPH = {"golden": 35, "shiny": 35}
 # 稀有度也参与定步数（用户口径 2026-10-08：「传说级别的鱼使用 35 步，史诗使用 30」）。
 # 两者**取 max**：比如「史诗的黄金档」= max(30, 35) = 35；「传说的母版」= 35；普通鱼的母版 = 25。
 STEPS_BY_RAR = {3: 35, 2: 30}
+_NOTE = "golden 35 shiny 35 物种已换 无台账"
+_NOTE = "golden 35 shiny 35 物种已换 无台账"
 
 
 def steps_for(f, morph=None):
@@ -2783,11 +2785,87 @@ def write_forms(fish):
     print("形态档案已写出：%s（%d 条）" % (out, len(fish)))
 
 
-def card_state(f, morph, vi, man):
-    """这张卡相对**当前生成口径**的状态。
+def card_plan(f, morph, vi):
+    """这张卡的「当前口径」是什么：`(目标文件, 提示词, 步数, 归档键, 派生文件或 None)`。
 
-    返回 `None` = 已是最新（`--skip-existing` 可以安全跳过）；
-    否则返回一个短原因标签。`无文件` 是「还没出过图」= 待出，**不属于过期**。
+    **唯一取法** —— `card_state()` 与 `card_drift()` 都走它（判定两份、取法一份）。
+    ⚠️ 画图 / 落盘那一路（`main()` 出图循环）也算同一套口径，但它要的更多（seed / negative / 尺寸），
+       所以那边仍自己拼；这里只服务「跳过 / 过期 / 漂移」这三件事。
+    """
+    fid = f["id"]
+    if morph is None:
+        return fid + ".png", build_prompt(f), steps_for(f, None), "母版", fid + "-normal.png"
+    _ck, _tag, _sent, sfx = morph_versions(f, morph)[vi]
+    return ("%s-%s%s.png" % (fid, morph, sfx), build_morph_prompt(f, morph, _sent),
+            steps_for(f, morph), morph + (sfx or ""), None)
+
+
+def card_record(rec, morph, key):
+    """台账里这条卡的 `(提示词, 步数)`（母版记在顶层、五档记在 `morphs.<归档键>` 下）。"""
+    if morph is None:
+        return rec.get("prompt"), rec.get("steps", STEPS)
+    sub = (rec.get("morphs") or {}).get(key) or {}
+    return sub.get("prompt"), sub.get("steps", STEPS)
+
+
+def species_of(f):
+    """这条鱼的「物种身份」记什么：中文名 + 查证过的真实物种名（`fish-traits.json` 的 `species`）。
+
+    「换物种」= 台账里的这一栏与现在对不上。**换物种必换中文名** —— 这条口径有实测支撑：
+    2026-10-12 拿盘上 361 条有台账的鱼逐条比 `manifest.<id>.name` 与 `fish.js` 的 `name`，
+    正好 **104 条**不一致（就是 W1「104 条换物种」那批）、其余 257 条全一致 ⇒ 0 误报。
+    `species` 只在**两边都非空**时才参与比对（老台账没有这一栏、或形态资料后来才补上，
+    都不该被当成「换了物种」⇒ 那种情况会凭空多出一批「要重出」）。
+    """
+    sp = (TRAITS.get(f["id"]) or {}).get("species") or ""
+    return f["name"], sp.strip() if isinstance(sp, str) else ""
+
+
+def species_swapped(f, rec):
+    """台账记的物种身份与现在不一致 ⇒ 这条鱼**被换成了别的物种**（图必须重出）。"""
+    old_name, old_sp = rec.get("name"), rec.get("species")
+    name, sp = species_of(f)
+    if old_name is not None and old_name != name:
+        return True
+    if old_sp and sp and old_sp != sp:
+        return True
+    return False
+
+
+def card_drift(f, morph, vi, man):
+    """这张卡**只是「生成口径漂移」**吗（提示词 / 步数）？返回标签或 `None`。
+
+    🔴 **顶层口径（用户 2026-10-12 拍板）：漂移不算「过期」。**
+       原话：「其实没必要全变的，我暂时不会想全部生成；现在修改一下，让**只有换了物种的**需要
+       重新生成。后续我会审查全部图片之后再选出需要修改的」。
+       ⇒ 口径改动（大小档进提示词、SS/SSS 逐条描述…）会让**全部**老卡「提示词已变」，
+         但那只说明「它不是最新口径出的图」，**不等于这张图坏了**。
+         `report_stale()` 因此把这一档单独列成**提示**（`--drift` 才逐条列 id），
+         不再混进「要重出」的数字里。
+    ⚠️ 判据不重复实现：提示词 / 步数的**取法**在 `card_plan()` / `card_record()`，
+       本条只管比。而「文件在不在 / 派生在不在 / 台账在不在 / 物种换没换」在 `card_state()`。
+    """
+    dst, want, steps, key, _der = card_plan(f, morph, vi)
+    dst = os.path.join(OUT, dst)          # ⚠️ `card_plan()` 给的是**文件名**（与 manifest 同源）
+    if not os.path.exists(dst):
+        return None                       # 还没出过图 ⇒ 漂移无从谈起（那是「待出」）
+    old, old_steps = card_record(man.get(f["id"]) or {}, morph, key)
+    if not old:
+        return None                       # 台账都没有，那是 `无台账`（`card_state()` 的标签）
+    if old != want:
+        return "提示词已变"
+    # ⚠️ 步数也要比：只比提示词的话，「改步数」会**静默漏掉已生成的卡**
+    #    （既存在、又不会被列为过期，也不会出现在漂移清单里）。
+    if old_steps != steps:
+        return "步数已变"
+    return None
+
+
+def card_state(f, morph, vi, man):
+    """这张卡**要不要重出**。
+
+    返回 `None` = 当前口径（`--skip-existing` 可以安全跳过）；否则返回一个短原因标签。
+    `无文件` 是「还没出过图」= 待出，**不属于过期**。
 
     🔴 **唯一判据** —— `--skip-existing` 与 `--stale` 必须共用它。
        Q14 的病根正是这两处各判各的：`--skip-existing` 判「文件在不在」、
@@ -2795,44 +2873,33 @@ def card_state(f, morph, vi, man):
        两份判据分家，而图上完全看不出来（文件在、图也不坏，只是**不是这一版口径**）。
        实测代价：2026-10-10 全部 362 条卡都出齐了，其中 **373 张**其实还是旧口径。
 
-    标签含义：
+    🔴 **口径（2026-10-12 用户拍板）：只有「换了物种」的才要重出。** 标签只剩四类：
       `无文件`    还没出过图（待出）
       `派生缺失`  母版在、`<id>-normal.png` 不在。⚠️ **Q28**：`-normal` 是母版抠图的
                   **派生、不占一个任务**，所以单独删它之后母版任务会「文件在 ⇒ 跳过」，
                   5 个任务全跳完也补不回来 —— 游戏里那张图就永久退化成程序化绘制。
-      `无台账`    文件在，但 manifest 里没有可比的记录 ⇒ **证明不了**它是当前口径。
-                  ⚠️ 实测 12 张（`SS07` 整条鱼 + `C24` 的两版闪光 + `SS18`/`SS19`/`SS56`
-                  各两档）：manifest 曾被并发写覆盖掉一部分记录。这类卡必须重出
-                  （顺手把台账补回来，否则「可复现」这条硬约束在它们身上是空的）。
-      `提示词已变` / `步数已变`  台账记的与现算的不一致 ⇒ 重出。
+      `无台账`    文件在，但 manifest 里没有可比的记录 ⇒ **证明不了**它是哪一版口径出的、
+                  也判不出物种换没换。⚠️ 实测 15 张（曾因并发写覆盖掉一部分记录）。
+                  ⚠️ 它**不是**「口径漂移」：重出是为了把「来源可复现」这条硬约束补回来。
+      `物种已换`  台账记的中文名 / 物种名与现在对不上（`species_swapped()`）⇒ 这条鱼被
+                  换成了别的物种，旧图**内容已经不对**，必须重出。
+    ⚠️ **`提示词已变` / `步数已变` 不再算「要重出」** —— 那是 `card_drift()` 的事，
+       只在报告里当提示（理由与其口径见那边的注释）。
     """
     fid = f["id"]
-    if morph is None:
-        dst = os.path.join(OUT, fid + ".png")
-        want, steps = build_prompt(f), steps_for(f, None)
-    else:
-        _ck, _tag, _sent, sfx = morph_versions(f, morph)[vi]
-        dst = os.path.join(OUT, "%s-%s%s.png" % (fid, morph, sfx))
-        want, steps = build_morph_prompt(f, morph, _sent), steps_for(f, morph)
+    dst, _want, _steps, key, der = card_plan(f, morph, vi)
+    dst = os.path.join(OUT, dst)
     if not os.path.exists(dst):
         return "无文件"
     # 母版这一个任务同时产出 `-normal` ⇒ 派生缺了就等于这个任务没做完（Q28）
-    if morph is None and not os.path.exists(os.path.join(OUT, fid + "-normal.png")):
+    if der and not os.path.exists(os.path.join(OUT, der)):
         return "派生缺失"
     rec = man.get(fid) or {}
-    if morph is None:
-        old, old_steps = rec.get("prompt"), rec.get("steps", STEPS)
-    else:
-        sub = (rec.get("morphs") or {}).get(morph + (sfx or "")) or {}
-        old, old_steps = sub.get("prompt"), sub.get("steps", STEPS)
+    old, _old_steps = card_record(rec, morph, key)
     if not old:
         return "无台账"
-    if old != want:
-        return "提示词已变"
-    # ⚠️ 步数也要比：只比提示词的话，「改步数」会**静默漏掉已生成的卡**
-    #    （既存在、又不会被列为过期）。
-    if old_steps != steps:
-        return "步数已变"
+    if species_swapped(f, rec):
+        return "物种已换"
     return None
 
 
@@ -2862,12 +2929,13 @@ def card_state_label(f, morph, vi, man):
     return morph + (morph_versions(f, morph)[vi][3] or ""), st
 
 
-def report_stale(fish, brief=False):
-    """列出「**已出图、但与当前生成口径不一致**」的卡片，并给出可执行的命令。
+def report_stale(fish, brief=False, drift_detail=False):
+    """列出「**要重出**」的卡片（口径：文件 / 派生 / 台账 / **换了物种**），并给出可执行的命令。
 
     `brief=True` 只打印**摘要三行**（总数 + 原因分布 + 按档分布）——
     双击的启动器（`tools/gen-art-loop.cmd`）要的是一眼能看懂，而不是把控制台刷满几百行 id。
-
+    `drift_detail=True`（`--drift`）额外把「只是口径漂移」的那批**逐条 id** 列出来 ——
+    它们**不算过期**，默认只在第二段报一个总数（见 `card_drift()` 的口径说明）。
 
     ⚠️ 判据**与 `--skip-existing` 是同一份**（`card_state`）—— 见它的说明。
        两张表分家就是这个报告存在的理由，所以这里绝不许再写第二份判据。
@@ -2881,20 +2949,32 @@ def report_stale(fish, brief=False):
         print("manifest 读不出来：%s" % e)
         return
 
-    groups, reasons = {}, {}
+    groups, reasons, drift = {}, {}, {}
+    drift_ids = {}
     for f in fish:
         for k, vi in card_jobs_of(f):
             key, st = card_state_label(f, k, vi, man)
             if st is None or st == "无文件":
-                continue                      # 「无文件」是待出，不是过期
+                # 「无文件」是待出、不是过期；其余走到这儿的一律看**是不是只是口径漂移**
+                d = card_drift(f, k, vi, man)
+                if d:
+                    drift[d] = drift.get(d, 0) + 1
+                    drift_ids.setdefault(d, []).append(f["id"])
+                continue
             groups.setdefault(key, []).append(f["id"])
             reasons[st] = reasons.get(st, 0) + 1
 
     total = sum(len(v) for v in groups.values())
+    drift_total = sum(drift.values())
     if not total:
-        print("✔ 没有过期卡片 —— 已出图的提示词 / 步数 / 派生文件都与当前生成口径一致")
+        print("✔ 没有**要重出**的卡片 —— 口径（2026-10-12 用户拍板）：只有「换了物种」的才要重出；"
+              "文件 / 母版派生 / 台账 / 物种身份四项都对")
+        if drift_total:
+            print("  另有 %d 张只是**生成口径漂移**（%s）—— **不算过期**（见下面说明）"
+                  % (drift_total, " ／ ".join("%s %d" % (k, v)
+                                               for k, v in sorted(drift.items(), key=lambda x: -x[1]))))
         return
-    print("过期卡片共 %d 张（已出图、但与当前生成口径不一致 ⇒ 需要重出）：" % total)
+    print("要重出的卡片共 %d 张（口径：文件缺失 / 母版派生缺失 / 台账缺失 / **换了物种**）：" % total)
     print("  原因：%s" % " ／ ".join("%s %d" % (k, v)
                                      for k, v in sorted(reasons.items(), key=lambda x: -x[1])))
     if brief:
@@ -2927,8 +3007,39 @@ def report_stale(fish, brief=False):
     print("⚠️ 母版重出会顺带刷新它的 `-normal`（原色档就是母版的抠图）；"
           "五档是独立文生图，单档重出只影响那一张，不会连带动别的档。")
     print("💡 建议**加** `--skip-existing` 跑上面那些命令（断点续跑）：跳过判据与这里同源，"
-          "\n   所以它只会跳过「已经是最新口径」的卡，上面这些照样会重出。"
-          "⚠️ 2026-10-10 之前不是这样 —— 那时它只看文件在不在，这些卡会被**静默跳过**。")
+          "\n   所以它只会跳过「不用重出」的卡，上面这些照样会重出。")
+
+    # ── 第二段：**只是口径漂移**（不算过期） ───────────────────────────────
+    # 🔴 口径（2026-10-12 用户拍板）：只有「换了物种」的才要重出 —— 提示词 / 步数这类
+    #    生成口径漂移**不触发重出**（那张图没坏，只是不是最新口径出的）。
+    #    ⚠️ 但**不许把它吞掉**：这一段就是「已知但先不动」的那批，写出来才有人能决定要不要对齐。
+    print()
+    if not drift_total:
+        print("另外：没有「只是口径漂移」的卡（提示词 / 步数都与台账一致）。")
+        return
+    print("另外还有 %d 张**只是生成口径漂移**（%s）—— 按当前口径**不算过期**、`--skip-existing` 会跳过："
+          % (drift_total, " ／ ".join("%s %d" % (k, v)
+                                       for k, v in sorted(drift.items(), key=lambda x: -x[1]))))
+    print("  · 口径是「只有换了物种的才要重出」（用户 2026-10-12 拍板）—— "
+          "漂移只说明「这张不是最新口径出的图」，不代表图坏了；")
+    print("  · 想连这些一起对齐口径，用 `--all`（或 `--stale --drift` 先看逐条 id）；")
+    print("  · 想只重出某一批，用 `--list <id,...>` 点名（不看判据）。")
+    if drift_detail:
+        print()
+        by_slot = {}
+        for f in fish:
+            for k, vi in card_jobs_of(f):
+                d = card_drift(f, k, vi, man)
+                if not d:
+                    continue
+                key = card_state_label(f, k, vi, man)[0]
+                by_slot.setdefault(key, []).append(f["id"])
+        for k in known:
+            ids = sorted(by_slot.get(k) or [])
+            if not ids:
+                continue
+            print("  %-7s %3d 条（漂移）" % (k, len(ids)))
+            print("          %s" % " ".join(ids))
 
 
 def main():
@@ -2961,6 +3072,11 @@ def main():
                     help="只打摘要（数量 + 按档分布），不打逐条 id —— 启动器用。"
                          "⚠️ 单用即**隐含 --stale**（它只是那个报告的输出形态；"
                          "2026-10-12 之前单用时被静默忽略、还会掉进真正的出图流程）")
+    ap.add_argument("--drift", action="store_true",
+                    help="在 `--stale` 报告的**第二段**里把「只是口径漂移」的卡逐条列出来。"
+                         "⚠️ 单用即**隐含 --stale**（它只是那个报告的**详细程度**，"
+                         "单用被忽略就会掉进出图流程 —— 同 `--brief` 那一课的形态）"
+                         "⚠️ 漂移**不算过期**（口径见 `card_drift()`）")
     ap.add_argument("--skip-existing", action="store_true", help="已有成品跳过（断点续跑）")
     ap.add_argument("--budget-min", type=float, default=0,
                     help="时间预算（分钟）：到点**在任务边界干净收工**，不等当前这张之外的更多任务。"
@@ -2999,6 +3115,11 @@ def main():
         #    同款先例就在上面那一支：`--dry` 隐含 `--prompt-only`。
         args.stale = True
 
+    if args.drift:
+        # 🔴 同 `--brief` 那一课：`--drift` 只是**报告的详细程度**，不是独立开关 ——
+        #    单用时若不隐含 `--stale`，它会被静默忽略然后掉进真正的出图流程。
+        args.stale = True
+
     allfish = load_fish()
 
     if args.plan:
@@ -3031,7 +3152,7 @@ def main():
         return
 
     if args.stale:
-        report_stale(fish, brief=args.brief)
+        report_stale(fish, brief=args.brief, drift_detail=args.drift)
         return
 
     os.makedirs(OUT, exist_ok=True)

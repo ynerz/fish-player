@@ -10602,8 +10602,13 @@ let skipBad = 0;
 (function () {
   const REL = 'tools/gen-art.py';
   const raw = fs.readFileSync(path.join(ROOT, REL), 'utf8');
-  /* 只剥整行注释；结构性判据用剥过的，句子/字符串留在里面（③ 的正则要在代码上跑） */
-  const code = raw.replace(/^[ \t]*#[^\n]*$/gm, '');
+  /* 只剥整行注释；结构性判据用剥过的，句子/字符串留在里面（③ 的正则要在代码上跑）。
+     ⚠️ 2026-10-12（第 57 轮）改成**连 docstring 一起剥**：原先只剥整行 `#`，而
+     `card_state()` 的说明里就写着 `species_swapped()` / `card_drift()` 这些名字 ⇒
+     把代码里对应那一支整段删掉，判据照样绿（反向验证 **A2 / A3 组当场逮到**）。
+     口径：结构性判据一律吃「剥过注释与 docstring」的源码面（硬规矩 ① 的正面）。
+     `stripPy()` 是顶层公用助手（py 口径：`#` 整行 / 行尾 / 三引号）。 */
+  const code = stripPy(raw);
 
   /* `main()` 的函数体在 ① 与 ③ 都要用 ⇒ 提到最前面（`const` 不会提升，写后面会 TDZ 报错） */
   const mbody0 = bodyOf(code, 'def main(');
@@ -10666,21 +10671,94 @@ let skipBad = 0;
     skipBad++;
   }
 
-  /* ② 判据必须覆盖四件事 —— 缺一项就是一类卡被静默放过 */
+  /* ② 判据必须覆盖六件事，但**分两层**（2026-10-12 用户拍板改的口径）：
+        要重出（`card_state()`）：文件在 / 母版派生在（Q28）/ 台账在 / **物种没换**；
+        只是漂移（`card_drift()`）：提示词一致 / 步数一致 —— **不算要重出**，只在报告里当提示。
+     ⚠️ 漂移那两项**不许**搬回 `card_state()`：搬回去就等于「口径改一次、全部卡报过期」，
+        而那正是用户拍板要废掉的行为（原话：「让只有换了物种的需要重新生成」）。 */
   const cs = bodyOf(code, 'def card_state(');
   if (!cs) {
     err(REL + ' 里找不到 `def card_state(` —— 改名了就来更新本节（不许当成「没有判据要检查」）');
     skipBad++;
   } else {
-    [['-normal.png', '母版派生 `<id>-normal.png` 在不在（Q28：单独删它永远补不回来）'],
-     ['os.path.exists(dst)', '文件本身在不在'],
-     ['old != want', '提示词一致'],
-     ['old_steps != steps', '步数一致']].forEach(([n, what]) => {
+    [['os.path.exists(dst)', '文件本身在不在'],
+     ['无台账', '台账在不在（没台账就证明不了它是哪一版口径出的）'],
+     ['species_swapped(', '物种换没换（唯一「内容已经不对」的那一类）']].forEach(([n, what]) => {
       if (!has(cs, n)) {
         err('`card_state()` 没检查 ' + what + ' —— 缺一项就是一类卡被静默放过');
         skipBad++;
       }
     });
+    /* 母版派生那一项**分两半**钉（第 57 轮改法）：文件名由 `card_plan()` 给（`<id>-normal.png`），
+       判定在 `card_state()` 里用那个 `der`。
+       ⚠️ 别再判「`card_state()` 体里有没有 `-normal.png` 这个字符串」—— 那是一句**注释/说明**，
+          去掉它（或者把判定搬走）判据照样绿或假红（第 57 轮 A2 组逮到的就是这个形状）。 */
+    const cp2 = bodyOf(code, 'def card_plan(');
+    if (!cp2 || !has(cp2, '-normal.png')) {
+      err('`card_plan()` 没有给出母版派生的文件名（找不到 `-normal.png`）—— Q28 那一项'
+        + '（单独删 `<id>-normal.png` 永远补不回来）就没人管了');
+      skipBad++;
+    }
+    if (!has(cs, 'der')) {
+      err('`card_state()` 没有消费 `card_plan()` 给的派生文件名（找不到 `der`）'
+        + ' —— 派生缺了会被当成「文件在 ⇒ 跳过」，那张图永久退化成程序化绘制（Q28）');
+      skipBad++;
+    }
+    [['old != want', '提示词一致'], ['old_steps != steps', '步数一致']].forEach(([n, what]) => {
+      if (has(cs, n)) {
+        err('`card_state()` 里又出现了「' + what + '」的比较 —— 那条口径是 `card_drift()` 的事：'
+          + '搬回判定里就等于「口径改一次、全部卡都报过期」（用户 2026-10-12 拍板要废掉的行为）');
+        skipBad++;
+      }
+    });
+  }
+  const cd = bodyOf(code, 'def card_drift(');
+  if (!cd) {
+    err(REL + ' 里找不到 `def card_drift(` —— 漂移那两类（提示词 / 步数）就没有判据了，'
+      + '而它们必须**单独报出来**（不许吞掉：那是「已知但先不动」的那批）');
+    skipBad++;
+  } else {
+    [['old != want', '提示词一致'], ['old_steps != steps', '步数一致']].forEach(([n, what]) => {
+      if (!has(cd, n)) {
+        err('`card_drift()` 没检查 ' + what + ' —— 漂移就漏了一类（改步数 / 改提示词各自是一种）');
+        skipBad++;
+      }
+    });
+  }
+  /* ②b 报告必须**两段都打**：要重出的一段 + 只是漂移的一段（后者默认只报总数）。
+     ⚠️ 判据只看「有没有调 `card_drift(`」—— 它要是不调，漂移那批就从报告里彻底消失，
+        `--stale` 会变成一份「没有过期」的假晴报表。 */
+  if (rs && !has(rs, 'card_drift(')) {
+    err('`report_stale()` 没有调用 `card_drift(` —— 漂移那批（提示词已变 / 步数已变）'
+      + '会从报告里彻底消失：报告说「没有要重出的」，而其实是「有一千多张不是最新口径」');
+    skipBad++;
+  }
+  /* ②c 步数口径（用户口径 2026-10-08 / 今天再次确认「我需要是 35」）：黄金与闪光 35、
+     传说 35、史诗 30，两者**取 max**。数字只许在 `STEPS_BY_MORPH` / `STEPS_BY_RAR` 两处声明。 */
+  const P35 = '35';
+  const goldenLine = (code.match(/^STEPS_BY_MORPH = \{[^}]*\}/m) || [''])[0];
+  const rarLine = (code.match(/^STEPS_BY_RAR = \{[^}]*\}/m) || [''])[0];
+  if (!has(goldenLine, 'golden') || !has(goldenLine, P35) || !has(goldenLine, 'shiny')) {
+    err('`STEPS_BY_MORPH` 不再是「黄金 / 闪光 = 35」（实得：' + (goldenLine || '（没找到这一行）') + '）'
+      + ' —— 这是用户口径（2026-10-08 定、2026-10-12 再次确认「我需要是 35」），改它要问人');
+    skipBad++;
+  }
+  if (!has(rarLine, '3') || !has(rarLine, P35) || !has(rarLine, '30')) {
+    err('`STEPS_BY_RAR` 不再是「传说 35 / 史诗 30」（实得：' + (rarLine || '（没找到这一行）') + '）');
+    skipBad++;
+  }
+  const sf = bodyOf(code, 'def steps_for(');
+  if (!sf || !has(sf, 'max(STEPS_BY_RAR')) {
+    err('`steps_for()` 不再「按稀有度与按档位**取 max**」—— 那会让「史诗的黄金档」掉回 30 步'
+      + '（用户口径：黄金 / 闪光一律 35）');
+    skipBad++;
+  }
+  /* ②d `--drift` 是**报告的详细程度**，单用必须隐含 `--stale`（同 `--brief` 那一课的形态：
+       单用被静默忽略 ⇒ 掉进真正的出图流程、退出码 0、看起来「开关不生效」）。 */
+  if (!has(code, 'if args.drift') || !has(mbody0 || '', 'args.drift')) {
+    err('`--drift` 没有接上「隐含 `--stale`」那一支（找不到 `if args.drift` / `main()` 里没用它）'
+      + ' —— 单用它会静默忽略然后掉进出图流程（`--brief` 在 2026-10-12 栽过同一个坑）');
+    skipBad++;
   }
 
   /* ③ 两条「静默过期」的顺带修复 */
@@ -11024,7 +11102,18 @@ let skipBad = 0;
     const L1 = runLauncher([]);
     const out1 = String(L1.stdout || '');
     launcherLive++;
-    if (L1.status !== 0 || !/Legendary shiny - candidates/.test(out1)) {
+    if (L1.error && L1.status === null) {
+      /* 🔴 2026-10-12（第 57 轮）把两种失败**分开**：本机 `spawnSync` 对**任何**可执行文件
+         都返回 `EBUSY`（本轮实测 `cmd` 与 `node.exe` 各一次：`{status:null, error:'spawnSync … EBUSY'}`），
+         而那是**环境起不了外部命令**，不是启动器有 bug —— 两者混成同一个红正是本项目
+         第 39 节 + 开发者文档 §8 规矩 6/7 记下的老教训（当时 `spawnSync(node,['--check'])`
+         的 EBUSY 让「检查失败」与「起不来」混在一起、长期红着，最后只能改用 `new Function`）。
+         ⇒ 起不来就**明说跳过**（打印原因、不假装通过），而真跑面的覆盖由 python 宿主的
+           `tools/test-review-cards.py [20]` 顶着 —— 那边是 `subprocess`（本机可正常起进程），
+           它真 import 真调 `main()` 验 5 种 argv 形态。 */
+      ok('`.cmd` 启动器：本机起不了外部命令（`spawnSync` 返回 EBUSY —— 环境问题，不是启动器的 bug）'
+        + NL55 + '       ⇒ 真跑面这趟跳过；源码面 ⑦-e 仍在生效，行为面由 `tools/test-review-cards.py [20]` 覆盖');
+    } else if (L1.status !== 0 || !/Legendary shiny - candidates/.test(out1)) {
       err('真跑 `pick-shiny.cmd`（裸形态 = 列候选）没按预期工作：退出码 ' + L1.status
         + (L1.error ? '（' + L1.error.message + '）' : '')
         + NL55 + '       实测输出开头：' + JSON.stringify(out1.slice(0, 120))); skipBad++;

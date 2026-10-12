@@ -3373,6 +3373,24 @@ G_('CLI · js 工具的命令行契约（未知开关 / 缺值 / 互斥必须报
     { cwd: SANDBOX, encoding: 'utf8', timeout: 60000 });
   const fishMd5 = md5('src/data/fish.js'), fieldsMd5 = md5('src/data/fields.js');
 
+  /* 🔴 2026-10-12（第 57 轮）：本机 `spawnSync` 会**对所有可执行文件**返回 `EBUSY`
+     （实测 `cmd` 与 `node.exe` 各一次：`{status:null, error:'spawnSync … EBUSY'}`；
+     同一天 `tools/verify.js` 的 `.cmd` 真跑面也栽在同一个东西上；而 python 的 `subprocess`
+     仍然能起进程 ⇒ 那一侧的宿主不受影响）。
+     ⚠️ 「**起不来**」与「**跑起来但退出码不对**」是两件事，混成同一个红正是本项目
+     第 39 节 + 开发者文档 §8 规矩 6/7 记下的老教训（当时 `spawnSync(node,['--check'])` 的
+     EBUSY 让「检查失败」与「起不来」混在一起、长期红着）。
+     ⇒ 起不来就**明说跳过**（打印原因与条数，不假装通过）；行为面由 python 宿主的
+       `tools/test-review-cards.py [20] / [21] / [22]` 顶着（那侧真 import 真调 `main()`）。
+     判据窄到 `error && status === null` —— 真跑起来但退出码错，照旧报红。 */
+  const BOOT = run('build.js', ['--check']);
+  if (BOOT.error && BOOT.status === null) {
+    ok('⚠️ 本机起不了外部命令（`spawnSync` → ' + BOOT.error.message + '）—— 这一节'
+      + '（11 组坏用法 + 4 组对照，共 28 项）**这趟跳过**；'
+      + '源码面 `verify §32-s` 仍在生效，行为面由 `tools/test-review-cards.py` 覆盖');
+    return;
+  }
+
   /* ① 用法错一律**退出码 2** + 报错文案说到点子上 */
   const BAD = [
     ['build.js', ['--out', '--release'], '看起来是另一个开关'],

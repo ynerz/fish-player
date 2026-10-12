@@ -1484,6 +1484,96 @@ def main():
     for _d in (_empty, _mine):                      # 收尾不留临时目录（同「不留后台进程」那条规矩）
         shutil.rmtree(_d, ignore_errors=True)
 
+    print("\n[27] 生图管线的**两层口径**：只有「换了物种」的才要重出（用户 2026-10-12 拍板）")
+    # 病根（2026-10-12 用户原话）：「其实没必要全变的…让**只有换了物种的**需要重新生成。
+    #   后续我会审查全部图片之后再选出需要修改的」。而当时 `card_state()` 把「提示词已变」
+    #   也算成「要重出」⇒ 口径改过一次之后，`--stale` 报 **1706 张**（等于全都要重出）。
+    # 口径：要重出 = 无文件 / 母版派生缺失 / 无台账 / **物种已换**；
+    #   提示词 / 步数这类**生成口径漂移**降级为提示（`card_drift()`），`--skip-existing` 会跳过它们。
+    # 判法：合成沙盒（假 OUT + 假 manifest + 真 `card_plan()` 算出的提示词）逐情形真调，
+    #   并**两向**都钉：漂移不许进「要重出」、换物种不许被跳过。
+    _GA2 = load_genart()
+    _fish = [f for f in _GA2.load_fish() if f["id"] == "A01"][0]
+    _box = os.path.join(TMP, "cardstate-sandbox")
+    shutil.rmtree(_box, ignore_errors=True)
+    os.makedirs(_box)
+    _mpath = os.path.join(_box, "manifest-stub.json")
+    _old_out, _old_man_path = _GA2.OUT, _GA2.MANIFEST
+    _watch2 = os.path.join(ROOT, "src", "data", "fish.js")
+    with io.open(_watch2, "rb") as _fh:
+        _fish_md5 = hashlib.md5(_fh.read()).hexdigest()
+    try:
+        _GA2.OUT, _GA2.MANIFEST = _box, _mpath
+        _mname, _mprompt, _msteps, _mkey, _mder = _GA2.card_plan(_fish, None, 0)
+        for _n in (_mname, _mder):
+            io.open(os.path.join(_box, _n), "w").write("x")
+
+        def _man(prompt=None, steps=None, name=None, sub=None):
+            d = {"name": _fish["name"] if name is None else name, "steps": _msteps if steps is None else steps,
+                 "prompt": _mprompt if prompt is None else prompt}
+            if sub is not None:
+                d["morphs"] = sub
+            json.dump({"A01": d}, io.open(_mpath, "w", encoding="utf-8"))
+
+        def _state():
+            return _GA2.card_state(_fish, None, 0, json.load(io.open(_mpath, encoding="utf-8")))
+
+        def _drift():
+            return _GA2.card_drift(_fish, None, 0, json.load(io.open(_mpath, encoding="utf-8")))
+
+        _man()
+        check(_state() is None and _drift() is None,
+              "全部对齐（提示词 / 步数 / 名字都与台账一致）⇒ 既不「要重出」也没有漂移")
+        _man(prompt=_mprompt + " old")
+        check(_state() is None, "🔴 只改了提示词 ⇒ **不算要重出**（`card_state()` 返回 None）")
+        check(_drift() == "提示词已变", "同一条必须出现在**漂移**里（不许两边都不报）：%s" % _drift())
+        _man(steps=_msteps + 5)
+        check(_state() is None and _drift() == "步数已变",
+              "只改了步数 ⇒ 也算漂移、不算要重出（%s / %s）" % (_state(), _drift()))
+        _man(name="塘泥螺")
+        check(_state() == "物种已换", "台账里的名字与现在不同 ⇒ **要重出**（实得 %s）" % _state())
+        _man(prompt="")          # 空串 = 台账里没有这条路（helper 的 `None` 是「用默认」，别混）
+        check(_state() == "无台账", "台账里没有这条路 ⇒ 判「无台账」（实得 %s）" % _state())
+        _man()
+        os.remove(os.path.join(_box, _mder))
+        check(_state() == "派生缺失", "母版在、`-normal` 不在 ⇒ 判「派生缺失」（实得 %s）" % _state())
+        io.open(os.path.join(_box, _mder), "w").write("x")
+        os.remove(os.path.join(_box, _mname))
+        check(_state() == "无文件", "还没出过图 ⇒ 判「无文件」（待出，不是过期）：%s" % _state())
+        io.open(os.path.join(_box, _mname), "w").write("x")
+
+        # 跳过口径必须与判定同源（`--skip-existing` 跑一轮 = 只重出要重出的那批）
+        _man(prompt=_mprompt + " old")
+        _mf = json.load(io.open(_mpath, encoding="utf-8"))
+        check(_GA2.skip_note(_fish, None, 0, _mf, True) is None,
+              "`--skip-existing`：只漂移的卡**跳过**（否则一轮又把 1700 张全重出一遍）")
+        _man(name="黄斑蟹")
+        _mf = json.load(io.open(_mpath, encoding="utf-8"))
+        check(_GA2.skip_note(_fish, None, 0, _mf, True) == "物种已换",
+              "`--skip-existing`：换了物种的**不跳过**（这一条是整件事的目的）")
+
+        # 报告必须**两段都打**：漂移那批不能从 `--stale` 里消失
+        _man(prompt=_mprompt + " old")
+        _buf = io.StringIO()
+        with contextlib.redirect_stdout(_buf):
+            _GA2.report_stale([_fish])
+        _out = _buf.getvalue()
+        check("没有**要重出**的卡片" in _out and "生成口径漂移" in _out,
+              "只漂移时：报告说「没有要重出的」**并且**单独报出漂移（不许吞掉）")
+        _man(name="黄斑蟹")
+        _buf = io.StringIO()
+        with contextlib.redirect_stdout(_buf):
+            _GA2.report_stale([_fish], drift_detail=True)
+        _out2 = _buf.getvalue()
+        check("要重出的卡片共 1 张" in _out2 and "物种已换" in _out2,
+              "换物种时：报告第一段把它列成「要重出」（1 张 / 原因物种已换）")
+    finally:
+        _GA2.OUT, _GA2.MANIFEST = _old_out, _old_man_path
+        shutil.rmtree(_box, ignore_errors=True)
+    with io.open(_watch2, "rb") as _fh:
+        check(hashlib.md5(_fh.read()).hexdigest() == _fish_md5,
+              "这一节只动沙盒：`src/data/fish.js` 一个字节都没变")
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

@@ -440,7 +440,7 @@ node tools/solve-drop.js         # 2. 反推掉率并写回 fields.js / fish.js
 node tools/fix-rarity-price.js   # 3. 稀有度定价归一化（幂等，第二遍应 0 改动）
 node tools/balance.js            # 4. 复核：胜率 / 每小时收益 / 图鉴收集耗时
 node tools/verify.js             # 5. 自检 54 节
-node tools/gen-collect-time.js   # 6. 出收集耗时表
+node tools/gen-collect-time.js   # 6. 出收集耗时表（**忘了重跑**由 `node tools/gen-collect-time.js --check` 兜）
 ```
 
 - ⚠️ **没改数值就别跑这条链**。`tools/verify.js` 第 ⑭ 节会断言

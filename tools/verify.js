@@ -1200,6 +1200,173 @@ console.log('\n[14-b] 数值链工具的写回目标：一处声明 + 文档的�
 if (!chainBad) ok('4 个带随机性的工具全部固定了种子（balance / verify / tune / fix-rarity-price）');
 
 
+/* ---------------- 14-c. 文档类生成物：写盘的工具必须有「只比对不写」的干跑（第 60 轮）----
+   由来（2026-10-13 第 60 轮，Q97）：`docs/` 下有一批**生成物**（收集耗时表 / 卡片评审 / 图鉴文案 /
+   胜率表），它们在仓库里是**被追踪的静态文件**，而刷新它们要靠人记得重跑对应的工具。
+   改过数据而忘了重跑 ⇒ 页面上的数与游戏分家，**没有任何东西会报红** —— 「重跑后 `git diff` 为空」
+   此前只是**人工纪律**（`docs/优化队列.md` §5「轮次台账」第 1032 行就是这么写的）。
+
+   这一族已有两个成员配了闸门（`balance.js --check` 接进 `test.js`、`refresh-captions.py --check`
+   由 `verify §33-g` 盯），但**另一半连干跑都没有**：`gen-collect-time.js`（本轮补上）
+   与 `review-cards.py`（本轮补上）—— 也就是说「谁该有干跑」这件事本身**没有网**，
+   靠人想起来就补一个。本节把它变成规则：
+
+     (a) **js 侧**：`const WRITES = [...]` 里含 `docs/` 的工具，必须
+         ① `KNOWN` 里声明 `--check`；② 真有 `if (CHECK)` 分支且该分支里 `process.exitCode = 1`；
+         ③ **比对前归一化换行**（`replace(/\r\n/g, '\n')`）。
+         ③ 的理由：本仓 `core.autocrlf=true`，Windows 签出把文本写成 CRLF 而生成器写 LF
+         ⇒ 直接逐字节比**每次都假红**（实测差 4032 字符 = 行数），假红的下场就是被人关掉。
+     (b) **py 侧**：argparse 声明了 `--out` 且其默认值指向 `docs/` 的工具，必须声明干跑开关
+         （`--check` 或 `--dry`，`--help` 里要写明「不写盘」）。
+     ⚠️ (a)③ **只对 js 侧成立**：py 的 `open()` 文本模式自带 universal newlines（`\r\n` 读成 `\n`），
+        所以 py 侧不需要显式归一化 —— 这是「规则说得清」而不是「一律照抄」。
+     (c) **常跑门禁里必须真跑过它**：`test.js`（js 宿主）与 `test-review-cards.py`（py 宿主）
+         各自的文本里必须出现对应的 `--check` —— 否则这个开关是**零消费**（接受参数、什么也不做），
+         正是 §32-l / §32-m 那一族要拦的东西。
+     (d) 判据自检（合成样本正 / 负控）+ 空集自检（清单缩水 = 这条口径被拿掉）。 */
+console.log('\n[14-c] 文档类生成物：写盘的工具必须有「只比对不写」的干跑，且常跑门禁真跑过它');
+(function () {
+  let gcBad = 0;
+  const readT = (rel) => {
+    try { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); }
+    catch (e) { err(`读不到 \`${rel}\` —— 14-c 抓不到要判的地方（先修判据本身）`); gcBad++; return null; }
+  };
+
+  /* ---- 抽取器（先自检，再上线）---- */
+  const jsWritesDocs = (code) => {
+    const m = /const\s+WRITES\s*=\s*\[([\s\S]*?)\]/.exec(code);
+    return m ? /['"][^'"]*docs\/[^'"]*['"]/.test(m[1]) : false;
+  };
+  const jsHasCheck = (code) => /const\s+KNOWN\s*=\s*\[[^\]]*['"]--check['"]/.test(code)
+    && /if\s*\(\s*CHECK\s*\)/.test(code) && /process\s*\.\s*exitCode\s*=\s*1/.test(code);
+  /* 归一化换行：`norm` 定义里出现 replace(/\r\n/…) 即可（调用点不必再认） */
+  const jsNormNewline = (code) => /replace\(\s*\/\\r\\n\/g\s*,\s*['"]\\n['"]\s*\)/.test(code);
+  /* ⚠️ `--out` 的默认值常见写法是 `os.path.join(ROOT, "docs", "x.html")` —— **没有** `docs/`
+     这个子串（被 join 拆成两段了）⇒ 只认「那一行里出现 docs 这个词」。 */
+  const pyOutDocs = (code) => {
+    const m = /add_argument\(\s*['"]--out['"]([^\n]*)/.exec(code);
+    return !!m && /\bdocs\b/.test(m[1]);
+  };
+  const pyHasDry = (code) => /add_argument\(\s*['"]--(?:check|dry)['"]/.test(code);
+
+  /* ⚠️ 样本里的写盘调用**拼接造**：直接写出来，14-b 的「会写盘却没声明写回目标」扫描会把
+     verify.js 自己当成一个写盘工具（㊳ 的老坑，这次又是自己喂饱自己）。 */
+  const WF = 'writeFileSync' + '(';
+  const S_JS_OK = "const WRITES = ['docs/x.html'];\nconst KNOWN = ['--check'];\n"
+    + "if (CHECK) { process.exitCode = 1; }\nconst norm = (s) => s.replace(/\\r\\n/g, '\\n');";
+  const S_JS_NOCHECK = "const WRITES = ['docs/x.html'];\nfs." + WF + "p, h);";
+  const S_JS_NONORM = "const WRITES = ['docs/x.html'];\nconst KNOWN = ['--check'];\n"
+    + 'if (CHECK) { process.exitCode = 1; }';
+  const S_JS_SRCONLY = "const WRITES = ['src/data/fish.js'];\nfs." + WF + "p, h);";
+  const S_PY_OK = 'ap.add_argument("--out", default=os.path.join(ROOT, "docs", "x.html"))\n'
+    + 'ap.add_argument("--check", action="store_true", help="只比对：一个字节都不写")';
+  const S_PY_NOCHECK = 'ap.add_argument("--out", default=os.path.join(ROOT, "docs", "x.html"))';
+  if (!(jsWritesDocs(S_JS_OK) && jsHasCheck(S_JS_OK) && jsNormNewline(S_JS_OK)
+        && !jsWritesDocs(S_JS_SRCONLY)
+        && jsWritesDocs(S_JS_NOCHECK) && !jsHasCheck(S_JS_NOCHECK)
+        && jsWritesDocs(S_JS_NONORM) && jsHasCheck(S_JS_NONORM) && !jsNormNewline(S_JS_NONORM)
+        && pyOutDocs(S_PY_OK) && pyHasDry(S_PY_OK)
+        && pyOutDocs(S_PY_NOCHECK) && !pyHasDry(S_PY_NOCHECK))) {
+    err('14-c 的判据自检不成立（js：写 docs / 缺 --check / 缺换行归一化 / 只写 src；'
+      + 'py：有 --out→docs / 缺干跑开关 —— 没能各自认对）');
+    gcBad++;
+  }
+
+  /* ---- (a) js 侧 ---- */
+  let allJs = [];
+  try { allJs = fs.readdirSync(path.join(ROOT, 'tools')).filter(f => /\.js$/.test(f)); }
+  catch (e) { err('读不到 `tools/` —— 14-c 的扫描面作废'); gcBad++; }
+  const jsDocs = [];
+  allJs.forEach(f => {
+    if (['verify.js', 'test.js'].indexOf(f) >= 0) return;      // 门禁宿主不算生成物
+    const raw = readT('tools/' + f);
+    if (raw === null) return;
+    const code = stripComments(raw);
+    if (!jsWritesDocs(code)) return;
+    jsDocs.push(f);
+    if (!jsHasCheck(code)) {
+      err(`\`tools/${f}\` 会写 \`docs/\` 下的产物，却没有 \`--check\` 干跑 ——`
+        + ' 改过数据忘了重跑它，文档就与游戏分家，而**没有任何东西会报红**');
+      gcBad++;
+    } else if (!jsNormNewline(code)) {
+      err(`\`tools/${f}\` 的 \`--check\` 没有归一化换行（\`replace(/\\r\\n/g, '\\n')\`）——`
+        + ' 本仓 autocrlf=true（Windows 签出写 CRLF、生成器写 LF）⇒ 直接逐字节比**每次都假红**，'
+        + ' 假红的下场就是被人关掉（实测差 4032 字符 = 行数）');
+      gcBad++;
+    }
+  });
+  if (jsDocs.length < 2) {
+    err(`14-c(a) 只认出 ${jsDocs.length} 个「写 docs/ 的 js 生成器」（少于 2：balance.js / gen-collect-time.js）`
+      + ' —— 扫描面多半坏了（判据按 `const WRITES` + `docs/` 现算）');
+    gcBad++;
+  }
+
+  /* ---- (b) py 侧 ---- */
+  let allPy = [];
+  try { allPy = fs.readdirSync(path.join(ROOT, 'tools')).filter(f => /\.py$/.test(f)); }
+  catch (e) { err('读不到 `tools/*.py` —— 14-c 的 py 扫描面作废'); gcBad++; }
+  const pyDocs = [];
+  allPy.forEach(f => {
+    if (f === 'test-review-cards.py' || f === 'wash.py') return;   // 测试宿主 / 纯库模块
+    const raw = readT('tools/' + f);
+    if (raw === null) return;
+    if (!pyOutDocs(raw)) return;
+    pyDocs.push(f);
+    if (!pyHasDry(raw)) {
+      err(`\`tools/${f}\` 的 \`--out\` 默认落在 \`docs/\` 下，却没有干跑开关（\`--check\` / \`--dry\`）——`
+        + ' 这是「生成物新鲜度」这一族唯一还缺的口子');
+      gcBad++;
+    }
+  });
+  if (pyDocs.length < 1) {
+    err('14-c(b) 只认出 0 个「`--out` 默认落在 docs/ 的 py 工具」—— 扫描面多半坏了（应为 review-cards.py）');
+    gcBad++;
+  }
+
+  /* ---- (c) 常跑门禁真跑过它（否则这个开关是零消费）----
+     ⚠️ 两条纪律，缺一个都会**假绿**（第 60 轮反向验证两轮才写对）：
+        ① 先剥注释 —— 不剥的话，「`review-cards.py --check`」这句**注释**就把判据喂饱了；
+        ② **工具名与开关名必须相邻**（同一行的一个调用里）—— 只要求「全文件各出现一次」
+           太宽：`test.js` 里 `wash('tools/gen-collect-time.js', …)` 这处无关的代码面出现
+           就足以让「把真跑注释掉」照样判绿（实测假绿过一次）。
+     ⚠️ 注意 `test.js` 的 js 侧形态是 `run('<工具>.js', ['--check'])`（工具名 + 数组），
+        宿主 py 侧是 `_rc_run("<工具>.py", "--check")`（两个相邻的字符串实参）。 */
+  const ADJ_JS = /gen-collect-time\.js['"]\s*,\s*\[[^\]]*['"]--check['"]/;
+  const ADJ_PY = /['"]review-cards\.py['"]\s*,\s*['"]--check['"]/;
+  if (!(ADJ_JS.test("run('gen-collect-time.js', ['--check']);")
+        && !ADJ_JS.test("wash('tools/gen-collect-time.js', fs.readFileSync(p));")
+        && ADJ_PY.test('_rc_run("review-cards.py", "--check")')
+        && !ADJ_PY.test('x = os.path.join(TOOLS, "review-cards.py")\n# --check'))) {
+    err('14-c(c) 的判据自检不成立（相邻形态的抽取：正控 / 负控没能各自认对）');
+    gcBad++;
+  }
+  const tSrc = readT('tools/test.js');
+  if (tSrc !== null) {
+    const tc = stripComments(tSrc);
+    if (!ADJ_JS.test(tc)) {
+      err('`tools/test.js` 的**代码面**里没有真跑 `gen-collect-time.js --check`'
+        + '（`run(\'gen-collect-time.js\', [\'--check\'])`）—— 这个开关成了零消费'
+        + '（接受参数、什么也不做；同族：§32-l / §32-m）');
+      gcBad++;
+    }
+  }
+  const trSrc = readT('tools/test-review-cards.py');
+  if (trSrc !== null) {
+    const trc = stripPy(trSrc);
+    if (!ADJ_PY.test(trc)) {
+      err('`tools/test-review-cards.py` 的**代码面**里没有真跑 `review-cards.py --check`'
+        + '（`_rc_run("review-cards.py", "--check")`）—— 同上');
+      gcBad++;
+    }
+  }
+
+  if (!gcBad) {
+    ok(`文档类生成物的干跑闸门齐了：js 侧 ${jsDocs.join(' / ')}（\`--check\` + 换行归一化）、`
+      + `py 侧 ${pyDocs.join(' / ')}（\`--out\`→docs 必有干跑开关）；两处常跑门禁都真跑过它`);
+  }
+})();
+
+
 /* ---------------- 15. 错误采集（E4 空壳）的边界 ----------------
    这一层的价值全在「出问题时还能用」：它自己绝对不能碰需要联网/存储的能力，
    也绝对不能因为记日志而抛异常。参数（缓冲条数等）同样只许来自 config。 */
@@ -1843,7 +2010,6 @@ docPages.forEach(rel => {
   if (!pageBad) ok(`${rel}：${loaded.length} 个脚本齐全、顺序与入口一致、用到的 ${Object.keys(used).length} 个 G.* 都有来源`);
 });
 if (docPages.length === 0) { err('没有扫到任何文档页/工具页（路径写错了？）'); docBad++; }
-
 
 /* ---------------- 27. 统计面板：理论时长不能和「已收满」打架 ----------------
    `estOwnHours` / `estUnlockHours` 是「从零收满要多久」的**理论值**，不随进度变化。
@@ -10494,8 +10660,11 @@ let diaryBad = 0;
     diaryBad++;
   }
 
-  /* ④ 面板可达：顶栏有入口、`VIEWS` 有实现，且 tab 名逐个对得上 */
-  const html = srcOf('index.html');
+  /* ④ 面板可达：顶栏有入口、`VIEWS` 有实现，且 tab 名逐个对得上
+     ⚠️ 读的是**剥掉注释**的 HTML（2026-10-13 第 60 轮顺手收的口子，与 `11-j` / `11-k` 同族）：
+        原来用原始 HTML ⇒ 一句 `<!-- <button data-panel="ghost"> -->` 注释会被当成**真入口**，
+        于是「点下去没反应的 tab」和「做出来没人能开的面板」两侧都能被注释糊过去（实测过）。 */
+  const html = stripMarkup(srcOf('index.html'));
   if (!/data-panel="diary"/.test(html)) {
     err('`index.html` 顶栏没有 `data-panel="diary"` —— 日记面板做出来了玩家也打不开（不报错）');
     diaryBad++;

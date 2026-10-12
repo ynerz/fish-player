@@ -10,9 +10,24 @@
       与面板 / 说明书各漂一份且不报错）。
 
    用法： node tools/gen-collect-time.js
+          node tools/gen-collect-time.js --check   # 干跑：只比对盘上那份是不是最新的（退出码 0/1）
+
+   ⚠️ `--check` 是**新鲜度**那条口径的一半（2026-10-13 第 60 轮，Q97）：
+      这份文档是**生成物**，改过 `fish.js` / `fields.js` / `config.js` 而忘了重跑它，
+      页面上那些数就与游戏分家了 —— 而**没有任何东西会报红**。同族先例 = `balance.js --check`
+      （`docs/balance-figures.js`，第 54 轮接进 `test.js`）；本文件此前**连 `--check` 都没有**，
+      于是「重跑后 git diff 为空」只能靠人工纪律。闸门在 `tools/test.js`（真跑）
+      + `verify [14-c]`（机制面：会写 `docs/**.html` 的生成器不许缺 `--check`）。
    ========================================================= */
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
+
+/* 命令行：只有 `--check` 一个开关。判定 / 退出码收在 `tools/argv.js` 一处（`verify §32-s`）。 */
+const argv = process.argv.slice(2);
+const KNOWN = ['--check'];
+const { checkKnown } = require('./argv');
+checkKnown(argv, KNOWN, 'gen-collect-time.js');
+const CHECK = argv.indexOf('--check') >= 0;
 
 global.window = global;
 const H = { G: {} };
@@ -347,8 +362,34 @@ ${fieldData.map(d => `
 </body>
 </html>`;
 
-fs.writeFileSync(path.join(ROOT, 'docs/收集耗时表.html'), html);
-console.log('生成 ' + WRITES[0] + '（不想留这次改动：git checkout -- ' + WRITES.join(' ') + '）');
+/* 写盘 / 干跑二选一。
+   `--check` 比的是「重跑出来的这份与盘上那份一致」，**但换行必须先归一化**：
+   本仓 `core.autocrlf=true`（Windows 签出会把文本写成 CRLF），而生成器写的是 LF
+   ⇒ 直接逐字节比会**每次都假红**（实测：185187 vs 181155 字符，差值恰好等于行数 4032）。
+   同族先例 = `balance.js` 的 `norm()`（`docs/balance-figures.js` 那条）。 */
+const norm = (s) => s === null ? null : s.replace(/\r\n/g, '\n');
+if (CHECK) {
+  const target = path.join(ROOT, WRITES[0]);
+  let cur = null;
+  try { cur = fs.readFileSync(target, 'utf8'); } catch (e) { cur = null; }
+  if (cur === null) {
+    console.log('\n\u2716 ' + WRITES[0] + ' 不在盘上 —— 它从来没被生成过（或路径写错了）。');
+    console.log('   重跑：node tools/gen-collect-time.js');
+    process.exitCode = 1;
+  } else if (norm(cur) === norm(html)) {
+    console.log('\n\u2714 ' + WRITES[0] + ' 与实跑结论一致（鱼种 ' + summaryRows.reduce((a, r) => a + r.n, 0)
+      + ' 条 · 合计 ' + fmtHour(totalAllHours) + '）。');
+  } else {
+    console.log('\n\u2716 ' + WRITES[0] + ' 已过期 —— 与实跑结论不一致（盘上 ' + norm(cur).length
+      + ' 字符 / 实跑 ' + norm(html).length + ' 字符）。');
+    console.log('   重跑：node tools/gen-collect-time.js' +
+                '   （不想留这次改动：git checkout -- ' + WRITES.join(' ') + '）');
+    process.exitCode = 1;
+  }
+} else {
+  fs.writeFileSync(path.join(ROOT, 'docs/收集耗时表.html'), html);
+  console.log('生成 ' + WRITES[0] + '（不想留这次改动：git checkout -- ' + WRITES.join(' ') + '）');
+}
 summaryRows.forEach(r => {
   console.log(`  ${r.rank.padEnd(4)} ${String(r.n).padStart(3)} 种  收齐品种 ${fmtHour(r.all).padStart(9)}  连颜色 ${fmtHour(r.color).padStart(10)}`);
 });

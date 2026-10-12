@@ -1292,15 +1292,47 @@ def main():
     ap.add_argument("--port", type=int, default=8770, help="--serve 的端口（只绑 127.0.0.1）")
     ap.add_argument("--open", action="store_true",
                     help="--serve 起来后自动用默认浏览器打开本页（给「双击就能用」的启动器配的）")
+    ap.add_argument("--check", action="store_true",
+                    help="只比对：`--out` 指的那份是不是最新的（与实跑结论一致），一个字节都不写；"
+                         "不一致以 1 退出（口径同 tools/balance.js --check / gen-collect-time.js --check）")
     args = ap.parse_args()
 
     only = set(x.strip() for x in args.only.split(",") if x.strip()) if args.only else None
 
+    # 🔴 2026-10-13（第 60 轮，Q97）：`--check` 与 `--serve` 一起给 = 一个被另一个静默吃掉。
+    #    口径同 py 侧 §32-p：**要么报错、要么明说**。`--check` 是「只比对不写」，`--serve`
+    #    是「起运行器」，两件事没有交集 ⇒ 报错（用法错 = 退出码 2）。
+    if args.check and args.serve:
+        ap.error("--check 与 --serve 不能同时用：--check 只比对盘上那份、一个字节都不写；"
+                 "--serve 是起本地运行器（它要写一份页面出来给浏览器看）")
+
     if args.serve:
         serve(args.port, only, open_browser=args.open)
-        return
+        return 0
 
-    # 🔴 2026-10-12（第 53 轮，B 类收尾）：同族第七处 —— `--open` 只在 `--serve` 那一支被读，
+    if args.check:
+        # 生成物新鲜度（同族：`balance.js --check` / `gen-collect-time.js --check`）。
+        # ⚠️ 换行必须**先归一化**：本仓 `core.autocrlf=true`（Windows 签出把文本写成 CRLF），
+        #    而本工具写的是 LF ⇒ 直接逐字节比会每次都假红（实测差 4032 字符 = 行数）。
+        import codecs
+        def _norm(s):
+            return s.replace("\r\n", "\n")
+        if not os.path.exists(args.out):
+            print("[check] \u2716 %s 不在盘上 —— 它从来没被生成过（或 --out 指错了）。" % args.out)
+            print("       重跑：python tools/review-cards.py")
+            return 1
+        html, n = build_page(only)
+        with codecs.open(args.out, "r", encoding="utf-8") as f:
+            cur = _norm(f.read())
+        if cur == _norm(html):
+            print("[check] \u2714 %s 与实跑结论一致（卡片 %d 张）。" % (args.out, n))
+            return 0
+        print("[check] \u2716 %s 已过期 —— 与实跑结论不一致（盘上 %d 字符 / 实跑 %d 字符）。"
+              % (args.out, len(cur), len(_norm(html))))
+        print("       重跑：python tools/review-cards.py")
+        return 1
+
+    html, n = build_page(only)    # 🔴 2026-10-12（第 53 轮，B 类收尾）：同族第七处 —— `--open` 只在 `--serve` 那一支被读，
     #    单用时它**被静默忽略**（只是写出静态页，然后什么都不发生），而 help 里写的是
     #    「--serve 起来后自动用默认浏览器打开本页」⇒ 用户以为「它会帮我开页面」。
     if args.open and not args.serve:
@@ -1313,6 +1345,7 @@ def main():
     print("  卡片 %d 张（已出图的鱼）；形态描述与拉丁名一并嵌入" % n)
     print("  ⚠️ 静态打开**不能**在页里直接重出（浏览器跑不了 python）。")
     print("     要能直接跑：双击 tools\\评审台.cmd，或 python tools/review-cards.py --serve --open")
+    return 0
 
 
 def runner_alive(port, timeout=1.5):
@@ -1529,4 +1562,4 @@ def serve(port, only, open_browser=False):
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

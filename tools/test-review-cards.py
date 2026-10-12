@@ -1862,6 +1862,73 @@ def main():
         if os.path.isdir(_sb30):
             shutil.rmtree(_sb30, ignore_errors=True)
 
+    print("\n[31] `review-cards.py --check`：生成物新鲜度（不写盘 + 过期必须报红）（Q97）")
+    # 为什么要有这一节（2026-10-13 第 60 轮，Q97）：
+    #   `docs/卡片评审.html` 是**生成物**，改过数据 / 形态 / 配色而忘了重跑，
+    #   页面上的数与盘上的卡就分家 —— 而此前它**连干跑模式都没有**（同族 `balance.js --check`
+    #   早有、`gen-collect-time.js` 本轮补上），「谁该有干跑」这件事本身没有网。
+    #   这一节是**行为**判据：真 import、真调 `main()`、真比对——
+    #     (a) 新鲜：退出 0 且 stdout 里明说「一致」；
+    #     (b) 过期：把 `--out` 指到一份被手改过的副本 ⇒ 退出 1（**不写盘**）；
+    #     (c) `--check --serve` 一起给 ⇒ 用法错（退出码 2），不许静默丢掉一个（口径同 §32-p）。
+    #   ⚠️ `--check` 的比对**必须先归一化换行**：本仓 `core.autocrlf=true`（Windows 签出写 CRLF、
+    #      本工具写 LF）⇒ 直接逐字节比会**每次都假红**（实测差 4032 字符 = 行数）。
+    #      所以 (b) 的注入只加一个**尾巴标记**，不动换行 —— 那样判红才不是被换行差异喂出来的。
+    _RR2 = os.path.join(TOOLS, "review-cards.py")
+    if os.path.exists(_RR2):
+        _spec31 = importlib.util.spec_from_file_location("review_cards_check", _RR2)
+        _RC = importlib.util.module_from_spec(_spec31)
+        _spec31.loader.exec_module(_RC)
+
+        def _rc_run(*argv):
+            """真调 `main()`，argv **逐字给全**（含工具名）。
+
+            ⚠️ 为什么每次调用都把 `"review-cards.py", "--check"` 写在**同一行**：
+               `verify [14-c](c)` 要能证明「这个开关真的有人在跑」——它按**代码面**的
+               「工具名 + 开关名相邻」判，所以这里的写法是**契约的一部分**，不是排版偏好。
+               （第一版判据写宽了：只要全文件里各出现一次就算过 ⇒ 把调用注释掉也照样绿，
+                反向验证当场逮到。）"""
+            _old31 = sys.argv
+            _buf31 = io.StringIO()
+            sys.argv = list(argv)
+            try:
+                with contextlib.redirect_stdout(_buf31), contextlib.redirect_stderr(_buf31):
+                    _rc31 = _RC.main()
+            except SystemExit as _e31:
+                _rc31 = _e31.code if isinstance(_e31.code, int) else 2
+            finally:
+                sys.argv = _old31
+            return _rc31, _buf31.getvalue()
+
+        _sb31 = os.path.join(ROOT, "_tmp", "rv-check-sandbox")
+        try:
+            if not os.path.isdir(_sb31):
+                os.makedirs(_sb31)
+            _rc, _out = _rc_run("review-cards.py", "--check")
+            check(_rc == 0 and "一致" in _out,
+                  "新鲜：`--check` 退出 0 且报告与实跑结论一致（实得 rc=%d）" % _rc)
+            # (b) 过期：把生成物**手改一下**（只加尾巴、不动换行）再指过去 ⇒ 必须报红
+            _stale31 = os.path.join(_sb31, "stale.html")
+            _fresh31 = os.path.join(_sb31, "fresh.html")
+            with io.open(_fresh31, "w", encoding="utf-8", newline="\n") as _f31:
+                _f31.write(_RC.build_page(None)[0])
+            with io.open(_stale31, "w", encoding="utf-8", newline="\n") as _f31:
+                _f31.write(_RC.build_page(None)[0] + "\n<!-- 手改过 -->\n")
+            _rc, _out = _rc_run("review-cards.py", "--check", "--out", _fresh31)
+            check(_rc == 0, "对照：`--check` 指向一份**同内容**的副本时退出 0（实得 rc=%d）" % _rc)
+            _rc, _out = _rc_run("review-cards.py", "--check", "--out", _stale31)
+            check(_rc == 1 and "过期" in _out,
+                  "过期：`--check` 指向一份被手改过的副本时**退出 1** 且明说「已过期」"
+                  "（实得 rc=%d）—— 只加了一个尾巴标记、没动换行，所以这一条不是被换行差异喂出来的" % _rc)
+            check(not os.path.exists(os.path.join(_sb31, "stale.html.bak")),
+                  "`--check` 一个字节都不写（连备份都不留）")
+            _rc, _out = _rc_run("review-cards.py", "--check", "--serve")
+            check(_rc == 2 and "不能同时用" in _out,
+                  "`--check --serve` 一起给 = 用法错、退出码 2（不许静默丢掉一个；口径同 §32-p）"
+                  "（实得 rc=%d）" % _rc)
+        finally:
+            shutil.rmtree(_sb31, ignore_errors=True)
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

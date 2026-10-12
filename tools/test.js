@@ -3470,6 +3470,14 @@ G_('CLI · js 工具的命令行契约（未知开关 / 缺值 / 互斥必须报
   ok(bal.status === 0 && String(bal.stdout || '').indexOf('一致') >= 0,
      '生成物 docs/balance-figures.js 与实跑结论**一致**（说明书 / GDD 引用的胜率表不许过期）',
      'status=' + bal.status + ' / ' + String(bal.stdout || '').trim().split('\n').slice(-1)[0]);
+
+  /* ⑤-b 同族的另一个成员：`docs/收集耗时表.html` 只有 `gen-collect-time.js` 会写，
+     而它此前**连 `--check` 都没有**（胜率表那条有、这条没有 ⇒ 「谁该有干跑」本身没有网）。
+     本轮补上 + 真跑一次（实测 ~0.9 秒；`verify [14-c]` 判机制面）。 */
+  const gct = run('gen-collect-time.js', ['--check']);
+  ok(gct.status === 0 && String(gct.stdout || '').indexOf('一致') >= 0,
+     '生成物 docs/收集耗时表.html 与实跑结论**一致**（收集耗时表不许过期）',
+     'status=' + gct.status + ' / ' + String(gct.stdout || '').trim().split('\n').slice(-1)[0]);
 })();
 
 

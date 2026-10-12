@@ -2515,7 +2515,31 @@ def measured_sec(man=None):
     return (vals[n // 2] if n % 2 else (vals[n // 2 - 1] + vals[n // 2]) / 2.0), n
 
 
-def write_plan(fish):
+def doc_stale_note(path, text):
+    """干跑（`--check`）用：盘上那份与 `text` 是否逐字一致。返回 `True` = **一致（新鲜）**。
+
+    ⚠️ 结论必须变成**退出码**：恒退 0 的干跑开关当门禁用就是**天生的假绿**（第 61 轮 Q101
+       在 `gen-captions.py --dry` 上实测过 —— 无参 `return` ⇒ 门禁看到 0 就以为盘上那份最新）。
+    ⚠️ 换行**不必**显式归一化：python 的 `open()` 文本模式自带 universal newlines（`\r\n` 读成
+       `\n`）。那条归一化只对 **js 侧**成立（见 `verify [14-c]` (a)③）。
+    """
+    rel = os.path.relpath(path, ROOT).replace("\\", "/")
+    if not os.path.exists(path):
+        print("✗ %s 不在盘上 —— 先跑一次真生成（去掉 --check）" % rel)
+        return False
+    cur = open(path, encoding="utf-8").read()
+    if cur == text:
+        print("✔ %s 与实跑结论一致（%d 行）" % (rel, len(text.split("\n"))))
+        return True
+    a, b = cur.split("\n"), text.split("\n")
+    n = sum(1 for i in range(max(len(a), len(b)))
+            if (a[i] if i < len(a) else None) != (b[i] if i < len(b) else None))
+    print("✗ %s 已过期：与现在算出来的差 %d 行 —— 重跑一次真生成"
+          "（还原：git checkout -- %s）" % (rel, n, rel))
+    return False
+
+
+def write_plan(fish, check=False):
     """生成 docs/生图清单.md —— 带勾选框，供逐批执行与追踪"""
     bs = make_batches(fish)
     total = sum(len(b) for b in bs)
@@ -2602,10 +2626,18 @@ def write_plan(fish):
         L.append("| %s | %03d | %s | %d | %s |" % (mark, i, RAR_CN[b[0]["rar"]], len(b), names))
     L.append("")
 
-    open(out, "w", encoding="utf-8").write("\n".join(L))
+    text = "\n".join(L)
+    if check:
+        # ⚠️ 结论**必须变成字面非 0 退出**（`verify [14-c]` 只认挂在开关自己那一支里的那个）：
+        #    写成 `return 0 if … else 1` 三元式它认不出，而把判据放宽的代价就是**假绿**。
+        if doc_stale_note(out, text):
+            return 0
+        return 1
+    open(out, "w", encoding="utf-8").write(text)
     print("清单已写出：%s" % out)
     print("共 %d 条 / %d 批；含传说迭代约 %d 张，纯机器时间 ≈ %.1f 小时"
           % (total, len(bs), shots, secs / 3600.0))
+    return 0
 
 
 def report_traits(fish):
@@ -2638,7 +2670,7 @@ def report_traits(fish):
           % "、".join(f["id"] + f["name"] for f in v_miss[:20]))
 
 
-def write_prompts(fish):
+def write_prompts(fish, check=False):
     """导出**全量提示词表**（供人工审阅）—— 用户口径：「先写好每个鱼的提示词让我看一下」。
 
     ⚠️ 这里用的就是 `build_prompt()` **本体**，不是另写一份 ——
@@ -2753,11 +2785,19 @@ def write_prompts(fish):
             L.append("| %s | %s | %s |" % (ck, t, s))
 
     out = os.path.join(ROOT, "docs", "鱼提示词表.md")
-    open(out, "w", encoding="utf-8").write("\n".join(L))
+    text = "\n".join(L)
+    if check:
+        # ⚠️ 结论**必须变成字面非 0 退出**（`verify [14-c]` 只认挂在开关自己那一支里的那个）：
+        #    写成 `return 0 if … else 1` 三元式它认不出，而把判据放宽的代价就是**假绿**。
+        if doc_stale_note(out, text):
+            return 0
+        return 1
+    open(out, "w", encoding="utf-8").write(text)
     print("提示词表已写出：%s（%d 条；含五档颜色句抽选表）" % (out, len(fish)))
+    return 0
 
 
-def write_forms(fish):
+def write_forms(fish, check=False):
     """输出**全量形态档案** —— 用户口径：「先按身体特征对每条鱼写一个描述」。
 
     既给人查阅，也是生图提示词的实际来源（**同一个 `form_profile`**，不会分家）。
@@ -2781,8 +2821,16 @@ def write_forms(fish):
             f["id"], f["name"], RAR_CN.get(f.get("rar", 0), "?"),
             f.get("shape", ""), form_profile(f)))
     out = os.path.join(ROOT, "docs", "鱼形态档案.md")
-    open(out, "w", encoding="utf-8").write("\n".join(L))
+    text = "\n".join(L)
+    if check:
+        # ⚠️ 结论**必须变成字面非 0 退出**（`verify [14-c]` 只认挂在开关自己那一支里的那个）：
+        #    写成 `return 0 if … else 1` 三元式它认不出，而把判据放宽的代价就是**假绿**。
+        if doc_stale_note(out, text):
+            return 0
+        return 1
+    open(out, "w", encoding="utf-8").write(text)
     print("形态档案已写出：%s（%d 条）" % (out, len(fish)))
+    return 0
 
 
 def card_plan(f, morph, vi):
@@ -3054,10 +3102,17 @@ def main():
     ap.add_argument("--plan", action="store_true", help="只写出分批清单 docs/生图清单.md")
     ap.add_argument("--forms", action="store_true", help="只写出形态档案 docs/鱼形态档案.md")
     ap.add_argument("--prompts", action="store_true", help="只写出提示词表 docs/鱼提示词表.md")
+    ap.add_argument("--check", action="store_true",
+                    help="**干跑**：只比对 docs/ 清单与盘上那份是否一致，一个字节都不写；"
+                         "一致退出 0、过期退出 1（门禁用）。单用 = 比**形态档案 + 提示词表**"
+                         "（两份确定性产物）；配 --plan / --forms / --prompts = 只比那一份。"
+                         "⚠️ 单用**不比生图清单** —— 它是状态快照（勾选按磁盘现算、耗时按 manifest "
+                         "实测中位现算），出图跑一批它就变，绑进常跑门禁 = 每批图红一次（假红）")
     ap.add_argument("--traits", action="store_true", help="只报告真实特征表（Layer B）的覆盖进度")
     ap.add_argument("--batch", type=int, default=0, help="只出第 N 批（从 1 起，见清单）")
     ap.add_argument("--prompt-only", action="store_true", help="只打印提示词，不出图")
-    ap.add_argument("--dry", default="", help="（快捷）等价于 --prompt-only --list X")
+    ap.add_argument("--dry", default="", help="（快捷）等价于 --prompt-only --list X"
+                                             "；⚠️ 它**不是**干跑（只打印提示词、不判新鲜度）")
     ap.add_argument("--masters-only", action="store_true", help="只出母版，不出五档")
     ap.add_argument("--morphs-only", action="store_true", help="只出五档（跳过已有母版）")
     ap.add_argument("--only-morph", default="",
@@ -3094,6 +3149,19 @@ def main():
         ap.error("--list 是「点名出这几条」，与 --limit / --rar 冲突"
                  "（那两条是「按范围筛」⇒ 点名时它们不生效）")
 
+    # `--check` 是**干跑**（只比对 docs/ 清单）—— 它自己不选鱼、也不出图 ⇒ 与下面这些开关同用
+    # 时，那些开关会被**静默丢掉**（同 §32-p 那一族：「要么报错、要么明说」）。
+    # ⚠️ 冲突清单用**名字**列（`getattr`），不写成 `args.list` / `args.limit` 的并列条件 ——
+    #    那种写法会**喂饱** §32-p 判「--list × --limit」的宽松判据（把那条守卫删掉也照样绿）。
+    if args.check and args.list:
+        ap.error("--check 只比对 docs/ 清单（干跑）：与 --list（点名出图）不能同时用")
+    if args.check and (args.rar is not None or args.limit or args.batch or args.traits
+                       or args.stale or args.prompt_only or args.dry or args.masters_only
+                       or args.morphs_only or args.only_morph or args.skip_existing
+                       or args.budget_min or args.sleep_check or args.who):
+        ap.error("--check 只比对 docs/ 清单（干跑）：与出图 / 筛选 / 报告类开关不能同时用"
+                 "（那些开关在这里会被静默丢掉）")
+
     if args.who:
         st = lock_state()
         if st is None:
@@ -3122,14 +3190,32 @@ def main():
 
     allfish = load_fish()
 
+    if args.check:
+        # 默认集合 = 两份**确定性**产物（形态档案 / 提示词表）；`--plan` 要单独点名。
+        # 🔴 为什么不把 `docs/生图清单.md` 放进默认集合（2026-10-13 第 62 轮，还账 Q101 的 ④）：
+        #    它是**状态快照** —— 勾选按磁盘图片现算、单条耗时按 manifest 实测中位现算
+        #    ⇒ 出图批次一跑它就变。绑进常跑门禁 = 每出一批图门禁红一次（**假红**），
+        #    而假红的下场就是被人把网关掉。两份确定性产物只在「改了提示词 / 形态口径
+        #    却忘了重跑」时才过期 —— 那正是这条网（`verify [14-c]`）要抓的。
+        #    单独比生图清单仍然可以：`--check --plan`。
+        only_one = args.plan or args.forms or args.prompts
+        rc = 0
+        if args.plan:
+            rc |= write_plan(allfish, check=True)
+        if args.forms or not only_one:
+            rc |= write_forms(allfish, check=True)
+        if args.prompts or not only_one:
+            rc |= write_prompts(allfish, check=True)
+        sys.exit(rc)
+
     if args.plan:
-        write_plan(allfish); return
+        sys.exit(write_plan(allfish))
 
     if args.forms:
-        write_forms(allfish); return
+        sys.exit(write_forms(allfish))
 
     if args.prompts:
-        write_prompts(allfish); return
+        sys.exit(write_prompts(allfish))
 
     if args.traits:
         report_traits(allfish); return

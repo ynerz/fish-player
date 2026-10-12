@@ -1929,7 +1929,7 @@ def main():
         finally:
             shutil.rmtree(_sb31, ignore_errors=True)
 
-    print("\n[32] `docs/` 生成物的干跑闸门：`gen-captions.py --dry` / `refresh-captions.py --check` 真跑（Q101）")
+    print("\n[32] `docs/` 生成物的干跑闸门：`gen-captions.py --dry` / `refresh-captions.py --check` / `gen-art.py --check` 真跑（Q101 / 第 62 轮）")
     # 🔴 由头（第 61 轮 Q101）：`verify [14-c](b)` 的扫描面此前只认「`--out` 默认落在 docs/」
     #    ⇒ 用**常量**写 docs/ 的两个工具（`gen-captions.py` / `refresh-captions.py`）在网外，
     #    它们的干跑开关**没有任何常跑门禁真跑过** —— 而 `gen-captions.py --dry` 当时
@@ -1948,6 +1948,11 @@ def main():
     _docs32 = [
         ("gen-captions.py", "--dry", os.path.join(ROOT, "docs", "图鉴文案.md")),
         ("refresh-captions.py", "--check", os.path.join(ROOT, "docs", "图鉴文案-手写.md")),
+        # 🔴 第 62 轮：`gen-art.py` 的 `--check`（还清了 `[14-c]` 的那条文件级豁免）。
+        #    ⚠️ 默认集合只含两份**确定性**产物（形态档案 / 提示词表）—— `docs/生图清单.md`
+        #    是状态快照（勾选按磁盘现算、耗时按 manifest 实测中位现算），出图跑一批它就变，
+        #    绑进常跑门禁 = 每批图红一次（假红）⇒ 要单独比它得 `--check --plan`。
+        ("gen-art.py", "--check", os.path.join(ROOT, "docs", "鱼形态档案.md")),
     ]
     for _name, _flag, _doc in _docs32:
         if not os.path.exists(_doc):

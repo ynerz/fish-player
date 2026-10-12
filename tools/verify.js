@@ -1240,7 +1240,12 @@ if (!chainBad) ok('4 个带随机性的工具全部固定了种子（balance / v
      (c) **常跑门禁里必须真跑过它**：`test.js`（js 宿主）与 `test-review-cards.py`（py 宿主）
          各自的文本里必须出现对应的 `--check` —— 否则这个开关是**零消费**（接受参数、什么也不做），
          正是 §32-l / §32-m 那一族要拦的东西。
-     (d) 判据自检（合成样本正 / 负控）+ 空集自检（清单缩水 = 这条口径被拿掉）。 */
+     (d) 判据自检（合成样本正 / 负控）+ 空集自检（清单缩水 = 这条口径被拿掉）。
+     🔴 2026-10-13（第 62 轮）：`(b)` 的那条**文件级豁免已还清** —— `gen-art.py` 原先因为
+        「生图批次在跑 = 那个文件是禁区」被登记不修，本轮它有了 `--check`（比对两份确定性产物）
+        ⇒ 豁免表清空、它进网。⚠️ 它的 `docs/生图清单.md` **故意不在** `--check` 的默认集合里：
+        那是**状态快照**（勾选按磁盘现算、耗时按 manifest 实测中位现算），出图跑一批它就变，
+        绑进常跑门禁 = 每批图红一次（**假红**）；要单独比它得 `--check --plan`。 */
 console.log('\n[14-c] 文档类生成物：写盘的工具必须有「只比对不写」的干跑，且常跑门禁真跑过它');
 (function () {
   let gcBad = 0;
@@ -1294,25 +1299,53 @@ console.log('\n[14-c] 文档类生成物：写盘的工具必须有「只比对�
   };
   const pyWritesDocs = (code) => pyOutDocs(code) || pyDocsConst(code).length > 0;
   const pyHasDry = (code) => /add_argument\(\s*['"](?:--check|--dry)['"]/.test(code);
-  /* 干跑开关声明的**是哪一个**（`(c)` 要拿它去宿主里找真跑点） */
+  /* 干跑开关声明的**是哪一个**（`(c)` 要拿它去宿主里找真跑点）。
+     🔴 优先 `--check`，取不到才退 `--dry`（2026-10-13 第 62 轮）——
+     **`--dry` 在不同工具里不是同一件事**：`gen-art.py --dry` 是「只打印提示词」的快捷
+     （= `--prompt-only --list X`），拿它当新鲜度闸门是**类别错误**。原来按「谁先出现」
+     取（`exec` 的第一个匹配）⇒ 只要文件里 `--dry` 写在前面，宿主就会被指到一个语义
+     不是干跑的开关上，而判据自己看不出来。⚠️ 只声明了 `--dry` 的工具仍按 `--dry` 判。 */
   const pyDryFlag = (code) => {
-    const m = /add_argument\(\s*['"](--(?:check|dry))['"]/.exec(code);
-    return m ? m[1] : null;
+    if (/add_argument\(\s*['"]--check['"]/.test(code)) return '--check';
+    const d = /add_argument\(\s*['"]--dry['"]/.exec(code);
+    return d ? '--dry' : null;
   };
   /* 🔴 干跑开关必须**能用退出码判新鲜度**（一致 0 / 过期非 0）—— 由头：第 61 轮 Q101 实测
      `gen-captions.py --dry` 原先是无参 `return`（**恒退 0**）⇒ 常跑门禁真跑它、看到 0
-     就以为「盘上那份是最新的」，而它其实可能已经过期 —— 一个**天生的假绿**。 */
-  const pyDryExits = (code) => /sys\s*\.\s*exit\s*\(\s*[1-9]/.test(code)
-    || /SystemExit\s*\(\s*[1-9]/.test(code)
-    || /\breturn\s+[1-9]\b/.test(code);
-  /* 豁免：**文件级** + 理由 + **还账条件**，且豁免条目必须**仍然命中**（不许豁免活过它要遮的
-     问题 —— 同 ㊽ 的规矩）。目前只有一条，原因是环境（生图批次在跑 = 那个文件是禁区）。 */
-  const PY_EXEMPT = {
-    'gen-art.py': '生图管线主文件：批次在跑时它是**禁区**（改它会把在跑的那一批搞崩，'
-      + '第 52~61 轮一直按 `优化队列.md §4` 绕开）⇒ 本轮只登记不修。'
-      + '还账条件 = 生图批次停之后，给 `--plan` / `--forms` / `--prompts` 补一个 `--check`'
-      + '（比对那三份 `docs/` 清单），再删掉这条豁免。',
+     就以为「盘上那份是最新的」，而它其实可能已经过期 —— 一个**天生的假绿**。
+     🔴 第 62 轮收紧：**那个非 0 退出必须挂在提到干跑开关的 `if` 支里**。
+        第一版只判「全文有没有 `sys.exit(1)` / `return 1`」⇒ 假绿，实测反例（反向验证 R2 组）：
+        `gen-art.py` 里另有两处与干跑无关的 `sys.exit(1)`（第 2305 / 3477 行，
+        一个在 txt2img 失败、一个在自检失败）⇒ 把干跑那一支改成**恒退 0**，这条判据**照样绿**。
+        判法 = 按**缩进**取「`if` 守卫里提到该开关」的那些支，至少有一支里出现**字面非 0 退出**。
+        ⚠️ 带变量传播的形态（`sys.exit(rc)`）不算 —— 它证明不了那个 `rc` 能是非 0；
+           但要的不是「每一支都算」，只要有一支把结论变成字面非 0 退出即可。 */
+  const dryFlagBranches = (code, dest) => {
+    const lines = String(code).split('\n');
+    const re = new RegExp('^([ \\t]*)if\\s+[^:]*\\b(?:args\\.)?' + dest + '\\b[^:]*:\\s*$');
+    const out = [];
+    lines.forEach((ln, i) => {
+      const m = re.exec(ln.replace(/\s+$/, ''));
+      if (!m) return;
+      const ind = m[1].length;
+      let body = '';
+      for (let j = i + 1; j < lines.length; j++) {
+        const l2 = lines[j];
+        if (l2.trim() && l2.search(/\S/) <= ind) break;
+        body += l2 + '\n';
+      }
+      out.push(body);
+    });
+    return out;
   };
+  const NONZERO_EXIT = /(?:sys\s*\.\s*exit|SystemExit)\s*\(\s*[1-9]|\breturn\s+[1-9]\b/;
+  const pyDryExits = (code, dest) => dryFlagBranches(code, dest).some(b => NONZERO_EXIT.test(b));
+  /* 豁免：**文件级** + 理由 + **还账条件**，且豁免条目必须**仍然命中**（不许豁免活过它要遮的
+     问题 —— 同 ㊽ 的规矩）。
+     🔴 2026-10-13（第 62 轮）：**唯一的那条已还清**（`gen-art.py` 有了 `--check`）⇒ 现在为空。
+     这个机制**留着**（它是「环境性禁区」的安全阀，历史上真用过一次），但**空着**——
+     将来要加一条，必须同时写「还账条件」，否则下一个人看不出它什么时候该删。 */
+  const PY_EXEMPT = {};
 
   /* ⚠️ 样本里的写盘调用**拼接造**：直接写出来，14-b 的「会写盘却没声明写回目标」扫描会把
      verify.js 自己当成一个写盘工具（㊳ 的老坑，这次又是自己喂饱自己）。 */
@@ -1334,6 +1367,11 @@ console.log('\n[14-c] 文档类生成物：写盘的工具必须有「只比对�
     + 'io.open(DOC2, encoding="utf-8").read()';
   const S_PY_CONST_DIR = 'OUT = os.path.join(ROOT, "docs", "images", "prompt-ab")\n'
     + 'sheet.save(os.path.join(OUT, "a.png"))';
+  /* 干跑开关的**取法**：`--check` 必须优先于 `--dry`（正控 = 两个都在、`--dry` 写在前面；
+     负控 = 只有 `--dry` 的工具仍按 `--dry` 判）。 */
+  const S_PY_BOTH_DRY_FIRST = 'ap.add_argument("--dry", default="")\n'
+    + 'ap.add_argument("--check", action="store_true")';
+  const S_PY_ONLY_DRY = 'ap.add_argument("--dry", action="store_true")';
   if (!(jsWritesDocs(S_JS_OK) && jsHasCheck(S_JS_OK) && jsNormNewline(S_JS_OK)
         && !jsWritesDocs(S_JS_SRCONLY)
         && jsWritesDocs(S_JS_NOCHECK) && !jsHasCheck(S_JS_NOCHECK)
@@ -1344,11 +1382,21 @@ console.log('\n[14-c] 文档类生成物：写盘的工具必须有「只比对�
         && !pyWritesDocs(S_PY_CONST_READ)
         && !pyWritesDocs(S_PY_CONST_DIR)
         && pyDryFlag(S_PY_OK) === '--check'
-        && pyDryExits('def main():\n    if a:\n        return 1\n    return 0')
-        && !pyDryExits('def main():\n    if a:\n        return\n'))) {
+        && pyDryFlag(S_PY_BOTH_DRY_FIRST) === '--check'
+        && pyDryFlag(S_PY_ONLY_DRY) === '--dry'
+        /* 非 0 退出**必须挂在那个开关自己的支里**：正控 = 支里 `return 1`；
+           负控（第 62 轮反向验证 R2 的形态）= 文件里别处有 `return 1`、开关那一支却恒退 0。
+           ⚠️ 负控里那个换行必须**拼接**写（`'\n\n' + 'def …'`）：直接写成 `\ndef ` 这个字面量
+              会被第 42 节 ⑧ 的「拿下一个 def 当终止」判据当成**我自己又写了一次**那种写法
+              （本轮第一版就踩了，是门禁自己逮到的）。 */
+        && pyDryExits('def main():\n    if args.dry:\n        if bad:\n            return 1\n'
+          + '        return 0\n', 'dry')
+        && !pyDryExits('def f():\n' + '    return 1\n' + '\n\n' + 'def main():\n'
+          + '    if args.dry:\n        print("x")\n        return 0\n', 'dry'))) {
     err('14-c 的判据自检不成立（js：写 docs / 缺 --check / 缺换行归一化 / 只写 src；'
       + 'py：有 --out→docs / 缺干跑开关 / 形态②常量名 / 只读的 .md 与 docs 子目录不许被认成生成物'
-      + ' / 干跑开关的退出码 —— 没能各自认对）');
+      + ' / 干跑开关的退出码 / `--check` 优先于 `--dry`（两个都在时取前者、只有 `--dry` 时取后者）'
+      + ' —— 没能各自认对）');
     gcBad++;
   }
 
@@ -1400,10 +1448,13 @@ console.log('\n[14-c] 文档类生成物：写盘的工具必须有「只比对�
         + '却没有干跑开关（`--check` / `--dry`）——'
         + ' 改过数据忘了重跑它，文档就与游戏分家，而**没有任何东西会报红**');
       gcBad++;
-    } else if (!pyDryExits(code)) {
-      err(`\`tools/${f}\` 的干跑开关**不能用退出码判新鲜度**（全文找不到 sys.exit(1) / `
-        + 'return 1 / SystemExit(1) 这类非 0 退出）—— 恒退 0 的干跑开关当门禁用就是**天生的假绿**'
-        + '（实测：`gen-captions.py --dry` 原先是无参 `return`，常跑门禁看到 0 就以为盘上那份最新）');
+    } else if (!pyDryExits(code, pyDryFlag(code).slice(2).replace(/-/g, '_'))) {
+      err(`\`tools/${f}\` 的干跑开关**不能用退出码判新鲜度** —— 那个开关所在的支里找不到`
+        + '**非 0 退出**（`return 1` / `sys.exit(1)` 这类）——'
+        + ' 恒退 0 的干跑开关当门禁用就是**天生的假绿**'
+        + '（实测：`gen-captions.py --dry` 原先是无参 `return`，常跑门禁看到 0 就以为盘上那份最新）'
+        + '\n       ⚠️ 判据**只看那个开关自己的分支**：文件里别处有 `sys.exit(1)` 不算 ——'
+        + ' 实测 `gen-art.py` 另有两处与干跑无关的 `sys.exit(1)`，那样写会**假绿**');
       gcBad++;
     }
   });
@@ -1415,7 +1466,22 @@ console.log('\n[14-c] 文档类生成物：写盘的工具必须有「只比对�
       gcBad++;
     }
   });
-  const PY_DOCS_MIN = 3;      // gen-captions.py / refresh-captions.py / review-cards.py
+  /* 🔴 第 62 轮：**点名**一条 —— `gen-art.py` 的 `--dry` 不是干跑（它是
+     「= `--prompt-only --list X`、只打印提示词」，判不出新鲜度）。`(b)` 认的是「有没有干跑开关」，
+     它**分不出** `--dry` 的语义（各工具不同：`gen-captions.py --dry` 是干跑、这里不是）
+     ⇒ 把 `--check` 删掉、只留 `--dry` 时 `(b)` 会以为它「有干跑」而放过。
+     这一处必须**显式**要求 `--check`。
+     ⚠️ 这是**已知的、单点的**语义歧义，不是通用规则；将来再有工具用 `--dry` 表达别的意思，
+        在这里追加一行并写明理由（同 §32-q 对具体工具点名的做法）。 */
+  {
+    const gaCode = stripPy(readT('tools/gen-art.py') || '');
+    if (!/add_argument\(\s*['"]--check['"]/.test(gaCode)) {
+      err('`tools/gen-art.py` 没有 `--check` —— 它的 `--dry` 是「只打印提示词」的快捷、'
+        + '判不出新鲜度，不能拿它顶替干跑（**点名**断言，理由见本节源码里那段注释）');
+      gcBad++;
+    }
+  }
+  const PY_DOCS_MIN = 4;      // gen-captions.py / refresh-captions.py / review-cards.py / gen-art.py
   if (pyDocs.length < PY_DOCS_MIN) {
     err(`14-c(b) 只认出 ${pyDocs.length} 个「写 docs/ 文档类产物的 py 工具」（少于 ${PY_DOCS_MIN}）`
       + ' —— 扫描面多半坏了（判据按 `--out`→docs + 「常量名 + 真被写调用用过」两形态现算）');
@@ -4201,7 +4267,7 @@ console.log('\n[32-o] 形态表的三个写者：.bak 备份 + 空值守卫 + �
         （正则失效时不许静默退化成一条恒真的空断言）。 */
 console.log('\n[32-p] `tools/` 入口的开关组合语义：同用时不许静默丢弃（互斥要么报错、要么明说）');
 (function () {
-  const MIN_GUARDS = 10;     /* 实测 10 组（2026-10-12 口径，8 个文件）；少了就是扫描面坏了 */
+  const MIN_GUARDS = 12;     /* 实测 12 组（2026-10-13 口径，8 个文件）；少了就是扫描面坏了 */
 
   /* ① `--brief` ⇒ `--stale`：`if args.brief:` 之后若干行内必须出现 `args.stale = True`。
      ⚠️ 中间那些注释行剥完会变成纯空白行 ⇒ 窗口按**行数**给足（12 行），不按「非空行」。
@@ -4296,6 +4362,16 @@ console.log('\n[32-p] `tools/` 入口的开关组合语义：同用时不许静�
         + '\n       —— 修法：显式 `ap.error("--list 是「点名出这几条」，与 --limit / --rar 冲突…")`');
       pBad++;
     } else guards++;
+    /* 同族第三处（2026-10-13 第 62 轮）：`--check` 是**干跑**（只比对 `docs/` 清单），
+       它自己不选鱼也不出图 ⇒ 同给 `--list`（点名出图）时后者必须**显式报错**，不许静默丢掉。
+       ⚠️ 冲突清单在源码里是用**名字**列的（`getattr`），**不是** `args.check and args.list and …`
+       的并列式 —— 那样的写法会喂饱本条自己的 `--list`×`--limit` 判据（把那条守卫删掉也照样绿）。 */
+    if (!exclusiveOk(ga, /\.check\b/, /\.list\b/)) {
+      err('32-p：`gen-art.py` 的 `--check`（干跑）与 `--list`（点名出图）同用时没有守卫 ——'
+        + '照 help 敲 `--check --list A01` 的人以为「只查这条鱼」，实际 `--list` 被静默丢掉'
+        + '\n       —— 修法：显式 `ap.error("--check 只比对 docs/ 清单（干跑）：与 --list …")`');
+      pBad++;
+    } else guards++;
   }
   if (cs !== null) {
     if (!exclusiveOk(cs, /\.out\b/, /\.all\b/)) {
@@ -4366,7 +4442,8 @@ console.log('\n[32-p] `tools/` 入口的开关组合语义：同用时不许静�
   if (!pBad) {
     ok(`\`tools/\` 入口的开关组合语义：\`--brief\` 隐含 \`--stale\`（单用不再掉进出图流程）；`
       + `${guards} 组「点了名 / 出了范围」的重叠开关（\`--list\`×\`--limit\`·\`--rar\`、`
-      + '`--ids`×`--batch`、`--out`×`--all`、`--all`×`--list`、`--list`×鱼 id、`--open`×`--serve`）'
+      + '`--ids`×`--batch`、`--out`×`--all`、`--all`×`--list`、`--list`×鱼 id、`--open`×`--serve`、'
+      + '`--check`×`--list`）'
       + '都**显式报错**，不再静默丢掉其中一个');
   }
 })();

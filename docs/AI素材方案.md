@@ -230,8 +230,8 @@ G.Assets.mode()                     // 'inline'（file:// 开发期）| 'externa
 
 | 已删 | 谁在引用 | 已同步改动 |
 |---|---|---|
-| `src/render/mesh3d.js`（403 行） | `fishmesh.js` / `tools/test.js` / `tools/style-preview-3d.html` | `index.html:165`、`test.js` 断言 |
-| `src/render/fishmesh.js`（575 行） | `tools/test.js` / 两个 preview 页 | `index.html:166`、`test.js` 断言 |
+| `src/render/mesh3d.js`（403 行） | `fishmesh.js` / `tools/test.js` / `tools/style-preview-3d.html` | `index.html` 的 `<script src>` 清单、`test.js` 断言 |
+| `src/render/fishmesh.js`（575 行） | `tools/test.js` / 两个 preview 页 | `index.html` 的 `<script src>` 清单、`test.js` 断言 |
 | `docs/3D渲染方案.md` · `docs/three.js迁移方案.md` | 文档互引 | 开发者文档 / 画风与颜色标准 / GDD 的口径 |
 | `vendor/three.min.js`（669 KB）· `tools/three-preview.html` · `tools/style-preview-3d.html` | 仅彼此 | `tools/measure-silhouette.py` 也提到 preview 页，一起看 |
 | `改进待办.md` 的「🎨 主线：3D 化改造队列」T1~T9 | — | T1~T4 已完成（`744d678` / `c3105ef`），T5~T9 作废 |

@@ -9320,6 +9320,90 @@ if (!refBad) {
     + `（含 tools/；另有 ${refExempt} 处按豁免待还账）`);
 }
 
+console.log('\n[48-b] 活文档里的「代码位置」引用不许写行号（行号是可变事实，写下去必然腐烂）');
+(function () {
+  /* 【由头】第 63 轮 C 类审计铺的新面 = 「**活文档**里的『文件:行号』引用」。
+     `[48]` 管的是「源码 → 文档」那个方向（节号必须连标题）；反过来「文档 → 源码」这个方向
+     一直没有网 —— 于是 4 处行号悄悄腐烂了（实测 2026-10-13）：
+       · `docs/开发者文档.md`：`state.js:224`（那句「save() 盖 lastSeen」实际在 **450** 行）；
+         `assets/css/style.css:768`（它指的是第 52 轮**已经删掉**的两条 `.book-sum` 规则，
+         即「现状是 X」不成立 —— 与第 62 轮那批「实测 N」是同一个病）；
+       · `docs/AI素材方案.md`：`index.html:165` / `index.html:166`（那两行现在是别的 `<script>`）。
+     ⚠️ 行号**天生**会腐烂（任何一次插入/删除都会让后面全体位移），而文档没有「跟着改」的机制
+        ⇒ 与其写一个「行号必须对」的网（每次改代码都要回来改文档 = 不可执行），
+        不如立「**不许写行号**」：要指位置就写**函数名 / 常量名 / 那句代码**（它们不会位移）。
+     ⚠️ 扫描面**不含** `docs/改进待办.md`（条目正文按规矩**只许追加、一个字都不许改**）
+        与 `docs/优化队列.md`（§5 台账是历史留痕）—— 那两份里的行号是「当时」的记录，必须留得住。
+        同款边界见 `[34-b]` 对「test.js 总项数」的处理。 */
+  const ACTIVE = ['docs/开发者文档.md', 'docs/GDD.md', 'docs/说明书.html', 'docs/AI素材方案.md',
+    'README.md', 'docs/画风与颜色标准.md', 'docs/N8-多端与后端设计.md'];
+  /* 形态 = 文件扩展名 + `:` 或 `：` + 行号。⚠️ 针串拼接造（本节自己的文案里就有示例）。 */
+  const NEEDLE_EXT = '\\.(?:js|py|css|html|json|md)';
+  const NEEDLE_REF = new RegExp('[A-Za-z0-9_/.-]*' + NEEDLE_EXT + '[:：][0-9]+', 'g');
+  const MIN_FILES = 6;
+  /* 判据自检：坏样本认得出、好样本必须放过（`§17.52` 这类节号 / `A44` 这类 id 都不算） */
+  const SAMPLE_BAD = 'assets/css/' + 'style' + '.css' + ':' + '768';
+  const SAMPLE_OK1 = 'docs/开发者文档.md' + ' §17.52';
+  const SAMPLE_OK2 = '见 state' + '.js 的 save()';
+  const selfOk = SAMPLE_BAD.match(NEEDLE_REF) !== null
+    && SAMPLE_OK1.match(NEEDLE_REF) === null
+    && SAMPLE_OK2.match(NEEDLE_REF) === null;
+  if (!selfOk) {
+    err('48-b 的判据自检不成立（认不出「文件 + 冒号 + 行号」，或把节号 / 只说文件名也当成了行号）'
+      + '—— 该判据会假报或静默失效，先修判据本身');
+    return;
+  }
+  let dBad = 0, dScanned = 0;
+  const stale = [];
+  /* 注释里的「文件:行号」不算（与 `11-j` / `11-k` / `[50-c] ④` 同族：注释里的 id / class /
+     `data-*` 都不算真东西 —— 第 52 / 60 轮修过三次，这里一开始就带上）。
+     ⚠️ 按**行**剥、保留行数（否则报出来的行号会偏移）。 */
+  const dropHtmlComments = txt => {
+    let inC = false;
+    return txt.split(/\r?\n/).map(ln => {
+      let out = '', i = 0;
+      while (i < ln.length) {
+        if (!inC) {
+          const s = ln.indexOf('<!--', i);
+          if (s < 0) { out += ln.slice(i); break; }
+          out += ln.slice(i, s); i = s + 4; inC = true;
+        } else {
+          const e = ln.indexOf('-->', i);
+          if (e < 0) { i = ln.length; break; }
+          i = e + 3; inC = false;
+        }
+      }
+      return out;
+    });
+  };
+  ACTIVE.forEach(rel => {
+    const p = path.join(ROOT, rel);
+    if (!fs.existsSync(p)) return;
+    dScanned++;
+    let txt = '';
+    try { txt = fs.readFileSync(p, 'utf8'); } catch (e) { return; }
+    dropHtmlComments(txt).forEach((ln, i) => {
+      (ln.match(NEEDLE_REF) || []).forEach(h => stale.push(`${rel}:${i + 1} · ${h}`));
+    });
+  });
+  if (dScanned < MIN_FILES) {
+    err(`48-b 只扫到 ${dScanned} 份活文档（少于 ${MIN_FILES}）—— 扫描面多半坏了（文件名被改名？），`
+      + '不许让这条判据静默退化成恒真的空断言'); dBad++;
+  }
+  if (stale.length) {
+    err(`活文档里有 ${stale.length} 处「文件:行号」引用 —— 行号是**可变事实**，`
+      + '一次插入/删除就让它指到别处，而没人会回头改（实测已有 4 处腐烂）：\n       '
+      + stale.join('\n       ')
+      + '\n       ⇒ 改成**不会位移**的指法：函数名 / 常量名 / 直接引那句代码'
+      + '（台账类文件 `docs/改进待办.md` / `docs/优化队列.md` 不在此网内，它们按规矩只许追加）'); dBad++;
+  }
+  if (!dBad) {
+    ok(`${dScanned} 份活文档里 0 处「文件:行号」引用（要指代码位置就写函数名 / 常量名 / 那句代码）`);
+  }
+})();
+
+
+
 /* ---------------- 49. SS / SSS 两场的奇幻点题（逐条描述 + 四张网） ----------------
    由来（2026-10-09 晚，用户口径）：「SS 鱼场和 SSS 渔场的鱼的名字基本都不是现实中的鱼了，
    都有一定的奇幻元素，看看现有的提示词是不是还是不够奇幻，一定要符合它的名称，

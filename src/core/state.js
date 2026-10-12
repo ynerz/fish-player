@@ -424,7 +424,11 @@ G.State = (function () {
     try {
       S = migrate(d);
       save(true);
-      emit('import');
+      /* ⚠️ 这里原来还有一句 `emit('import')` —— **全项目没有任何订阅方**（第 56 轮的事件总线
+         审计逮到，判据 = `verify [32-u]`）。导入完成后的界面更新本来就不靠这条事件：
+         调用方（设置面板的「导入存档」按钮）自己接着 `G.Platform.sys.reload()` 整页重载。
+         ⇒ 删掉。零消费的事件 = **一件不会发生的事**，留着会让读代码的人以为「有人会处理导入」。
+         要恢复这条路，先给它一个真订阅方，`[32-u]` 会同时要求 emit / on 两侧对上。 */
       return { ok: true, coin: S.coin, book: Object.keys(S.book).length };
     } catch (e) {
       return { ok: false, msg: '导入失败：' + e.message };
@@ -829,7 +833,15 @@ G.State = (function () {
     return { unlocked: ok, prog: prog, reason: reason };
   }
 
-  /* 检查并实际解锁，返回新解锁的钓场数组 */
+  /* 检查并实际解锁，返回新解锁的钓场数组。
+     ⚠️ 通知界面**走返回值**，不走事件总线（第 56 轮）：这里原来还有一句
+        `emit('unlock', news)`，而它有**零个订阅方**（`verify [32-u]` 逮到）。
+        真正会播报的两条路一直是返回值那条：
+          · `fishing.js` 的 `resolve()` → `cb.onUnlock(news)` → `main.js:onUnlock()`
+            逐场 toast「🎉 解锁新钓场：X（N 级）」；
+          · `fishing.js` 的 `applyOffline()` → 离线收获面板的「🎉 解锁新钓场」那一行。
+        开发者面板的「填满颜色」也自己 toast（它要的是「安静版」）。
+        ⇒ 删掉那条总线事件（零消费 = 静默死角）。别再加回来 —— 先用 `[32-u]` 确认有订阅方。 */
   function checkUnlocks() {
     var news = [];
     G.FIELDS.forEach(function (f) {
@@ -840,7 +852,7 @@ G.State = (function () {
         news.push(f);
       }
     });
-    if (news.length) { save(); emit('unlock', news); }
+    if (news.length) save();
     return news;
   }
 

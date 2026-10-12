@@ -11673,6 +11673,119 @@ console.log('\n[54] 长线目标系统：成就表自洽 + 彩蛋 30 条与四�
   }
 })();
 
+/* ---------------- 32-u. 事件总线：emit ↔ on 双向必须对上（第 56 轮） ----------------
+   【由头】`G.State` 的事件总线（`state.js` 的 `on()` / `emit()`）此前**一张网都没有** ——
+   它有两类静默坏法，**都不会报错、界面上也看不出来**：
+     · `emit('x')` 而没人 `on('x')` ⇒ 这件事**没有任何反应**（本轮实测逮到 2 处：`unlock` / `import`）；
+     · `on('x')` 而没人 `emit('x')` ⇒ **死订阅**（写了一个永远不跑的回调）。
+   口径：两侧名字集合必须**完全相等**。事件天然是「有人发 + 有人听」的成对结构，
+   单向的要么是漏接线、要么是残留，两种都不该长期留在盘上。
+   ⚠️ `emit()` 支持 `'*'` 通配订阅（`state.js`：`l.evt === evt || l.evt === '*'`）⇒ 一旦有人订阅
+      `'*'`，本节的「零消费 emit」判据就**失去意义** ⇒ 那种情况**报错**、要求显式处理，
+      不许让这条网静默退化成恒真（本项目的老坑型：「判据写宽 = 假报 / 恒真」）。
+   ⚠️ 扫描面 = `src/` 的 `.js`（先剥注释）。订阅方全在 `main.js`；
+      `tools/`（测试自己订阅）与 `shell/`（另一个进程）不参与 —— 它们不是产品面。
+   判据：
+     ① 抽取：emit 侧认 `X.emit('名')` 与裸 `emit('名')`（`goals.js` 那层本地包装会转发到总线）；
+        on 侧认 `X.on('名')`。
+     ② 双向相等，两侧各自的**多出来的名字**连**出现位置**一起报出来。
+     ③ `'*'` 出现 ⇒ 报错（见上）。
+     ④ **抓不到就报错**（名字数 < 8 / 读不到源文件）⇒ 防判据恒真。
+     ⑤ 合成样本自检：正控一对 + 三个负控（只 emit / 只 on / 通配）+ 本地包装那一形态。 */
+function busNames(code) {
+  const C = stripComments(code);
+  const em = new Set(), on = new Set();
+  let m, star = false;
+  const reE1 = /\b(?:G\.State|St|State)\.emit\(\s*(['"])([^'"]+)\1/g;   /* X.emit('名') */
+  while ((m = reE1.exec(C))) em.add(m[2]);
+  /* 裸 `emit(`（只在**不是** `X.emit(` 的位置 —— 前面那个字符排除 `.` / 词字符 / `$`） */
+  const reE2 = /(?:^|[^.\w$])emit\(\s*(['"])([^'"]+)\1/g;
+  while ((m = reE2.exec(C))) em.add(m[2]);
+  const reO = /\b(?:G\.State|St|State)\.on\(\s*(['"])([^'"]+)\1/g;
+  while ((m = reO.exec(C))) { on.add(m[2]); if (m[2] === '*') star = true; }
+  return { em: em, on: on, star: star };
+}
+console.log('\n[32-u] 事件总线：emit ↔ on 双向必须对上（零消费的事件 = 一件不会发生的事）');
+(function () {
+  /* ---- ⑤ 合成样本自检（正 / 负样本各认对，这条网才算有效） ---- */
+  const S_POS  = "St.emit('aa', 1); St.on('aa', function () {});";
+  const S_ONLY_E = "St.emit('bb', 1);";
+  const S_ONLY_O = "St.on('cc', function () {});";
+  const S_WRAP = "function emit(e) { if (St && St.emit) St.emit(e); } emit('dd'); St.on('dd', f);";
+  const S_STAR = "St.on('*', function () {});";
+  const sPos = busNames(S_POS), sE = busNames(S_ONLY_E), sO = busNames(S_ONLY_O);
+  const sW = busNames(S_WRAP), sStar = busNames(S_STAR);
+  const selfOk = sPos.em.has('aa') && sPos.on.has('aa') && sPos.em.size === 1 && sPos.on.size === 1
+    && sE.em.has('bb') && sE.on.size === 0
+    && sO.on.has('cc') && sO.em.size === 0
+    && sW.em.has('dd') && sW.on.has('dd')
+    && sStar.star === true && sStar.on.has('*');
+  if (!selfOk) {
+    err('32-u 的判据自检不成立（正控 / 只 emit / 只 on / 本地包装 / 通配 五种样本没能各自认对）'
+      + ' —— 这条网会假绿，先修判据本身');
+  }
+
+  /* ---- ①②③④ 真扫 `src/` ---- */
+  const SRC = path.join(ROOT, 'src');
+  const files = [];
+  (function walk(d) {
+    fs.readdirSync(d).forEach(f => {
+      const p = path.join(d, f);
+      if (fs.statSync(p).isDirectory()) walk(p);
+      else if (/\.js$/.test(f)) files.push(p);
+    });
+  })(SRC);
+  const rel = f => path.relative(ROOT, f).split(path.sep).join('/');
+  const EM = new Map(), ON = new Map();   /* 名 → 出处列表 */
+  let star = false, uBad = 0;
+  const MIN_NAMES = 8;                    /* 现状：两侧各 11 —— 少于 8 说明扫歪了 */
+  files.forEach(p => {
+    let code;
+    try { code = fs.readFileSync(p, 'utf8'); }
+    catch (e) {
+      err(`读不到 \`${rel(p)}\` —— 32-u 的扫描面残缺（先修判据本身）`); uBad++; return;
+    }
+    let b;
+    try { b = busNames(code); }
+    catch (e) { err(`32-u 在 \`${rel(p)}\` 上抽名字时抛了：${e.message}`); uBad++; return; }
+    b.em.forEach(n => { if (!EM.has(n)) EM.set(n, []); EM.get(n).push(rel(p)); });
+    b.on.forEach(n => { if (!ON.has(n)) ON.set(n, []); ON.get(n).push(rel(p)); });
+    if (b.star) star = true;
+  });
+
+  if (files.length < 20) {
+    err(`32-u 只扫到 ${files.length} 个 \`src/\` 下的 .js —— 扫描面缩水（先修判据本身）`); uBad++;
+  }
+  if (star) {
+    err('32-u：`src/` 里出现了 `on(\'*\')` 通配订阅 ⇒ 「零消费 emit」这条判据已经失去意义，'
+      + '必须显式处理（要么把通配那段排除后再判，要么给它一份白名单与理由）—— 不许让它静默变恒真');
+    uBad++;
+  }
+  if (EM.size < MIN_NAMES || ON.size < MIN_NAMES) {
+    err(`32-u 抽出来的事件名太少（emit ${EM.size} 个 / on ${ON.size} 个，少于 ${MIN_NAMES}）—— `
+      + '要么源码改了写法，要么判据的正则失效 ⇒ 这条网正在恒真，先修判据本身');
+    uBad++;
+  }
+  const emOnly = [...EM.keys()].filter(n => !ON.has(n));
+  const onOnly = [...ON.keys()].filter(n => !EM.has(n));
+  if (emOnly.length) {
+    err(`32-u：这些事件**有人发、没人听**（发出去没有任何反应、也不报错）—— `
+      + emOnly.map(n => `\`${n}\`（${EM.get(n).join(' / ')}）`).join('；')
+      + '　⇒ 要么删掉那条 `emit()`，要么给它一个真订阅方');
+    uBad++;
+  }
+  if (onOnly.length) {
+    err(`32-u：这些事件**有人听、没人发**（死订阅：那段回调永远不跑）—— `
+      + onOnly.map(n => `\`${n}\`（${ON.get(n).join(' / ')}）`).join('；')
+      + '　⇒ 要么删掉那段 `on()`，要么补上对应的 `emit()`');
+    uBad++;
+  }
+  if (!uBad) {
+    ok(`事件总线双向对上：${EM.size} 个事件名（emit ${EM.size} / on ${ON.size}，`
+      + `${[...EM.keys()].sort().join('、')}）—— 零消费 emit 与死订阅各 0 条`);
+  }
+})();
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

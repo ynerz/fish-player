@@ -325,6 +325,28 @@ St.get().baits[paid.id] = 0;
 const fallback = St.consumeBait();
 ok(fallback && fallback.id === 'worm' && St.curBait().id === 'worm', '库存为 0 时消耗返回蚯蚓（回退生效）');
 
+/* 🔴 事件总线（第 56 轮）：一次**真往返**。
+   由来：总线上「发事件」与「听事件」的接线此前**一张网都没有**，而它有一整类静默坏法 ——
+   本轮审计实测逮到 2 处「有人发、没人听」（`unlock` / `import`：发出去没有任何反应、也不报错），
+   已按「零消费 = 删」处理（`importSave()` 与 `checkUnlocks()`）。
+   本节点的是**机制**（订阅者真能收到 payload 与事件名、收不到别的事件）；
+   两侧名字集合的**双向相等**由 `verify [32-u]` 静态钉住（那是防复发的那道网）。
+   ⚠️ 总线**没有 `off`**（`state.js` 只导出 `on` / `emit`）⇒ 这里只订阅一个本文件专用的名字，
+      **绝不用 `'*'`**：通配订阅会一直挂在监听表上，把后面所有「发了几次」的计数断言全部污染。 */
+G_('事件总线 · 一次真往返（第 56 轮）');
+(function () {
+  const got = [];
+  St.on('bus-probe', function (p, evt) { got.push({ p: p, e: evt }); });
+  St.emit('bus-probe', { n: 7 });
+  ok(got.length === 1 && got[0].p && got[0].p.n === 7, '订阅者收到了 emit 的 payload', JSON.stringify(got));
+  ok(got.length === 1 && got[0].e === 'bus-probe', '回调的第二个参数是事件名本身（订阅方分辨得出是谁发的）');
+  St.emit('bus-probe');
+  ok(got.length === 2 && got[1].p === undefined, '不带 payload 也照发（`emit(evt)` 这一形态合法）');
+  const beforeN = got.length;
+  St.emit('bus-nobody-listens', 1);
+  ok(got.length === beforeN, '别的事件名不会被这个订阅者收到（负对照 —— 否则上面两条会假通过）');
+})();
+
 /* 抛竿链路：fishing.js 必须用 consumeBait() 的返回值决定渔获
    （用桩函数把传给 Loot.generate 的 opts 截下来看，不改生产代码） */
 St.reset();

@@ -13470,6 +13470,122 @@ console.log('\n[32-ab] 需要 PIL 的 `tools/*.py` 必须有**干净出口**（�
   }
 })();
 
+console.log('\n[32-ac] 音频素材的「来源可复现」：配方（`tools/gen-audio.py`）↔ 磁盘 mp3 ↔ `G.Audio`（第 64 轮）');
+(function () {
+  /* 【由头】第 64 轮铺的新面 = 「入库配方在本机可复现吗」这条线的**最后一环**。
+     `tools/gen-audio.py` 的文件头写着它存在的理由：那 16 条音效的**提示词**原先只活在
+     `_tmp/gen_sfx.sh`（gitignore）里 ⇒「**素材能复现、配方不能复现**」。配方进了库之后，
+     这三者之间却**一处判据都没有**：
+       · 盘上多一个 mp3、配方里没有它 ⇒ 换台机器 / 一年后重出时**没人知道当初写的什么**
+         ⇒ 这个文件存在的理由当场失效，而且**不报错**；
+       · 配方里有、盘上没有 ⇒ 配方指向一个不存在的产物（跑过 `--all` 却没落盘 / 手滑删了素材）；
+       · 配方里的 id 没有任何 `G.Audio` 方法会问它 ⇒ 那条音效永远播不出来（同 32-k 的「死素材」）；
+       · `AMBIENCE['id']` 与 `audio.js` 的 `AMB_KEY` 是**跨语言的两份真相** —— 改一边不改另一边，
+         环境音会静默回退合成（听感变了却谁都不报错）。
+     ⚠️ 判据跑在**剥过 py 注释**的源码上（硬规矩 ①）：注释里提到一个 id 不算配方条目
+        ⇒ 反向验证 R4（把注入写成注释）必须**仍然绿**。
+     ⚠️ 不判「提示词写得好不好」（那是人的事）；只判**结构对得上**。
+     ⚠️ 32-k 判「mp3 ↔ 方法名」、41-b 判「环境音键 ↔ 磁盘」，本节判的是**配方那一侧**。 */
+  const GA = 'tools/gen-audio.py', AUDIO = 'src/core/audio.js', ADIR = 'assets/audio';
+  const MIN_ONCE = 10, MIN_FILES = 10;
+
+  let py = '';
+  try { py = stripPy(fs.readFileSync(path.join(ROOT, GA), 'utf8')); }
+  catch (e) { err(`读不到 \`${GA}\` —— 32-ac 抓不到配方表（先修判据本身）`); return; }
+  let js = '';
+  try { js = stripComments(fs.readFileSync(path.join(ROOT, AUDIO), 'utf8')); }
+  catch (e) { err(`读不到 \`${AUDIO}\` —— 32-ac 抓不到方法面（先修判据本身）`); return; }
+
+  /* 取块：锚点走 at()、块尾走 closeOf()（§42 ⑧ / ⑩ 的硬规矩）。
+     ⚠️ 锚点变量名必须是**长而独特**的（`phrAt`）—— 用 `i` / `p` 这类短名会扩大 §42 ⑨ 的
+        锚点集合（实测一次多出 7 处假报，连 `sceneLines.slice(…)` 都会被拖进来）。 */
+  const blockOf = (src, phrase, ch) => {
+    const phrAt = at(src, phrase);
+    if (phrAt < 0) return '';
+    const ob = src.indexOf(ch, phrAt);
+    if (ob < 0) return '';
+    const end = closeOf(src, ob);
+    return end < 0 ? '' : src.slice(ob, end);
+  };
+  /* ⚠️ 针串一律**拼**出来：本节的说明与报错文案里就点着这些名字，写死的话判据会被自己喂饱。 */
+  const ONCE_PHRASE = 'ONESHOT' + ' = [';
+  const AMB_PHRASE = 'AMBIENCE' + ' = {';
+  const API_PHRASE = 'var API' + ' = {';
+  const idOfOnce = body => [...new Set([...body.matchAll(/\(\s*'([A-Za-z][A-Za-z0-9_]*)'\s*,/g)].map(m => m[1]))];
+  const idOfAmb = body => (body.match(/['"]id['"]\s*:\s*'([A-Za-z][A-Za-z0-9_]*)'/) || [])[1];
+  const dirOk = s => /'assets'/.test(s) && /'audio'/.test(s);
+
+  /* 判据自检：合成样本（取块 + 两个 id 的认法 + OUT_DIR 的谓词，各认对一次） */
+  const S_PY = "OUT_DIR = os.path.join(ROOT, 'assets', 'audio')\n"
+    + "ONESHOT = [\n    ('aa', 'p', 1.0),\n    ('bb', 'q', 2.0),\n]\n"
+    + "AMBIENCE = {\n    'id': 'cc',\n    'prompt': 'x',\n}";
+  const sOnce = idOfOnce(blockOf(S_PY, ONCE_PHRASE, '['));
+  const sAmb = idOfAmb(blockOf(S_PY, AMB_PHRASE, '{'));
+  const sDir = S_PY.match(/^OUT_DIR[\s\S]*?$/m) || [''];
+  if (sOnce.join(',') !== 'aa,bb' || sAmb !== 'cc' || !dirOk(sDir[0])
+      || dirOk('OUT_DIR = os.path.join(ROOT, "x")')) {
+    err('32-ac 的判据自检不成立（合成样本里认不出 ONESHOT 的 id / AMBIENCE 的 id / OUT_DIR 的目录）'
+      + '—— 先修判据本身，这条断言现在会静默失效');
+    return;
+  }
+
+  const onceIds = idOfOnce(blockOf(py, ONCE_PHRASE, '['));
+  const ambId = idOfAmb(blockOf(py, AMB_PHRASE, '{'));
+  const apiKeys = [...new Set([...blockOf(js, API_PHRASE, '{')
+    .matchAll(/^ {4}([A-Za-z][A-Za-z0-9_]*)\s*:/gm)].map(m => m[1]))];
+  const ambKey = (js.match(/var AMB_KEY\s*=\s*'([^']+)'/) || [])[1];
+  let files = [];
+  try {
+    files = fs.readdirSync(path.join(ROOT, ADIR)).filter(f => /\.mp3$/.test(f)).map(f => f.replace(/\.mp3$/, ''));
+  } catch (e) { err(`读不到 \`${ADIR}\` —— 32-ac 抓不到素材目录（先修判据本身）`); return; }
+
+  let cBad = 0;
+  if (onceIds.length < MIN_ONCE) {
+    err(`32-ac 只从 \`${GA}\` 认出 ${onceIds.length} 条一次性音效配方（少于 ${MIN_ONCE}）—— `
+      + '取块锚点或 id 的认法要跟着改，否则这条判据会静默失效'); cBad++;
+  }
+  if (!ambId) { err(`\`${GA}\` 的 ` + '`AMBIENCE`' + ` 里找不到 \`'id'\` —— 环境音的键名要现算`); cBad++; }
+  if (files.length < MIN_FILES) {
+    err(`\`${ADIR}\` 下只扫到 ${files.length} 个 mp3（少于 ${MIN_FILES}）—— 扫描面多半坏了，`
+      + '不许让这条判据静默退化成恒真的空断言'); cBad++;
+  }
+  if (!apiKeys.length || !ambKey) {
+    err(`\`${AUDIO}\` 里取不到 \`API\` 表或 \`AMB_KEY\` —— 32-ac 的方法面要跟着改`); cBad++;
+  }
+
+  const recipe = onceIds.concat(ambId ? [ambId] : []);
+  const noRecipe = files.filter(f => recipe.indexOf(f) < 0);
+  if (noRecipe.length) {
+    err(`${ADIR} 里有 ${noRecipe.length} 个 mp3 在 \`${GA}\` 的配方里**找不到**：`
+      + `${noRecipe.slice(0, 8).join('、')} —— 它就是「素材能复现、**配方不能复现**」那条坑：`
+      + '换台机器 / 一年后想重出，没人知道当初写的什么。⇒ 把参数补进 `ONESHOT`（或 `AMBIENCE`）'); cBad++;
+  }
+  const noFile = recipe.filter(r => files.indexOf(r) < 0);
+  if (noFile.length) {
+    err(`\`${GA}\` 的配方里有 ${noFile.length} 条**盘上没有**对应 mp3：${noFile.slice(0, 8).join('、')}`
+      + ` —— 配方指向一个不存在的产物（跑过 \`--all\` 却没落盘 / 素材被删了）`); cBad++;
+  }
+  const unheard = recipe.filter(r => r !== ambId && apiKeys.indexOf(r) < 0);
+  if (unheard.length) {
+    err(`\`${GA}\` 的配方里这些 id **没有任何 \`G.Audio\` 方法会问它**：${unheard.slice(0, 8).join('、')}`
+      + ' —— 那条音效永远播不出来（同 32-k 的「死素材」，只是这一头在配方侧）'); cBad++;
+  }
+  if (ambId && ambKey && ambId !== ambKey) {
+    err(`环境音的键名**跨语言两份真相**：\`${GA}\` 的 \`AMBIENCE['id']\` 是 \`${ambId}\`，`
+      + `而 \`${AUDIO}\` 的 \`AMB_KEY\` 是 \`${ambKey}\` —— 改一边忘另一边，环境音会**静默回退合成**`
+      + '（听感变了却谁都不报错）'); cBad++;
+  }
+  const odLine = (py.match(/^OUT_DIR[\s\S]*?$/m) || [''])[0];
+  if (!dirOk(odLine)) {
+    err(`\`${GA}\` 的 \`OUT_DIR\` 没指向 \`assets/audio\`（实得：${odLine.trim() || '（没有这一行）'}）`
+      + ' —— 工具会往别处写，而游戏从 `assets/audio/` 读（漂开就是「素材怎么都不生效」）'); cBad++;
+  }
+  if (!cBad) {
+    ok(`音频「来源可复现」对得上：配方 ${onceIds.length} 条一次性音效 + 环境音 \`${ambId}\``
+      + ` ↔ 磁盘 ${files.length} 个 mp3 ↔ \`${AUDIO}\` 的 ${apiKeys.length} 个方法（三向双向、0 处悬空）`);
+  }
+})();
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

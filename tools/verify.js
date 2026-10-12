@@ -2011,6 +2011,65 @@ docPages.forEach(rel => {
 });
 if (docPages.length === 0) { err('没有扫到任何文档页/工具页（路径写错了？）'); docBad++; }
 
+/* [26-d] 页面引用的**非脚本**静态资源（样式表 / 图片 / 音频 / JSON）也必须有网（第 60 轮）----
+   `[26]` 只管 `<script src>`；同一条「引用必须存在」的纪律对**其余资源**此前是空白：
+   改过 `assets/css/style.css` 的位置、或删掉一张被页面引用的图 / 一个 JSON，
+   页面会**静默地**没样式 / 缺图 / 读不到表 —— 不报错，只是「看起来坏了」。
+   这是一次只读审计顺出来的面（实测：`index.html` + 5 个 `docs/*.html` 共 17 处引用、0 处缺失
+   ⇒ 本轮是**负结果**，但网补上，别等它真漂了才发现）。
+
+   判据：
+     (a) 页面里以 `src=` / `href=` 引用的、扩展名属于 `{css,png,jpg,jpeg,gif,mp3,m4a,ogg,json}`
+         的**本地**路径（跳过 `http(s):` 与 `data:`）必须在盘上；
+     (b) 抓不到就报错（引用数 < 8 ⇒ 判据的扫描面坏了，不是「页面突然都不引资源了」）；
+     (c) 判据自检（合成样本：存在的要绿、缺的要红）。 */
+console.log('\n[26-d] 页面引用的非脚本静态资源（样式表 / 图片 / 音频 / JSON）必须存在');
+(function () {
+  let aBad = 0;
+  const ASSET_RE = /(?:src|href)\s*=\s*["']([^"']+\.(?:css|png|jpe?g|gif|mp3|m4a|ogg|json))["']/gi;
+  const refsOf = (raw) => {
+    const out = [];
+    let m;
+    ASSET_RE.lastIndex = 0;
+    while ((m = ASSET_RE.exec(raw))) {
+      const u = m[1];
+      if (/^(?:https?:|data:|\/\/)/i.test(u)) continue;
+      out.push(u.split('#')[0].split('?')[0]);
+    }
+    return out;
+  };
+  /* 自检：合成样本 */
+  const S_REF = '<link href="assets/css/style.css"><img src="docs/images/x.png">'
+    + '<script src="https://x/y.js"></script><a href="data:image/png;base64,AA">z</a>';
+  if (refsOf(S_REF).join(',') !== 'assets/css/style.css,docs/images/x.png') {
+    err('26-d 的判据自检不成立（引用抽取：本地要留、`http(s):` 与 `data:` 要跳过）');
+    aBad++;
+  }
+  const pageRels = ['index.html'].concat(docPages);
+  let refN = 0;
+  pageRels.forEach(rel => {
+    let raw = '';
+    try { raw = fs.readFileSync(path.join(ROOT, rel), 'utf8'); } catch (e) { return; }
+    const uniq = [];
+    refsOf(raw).forEach(u => { if (uniq.indexOf(u) < 0) uniq.push(u); });
+    const dir = path.dirname(path.join(ROOT, rel));
+    uniq.forEach(u => {
+      refN++;
+      if (!fs.existsSync(path.resolve(dir, u))) {
+        err(`\`${rel}\` 引用的资源不在盘上：${u} —— 页面会静默地没样式 / 缺图 / 读不到那个 JSON`);
+        aBad++;
+      }
+    });
+  });
+  if (refN < 8) {
+    err(`26-d 只认出 ${refN} 处静态资源引用（少于 8）—— 扫描面多半坏了（判据按扩展名现算）`);
+    aBad++;
+  }
+  if (!aBad) ok(`页面引用的 ${refN} 处静态资源（样式表 / 图片 / 音频 / JSON）全部在盘上` +
+    `（${pageRels.length} 个页面：index.html + ${docPages.length} 个文档页/工具页）`);
+})();
+
+
 /* ---------------- 27. 统计面板：理论时长不能和「已收满」打架 ----------------
    `estOwnHours` / `estUnlockHours` 是「从零收满要多久」的**理论值**，不随进度变化。
    原来两格直接把它当「预计收满」显示 —— 满图鉴的玩家会看到「当前钓场预计收满 2 小时」

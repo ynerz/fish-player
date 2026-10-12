@@ -7,6 +7,9 @@
    ========================================================= */
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
+/* 洗注释的**唯一一处实现**（Q94）：按扩展名分派 —— `.js` / `.py` / `.html` / `.css` 各走各的口径。
+   本文件此前自己抄了一份带 `://` 豁免的局部洗法（第二份真相）。 */
+const { wash } = require('./wash');
 
 /* ---------- 最小测试框架 ---------- */
 let pass = 0, fail = 0, group = '';
@@ -7312,20 +7315,21 @@ G_('配色表只许一处 · config 是唯一真相，说明书 / 面板必须�
   })('assets');
   files.push('docs/说明书.html');
   /* 🔴 只扫代码、不扫注释（硬规矩 ①）：否则「注释里提一句这个色值」就会误报 ——
-     反向验证里专有一组「注释写同样的词必须仍绿」。行注释要放过 `://`（说明书里有图片 URL）。 */
-  const stripCmt = t => t
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+     反向验证里专有一组「注释写同样的词必须仍绿」。
+     洗注释**走共用实现**（Q94，第 59 轮）：`tools/wash.js` 的 `wash(rel, raw)` 按扩展名分派
+     （`.js` → `stripComments()` · `.css` / `.html` → `stripMarkup()`）。
+     这一份原先自己抄了一份「放过 `://` 的 `//` 剥法」—— 与顶层那是**第二份口径**，
+     改一处忘一处不报错（行注释要放过 `://`：说明书里有图片 URL）。 */
   const hits = files.map(rel => ({
     rel: rel,
-    n: (stripCmt(fs.readFileSync(path.join(ROOT, rel), 'utf8')).match(new RegExp(MARK, 'g')) || []).length,
+    n: (wash(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8')).match(new RegExp(MARK, 'g')) || []).length,
   })).filter(x => x.n);
   ok(hits.length === 1 && hits[0].rel === 'src/data/config.js' && hits[0].n === 1,
      'SSS 档色（' + MARK + '）在 src/ + assets/ + 说明书里**恰好 1 次**（就是 config.js 那张表）',
      hits.map(h => h.rel + '×' + h.n).join(' / ') || '一次都没出现（表被搬走了？）');
 
   /* ③ 两个手写消费方必须真的派生（抓不到就报错，别让「没人读」静默通过） */
-  const man = stripCmt(fs.readFileSync(path.join(ROOT, 'docs/说明书.html'), 'utf8'));
+  const man = wash('docs/说明书.html', fs.readFileSync(path.join(ROOT, 'docs/说明书.html'), 'utf8'));
   ok(man.indexOf('CFG.rankColor') >= 0,
      '说明书读的是 CFG.rankColor（不是自己那份表）—— 抓不到就是又抄回去了');
   const manOther = OTHERS.filter(h => man.indexOf(h) >= 0);
@@ -7339,13 +7343,13 @@ G_('配色表只许一处 · config 是唯一真相，说明书 / 面板必须�
   ok(/var\s+RAR_COLOR\s*=\s*CFG\.rarity\./.test(rarDef),
      '说明书的稀有度四色是从 CFG.rarity 现算的（原先手抄一份，与图例那段分家）',
      rarDef || '找不到 RAR_COLOR 定义 ⇒ 判据会恒真');
-  const pnl = stripCmt(fs.readFileSync(path.join(ROOT, 'src/ui/panels.js'), 'utf8'));
+  const pnl = wash('src/ui/panels.js', fs.readFileSync(path.join(ROOT, 'src/ui/panels.js'), 'utf8'));
   ok(pnl.indexOf('CFG.rankColor') >= 0, '面板 rankColor() 从 CFG.rankColor 取色');
   ok(pnl.indexOf(MARK) < 0, '面板里不再留着那份 7 色内联表（SSS 档色已消失）');
   /* ④ 收集耗时表的生成器同理（它此前有 **3 处**内联表 —— 本项目拷贝最多的一处）。
      ⚠️ 它的**生成物** `docs/收集耗时表.html` 不在扫描面内：那里面是**渲染结果**，
         靠重跑生成器同步（实测：改完重跑，`git diff` 为空 = 逐字节等价）。 */
-  const gct = stripCmt(fs.readFileSync(path.join(ROOT, 'tools/gen-collect-time.js'), 'utf8'));
+  const gct = wash('tools/gen-collect-time.js', fs.readFileSync(path.join(ROOT, 'tools/gen-collect-time.js'), 'utf8'));
   ok(gct.indexOf('CFG.rankColor') >= 0, '收集耗时表的生成器读 CFG.rankColor（抓不到 = 又抄回去了）');
   const gctOther = OTHERS.filter(h => gct.indexOf(h) >= 0);
   ok(gctOther.length === 0,

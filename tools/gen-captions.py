@@ -41,7 +41,7 @@
   python tools/gen-captions.py --list A01,S60     # 只看几条
   python tools/gen-captions.py --audit            # 只跑重复率审计
 """
-import argparse, collections, hashlib, os, re
+import argparse, collections, hashlib, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAR_CN = {0: "普通", 1: "稀有", 2: "史诗", 3: "传说"}
@@ -516,7 +516,8 @@ def main():
     ap.add_argument("--list", default="")
     ap.add_argument("--audit", action="store_true")
     ap.add_argument("--dry", action="store_true",
-                    help="只算不写：报「与盘上的 docs/图鉴文案.md 差多少行」，一个字节都不写")
+                    help="只算不写：报「与盘上的 docs/图鉴文案.md 差多少行」，一个字节都不写；"
+                         "**有差异时退出码 1**（0 = 盘上那份是最新的）")
     args = ap.parse_args()
 
     import importlib.util
@@ -579,6 +580,11 @@ def main():
         # 🔴 `--dry`：这个脚本会**整份重写** docs/图鉴文案.md，在此之前想看一眼结果
         #    就只能真写一次（写完才发现不对，得自己回滚）。干跑报逐行差异 + 还原命令，
         #    一个字节都不写。
+        # 🔴 2026-10-13（第 61 轮，Q101）：**有差异时必须退 1**。此前这里是无参 `return`
+        #    （恒退 0）⇒ 这个「干跑开关」**当不了门禁用**：常跑门禁真跑它、看到 0，
+        #    就以为「盘上那份是最新的」，而它其实可能已经过期 —— 一个**天生的假绿**。
+        #    口径与同族对齐：`balance.js --check` / `review-cards.py --check` /
+        #    `gen-collect-time.js --check` 都是「一致 0 / 不一致 1」。
         import difflib
         old = open(out, encoding="utf-8").read().split("\n") if os.path.exists(out) else []
         new = "\n".join(L).split("\n")
@@ -587,11 +593,15 @@ def main():
         rem = sum(1 for x in d if x.startswith("-") and not x.startswith("---"))
         print("[dry] 盘上 %d 行 / 这次会写成 %d 行 ⇒ 新增 %d 行、删除 %d 行（**一个字节都没写**）"
               % (len(old), len(new), add, rem))
-        print("      真跑之后要还原：git checkout -- docs/图鉴文案.md")
-        return
+        if add or rem:
+            print("      盘上那份**已过期** —— 跑 `python tools/gen-captions.py` 写回"
+                  "（还原：git checkout -- docs/图鉴文案.md）")
+            return 1
+        print("✔ docs/图鉴文案.md 与实跑结论一致（%d 行）" % len(new))
+        return 0
     open(out, "w", encoding="utf-8").write("\n".join(L))
     print("已写出：%s（还原：git checkout -- docs/图鉴文案.md）" % out)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

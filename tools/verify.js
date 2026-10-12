@@ -1247,7 +1247,55 @@ console.log('\n[14-c] 文档类生成物：写盘的工具必须有「只比对�
     const m = /add_argument\(\s*['"]--out['"]([^\n]*)/.exec(code);
     return !!m && /\bdocs\b/.test(m[1]);
   };
-  const pyHasDry = (code) => /add_argument\(\s*['"]--(?:check|dry)['"]/.test(code);
+  /* 🔴 2026-10-13（第 61 轮，Q101）—— (b) 补第二种形态：**用常量写 `docs/`**。
+     原来只认 `--out` 的默认值，于是「把产物路径写成模块常量」的工具全在网外（实测：
+     `gen-captions.py` 写 `docs/图鉴文案.md`、`refresh-captions.py` 写
+     `docs/图鉴文案-手写.md`、`gen-art.py` 写三份清单 ⇒ 三者的干跑开关有没有消费方**没人管**）。
+     两个收窄条件，都是**实测**出来的（写宽了就是假报）：
+       · 只认**文档类后缀** `.md` / `.html` / `.js` —— 落在 `docs/images/…` 下的**图片 / 目录**
+         是探索产物（`prompt-ab.py` 的 `docs/images/prompt-ab/`），给它们要干跑是误伤；
+       · 那个名字必须**真的被写调用用过**（open / io.open / .save / .write）——
+         只看名字出现过不够：`facet-count.py` 的 `REF`、`measure-silhouette.py` 的
+         `--ref-dir` 都指向 `docs/images/…` 但都是**读**。 */
+  const PYDOC_CONST = /^[ \t]*([A-Za-z_]\w*)\s*=\s*os\.path\.join\(\s*ROOT\s*,\s*['"]docs['"]\s*,\s*['"]([^'"]+)['"]/gm;
+  const pyDocsConst = (code) => {
+    const out = [];
+    let m;
+    PYDOC_CONST.lastIndex = 0;
+    while ((m = PYDOC_CONST.exec(code))) {
+      if (!/\.(?:md|html|js)$/i.test(m[2])) continue;
+      const name = m[1];
+      /* 认「写」不认「读」：`open(NAME, 'w'…)` / `.save(NAME` / `.write(NAME`。
+         ⚠️ 第二版才写对 —— 第一版只认 `open(NAME`，于是 `io.open(DOC2, encoding='utf-8').read()`
+         这种**读**也被当成写盘（自检里的负控当场逮到）。 */
+      const use = new RegExp('(?:(?:io\\s*\\.\\s*)?open\\s*\\(\\s*' + name + '\\s*,\\s*[\'"][wa]'
+        + '|\\.\\s*save\\s*\\(\\s*' + name + '\\b'
+        + '|\\.\\s*write\\s*\\(\\s*' + name + '\\b)');
+      if (use.test(code)) out.push(name + '=' + m[2]);
+    }
+    return out;
+  };
+  const pyWritesDocs = (code) => pyOutDocs(code) || pyDocsConst(code).length > 0;
+  const pyHasDry = (code) => /add_argument\(\s*['"](?:--check|--dry)['"]/.test(code);
+  /* 干跑开关声明的**是哪一个**（`(c)` 要拿它去宿主里找真跑点） */
+  const pyDryFlag = (code) => {
+    const m = /add_argument\(\s*['"](--(?:check|dry))['"]/.exec(code);
+    return m ? m[1] : null;
+  };
+  /* 🔴 干跑开关必须**能用退出码判新鲜度**（一致 0 / 过期非 0）—— 由头：第 61 轮 Q101 实测
+     `gen-captions.py --dry` 原先是无参 `return`（**恒退 0**）⇒ 常跑门禁真跑它、看到 0
+     就以为「盘上那份是最新的」，而它其实可能已经过期 —— 一个**天生的假绿**。 */
+  const pyDryExits = (code) => /sys\s*\.\s*exit\s*\(\s*[1-9]/.test(code)
+    || /SystemExit\s*\(\s*[1-9]/.test(code)
+    || /\breturn\s+[1-9]\b/.test(code);
+  /* 豁免：**文件级** + 理由 + **还账条件**，且豁免条目必须**仍然命中**（不许豁免活过它要遮的
+     问题 —— 同 ㊽ 的规矩）。目前只有一条，原因是环境（生图批次在跑 = 那个文件是禁区）。 */
+  const PY_EXEMPT = {
+    'gen-art.py': '生图管线主文件：批次在跑时它是**禁区**（改它会把在跑的那一批搞崩，'
+      + '第 52~61 轮一直按 `优化队列.md §4` 绕开）⇒ 本轮只登记不修。'
+      + '还账条件 = 生图批次停之后，给 `--plan` / `--forms` / `--prompts` 补一个 `--check`'
+      + '（比对那三份 `docs/` 清单），再删掉这条豁免。',
+  };
 
   /* ⚠️ 样本里的写盘调用**拼接造**：直接写出来，14-b 的「会写盘却没声明写回目标」扫描会把
      verify.js 自己当成一个写盘工具（㊳ 的老坑，这次又是自己喂饱自己）。 */
@@ -1261,14 +1309,29 @@ console.log('\n[14-c] 文档类生成物：写盘的工具必须有「只比对�
   const S_PY_OK = 'ap.add_argument("--out", default=os.path.join(ROOT, "docs", "x.html"))\n'
     + 'ap.add_argument("--check", action="store_true", help="只比对：一个字节都不写")';
   const S_PY_NOCHECK = 'ap.add_argument("--out", default=os.path.join(ROOT, "docs", "x.html"))';
+  /* 形态②（常量名 + 写调用）的正 / 负控 —— 负控两条各挡一种**假报**：
+     只读的 `.md` 常量（`REF` 那种）不该被要求干跑；落在 `docs/images/` 下的**目录**同样不该。 */
+  const S_PY_CONST_OK = 'OUT = os.path.join(ROOT, "docs", "x.md")\n'
+    + 'io.open(OUT, "w", encoding="utf-8").write(t)';
+  const S_PY_CONST_READ = 'DOC2 = os.path.join(ROOT, "docs", "标准.md")\n'
+    + 'io.open(DOC2, encoding="utf-8").read()';
+  const S_PY_CONST_DIR = 'OUT = os.path.join(ROOT, "docs", "images", "prompt-ab")\n'
+    + 'sheet.save(os.path.join(OUT, "a.png"))';
   if (!(jsWritesDocs(S_JS_OK) && jsHasCheck(S_JS_OK) && jsNormNewline(S_JS_OK)
         && !jsWritesDocs(S_JS_SRCONLY)
         && jsWritesDocs(S_JS_NOCHECK) && !jsHasCheck(S_JS_NOCHECK)
         && jsWritesDocs(S_JS_NONORM) && jsHasCheck(S_JS_NONORM) && !jsNormNewline(S_JS_NONORM)
         && pyOutDocs(S_PY_OK) && pyHasDry(S_PY_OK)
-        && pyOutDocs(S_PY_NOCHECK) && !pyHasDry(S_PY_NOCHECK))) {
+        && pyOutDocs(S_PY_NOCHECK) && !pyHasDry(S_PY_NOCHECK)
+        && pyWritesDocs(S_PY_CONST_OK) && pyDocsConst(S_PY_CONST_OK).length === 1
+        && !pyWritesDocs(S_PY_CONST_READ)
+        && !pyWritesDocs(S_PY_CONST_DIR)
+        && pyDryFlag(S_PY_OK) === '--check'
+        && pyDryExits('def main():\n    if a:\n        return 1\n    return 0')
+        && !pyDryExits('def main():\n    if a:\n        return\n'))) {
     err('14-c 的判据自检不成立（js：写 docs / 缺 --check / 缺换行归一化 / 只写 src；'
-      + 'py：有 --out→docs / 缺干跑开关 —— 没能各自认对）');
+      + 'py：有 --out→docs / 缺干跑开关 / 形态②常量名 / 只读的 .md 与 docs 子目录不许被认成生成物'
+      + ' / 干跑开关的退出码 —— 没能各自认对）');
     gcBad++;
   }
 
@@ -1306,63 +1369,89 @@ console.log('\n[14-c] 文档类生成物：写盘的工具必须有「只比对�
   try { allPy = fs.readdirSync(path.join(ROOT, 'tools')).filter(f => /\.py$/.test(f)); }
   catch (e) { err('读不到 `tools/*.py` —— 14-c 的 py 扫描面作废'); gcBad++; }
   const pyDocs = [];
+  const pyExemptHit = [];
   allPy.forEach(f => {
     if (f === 'test-review-cards.py' || f === 'wash.py') return;   // 测试宿主 / 纯库模块
     const raw = readT('tools/' + f);
     if (raw === null) return;
-    if (!pyOutDocs(raw)) return;
+    const code = stripPy(raw);          // ⚠️ 判据跑在剥注释的代码面上（注释里写着 `--out` 会喂饱它）
+    if (!pyWritesDocs(code)) return;
+    if (PY_EXEMPT[f]) { pyExemptHit.push(f); return; }
     pyDocs.push(f);
-    if (!pyHasDry(raw)) {
-      err(`\`tools/${f}\` 的 \`--out\` 默认落在 \`docs/\` 下，却没有干跑开关（\`--check\` / \`--dry\`）——`
-        + ' 这是「生成物新鲜度」这一族唯一还缺的口子');
+    if (!pyHasDry(code)) {
+      err(`\`tools/${f}\` 会写 \`docs/\` 下的**文档类**产物（\`.md\`/\`.html\`/\`.js\`），`
+        + '却没有干跑开关（`--check` / `--dry`）——'
+        + ' 改过数据忘了重跑它，文档就与游戏分家，而**没有任何东西会报红**');
+      gcBad++;
+    } else if (!pyDryExits(code)) {
+      err(`\`tools/${f}\` 的干跑开关**不能用退出码判新鲜度**（全文找不到 sys.exit(1) / `
+        + 'return 1 / SystemExit(1) 这类非 0 退出）—— 恒退 0 的干跑开关当门禁用就是**天生的假绿**'
+        + '（实测：`gen-captions.py --dry` 原先是无参 `return`，常跑门禁看到 0 就以为盘上那份最新）');
       gcBad++;
     }
   });
-  if (pyDocs.length < 1) {
-    err('14-c(b) 只认出 0 个「`--out` 默认落在 docs/ 的 py 工具」—— 扫描面多半坏了（应为 review-cards.py）');
+  /* 豁免条目必须**仍然命中** —— 不许它活过它要遮的问题（同 ㊽ 的规矩）*/
+  Object.keys(PY_EXEMPT).forEach(f => {
+    if (pyExemptHit.indexOf(f) < 0) {
+      err(`14-c(b) 的豁免条目 \`${f}\` **已经不再写 docs/ 的文档类产物** ——`
+        + ' 这条豁免该删了（豁免不许活过它要遮的问题）');
+      gcBad++;
+    }
+  });
+  const PY_DOCS_MIN = 3;      // gen-captions.py / refresh-captions.py / review-cards.py
+  if (pyDocs.length < PY_DOCS_MIN) {
+    err(`14-c(b) 只认出 ${pyDocs.length} 个「写 docs/ 文档类产物的 py 工具」（少于 ${PY_DOCS_MIN}）`
+      + ' —— 扫描面多半坏了（判据按 `--out`→docs + 「常量名 + 真被写调用用过」两形态现算）');
     gcBad++;
   }
 
   /* ---- (c) 常跑门禁真跑过它（否则这个开关是零消费）----
      ⚠️ 两条纪律，缺一个都会**假绿**（第 60 轮反向验证两轮才写对）：
         ① 先剥注释 —— 不剥的话，「`review-cards.py --check`」这句**注释**就把判据喂饱了；
-        ② **工具名与开关名必须相邻**（同一行的一个调用里）—— 只要求「全文件各出现一次」
-           太宽：`test.js` 里 `wash('tools/gen-collect-time.js', …)` 这处无关的代码面出现
-           就足以让「把真跑注释掉」照样判绿（实测假绿过一次）。
-     ⚠️ 注意 `test.js` 的 js 侧形态是 `run('<工具>.js', ['--check'])`（工具名 + 数组），
-        宿主 py 侧是 `_rc_run("<工具>.py", "--check")`（两个相邻的字符串实参）。 */
-  const ADJ_JS = /gen-collect-time\.js['"]\s*,\s*\[[^\]]*['"]--check['"]/;
-  const ADJ_PY = /['"]review-cards\.py['"]\s*,\s*['"]--check['"]/;
-  if (!(ADJ_JS.test("run('gen-collect-time.js', ['--check']);")
-        && !ADJ_JS.test("wash('tools/gen-collect-time.js', fs.readFileSync(p));")
-        && ADJ_PY.test('_rc_run("review-cards.py", "--check")')
-        && !ADJ_PY.test('x = os.path.join(TOOLS, "review-cards.py")\n# --check'))) {
+        ② **工具名与开关名必须相邻**（同一行的一个调用里，中间只许夹着 `, [` 这类语法）——
+           只要求「全文件各出现一次」太宽：`test.js` 里 `wash('tools/gen-collect-time.js', …)`
+           这处无关的代码面出现，就足以让「把真跑注释掉」照样判绿（实测假绿过一次）。
+     ⚠️ 形态（各宿主固定）：js 侧 `run('<工具>.js', ['--check'])`（工具名 + 数组），
+        py 宿主 `_rc_run("<工具>.py", "--check")`（两个相邻的字符串实参）。
+     🔴 第 61 轮（Q101）：从「写死两对」改成**按 (a)/(b) 认出来的清单现算** ——
+        只要网里多一个生成物，它自动被要求出现在宿主里，不用回来改这一段（同一件事少写一份）。 */
+  const ADJ = (tool, flag) => new RegExp('["\']' + tool.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    + '["\'][^\\n]{0,40}?["\']' + flag + '["\']');
+  if (!(ADJ('gen-collect-time.js', '--check').test("run('gen-collect-time.js', ['--check']);")
+        && !ADJ('gen-collect-time.js', '--check').test("wash('tools/gen-collect-time.js', fs.readFileSync(p));")
+        && ADJ('review-cards.py', '--check').test('_rc_run("review-cards.py", "--check")')
+        && !ADJ('review-cards.py', '--check').test('x = os.path.join(TOOLS, "review-cards.py")\n# --check'))) {
     err('14-c(c) 的判据自检不成立（相邻形态的抽取：正控 / 负控没能各自认对）');
     gcBad++;
   }
+  /* js 宿主：每个写 docs/ 的 js 生成器的 `--check` 都必须在代码面里真跑过 */
   const tSrc = readT('tools/test.js');
-  if (tSrc !== null) {
-    const tc = stripComments(tSrc);
-    if (!ADJ_JS.test(tc)) {
-      err('`tools/test.js` 的**代码面**里没有真跑 `gen-collect-time.js --check`'
-        + '（`run(\'gen-collect-time.js\', [\'--check\'])`）—— 这个开关成了零消费'
+  const tCode = tSrc === null ? '' : stripComments(tSrc);
+  jsDocs.forEach(f => {
+    if (tSrc === null) return;
+    if (!ADJ(f, '--check').test(tCode)) {
+      err(`\`tools/test.js\` 的**代码面**里没有真跑 \`${f} --check\` —— 这个开关成了零消费`
         + '（接受参数、什么也不做；同族：§32-l / §32-m）');
       gcBad++;
     }
-  }
+  });
+  /* py 宿主：同上，开关名从各工具自己声明的那个取（`--check` 或 `--dry`）*/
   const trSrc = readT('tools/test-review-cards.py');
-  if (trSrc !== null) {
-    const trc = stripPy(trSrc);
-    if (!ADJ_PY.test(trc)) {
-      err('`tools/test-review-cards.py` 的**代码面**里没有真跑 `review-cards.py --check`'
-        + '（`_rc_run("review-cards.py", "--check")`）—— 同上');
+  const trCode = trSrc === null ? '' : stripPy(trSrc);
+  pyDocs.forEach(f => {
+    if (trSrc === null) return;
+    const flag = pyDryFlag(stripPy(readT('tools/' + f) || ''));
+    if (!flag) return;                       // 上一条已经报过「没有干跑开关」
+    if (!ADJ(f, flag).test(trCode)) {
+      err(`\`tools/test-review-cards.py\` 的**代码面**里没有真跑 \`${f} ${flag}\` —— 同上`);
       gcBad++;
     }
-  }
+  });
 
   if (!gcBad) {
     ok(`文档类生成物的干跑闸门齐了：js 侧 ${jsDocs.join(' / ')}（\`--check\` + 换行归一化）、`
-      + `py 侧 ${pyDocs.join(' / ')}（\`--out\`→docs 必有干跑开关）；两处常跑门禁都真跑过它`);
+      + `py 侧 ${pyDocs.join(' / ')}（干跑开关 + **退出码能判新鲜度**）；`
+      + `两处常跑门禁对网内每一个都真跑过；豁免 ${Object.keys(PY_EXEMPT).join(' / ') || '（无）'}（仍命中）`);
   }
 })();
 

@@ -1929,6 +1929,41 @@ def main():
         finally:
             shutil.rmtree(_sb31, ignore_errors=True)
 
+    print("\n[32] `docs/` 生成物的干跑闸门：`gen-captions.py --dry` / `refresh-captions.py --check` 真跑（Q101）")
+    # 🔴 由头（第 61 轮 Q101）：`verify [14-c](b)` 的扫描面此前只认「`--out` 默认落在 docs/」
+    #    ⇒ 用**常量**写 docs/ 的两个工具（`gen-captions.py` / `refresh-captions.py`）在网外，
+    #    它们的干跑开关**没有任何常跑门禁真跑过** —— 而 `gen-captions.py --dry` 当时
+    #    **恒退 0**（无参 `return`），就算跑也判不出过期（天生的假绿，已修）。
+    #    这一节把两者接进常跑门禁：**退出码 0 + 明说「一致」+ 一个字节都不写**。
+    #    ⚠️ 过期那一路（把盘上那份改坏 ⇒ 必须退 1）本轮已手工实跑验证过（rc 0→改坏→rc 1→还原）；
+    #       这里**不**在常跑门禁里改被追踪的文件 —— 一旦中途崩掉就会把仓库留成脏的。
+    def _run_py32(_name, *a):
+        return subprocess.run([sys.executable, os.path.join(TOOLS, _name)] + list(a),
+                              capture_output=True, text=True, errors="replace", cwd=ROOT)
+
+    def _md5_32(_p):
+        with io.open(_p, "rb") as _fh:
+            return hashlib.md5(_fh.read()).hexdigest()
+
+    _docs32 = [
+        ("gen-captions.py", "--dry", os.path.join(ROOT, "docs", "图鉴文案.md")),
+        ("refresh-captions.py", "--check", os.path.join(ROOT, "docs", "图鉴文案-手写.md")),
+    ]
+    for _name, _flag, _doc in _docs32:
+        if not os.path.exists(_doc):
+            check(False, "`%s` 的产物 `%s` 不在盘上 —— 这一节抓不到要判的东西"
+                  % (_name, os.path.relpath(_doc, ROOT)))
+            continue
+        _m0 = _md5_32(_doc)
+        _r = _run_py32(_name, _flag)
+        _txt = (_r.stdout or "") + (_r.stderr or "")
+        check(_r.returncode == 0 and "一致" in _txt,
+              "`%s %s` 退出 0 且报告「一致」（实得 rc=%d）—— 它就是 `docs/` 生成物的新鲜度闸门"
+              % (_name, _flag, _r.returncode))
+        check(_md5_32(_doc) == _m0,
+              "`%s %s` 一个字节都不写（`%s` 逐字节未变）"
+              % (_name, _flag, os.path.basename(_doc)))
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

@@ -55,6 +55,10 @@ TOOLS = os.path.join(ROOT, "tools")
 CARDS = os.path.join(ROOT, "assets", "cards")
 OUT_DIR = os.path.join(ROOT, "_tmp")
 
+sys.path.insert(0, TOOLS)
+import pydeps                            # noqa: E402  —— 缺依赖的唯一出口（第 63 轮）
+pydeps.need_pil("contact-sheet.py")      # 抢在 `from PIL import` 前面：缺 PIL 给一行话，不抛 traceback
+
 from PIL import Image, ImageDraw, ImageFont
 
 # ── 调色板：与 `docs/卡片评审.html` **逐值同一套**（verify 第 ㊷ 节比对，改一边就报红）──

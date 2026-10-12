@@ -32,10 +32,10 @@ import argparse
 import os, sys
 from collections import deque
 
-try:
-    from PIL import Image
-except ImportError:
-    sys.exit("需要 PIL：请用系统 conda 解释器 C:/Users/15001/miniconda3/python.exe")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import pydeps                          # noqa: E402  —— 缺依赖的唯一出口（第 63 轮）
+pydeps.need_pil("facet-count.py")      # 抢在 `from PIL import` 前面：缺 PIL 给一行话，不抛 traceback
+from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REF = os.path.join(ROOT, "docs", "images", "标准", "fish_normal.jpg")

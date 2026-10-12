@@ -13315,6 +13315,77 @@ console.log('\n[32-aa] `tools/*.py` 里的 `assert` 不当「用户可见的校�
   }
 })();
 
+console.log('\n[32-ab] 需要 PIL 的 `tools/*.py` 必须有**干净出口**（缺依赖 = 一行话，不是 traceback；第 63 轮 · Q108）');
+(function () {
+  /* 【由头】同一次审计的另一半（同族：工具的**运行时失败形态**）。
+     `tools/` 有 9 个脚本要 PIL（Pillow），而本机两个解释器分工不同：managed 只有标准库、
+     conda 才装了 Pillow。实测（用 managed python 跑，2026-10-13）：
+       · **6 个直接 `from PIL import …`** ⇒ `python tools/check-cards.py --help` 打的是
+         **八行 `ModuleNotFoundError` traceback**（`check-cards` / `contact-sheet` /
+         `measure-shine` / `prep-cards` / `prompt-ab` / `test-review-cards`）；
+       · 有守卫的 3 个还**两种措辞**，而且 conda 路径**三处各写一遍**
+         （`facet-count.py` 写进文案 / `paint-card.py` 的 `PY` / `prompt-ab.py` 的 `CONDA`）
+         —— 「同一个事实写 N 遍」那条纪律的具体一例。
+     ⇒ 收成一处：`tools/pydeps.py: need_pil()`（文案一句、路径一处、退出码一致），
+        `pydeps.CONDA_PY` 是路径的**唯一一处**声明。
+     判据：出现 `from PIL import` 的 `tools/*.py` 必须**要么**调过 `need_pil(`，
+     **要么**自己 `except ImportError`（**可选依赖**那种 —— 那种情况必须**明说跳过哪一段**，
+     例：`measure-palette-facets.py` 的「跳过 ②」；见队列 §4「要么报错要么明说」）。
+     ⚠️ 跑在剥过注释的源码上（注释里提到 `from PIL import` 不算 —— 反向验证 D3 组钉住）。
+     ⚠️ 不判「`need_pil()` 调在 `from PIL import` 之前还是之后」：那是**行为面**
+        （真跑一次看输出），源码判据判不了；行为证据 = `test-review-cards.py` 的 `[28]`
+        （conda 下 `-h` 退 0）+ 本轮手工双解释器实跑。 */
+  const dir = path.join(ROOT, 'tools');
+  let files = [];
+  try { files = fs.readdirSync(dir).filter(f => f.endsWith('.py')); }
+  catch (e) { err('32-ab 读不到 `tools/`（先修判据本身）'); return; }
+  const NEEDLE_PIL = 'from PIL' + ' import';
+  const NEEDLE_EXC = 'except ' + 'ImportError';
+  const NEEDLE_NEED = 'need_' + 'pil(';
+  const MIN_FILES = 25, MIN_PIL_FILES = 8;
+  /* 判据自检：三个原语各认对一次（好样本认得出、坏样本也认得出） */
+  const selfOk = has(NEEDLE_PIL + ' Image', NEEDLE_PIL)
+    && has(NEEDLE_EXC + ':', NEEDLE_EXC)
+    && has('pydeps.' + NEEDLE_NEED + '"x.py")', NEEDLE_NEED);
+  if (!selfOk) {
+    err('32-ab 的判据自检不成立（认不出 `' + NEEDLE_PIL + '` / `' + NEEDLE_EXC + '` / `'
+      + NEEDLE_NEED + '`）—— 这条判据会静默失效，先修判据本身');
+    return;
+  }
+  let pBad = 0, scanned = 0;
+  const pilFiles = [], pilBare = [];
+  files.forEach(f => {
+    let code;
+    try { code = stripPy(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (e) { return; }
+    scanned++;
+    if (has(code, NEEDLE_PIL)) {
+      pilFiles.push('tools/' + f);
+      if (!has(code, NEEDLE_NEED) && !has(code, NEEDLE_EXC)) pilBare.push('tools/' + f);
+    }
+  });
+  if (scanned < MIN_FILES) {
+    err(`32-ab 只扫到 ${scanned} 个 \`tools/*.py\`（少于 ${MIN_FILES}）—— 扫描面多半坏了，`
+      + '不许让这条判据静默退化成恒真的空断言'); pBad++;
+  }
+  if (pilFiles.length < MIN_PIL_FILES) {
+    err(`32-ab 只认出 ${pilFiles.length} 个需要 PIL 的工具（少于 ${MIN_PIL_FILES}）—— `
+      + '`' + NEEDLE_PIL + '` 的认法要跟着改，否则这条判据会静默失效'); pBad++;
+  }
+  if (pilBare.length) {
+    err(`${pilBare.length} 个 \`tools/*.py\` 裸 \`${NEEDLE_PIL}\`（既没有 \`${NEEDLE_NEED}\`、`
+      + `也没有 \`${NEEDLE_EXC}\`）—— 换个解释器跑就是 \`ModuleNotFoundError\` traceback，`
+      + '人得自己猜该换哪个：\n       ' + pilBare.join('\n       ')
+      + `\n       ⇒ 在 \`from PIL import\` **之前**加 \`pydeps.${NEEDLE_NEED}"<本文件名>")\``
+      + '（唯一出口在 `tools/pydeps.py`，路径也在那一处）；'
+      + '可选依赖那种请自己 `except` 并**明说跳过哪一段**'); pBad++;
+  }
+  if (!pBad) {
+    ok(`${pilFiles.length} 个需要 PIL 的 \`tools/*.py\` 全都有干净出口`
+      + `（\`${NEEDLE_NEED}\` 或 \`${NEEDLE_EXC}\`）—— 缺依赖时给的是一行话，不是 traceback`
+      + '（文案与 conda 路径的唯一实现在 `tools/pydeps.py`）');
+  }
+})();
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

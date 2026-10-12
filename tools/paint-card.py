@@ -28,15 +28,16 @@ import argparse, hashlib, json, os, random, subprocess, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CARDS = os.path.join(ROOT, "assets", "cards")
-# ⚠️ 用 conda 的解释器（有 PIL）；managed 的 3.13.12 没装 Pillow
-PY = r"C:/Users/15001/miniconda3/python.exe"
+# ⚠️ 用 conda 的解释器（有 PIL）；managed 的 3.13.12 没装 Pillow。
+#    路径的**唯一一处**声明在 `tools/pydeps.py`（原先这里、`prompt-ab.py` 的 `CONDA`、
+#    `facet-count.py` 的报错文案各写一遍 —— 同一事实三处 = 高危，第 63 轮收口）。
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import pydeps                          # noqa: E402
+PY = pydeps.CONDA_PY
 NODE = "node"
 
-try:
-    from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
-except ImportError:
-    print("需要 Pillow —— 请用系统 conda 的 python 运行：%s" % PY)
-    sys.exit(1)
+pydeps.need_pil("paint-card.py")       # 抢在 `from PIL import` 前面：缺 PIL 给一行话，不抛 traceback
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 
 # —— 抠图参数 ——
 # 母版背景是纯黑/近黑（gen-art.py 的 STYLE 要求的），主体带边缘光、明显更亮。

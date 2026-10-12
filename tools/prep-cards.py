@@ -55,6 +55,10 @@ import json
 import os
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import pydeps                          # noqa: E402  —— 缺依赖的唯一出口（第 63 轮）
+pydeps.need_pil("prep-cards.py")       # 抢在 `from PIL import` 前面：缺 PIL 给一行话，不抛 traceback
+
 from PIL import Image, ImageChops, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))

@@ -30,7 +30,11 @@ import argparse, importlib.util, os, subprocess, sys, urllib.request
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 OUT = os.path.join(ROOT, "docs", "images", "prompt-ab")
-CONDA = r"C:/Users/15001/miniconda3/python.exe"
+sys.path.insert(0, HERE)
+import pydeps                          # noqa: E402  —— 缺依赖的唯一出口（第 63 轮）
+# ⚠️ 路径的**唯一一处**声明在 `tools/pydeps.py`（第 63 轮收口：原先这里、
+#    `paint-card.py` 的 `PY`、`facet-count.py` 的报错文案各写了一遍）。
+CONDA = pydeps.CONDA_PY
 
 
 # 复用 gen-art.py 的**同一份**常量与函数 —— 对拍的意义就在「其余逐字相同」，
@@ -84,6 +88,7 @@ def run_t2i(prompt, dst, steps):
 
 def _fonts():
     """加载中文字体（对照表 / 矩阵都要）。没有就用 PIL 的默认位图字体兜底。"""
+    pydeps.need_pil("prompt-ab.py（拼对照表）")   # ① 延迟到**真的要用**才验：出图那半用 managed python 照跑
     from PIL import ImageFont
     for cand in ("C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/msyhbd.ttc",
                  "C:/Windows/Fonts/simhei.ttf"):
@@ -98,6 +103,7 @@ def _fonts():
 
 def make_sheet(fid, tier, name, entries, use_candidates):
     """拼一张对照表：左上「原色」，其余是各套句子。需要 PIL。"""
+    pydeps.need_pil("prompt-ab.py（拼对照表）")   # ① 同上：延迟到真的要用
     from PIL import Image, ImageDraw
 
     cells = [("原色", os.path.join(OUT, "%s-master.png" % fid))]

@@ -1481,6 +1481,32 @@ console.log('\n[14-c] 文档类生成物：写盘的工具必须有「只比对�
       gcBad++;
     }
   }
+  /* 🔴 第 62 轮：`--check` 单用**不许**把 `docs/生图清单.md` 算进默认集合。
+     它是**状态快照**（勾选按磁盘图片现算、单条耗时按 `manifest` 实测中位现算）⇒ 出图批次一跑它就变，
+     进了默认集合就等于「常跑门禁每出一批图红一次（**假红**）」。
+     判法：`main()` 里那次 `write_plan(…, check=True)` 必须**只**挂在 `if args.plan:` 下 ——
+     有人把它挪进「默认集合」那一支（`if args.forms or not only_one:`）时这里报红。
+     ⚠️ 两个负控都是实测形态：① 条件写成 `if args.plan or not only_one:`；② 调用整段挪到默认支。 */
+  {
+    const planGated = (c) => /\bif\s+args\.plan:\r?\n(?:[^\n]*\r?\n){0,2}[^\n]*write_plan\([^)]*check=True\)/;
+    const PLAN_OK = '        if args.plan:\n            rc |= write_plan(fish, check=True)\n';
+    const PLAN_BAD1 = '        if args.plan or not only_one:\n'
+      + '            rc |= write_plan(fish, check=True)\n';
+    const PLAN_BAD2 = '        if args.forms or not only_one:\n'
+      + '            rc |= write_plan(fish, check=True)\n';
+    if (!(planGated(PLAN_OK).test(PLAN_OK) && !planGated(PLAN_BAD1).test(PLAN_BAD1)
+          && !planGated(PLAN_BAD2).test(PLAN_BAD2))) {
+      err('14-c 的判据自检不成立（「`--check` 默认集合不含生图清单」那条：正控 / 两个负控'
+        + '没能各自认对）—— 这条网会假绿');
+      gcBad++;
+    } else if (!planGated(stripPy(readT('tools/gen-art.py') || '')).test(
+      stripPy(readT('tools/gen-art.py') || ''))) {
+      err('14-c：`gen-art.py` 的 `docs/生图清单.md` 干跑没有挂在 `if args.plan:` 下 ——'
+        + ' 它是**状态快照**，一旦进了 `--check` 的默认集合，常跑门禁就会**每出一批图红一次**'
+        + '（假红的下场就是被人把网关掉）');
+      gcBad++;
+    }
+  }
   const PY_DOCS_MIN = 4;      // gen-captions.py / refresh-captions.py / review-cards.py / gen-art.py
   if (pyDocs.length < PY_DOCS_MIN) {
     err(`14-c(b) 只认出 ${pyDocs.length} 个「写 docs/ 文档类产物的 py 工具」（少于 ${PY_DOCS_MIN}）`

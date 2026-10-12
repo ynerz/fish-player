@@ -12157,6 +12157,131 @@ console.log('\n[32-x] `tools/*.py` 每个都必须有 `-h/--help` 出口（手�
   }
 })();
 
+console.log('\n[32-y] 工具在仓库里留的一次性产物：必须进 `.gitignore`，清理必须走 `finally`（Q92）');
+(function () {
+  /* 【由头】第 57 轮 C 类审计顺出来的小修（Q92）：`tools/check-fishdata-drift.py` 会把
+     **旧版 gen-art.py** 落到 `tools/_drift_old.py`（它靠 `__file__` 定位 ROOT，所以**必须**
+     落在 `tools/` 里，不能放 `_tmp/`），而那个名字**没进 `.gitignore`**、清理又只写在
+     **最后一行** `os.remove()` ⇒ 中途抛异常（`git show` 的 assert / node 起不来 / import
+     旧版模块失败）就把它留在盘上：它长得像「有人手滑加进来的新工具」，而 `git status`
+     从此一直脏（本项目对「工作区脏」是有后果的：下一轮要先分诊脏源）。
+     「工具在仓库里留垃圾」这件事此前**一条网都没有**（第 55 轮那条「真跑判据必须先证明只读」
+     管的是判据自己，不管工具往仓库里写什么）。
+     判据：
+       ① 从 `tools/*.py` 源码**现算**「仓库内一次性产物」的路径（`_tmp/…` 与
+          `os.path.join("tools", "_x")` 两种写法；只认「下划线开头的一次性产物」），
+          逐个必须能被 `.gitignore` 匹配到；
+       ② 做这件事的工具里，清理必须写在 `try/finally` 的 `finally` 段 ——
+          裸放最后一行 = 异常路径不清理（就是这次的病根）；
+       ③ 抓不到就报错（扫到的 .py 数 / 路径数少于阈值 ⇒ 报红，不许退化成一条恒真的空断言）。
+     ⚠️ 旧口径是「真跑 `git check-ignore`」，但门禁起不了外部命令（第 39 节的 EBUSY）⇒
+        这里自带一个**极简 gitignore 匹配器**（只认本仓真用到的四种形态：目录 `dir/`、
+        `*.ext`、含 `/` 的精确路径、`!` 反选），并**先用合成样本证明它认对**。
+     ⚠️ 行为面（中途抛异常后盘上**不留**文件）在 `tools/test-review-cards.py` 的 [29] 节。 */
+  const NL = String.fromCharCode(10);
+  let gi = '';
+  try { gi = fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8'); }
+  catch (e) { err('32-y 读不到 `.gitignore`（先修判据本身）'); return; }
+
+  const rxOf = (pat) => {
+    let p = pat.replace(/^\//, '');
+    if (p.endsWith('/')) p += '**';
+    const body = p.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*\*/g, '\u0001').replace(/\*/g, '[^/]*').replace(/\u0001/g, '.*')
+      .replace(/\?/g, '[^/]');
+    return new RegExp('^' + body + '$');
+  };
+  const ignoredBy = (rel) => {
+    let on = false;
+    gi.split(NL).forEach(raw => {
+      const l = raw.trim();
+      if (!l || l[0] === '#') return;
+      const neg = l[0] === '!';
+      const pat = neg ? l.slice(1) : l;
+      const rx = rxOf(pat);
+      const bare = !pat.replace(/^\//, '').includes('/');
+      if (rx.test(rel) || (bare && rx.test(rel.split('/').pop()))) on = !neg;
+    });
+    return on;
+  };
+  /* 匹配器的合成样本自检：目录 pattern / `*.ext` / 精确路径 / 两个**反例**
+     （仓内真源码、以及被 `!` 例外保住的文件名不算被忽略）。 */
+  const selfOk = ignoredBy('_tmp/old-fish.js') && ignoredBy('tools/_drift_old.py')
+    && ignoredBy('assets/cards/A01.png') && ignoredBy('dist/index.html')
+    && !ignoredBy('src/data/fish.js') && !ignoredBy('assets/cards/manifest.json');
+  if (!selfOk) {
+    err('32-y 的判据自检不成立（`.gitignore` 匹配器认错样本：目录 pattern / `*.ext` / '
+      + '精确路径 / 两个反例各一）—— 带着坏匹配器跑 = 判据假绿');
+    return;
+  }
+  let yBad = 0;
+
+  const dir = path.join(ROOT, 'tools');
+  let files = [];
+  try { files = fs.readdirSync(dir).filter(f => f.endsWith('.py')); }
+  catch (e) { err('32-y 读不到 `tools/`（先修判据本身）'); return; }
+  const MIN_PY = 25, MIN_TMP = 1;
+
+  /* 「仓库内一次性产物」的两种写法（都是本仓真出现过的形态）：
+     ① 直接字符串 `"_tmp/old-fish.js"`；② `os.path.join("tools", "_drift_old.py")`。 */
+  const scanPaths = (code) => {
+    const out = new Set();
+    const A = /["']((?:tools|_tmp|docs|assets|src)\/[A-Za-z0-9._\/-]*)["']/g;
+    let m;
+    while ((m = A.exec(code))) if (/\/_|^_tmp\//.test(m[1])) out.add(m[1]);
+    const B = /os\.path\.join\(\s*["'](tools|_tmp|docs|assets|src)["']\s*,\s*["']([^"']+)["']/g;
+    while ((m = B.exec(code))) {
+      const rel = m[1] + '/' + m[2];
+      if (/\/_|^_tmp\//.test(rel)) out.add(rel);
+    }
+    return [...out];
+  };
+
+  const paths = [];
+  files.forEach(f => {
+    let code;
+    try { code = stripPy(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (e) { return; }
+    scanPaths(code).forEach(rel => paths.push({ file: 'tools/' + f, rel }));
+  });
+
+  if (files.length < MIN_PY) {
+    err(`32-y 只扫到 ${files.length} 个 \`tools/*.py\`（少于 ${MIN_PY}）—— 扫描面多半坏了`); yBad++;
+  }
+  if (paths.length < MIN_TMP) {
+    err(`32-y 一条「仓库内一次性产物」都没扫到（少于 ${MIN_TMP}）—— `
+      + '抽取规则要跟着改，否则这条判据退化成恒真的空断言'); yBad++;
+  }
+  const notIg = paths.filter(p => !ignoredBy(p.rel));
+  if (notIg.length) {
+    err(`${notIg.length} 个「仓库内一次性产物」**没进 `.gitignore`** —— `
+      + '工具中途抛异常 / 被强杀时它们会留在盘上，`git status` 从此一直脏：\n       '
+      + notIg.map(p => `${p.rel}（${p.file}）`).join('\n       ')
+      + '\n       ⇒ 在 `.gitignore` 补一行（另外清理也要走 `finally`）'); yBad++;
+  }
+  /* ② 清理必须走 `finally`（病根：裸放最后一行 ⇒ 异常路径不清理） */
+  const needCleanup = [...new Set(paths.map(p => p.file))];
+  const badClean = [];
+  needCleanup.forEach(rel => {
+    let code;
+    try { code = stripPy(fs.readFileSync(path.join(ROOT, rel), 'utf8')); } catch (e) { return; }
+    const body = bodyOf(code, 'def main(');
+    if (!body) { badClean.push(rel + '（切不出 `def main(` 的函数体 ⇒ 判据看不到清理）'); return; }
+    const iT = body.indexOf('try:'), iF = body.indexOf('finally:'), iR = body.indexOf('os.remove(');
+    if (iT < 0 || iF < 0 || iR < 0 || iF > iR) {
+      badClean.push(`${rel}（try=${iT >= 0} / finally=${iF >= 0} / os.remove=${iR >= 0}）`);
+    }
+  });
+  if (badClean.length) {
+    err(`32-y：${badClean.length} 个写一次性产物的工具**没有把清理放进 \`finally\`** —— `
+      + '中途抛异常（git 起不来 / import 失败 / 被 Ctrl-C）就把它留在仓库里：\n       '
+      + badClean.join('\n       ') + '\n       ⇒ 整段包进 `try/finally`，`finally` 里删'); yBad++;
+  }
+  if (!yBad) {
+    ok(`工具的 ${paths.length} 个「仓库内一次性产物」都进了 \`.gitignore\`（${needCleanup.length} 个工具），`
+      + '且清理都在 `finally` 段（异常路径也不留垃圾）');
+  }
+})();
+
 console.log('\n[32-w] 洗注释只有顶层两个入口：py 的 `stripPy()` / js 的 `stripComments()`（第 57 轮）');
 (function () {
   /* 【由头】第 55 轮（Q83）把 JS 侧的洗注释收成了顶层 `stripComments()`（14 处局部 `strip` 改指向它），

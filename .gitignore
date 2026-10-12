@@ -42,6 +42,12 @@ __pycache__/
 tools/.traits-cache/
 tools/_fishlist.json
 
+# 一次性中间产物：`tools/check-fishdata-drift.py` 把**旧版 gen-art.py** 落到这里
+# （它靠 `__file__` 定位 ROOT，所以必须落在 tools/ 里）。正常收尾会删掉，
+# 但进程被强杀 / 中途抛异常时就留在盘上 —— 那时它长得像「有人手滑加进来的工具」，
+# 而 `git status` 会一直脏 ⇒ 按 Q92 补进 ignore（脚本里另有 try/finally 的清理）。
+tools/_drift_old.py
+
 # A/B 探针图（一次性中间产物，可重跑出图；几十张 / 几十 MB，进库只会把仓库撑肿）
 # 例外：被文档引用的对拍留痕（verify §33-c 与开发者文档 §17.3 都点名了它），必须进库
 docs/images/card-ab/_*

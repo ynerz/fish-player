@@ -1634,6 +1634,58 @@ def main():
     check(_gf.returncode == 0 and "没有写盘" in _gf.stdout,
           "正控 `gen-fish.py --dry` 真跑且明说「没有写盘」")
 
+    print("\n[29] `check-fishdata-drift.py` 的临时产物：**异常路径**也不许留在仓库里（Q92）")
+    # 病根（Q92，2026-10-12 第 57 轮 C 类审计顺出来的小修）：它把旧版 `gen-art.py` 落到
+    #   `tools/_drift_old.py`（靠 `__file__` 定位 ROOT ⇒ 必须落在 tools/），而清理只写在
+    #   **最后一行** `os.remove()` ⇒ 中途抛异常（git 起不来 / import 旧版失败 / Ctrl-C）
+    #   就把它留在盘上：一个**未跟踪**文件，长得像「有人手滑加进来的工具」，`git status` 从此一直脏。
+    # 判法：① 真 spawn 正常跑一次，断言盘上不留；
+    #   ② **真调 `main()`** 并让第 3 次 `git_show()` 抛异常（那一刻文件已经写下、还没到收尾），
+    #      断言 `finally` 仍然把它清掉 —— 这一半才是 Q92 的正题（异常路径）。
+    _DRIFT = os.path.join(TOOLS, "_drift_old.py")
+    if os.path.exists(_DRIFT):
+        os.remove(_DRIFT)
+    _r29 = subprocess.run([sys.executable, os.path.join(TOOLS, "check-fishdata-drift.py"), "HEAD"],
+                          capture_output=True, text=True, errors="replace", cwd=ROOT)
+    check(_r29.returncode == 0 and not os.path.exists(_DRIFT),
+          "正常跑完 `check-fishdata-drift.py HEAD` ⇒ 退出 0 且盘上不留 `tools/_drift_old.py`")
+
+    _spec29 = importlib.util.spec_from_file_location(
+        "fishdata_drift", os.path.join(TOOLS, "check-fishdata-drift.py"))
+    _mod29 = importlib.util.module_from_spec(_spec29)
+    _argv29 = sys.argv
+    # ⚠️ 它在**模块顶层**就 `parse_args()` ⇒ 不换掉宿主的 argv 就会被宿主的参数（如 `--window`）打断
+    sys.argv = ["check-fishdata-drift.py", "HEAD"]
+    try:
+        _spec29.loader.exec_module(_mod29)
+    finally:
+        sys.argv = _argv29
+
+    _real29 = _mod29.git_show
+    _call29 = {"n": 0, "existed": None}
+
+    def _boom29(rel):
+        _call29["n"] += 1
+        if _call29["n"] >= 3:                    # 第 3 次 = tools/fish-traits.json（此时文件已写下）
+            _call29["existed"] = os.path.exists(_DRIFT)
+            raise RuntimeError("注入：第 3 次 git_show 失败")
+        return _real29(rel)
+
+    _mod29.git_show = _boom29
+    _raised29 = False
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            _mod29.main()
+    except RuntimeError:
+        _raised29 = True
+    finally:
+        _mod29.git_show = _real29
+    check(_raised29, "注入的异常真的抛出来了（否则这一节验的不是异常路径）")
+    check(_call29["existed"] is True,
+          "抛异常那一刻 `tools/_drift_old.py` **确实在盘上**（否则「清理掉」这条是空转）")
+    check(not os.path.exists(_DRIFT),
+          "异常路径下 `finally` 仍把它清掉（这就是 Q92 的正题：裸放最后一行的 `os.remove` 做不到）")
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

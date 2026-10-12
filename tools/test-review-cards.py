@@ -2017,6 +2017,38 @@ def main():
           "正向对照：`facet-count.py --ref`（靶子真存在）仍退出 0（实得 rc=%d）—— "
           "上面那几条不许把正常路径也判成失败" % _ok33.returncode)
 
+    print("\n[34] `contact-sheet.py` 的分页 / 网格参数：值域写错与「同给无意义」都要**报错**（第 63 轮 Q111）")
+    # 由来（实测 2026-10-13）：这几个开关原先**静默改语义** ——
+    #   `--per-page 0` → `max(1, 0)` = 1 ⇒「一页一条鱼」（362 页），一个字都不说；
+    #   `--cell 0` → 一路走到渲染路径才炸（画 0 宽的格子）；
+    #   `--page 0` → 渲染路径报的却是「页码超范围」（看着像页码给大了，其实给的是 0）；
+    #   `--page 2 --list` → `--list` 那一支**整个吞掉** `--page`（同 `--out` × `--all` 一族）。
+    # 判法 = 真 spawn 看退出码：**用法错 = 2**（口径见 `tools/argv.js`）。
+    # ⚠️ 不能用 `--list` 做正向对照：它要分析盘上**每一张**卡面，实测 **2 分钟**
+    #    （本轮量过）⇒ 会把常跑门禁拖垮。改用「合法边界值 + 越界页码」这条**快**路径：
+    #    它能证明「值域没被误判成用法错」且「既有的页码范围检查还在」。
+    for _a34, _v34 in [("--per-page", "0"), ("--cell", "0"), ("--page", "0")]:
+        _r34 = _run33("contact-sheet.py", _a34, _v34)
+        check(_r34.returncode == 2,
+              "`contact-sheet.py %s %s` 退出 2（用法错）—— 值域写错不许静默改语义（实得 rc=%d）"
+              % (_a34, _v34, _r34.returncode))
+    _r34c = _run33("contact-sheet.py", "--cols", "-3")
+    check(_r34c.returncode == 2,
+          "`contact-sheet.py --cols -3` 退出 2（负数会让 `min(maxslots, -3)` 画出负宽的格子，实得 rc=%d）"
+          % _r34c.returncode)
+    _r34l = _run33("contact-sheet.py", "--page", "2", "--list")
+    check(_r34l.returncode == 2,
+          "`contact-sheet.py --page 2 --list` 退出 2（`--list` 打印全部页、不认 --page，"
+          "同给就是「静默丢掉一个」；实得 rc=%d）" % _r34l.returncode)
+    _r34p = _run33("contact-sheet.py", "--per-page", "1", "--page", "999")
+    _t34p = (_r34p.stdout or "") + (_r34p.stderr or "")
+    check(_r34p.returncode == 1 and "页码超范围" in _t34p,
+          "正向对照：`--per-page 1 --page 999` 走到既有的「页码超范围」并以 1 退出（实得 rc=%d）"
+          "—— 合法的边界值得能过值域守卫" % _r34p.returncode)
+    _r34q = _run33("contact-sheet.py", "--cols", "0", "--page", "999")
+    check(_r34q.returncode == 1,
+          "正向对照：`--cols 0`（= 默认值写法）不算值域错（实得 rc=%d）" % _r34q.returncode)
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

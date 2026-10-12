@@ -162,6 +162,31 @@ function blankStrings(t) {
     return out;
   }).join(NL);
 }
+/* 再把 **Python 源码的注释** 剥掉：三引号 docstring → 空串，然后**整行 `#` 与行尾 `#` 都剥**
+   （引号态感知 ⇒ `'#a87a1f'` 这种字符串里的 `#` 一个字节都不许动）。
+   ⚠️ 为什么不复用 `stripComments()`：那是 **JS** 口径（剥 `//` 与块注释），
+      而 py 的注释符是 `#` —— 拿 JS 的洗法去洗 `.py`，行尾 `#` 会整片留下，
+      而判据只要被注释喂饱一次就是**假绿**（Q83 在 JS 侧修过同一个坑，这里补上 py 的一半）。
+   ⚠️ 第 57 轮之前这一份在 verify.js 里**抄了 12 遍、四种口径**：两处只剥整行 `#`、
+      五处整行+行尾（最好的一档）、四处用「`#` 起到行尾」的**裸正则**（**不看引号** —— 会把
+      `'#a87a1f'` 从中间撕成两半，判据再也找不到色值）、一处连 `//` 也剥。
+      口径要改就得改 12 处、漏一处就分家 ⇒ 现在只有这一处，`[32-w]` 盯着不许再抄第二份。 */
+function stripPy(t) {
+  const NL = String.fromCharCode(10);
+  return String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
+    .replace(/(^|[\r\n])[ \t]*#[^\n]*/g, '$1')
+    .split(NL).map(line => {
+      /* 行尾注释也要剥：`x = 1  # args.foo` 能喂饱子串判据 */
+      let q = null;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (q) { if (c === q && line[i - 1] !== '\\') q = null; }
+        else if (c === '"' || c === "'") q = c;
+        else if (c === '#') return line.slice(0, i);
+      }
+      return line;
+    }).join(NL);
+}
 /* 助手自检（定义处就跑一次）：整行 / 行尾 / 块三种注释都要剥掉，
    引号里的 `//`（`'http://x'`）与字符串里的注释词都**不许**被剥。 */
 (function () {
@@ -174,6 +199,19 @@ function blankStrings(t) {
       || !has(R, 'var c = 3;') || has(B, 'http') || !has(B, 'var c = 3;')) {
     err('顶层助手 `stripComments()` / `blankStrings()` 的自检不成立（注释没剥干净 / '
       + '把引号里的 `//` 或字符串内容算错了）—— 用它们的判据会假绿或假红');
+  }
+})();
+/* `stripPy()` 的自检（四种形态：整行 `#` / 行尾 `#` / docstring / 字符串里的 `#` 不许剥）。 */
+(function () {
+  const NL = String.fromCharCode(10);
+  const DOC = '"""' + NL + 'doc # line' + NL + '"""';
+  const S = DOC + NL + '# whole line # x' + NL + 'v = 1  # trailing # y' + NL
+    + "c = '#a87a1f'  # 色值要留住" + NL + "s = 'a # b'";
+  const R = stripPy(S);
+  if (has(R, 'doc # line') || has(R, 'whole line') || has(R, 'trailing')
+      || !has(R, "'#a87a1f'") || !has(R, "'a # b'") || !has(R, 'v = 1')) {
+    err('顶层助手 `stripPy()` 的自检不成立（整行 `#` / 行尾 `#` / docstring 三种要剥、'
+      + '字符串里的 `#` 不许剥）—— 用它的判据会假绿或假红');
   }
 })();
 
@@ -3181,8 +3219,6 @@ console.log('\n[32-i] 陪伴助手的台词表：场景键必须被核心取用�
 console.log('\n[32-j] `tools/*.py` 的配方表：整表零消费 / 只按字面量取键却漏键 = 报红');
 (function () {
   const MIN_TABLES = 8;        // 实测 15 张（2026-10-11）；少于它说明扫描面坏了
-  const stripPy = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
-    .replace(/(^|[\r\n])[ \t]*#[^\n]*/g, '$1');
   const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
   /* 扫描面：所有 py 都当「消费者」（含本仓库的 py 与 js/html —— 键可能只在别处被取） */
   const others = [];
@@ -3386,19 +3422,6 @@ console.log('\n[32-k] 音频素材名 ↔ `G.Audio` 方法名（死素材 / 名�
 console.log('\n[32-l] `tools/*.py` 的命令行开关必须有消费方（零消费 = 参数接受但什么也不做）');
 (function () {
   const MIN_FLAGS = 70;        // 实测 93（2026-10-11 口径，25 个文件）；少于它说明扫描面坏了
-  const stripPy = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
-    .replace(/(^|[\r\n])[ \t]*#[^\n]*/g, '$1')
-    .split(String.fromCharCode(10)).map(line => {
-      /* 行尾注释也要剥（32-h / 32-j 同款）：`x = 1  # args.foo` 能喂饱子串判据 */
-      let q = null;
-      for (let i = 0; i < line.length; i++) {
-        const c = line[i];
-        if (q) { if (c === q && line[i - 1] !== '\\') q = null; }
-        else if (c === '"' || c === "'") q = c;
-        else if (c === '#') return line.slice(0, i);
-      }
-      return line;
-    }).join(String.fromCharCode(10));
 
   /* 括号配平取 `add_argument( … )` 的整段实参（帮助文案里可能有括号 ⇒ 认引号） */
   const specsOf = (code) => {
@@ -3747,17 +3770,6 @@ console.log('\n[32-o] 形态表的三个写者：.bak 备份 + 空值守卫 + �
   let oBad = 0;
   /* 只扫代码：摘三引号整块（= 散文），再摘行内 `#` 注释（引号里的 `#` 不算注释）。
      ⚠️ 行尾注释也要剥：`t[i]["fins"] = nfin` 就写在 `trait-rewrite.py` 的文件头说明里。 */
-  const stripPy = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
-    .split('\n').map(line => {
-      let q = null;
-      for (let i = 0; i < line.length; i++) {
-        const c = line[i];
-        if (q) { if (c === q && line[i - 1] !== '\\') q = null; }
-        else if (c === '"' || c === "'") q = c;
-        else if (c === '#') return line.slice(0, i);
-      }
-      return line;
-    }).join('\n');
   /* 「填进已有条目」的赋值：`X[K]["字段"] = VAR` 与 `X[K][字段] = VAR` 两种形态都算 */
   const ASSIGN = /(\w+)\[[^\]]+\]\[[\w"']+\]\s*=\s*(\w+)/g;
   const unguarded = code => {
@@ -3889,18 +3901,6 @@ console.log('\n[32-o] 形态表的三个写者：.bak 备份 + 空值守卫 + �
 console.log('\n[32-p] `tools/` 入口的开关组合语义：同用时不许静默丢弃（互斥要么报错、要么明说）');
 (function () {
   const MIN_GUARDS = 10;     /* 实测 10 组（2026-10-12 口径，8 个文件）；少了就是扫描面坏了 */
-  const stripPy = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
-    .split('\n').map(line => {
-      /* 行尾注释也要剥（32-h / 32-j / 32-o 同款）：本节的成因就写在注释里 */
-      let q = null;
-      for (let i = 0; i < line.length; i++) {
-        const c = line[i];
-        if (q) { if (c === q && line[i - 1] !== '\\') q = null; }
-        else if (c === '"' || c === "'") q = c;
-        else if (c === '#') return line.slice(0, i);
-      }
-      return line;
-    }).join('\n');
 
   /* ① `--brief` ⇒ `--stale`：`if args.brief:` 之后若干行内必须出现 `args.stale = True`。
      ⚠️ 中间那些注释行剥完会变成纯空白行 ⇒ 窗口按**行数**给足（12 行），不按「非空行」。
@@ -4087,17 +4087,6 @@ console.log('\n[32-p] `tools/` 入口的开关组合语义：同用时不许静�
    判据（剥注释 / docstring；合成样本 + 抓不到就报错）。 */
 console.log('\n[32-q] `tools/` 入口的值域校验与现算文案（写错档名 / 写死条数 = 报红）');
 (function () {
-  const stripPy = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
-    .split('\n').map(line => {
-      let q = null;
-      for (let i = 0; i < line.length; i++) {
-        const c = line[i];
-        if (q) { if (c === q && line[i - 1] !== '\\') q = null; }
-        else if (c === '"' || c === "'") q = c;
-        else if (c === '#') return line.slice(0, i);
-      }
-      return line;
-    }).join('\n');
   /* 判据自检：`or 99` 那种裸上限 / 写死的条数，四种样本各判一次 */
   const bareCap = c => /\[\s*:\s*args\.limit\s+or\s+\d+\s*\]/.test(c);
   const hasLiteral = (c, n) => new RegExp('(?<![\\w.])' + n + '(?![\\w])(?![\\d.])').test(c);
@@ -4273,17 +4262,6 @@ console.log('\n[32-q] `tools/` 入口的值域校验与现算文案（写错档�
         把桩架在 `card_state()` 上让 `shiny-2` 那一组必然出现，再逐条查打印出来的值）。 */
 console.log('\n[32-r] 工具自报的「下一步命令」必须真能跑（照抄就报错的命令 = 假提示）');
 (function () {
-  const stripPy = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
-    .split('\n').map(line => {
-      let q = null;
-      for (let i = 0; i < line.length; i++) {
-        const c = line[i];
-        if (q) { if (c === q && line[i - 1] !== '\\') q = null; }
-        else if (c === '"' || c === "'") q = c;
-        else if (c === '#') return line.slice(0, i);
-      }
-      return line;
-    }).join('\n');
   /* 判据本体：给定「构造 only-morph 的那段源码」，判它是不是把归档键直接拼出去了 */
   const rawKeyLeak = (seg) => /--only-morph "\s*\+\s*k\s*\)/.test(seg);
   const stripsSuffix = (seg) => /k\.split\(/.test(seg);
@@ -4545,8 +4523,6 @@ console.log('\n[32-t] 数值链的「下一步」：一处声明（tools/pipelin
 (function () {
   let tBad = 0;
   const stripJs = t => String(t).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
-  const stripPy = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
-    .replace(/#[^\n]*/g, '');
   const read = (rel) => {
     try { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); }
     catch (e) { err(`读不到 \`${rel}\` —— 32-t 抓不到要判的地方（先修判据本身）`); tBad++; return null; }
@@ -5604,8 +5580,6 @@ console.log('\n[33-f] 五档颜色句：候选总表 + 权重池；MORPHS 派生
    ⚠️ 判据先剥注释（硬规矩 ①）：上面那段删除留档**点着这两个名字**，不剥就会自指报红。 */
 console.log('\n[33-h] 尾型口径：TAIL_HINTS 一处实现；TAIL / TAIL_SHAPES 不许复活');
 (function () {
-  const stripPy = t => String(t).replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
-    .replace(/(^|[\r\n])[ \t]*#[^\n]*/g, '$1');
   let py;
   try { py = stripPy(fs.readFileSync(path.join(ROOT, 'tools/gen-art.py'), 'utf8')); }
   catch (e) { err('读不到 `tools/gen-art.py` —— 33-h 抓不到要判的地方（先修判据本身）'); return; }
@@ -7363,8 +7337,6 @@ console.log('\n[42] 接触表与验收同源：判定单入口、阈值不重写
      ⚠️ 单行字符串里的 `#`（如调色板的 "#16171a"）会被一并切掉 —— 对 ①② 无害
         （它们找的是标识符与判定文案，本来就不该出现在字符串里；真出现了更该报红）。
         ③ 用的是**原文**，不走本函数。 */
-  const stripPy = t => t.replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
-    .replace(/#[^\n]*/g, '');
 
   const sheet = stripPy(read('tools/contact-sheet.py'));
   const cc = stripPy(read('tools/check-cards.py'));
@@ -8004,8 +7976,6 @@ console.log('\n[43] 评审页：内部形态模板键必须带中文标签（表
 (() => {
   const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
   /* 「只扫代码」：摘三引号块与 `#` 行注释 —— 说明注释里提到键名不算违规（负对照验证过）。 */
-  const stripPy = t => t.replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
-    .replace(/#[^\n]*/g, '');
   const pyRaw = read('tools/review-cards.py');
   const py = stripPy(pyRaw);
   const uniq = a => a.filter((x, i) => a.indexOf(x) === i);
@@ -8163,8 +8133,6 @@ console.log('\n[43] 评审页：内部形态模板键必须带中文标签（表
 console.log('\n[44] 档位槽的口径必须同源（档位键集 / 按文件枚举 / 重出按档 / 中文一处）');
 (() => {
   const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
-  const stripPy = t => t.replace(/"""[\s\S]*?"""/g, '""').replace(/'''[\s\S]*?'''/g, "''")
-    .replace(/#[^\n]*/g, '');
   const pyRaw = read('tools/review-cards.py');
   const py = stripPy(pyRaw);
   const uniq = a => a.filter((x, i) => a.indexOf(x) === i);
@@ -11252,9 +11220,6 @@ console.log('\n[53] 卡面后处理：规格单源 + 派生物已 ignore + 文�
   const prepSrc = fs.readFileSync(path.join(ROOT, 'tools', 'prep-cards.py'), 'utf8');
   /* 剥注释 / docstring（硬规矩 ①：只扫代码不扫注释）。本脚本的散文里点了几次
      `analyze()` 与目录名，不剥的话判据会被注释喂饱 —— 那是本项目反复栽过的假通过。 */
-  const stripPy = t => String(t)
-    .replace(/"""[\s\S]*?"""/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/\/\/[^\n]*/g, '').replace(/#[^\n]*/g, '');
   const prepCode = stripPy(prepSrc);
   /* ① 规格常量从此处现算（别处不许再写一遍） */
   let spec = null;
@@ -11318,15 +11283,21 @@ console.log('\n[53] 卡面后处理：规格单源 + 派生物已 ignore + 文�
         ⛔ 别处（`devtools.js` 的面板文案、任何一个 ui 模块）都不许再写一遍 ——
            写第二遍的唯一后果是「改了脚本忘改这里」，而它什么都不影响，没人会发现。 */
     const ALLOWED = ['src/core/assets.js', 'tools/test.js'];
-    const stripAll = t => String(t)
-      .replace(/"""[\s\S]*?"""/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/\/\/[^\n]*/g, '').replace(/#[^\n]*/g, '');
+    /* ⚠️ 扫描面跨两种语言（`scan('src', /\.(js|html)$/)` + `scan('tools', /\.(js|py|cmd)$/)`）
+       ⇒ 洗注释必须**按扩展名选**：`.py` 走 `stripPy()`（`#`），其余走 `stripComments()`
+       （`//` 与块注释，且**引号里的不动**）。
+       🔴 此前这里无论什么扩展名一律喂 `stripPy()`，而它只认 `#` ⇒ `.js` 的 `//` 注释
+          整片留在文本里，判据当时**只是靠巧合**没错报：那一份局部 `stripPy` 顺手也剥了
+          `//`（第 57 轮把局部洗法收口成顶层一份之后，这个靠巧合成的地方当场报红 ——
+          `src/render/cardart.js` 的块注释里正好写着这个名字）。
+       顺带删掉上面那份**零消费**的局部 `stripAll`（本节的扫描根本没调它）。 */
+    const wash = (rel, raw) => (/\.py$/.test(rel) ? stripPy(raw) : stripComments(raw));
     const dup = [], seen = [];
     const scan = (dir, re) => fs.readdirSync(path.join(ROOT, dir)).forEach(n => {
       const rel = dir + '/' + n, p = path.join(ROOT, rel);
       if (fs.statSync(p).isDirectory()) return scan(rel, re);
       if (!re.test(n) || rel === 'tools/prep-cards.py') return;
-      if (stripPy(fs.readFileSync(p, 'latin1')).indexOf(mOut[1]) >= 0) {
+      if (wash(rel, fs.readFileSync(p, 'latin1')).indexOf(mOut[1]) >= 0) {
         seen.push(rel);
         if (ALLOWED.indexOf(rel) < 0) dup.push(rel);
       }
@@ -12000,6 +11971,93 @@ console.log('\n[32-u] 事件总线：emit ↔ on 双向必须对上（零消费�
   if (!uBad) {
     ok(`事件总线双向对上：${EM.size} 个事件名（emit ${EM.size} / on ${ON.size}，`
       + `${[...EM.keys()].sort().join('、')}）—— 零消费 emit 与死订阅各 0 条`);
+  }
+})();
+
+/* ---------------- 32-v. 工具「一条都没量到」不许当成功（第 57 轮） ----------------
+   【由头】本轮铺的新面 = **「入库配方在本机可复现吗」** —— 具体查的是
+   「`tools/` 里的脚本**跑起来到底量到东西没有**」。开工第一量就逮到一个真缺陷：
+   `tools/measure-silhouette.py` 在待测目录不存在时，**六行全印「测量失败」而退出码 0**
+   （一条数据都没量到，命令却报成功）—— 正是本项目最高频的坑型「不报错但静默失效」，
+   而且它长得像正常输出（一张表 + 退出码 0）。同轮还查出它的另外两处不实：
+   · 文件头写着待测图目录是 `docs/images/_m3d/`，代码里一直是 `m3d`（**从未存在过**）；
+   · 文件头写着「或改参数指定目录」，而那时**根本没有参数解析**。
+   修法三件：① 三种「没量到」的原因**分开报**（图不在 / ffmpeg 起不来 / 量不出轮廓）；
+   ② 有任何失败 ⇒ **退出码 1**（用法错仍是 2）；③ 外部程序解析收成**唯一入口** `resolve_ffmpeg()`，
+   走 `--ffmpeg` → `FFMPEG` 环境变量 → `PATH` → 本机候选，**不再把某一台机器的路径当唯一来源**。
+   判据（全部跑在「剥注释 + 清空字符串字面量」的代码面上 —— 否则文件头那段散文会把自己喂饱）：
+     ① `resolve_ffmpeg(` 必须真定义且能被取到函数体（取不到 ⇒ 报错，不许静默跳过）；
+     ② **外部程序的调用点只许在量图那个函数里、且实参是解析结果**（`subprocess.run(` 的出现次数
+        必须恰好等于它在该函数体内的次数；出现 `[ff,` 这种「喂解析结果」的形态）；
+     ③ 回退链真的有：解析函数体内必须同时出现环境变量与 `PATH` 查找两样；
+     ④ 找不到外部程序 ⇒ `main()` 体内 `return 1`（不是 0）；
+     ⑤ 有失败 ⇒ `main()` 体内 `if n_bad` + `return 1`（**这条是本节的正题**）；
+     ⑥ 合成样本自检：取函数体 / 数调用点两个原语各认对一次。
+   ⚠️ 行为面（真 spawn 一次，看退出码与文案）在 `tools/test-review-cards.py` 的 **[26]** 节——
+      `verify` 起不了外部命令（本机 `spawnSync` 返回 EBUSY，见第 39 节的注释）。 */
+console.log('\n[32-w] 洗注释只有顶层两个入口：py 的 `stripPy()` / js 的 `stripComments()`（第 57 轮）');
+(function () {
+  /* 【由头】第 55 轮（Q83）把 JS 侧的洗注释收成了顶层 `stripComments()`（14 处局部 `strip` 改指向它），
+     但 **py 侧那一半漏了**：本轮开工一量，`verify.js` 里 `stripPy` 被**抄了 12 遍、四种口径** ——
+       · 两处只剥「整行 `#`」（行尾那种留下来喂饱判据）；
+       · 五处整行 + 行尾（引号感知，最好的一档）；
+       · 四处用「`#` 起到行尾」的**裸正则**（**不看引号** ⇒ 会把 `'#a87a1f'` 这类色值字符串
+         从中间撕成两半，判据再也找不到色值）；
+       · 一处连 `//` 也剥（拿它洗 `.js` 才刚好够用）。
+     ⇒ 口径要改就得改 12 处、漏一处就分家（这正是项目反复栽的「同一事实写 N 遍」）。
+     收口成顶层 `stripPy()` 一处（与 `stripComments()` / `blankStrings()` 并列，定义处自带自检）。
+     🔎 顺带逮到一条**靠巧合成立**的地方（见 §53 的 `wash()`）：那节的扫描面跨 `.py` 与
+       `.js|.html`，却一律喂 `stripPy()` —— 而它只认 `#`，`.js` 的 `//` 注释整片留下，
+       当时只是因为有一份局部洗法顺手也剥了 `//` 才没错报。收口后它当场报红，已按扩展名分派。
+     判据：
+       ① **不许再出现局部 `stripPy` 定义**（扫 verify.js 自己 —— 只有顶层那一处 `function`）；
+       ② 顶层 `stripPy(` 必须**真的是函数**，且四种形态**行为**都对（整行 `#` / 行尾 `#` /
+          三引号 docstring 都要剥；引号里的 `#` 一个字节都不许动）—— 直接喂合成样本判行为，
+          不判文本（判文本会被那句注释喂饱）；
+       ③ 抓不到就报错（不是函数 / 行为不对 ⇒ 报红，不许静默跳过）。
+     ⚠️ 明确**还没做**的一件（已立成新条目，不在本轮）：`stripAll` 仍有 3 处局部定义，
+       而且它们各自服务于**不同语言**（`.js` 的 `//`、`.html` 的 `<!-- -->`、还要放过 `://`）
+       ⇒ 收口要先定「洗注释按语言分派」的口径，那是另一个条目的体量。 */
+  const SELF = path.join(ROOT, 'tools', 'verify.js');
+  let raw;
+  try { raw = fs.readFileSync(SELF, 'utf8'); }
+  catch (e) { err('32-w 读不到 `tools/verify.js` 自己（先修判据本身）'); return; }
+  const C = blankStrings(stripComments(raw));
+  const DEF_MARK = 'const ' + 'stripPy ' + '= ';      /* 拼接造针串（别把本节的报错文案喂给自己） */
+  let wBad = 0;
+
+  const nLocal = C.split(DEF_MARK).length - 1;
+  if (nLocal > 0) {
+    err(`32-w：\`verify.js\` 里又出现了 ${nLocal} 处局部 \`stripPy\` 定义 ⇒ 洗 py 注释的口径`
+      + '会再次分家（改一处忘一处 = 判据假绿或假红）。用顶层那一份，别再抄');
+    wBad++;
+  }
+
+  if (typeof stripPy !== 'function') {
+    err('32-w：顶层 `stripPy()` 不是函数 ⇒ 用它的判据全都在假绿，先修判据本身');
+    return;
+  }
+  const NL2 = String.fromCharCode(10);
+  const DOC = '"""' + NL2 + 'doc # 里面这一句' + NL2 + '"""';
+  const S = DOC + NL2 + '# 整行注释 # x' + NL2 + 'v = 1  # 行尾注释' + NL2
+    + "c = '#a87a1f'  # 色值要留住" + NL2 + "s = 'a # b'";
+  const R = stripPy(S);
+  const forms = {
+    '整行 `#`': !has(R, '整行注释'),
+    '行尾 `#`': !has(R, '行尾注释') && has(R, 'v = 1'),
+    'docstring': !has(R, '里面这一句'),
+    "字符串里的 `#`（`'#a87a1f'`）不许剥": has(R, "'#a87a1f'"),
+    "字符串里的 `#`（`'a # b'`）不许剥": has(R, "'a # b'"),
+  };
+  const broken = Object.keys(forms).filter(k => !forms[k]);
+  if (broken.length) {
+    err('32-w：顶层 `stripPy()` 的行为不对 —— ' + broken.join('、')
+      + '。用它的判据会假绿（注释喂饱）或假红（色值被撕掉）');
+    wBad++;
+  }
+  if (!wBad) {
+    ok('洗注释只有顶层两个入口：`stripPy()`（py 的 `#`，整行 / 行尾 / docstring 都剥、'
+      + "引号里的 `#` 不动）+ `stripComments()`（js），且 verify.js 里 0 处局部 `stripPy`");
   }
 })();
 

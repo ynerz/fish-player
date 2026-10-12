@@ -48,11 +48,18 @@ const KNOWN = ['--exe', '--wait', '--port', '--size'];
 checkKnown(argv, KNOWN, 'browser-probe.js');
 const opt = {};
 const pos = [];
+/* 🔴 读了值**必须推进下标**（2026-10-13 第 64 轮实测的真 bug）。
+   `needValue()` 只负责「取值 + 校验」，它**不会**替你跳过那个 token ⇒ 漏写 `i++` 时
+   值会掉进 `pos`：① 位置参数超 3 个 ⇒ 照文档写 `--size 1440,900` 直接报
+   「位置参数最多 3 个」（**文档里的用法用不了**）；② 位置参数正好 ≤3 时更坏 ——
+   截图会被写成一个叫 `1440,900` 的文件、紧跟着的探针文件被顶掉，而**退出码照旧 0**。
+   （`build.js` 那条 `--out` 不受影响：它用 `indexOf` 定位、不在循环里。）
+   判据：`verify [32-ae]`（静态）+ `test.js` 的 CLI 节（真 spawn，钉住值没漏成位置参数）。 */
 for (let i = 0; i < argv.length; i++) {
-  if (argv[i] === '--exe') opt.exe = needValue(argv, i, '--exe', 'browser-probe.js');
-  else if (argv[i] === '--wait') opt.wait = Number(needValue(argv, i, '--wait', 'browser-probe.js'));
-  else if (argv[i] === '--port') opt.port = Number(needValue(argv, i, '--port', 'browser-probe.js'));
-  else if (argv[i] === '--size') opt.size = needValue(argv, i, '--size', 'browser-probe.js');   // 例：--size 1440,900（默认 800x600 —— 太小会让布局与真实桌面差一截）
+  if (argv[i] === '--exe') { opt.exe = needValue(argv, i, '--exe', 'browser-probe.js'); i++; }
+  else if (argv[i] === '--wait') { opt.wait = Number(needValue(argv, i, '--wait', 'browser-probe.js')); i++; }
+  else if (argv[i] === '--port') { opt.port = Number(needValue(argv, i, '--port', 'browser-probe.js')); i++; }
+  else if (argv[i] === '--size') { opt.size = needValue(argv, i, '--size', 'browser-probe.js'); i++; }   // 例：--size 1440,900（默认 800x600 —— 太小会让布局与真实桌面差一截）
   else pos.push(argv[i]);
 }
 if (pos.length > 3) {

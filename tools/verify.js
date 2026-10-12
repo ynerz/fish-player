@@ -13750,6 +13750,101 @@ console.log('\n[32-af] 每个面板都要在 `tools/test.js` 里留下 Node 侧�
   ok(`${keys.length} 个面板全部在 \`tools/test.js\` 里被点名（与行为侧「全量真渲染」一节一起看）`);
 })();
 
+console.log('\n[32-ae] 有值开关的**值**不许漏成位置参数（argv 循环里读了值就必须推进下标；第 64 轮）');
+(function () {
+  /* 【由头】第 64 轮**真撞上**的真 bug（我自己跑真浏览器时被它挡住）：
+     `tools/browser-probe.js` 的参数循环读了值**却没推进下标** —— `needValue()` 只负责
+     「取值 + 校验」，它**不会**替你跳过那个 token。于是 `--size 1440,900` 的值掉进 `pos`：
+       ① `node tools/browser-probe.js <url> <shot> <probe> --size 1440,900`
+          ⇒ 4 个位置参数 ⇒ 报「位置参数最多 3 个」（**工具自己的用法行写着这个形态**，
+            照它敲直接退出 2）；
+       ② 位置参数正好 ≤3 时更坏 —— `--size 1440,900` 单给一个 url 时，`1440,900` 会**顶上
+          截图路径**：盘上出现一个叫 `1440,900` 的 PNG，而退出码照旧 0（**工具在说谎**）。
+     为什么上一轮的门禁没抓住：`§32-s` 判「未知开关报错 / 缺值报错 / 互斥报错」，`§32-m` 判
+     「开关有没有人读」—— 两件都成立，**没有一条判「值有没有被吃掉」**。
+     判据：`tools/*.js` 里凡是在「遍历 `argv` 的 for 循环」体内调 `needValue(argv, i, …)` 的，
+     同一段循环体里必须有推进下标的写法（`i++` / `++i` / `i += 1` / `i = i + 1`）；
+     `build.js` 那种用 `indexOf` 取值的**不在循环里**，天然不在判据内（负对照）。
+     ⚠️ 拿不准「哪一段是循环体」时一律走 closeOf()（§42 ⑧/⑩）；抓不到循环就报错。 */
+  const dir = path.join(ROOT, 'tools');
+  let files = [];
+  try { files = fs.readdirSync(dir).filter(f => f.endsWith('.js')); }
+  catch (e) { err('32-ae 读不到 `tools/`（先修判据本身）'); return; }
+  const LOOP = 'for (let i = 0; i < ' + 'argv.length; i++)';
+  const NEED = 'needValue(' + 'argv, i,';
+  const ADV = ['i++', '++i', 'i += 1', 'i = i + 1'];
+  /* ⚠️ 判据是**计数**不是「出现过」（第一版只查「循环体里有没有 `i++`」⇒ 反向验证 F1 组
+     把 `--size` 那一个分支的 `i++` 拿掉，另外三个分支的 `i++` 当场把它喂饱、**仍然绿**）：
+     `读了几次值` 必须 ≤ `推进下标几次`。
+     ⚠️ 边界（写清）：只认「同一个循环体里推进下标」这一种写法；将来若有工具用 `continue`
+        跳过值（也能推进循环），把 `continue` 加进这张 ADV 表即可 —— 本条**不**自动认它，
+        因为 `continue` 在循环里还可能是别的用途，认了会**假绿**。 */
+  const advCount = body => ADV.reduce((n, a) => n + (body.split(a).length - 1), 0);
+  const readCount = body => body.split(NEED).length - 1;
+  const advances = body => advCount(body) >= readCount(body);
+  /* 判据自检：合成样本 —— 「读了值没推进」必须认出来、「推进了」必须放过、
+     「两个值只推进一次」也必须认出来（就是 F1 组那种半修形态）、非循环形态不参与。 */
+  const SYN_LEAK = LOOP + " { if (argv[i] === '--x') opt.x = " + NEED + " '--x', 't'); else pos.push(argv[i]); }";
+  const SYN_OK = LOOP + " { if (argv[i] === '--x') { opt.x = " + NEED + " '--x', 't'); i++; } else pos.push(argv[i]); }";
+  const SYN_HALF = LOOP + " { if (argv[i] === '--x') { opt.x = " + NEED + " '--x', 't'); i++; }"
+    + " else if (argv[i] === '--y') { opt.y = " + NEED + " '--y', 't'); } else pos.push(argv[i]); }";
+  const SYN_OFF = "const oi = argv.indexOf('--out'); const v = " + NEED + " '--out', 't');";
+  const loopBodies = src => {
+    const out = [];
+    let from = 0;
+    /* ⚠️ `at()` 只吃两个参数（第 3 个会被忽略）⇒ 想「从上次命中之后继续找」必须自己带偏移、
+       否则原地死循环（第一版就是这么写的，门禁挂了 3 分钟才被超时打断）。 */
+    for (;;) {
+      const rel = at(src.slice(from), LOOP);
+      if (rel < 0) break;
+      const hitAt = from + rel;
+      const ob = src.indexOf('{', hitAt);
+      if (ob < 0) break;
+      const end = closeOf(src, ob);
+      if (end < 0) break;
+      out.push(src.slice(ob, end));
+      from = end;
+    }
+    return out;
+  };
+  if (loopBodies(SYN_LEAK).length !== 1 || advances(loopBodies(SYN_LEAK)[0])
+      || !advances(loopBodies(SYN_OK)[0]) || advances(loopBodies(SYN_HALF)[0])
+      || loopBodies(SYN_OFF).length !== 0) {
+    err('32-ae 的判据自检不成立（分不出「读了值没推进」/「推进了」/「两个值只推进一次」'
+      + '，或把非循环形态也当循环）—— 这条断言会静默失效，先修判据本身');
+    return;
+  }
+  let aBad = 0, loops = 0, valueFlags = 0;
+  const leaks = [];
+  files.forEach(f => {
+    let src = '';
+    try { src = stripComments(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (e) { return; }
+    if (!has(src, LOOP)) return;
+    loopBodies(src).forEach(b => {
+      loops++;
+      const reads = readCount(b);
+      if (!reads) return;
+      valueFlags += reads;
+      if (!advances(b)) leaks.push('tools/' + f + '（读 ' + reads + ' 次 / 推进 ' + advCount(b) + ' 次）');
+    });
+  });
+  /* 抓不到就报错：本仓现在只有 `browser-probe.js` 是这个形态（它那一条就是修好的那条） */
+  if (leaks.length < 0 || loops < 1 || valueFlags < 4) {
+    err(`32-ae 只认出 ${loops} 段「遍历 argv 的循环」/ ${valueFlags} 个有值开关的读取点 —— `
+      + `扫描面多半坏了（本仓现有至少 1 段循环 / 4 个读取点）`); aBad++;
+  }
+  if (leaks.length) {
+    err(`${[...new Set(leaks)].join('、')} 的 argv 循环里读了开关的值却**没推进下标** —— `
+      + '值会掉进位置参数：照文档敲 `--x <值> …` 会报「位置参数最多 3 个」，'
+      + '而位置参数够少时它会**顶掉截图 / 探针路径**还退出 0（工具在说谎）。'
+      + `⇒ 每个分支取值后补一个 \`i++\``); aBad++;
+  }
+  if (!aBad) {
+    ok(`${loops} 段「遍历 argv 的循环」里 ${valueFlags} 个有值开关的读取点全部会推进下标`
+      + '（值不会漏成位置参数；`build.js` 那种 `indexOf` 取值形态不在判据内）');
+  }
+})();
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

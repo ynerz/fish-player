@@ -3446,6 +3446,21 @@ G_('CLI · js 工具的命令行契约（未知开关 / 缺值 / 互斥必须报
   ok(run('build.js', ['--zzz']).status !== good.status,
      '对照：同一个工具，坏用法与好用法**退出码不同**（否则说明判据恒真或恒假）');
 
+  /* ③-b 有值开关的**值**不许漏成位置参数（🔴 第 64 轮实测的真 bug）。
+     `browser-probe.js` 的参数循环读了值却没推进下标 ⇒ `--size 1440,900` 的 `1440,900` 掉进 `pos`：
+     · 位置参数超 3 个 ⇒ 报「位置参数最多 3 个」—— 而**工具自己的用法行写的就是这个形态**；
+     · 位置参数正好 ≤3 时更坏：`1440,900` 会**顶掉截图路径**，盘上出现一个叫 `1440,900` 的 PNG，
+       退出码照旧 0（工具在说谎）。这里用**4 个位置参数**的形态把前者钉住（确定性、不依赖浏览器，
+       因为这一条判定在任何浏览器查找之前就发生了）；静态那一半在 `verify [32-ae]`。 */
+  const leakRun = run('browser-probe.js',
+    ['about:blank', path.join(SANDBOX, 'x.png'), 'nope.js', '--size', '1440,900']);
+  const leakMsg = String(leakRun.stderr || '') + String(leakRun.stdout || '');
+  ok(leakMsg.indexOf('位置参数最多 3 个') < 0,
+     '🔴 `--size 1440,900` 的值**没有**漏成位置参数（漏了就会报「位置参数最多 3 个」）',
+     leakMsg.trim().split('\n').slice(-2).join(' / ').slice(0, 160));
+  const stray = fs.readdirSync(SANDBOX).filter(f => f.indexOf('1440') >= 0);
+  ok(stray.length === 0, '🔴 沙盒里没有叫 `1440,900` 这类**由开关值变成的产物**', stray.join(' '));
+
   /* ④ 数值链的「下一步」—— 把那一行的**真实值**与 `tools/pipeline.json` 对拍。
      静态面在 `verify §32-t`（按**自身名字**钉住「工具真的调了 `nextLine('<它自己>')`」）；
      这里补**间接形态的真实输出**：那一行的内容由 JSON 决定，文件里并没有把命令字面写出来。

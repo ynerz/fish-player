@@ -3155,6 +3155,102 @@ G_('Panels · 装备店与三个选择器（Node 侧真渲染）');
 })();
 
 /* =========================================================
+   Panels · 档案面板（`VIEWS.profile`）—— 全项目**唯一**在 Node 侧零覆盖的面板
+   =========================================================
+   第 56 轮审计：`panels.js` 挂上去 14 个面板，本文件里真渲染过（`VIEWS.x.render()` 或
+   `Panels.open('x')`）的有 13 个，**只有 `profile` 连名字都没出现过**。
+   而它正好是**唯一**会渲染「玩家自己写的文本」的面板 —— 两处毛病此前一直没人看得见：
+     ① `tip` 里写着 markdown 的强调标记（`innerHTML` 不认 markdown ⇒ 玩家看到星号）；
+     ② 昵称裸拼进 `innerHTML`（昵称是玩家输入，注册 / 改名都写得进去）。
+   本节把它真渲染一遍，并用一个**坏昵称**把「必须转义」钉成**产物口径**的行为证据。
+   ⚠️ 判据读**写进 DOM 的字符串**，不查源码（查源码 = 假绿）。
+   ⚠️ 桩要多给一个能力：面板建完控件后会 `ctl.querySelector('#pfMake')` 取回调载体 ⇒
+      元素桩必须自己能 `querySelector`（`mkEl` 自带的那个恒返回 null，会当场抛）。
+   ========================================================= */
+G_('Panels · 档案面板（唯一零覆盖的那个）+ 玩家昵称必须转义');
+(function () {
+  const realDoc = global.document;
+  const prevAudio = G.Audio;
+  const handlers = [];
+  const selNodes = {};
+  const qnode = tag => {
+    const el = mkEl(tag);
+    el._q = {};
+    /* 元素级 querySelector：按选择器给一个**记忆化**的假子元素（面板要拿它挂回调 / 读 value） */
+    el.querySelector = function (sel) {
+      if (!el._q[sel]) {
+        const c = mkEl('input'); c.value = ''; c._sel = sel;
+        c.addEventListener = function (type, fn) { handlers.push({ type: type, fn: fn, el: c }); };
+        el._q[sel] = c;
+        selNodes[sel] = c;
+      }
+      return el._q[sel];
+    };
+    el.addEventListener = function (type, fn) { handlers.push({ type: type, fn: fn, el: el }); };
+    return el;
+  };
+  const modalCls = new Set(['hidden']);
+  const modalStub = { classList: { contains: c => modalCls.has(c),
+    add: c => { modalCls.add(c); }, remove: c => { modalCls.delete(c); }, toggle() {} },
+    addEventListener() {} };
+  const body = qnode('div');
+  const qmap = { '#modal': modalStub, '#modalTitle': qnode('div'), '#modalBody': body,
+                 '#modalClose': qnode('button'), '#app': qnode('div') };
+  global.document = { createElement: t => qnode(t), querySelector: s => qmap[s] || null,
+    querySelectorAll: () => [], addEventListener() {} };
+  G.Audio = { click() {}, coin() {}, deny() {}, splash() {}, unlock() {} };
+  /* ⚠️ 必须**重新 init**：`panels.js` 把 `#modalBody` 缓存在模块作用域里，
+     `document` 换了桩但没 init ⇒ 渲染会写进上一个测试段那个已被丢弃的节点（症状 = 面板空白）。 */
+  Panels.init();
+
+  /* ---- 造一个坏昵称：`<b>x</b>` 是合法昵称（8 个字符，`clean()` 不拦） ---- */
+  const HOSTILE = '<b>x</b>';
+  G.Profile.init();
+  const uid = G.Profile.current().uid;
+  ok(G.Profile.rename(uid, HOSTILE) === true, `昵称可以改成 ${HOSTILE}（8 字，在 12 字上限内）`);
+  ok(G.Profile.current().name === HOSTILE, '档案名真的存成了这串（下面两条才有意义）');
+
+  /* ---- ① 档案面板：真渲染 + 昵称必须转义 ---- */
+  body.children.length = 0; handlers.length = 0;
+  let pErr = null;
+  try { Panels.open('profile'); } catch (e) { pErr = e; }
+  ok(!pErr, "Panels.open('profile') 能在 Node 里真跑完（不依赖浏览器专有 API）", pErr && pErr.message);
+  const pHtml = panelText(body);
+  ok(pHtml.length > 0, "'profile' 面板画出了内容（不是空白 —— 渲染里读 undefined 会白屏）");
+  ok(pHtml.indexOf('&lt;b&gt;') >= 0 && pHtml.indexOf('&lt;/b&gt;') >= 0,
+     '🔴 坏昵称被**转义**着写进了 DOM（产出里有 &lt;b&gt; / &lt;/b&gt;）—— 玩家改不出标签来',
+     pHtml.slice(0, 160));
+  ok(pHtml.indexOf(HOSTILE) < 0,
+     '🔴 产出里**没有**裸的 `<b>x</b>`（负对照 —— 否则上面那条会因为别的原因假通过）');
+  ok(pHtml.indexOf('uid ') >= 0, '每一行档案都画出了 uid 摘要（面板的主体内容在）', pHtml.slice(0, 120));
+  /* ② 排版纪律：`innerHTML` 不认 markdown ⇒ 强调必须是 `<b>`，不许留星号 */
+  ok(pHtml.indexOf('<b>本机浏览器</b>') >= 0, '那句「账号只存在本机浏览器里」用的是真标签 <b>…</b>');
+  ok(pHtml.indexOf('**') < 0, '🔴 面板产出里一个 markdown 星号都没有（原来写的是带星号的强调，会原样显示）');
+
+  /* ---- ③ 新档表单：三个控件都挂上了回调（`querySelector` 那条路真的走通了） ---- */
+  const mkBtn = handlers.filter(h => h.type === 'click' && h.el._sel === '#pfMake')[0];
+  ok(!!mkBtn, '「创建」按钮的回调挂上了（面板能通过 ctl.querySelector 找到它）');
+  Panels.close();
+
+  /* ---- ④ 设置页的「档案」那一行同样要转义（同一个昵称的第二个出口） ---- */
+  body.children.length = 0; handlers.length = 0;
+  let sErr = null;
+  try { Panels.open('settings'); } catch (e) { sErr = e; }
+  ok(!sErr, "Panels.open('settings') 能在 Node 里真跑完", sErr && sErr.message);
+  const sHtml = panelText(body);
+  ok(sHtml.indexOf('&lt;b&gt;') >= 0, '设置页「档案」那一行的昵称同样被转义了（第二个出口也堵上了）');
+  ok(sHtml.indexOf(HOSTILE) < 0, '设置页产出里也没有裸的坏昵称（负对照）');
+  const mgr = handlers.filter(h => h.type === 'click' && h.el._sel === '#setProfile')[0];
+  ok(!!mgr, '设置页的「管理」按钮把档案面板的入口挂上了（面板可达）');
+  Panels.close();
+
+  /* ---- 收拾：把昵称改回去，别把坏名字留给后面的断言 ---- */
+  G.Profile.rename(uid, '本机玩家');
+  global.document = realDoc;
+  G.Audio = prevAudio;
+})();
+
+/* =========================================================
    Hud · 比试芯片：挂机时要说清「挂机中的鱼不算」（拍板第 10 条）
    =========================================================
    用户 2026-10-10 拍板：「挂机中上的鱼不算比试、但玩家不知道 ⇒ 在顶栏倒计时芯片上加一句」。

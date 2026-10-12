@@ -2087,6 +2087,223 @@ console.log('\n[29-b] 生态值颜色系数：独立配置，不许从售价倍�
   ok(`生态值颜色系数独立且平缓（${CFG.colorMorphs.map((m, i) => m.key + '×' + vals[i]).join(' / ')}，跨度 ${spread.toFixed(2)}×）`);
 })();
 
+/* ---------------- 29-c. 界面文案的排版与转义纪律（第 56 轮） ----------------
+   【由头】第 56 轮的事件总线审计顺出来的一整片：`VIEWS.profile`（档案与账号）是
+   **唯一一个在 Node 侧零覆盖的面板**（`test.js` 里连名字都没出现过），而它正好是
+   全项目**唯一**会渲染「玩家自己写的文本」的面板 ⇒ 两处毛病一直没人看得见：
+     ① `tip.innerHTML` 里写着 markdown 风格的强调标记 —— `innerHTML` **不认 markdown**，
+        玩家看到的就是带星号的原句；
+     ② 昵称直接拼进 `innerHTML`（`panels.js` 的档案行 + 设置页「档案」那一行）——
+        昵称是玩家输入（注册 / 改名都写得进去，上限 12 字），`<b>x</b>` 会被**当标签渲染**，
+        `</div><div>` 这种 11 字的昵称能把版面**拆掉**。项目里明明有 `esc()`（且已在
+        成就 / 称号 / 语音选项等 20 处用了），偏偏这两处没用 ⇒ 「同一件事两种做法」。
+   判据：
+     ① `src/` 的**字符串字面量**里不许出现两个连续星号（= 会被原样显示的 markdown 残留）。
+        扫描面 = `src/` 下全部 `.js`，**先剥注释**（注释里写星号是合法的、也是本仓的书写习惯）。
+     ② 档案名（**玩家可写文本**）进 `HTML` 的每一处都必须过 `esc()`。
+        实现：把 `panels.js` 里所有「**HTML 语句**」框出来 —— 标记两类：
+          · `innerHTML` 赋值（从标记起走到**同一深度**的第一个 `;`）；
+          · `row('…'` 这种「第一个实参是字符串」的辅助调用（它的 `innerHTML` 在函数体里、
+            不在调用点 ⇒ 只看调用点那一句会把这类出口整片漏掉，第 56 轮的 B2 组反向验证
+            正是这么逮到我第一版的漏口的）。
+        框出来的语句里若出现**档案名取值**（`a.name` / `pf.name`），它必须紧邻 `esc(`。
+        **语句窗口数 < 10 或锚点数 < 2 ⇒ 报错**（抓不到就报错：改名 / 换写法之后这条网
+        不许静默变恒真），另加两条**就地**断言（档案面板那一段 / 设置页那一句各自必须
+        真的还能抓到锚点）—— 只靠全局计数会被别处（成就 / 称号面板）的 `a.name` 凑够，
+        反向验证的 B4 组就是这么逮到的。 */
+function htmlStatements(code) {
+  /* 框出「HTML 语句」：返回 [{ at, text }] */
+  const C = stripComments(code);
+  const marks = [];
+  let m;
+  const reI = /\binnerHTML\b/g;
+  while ((m = reI.exec(C))) marks.push(m.index);
+  /* ⚠️ 只认「第一个实参是字符串」的 `row(` 调用 —— 函数定义 `function row(name, …)` 不算 */
+  const reR = /(?:^|[\s(])row\(\s*'/g;
+  while ((m = reR.exec(C))) marks.push(m.index);
+  return marks.map(i => {
+    let depth = 0, q = null, end = -1;
+    for (let j = i; j < C.length; j++) {
+      const c = C[j];
+      if (q) { if (c === q && C[j - 1] !== '\\') q = null; continue; }
+      if (c === '"' || c === "'" || c === '`') { q = c; continue; }
+      if (c === '(' || c === '[' || c === '{') depth++;
+      else if (c === ')' || c === ']' || c === '}') { depth--; if (depth < 0) { end = j; break; } }
+      else if (c === ';' && depth === 0) { end = j; break; }
+      if (j - i > 800) break;         /* 兜底：拿不到语句结尾时别把整份源码吞进来 */
+    }
+    if (end < 0) end = Math.min(C.length - 1, i + 800);
+    return { at: i, text: C.slice(i, end + 1) };
+  });
+}
+function nameAnchors(text) {
+  /* 文本里出现的**档案名取值**（`a.name` / `pf.name`）→ [{ snippet, escaped }]
+     ⚠️ 名字有两种长度（`a.name` 6 / `pf.name` 7）⇒ 起点必须用**捕获组**算
+        （`m.index + m[0].length - m[1].length`），不许减一个写死的常数：
+        第 56 轮第一版写的是 `- 6`，`a.name` 正好对、`pf.name` 偏 1 个字 ⇒
+        把「明明转义了」判成没转义（假红，当场被本节自己的自检 + 真扫逮到）。 */
+  const out = [];
+  const re = /(?:^|[^.\w$])((?:a|pf)\.name)\b/g;
+  let m;
+  while ((m = re.exec(text))) {
+    const s = m.index + m[0].length - m[1].length;
+    out.push({ snippet: text.slice(Math.max(0, s - 14), s + 8).trim(),
+               escaped: /\besc\($/.test(text.slice(0, s)) });
+  }
+  return out;
+}
+function escWindowHits(code) {
+  /* 所有「HTML 语句」里的档案名取值 */
+  const out = [];
+  htmlStatements(code).forEach(w => { nameAnchors(w.text).forEach(h => out.push(h)); });
+  return { total: out.length, list: out };
+}
+console.log('\n[29-c] 界面文案的排版与转义纪律（markdown 残留 / 玩家可写文本进 HTML 必须转义）');
+(function () {
+  let cBad = 0;
+
+  /* ---- 自检 ---- */
+  const S_POS = "x.innerHTML = '<b>' + esc(a.name) + '</b>';";
+  const S_NEG = "x.innerHTML = '<b>' + a.name + '</b>';";
+  const S_ROW_POS = "row('档案', esc(pf.name) + ' 有密码');";
+  const S_ROW_NEG = "row('档案', pf.name + ' 有密码');";
+  const S_NOESC = "x.textContent = a.name;";              /* 不进 HTML ⇒ 不该被锚上 */
+  const S_CMT = "/* x.innerHTML = a.name; */";            /* 注释里 ⇒ 剥掉后一条都锚不上 */
+  const wPos = htmlStatements(S_POS).length, wRow = htmlStatements(S_ROW_POS).length;
+  const hPos = escWindowHits(S_POS), hNeg = escWindowHits(S_NEG);
+  const hRowPos = escWindowHits(S_ROW_POS), hRowNeg = escWindowHits(S_ROW_NEG);
+  const hNo = escWindowHits(S_NOESC), hCmt = escWindowHits(S_CMT);
+  const statSelfOk = wPos === 1 && wRow === 1
+    && hPos.total === 1 && hPos.list[0].escaped
+    && hNeg.total === 1 && !hNeg.list[0].escaped
+    && hRowPos.total === 1 && hRowPos.list[0].escaped
+    && hRowNeg.total === 1 && !hRowNeg.list[0].escaped
+    && hNo.total === 0 && hCmt.total === 0;
+  if (!statSelfOk) {
+    err('29-c ② 的语句框选 / 转义判定不自检通过（innerHTML 正负样本 / row( 正负样本 / '
+      + '非 HTML 出口 / 注释 六种样本没能各自认对）—— 这条网会假绿或假红');
+    cBad++;
+  }
+  const mdPos = /["']([^"']*)\*\*[^"']*["']/.test("var t = '账号只存在**本机浏览器**里';");
+  const mdNeg = !/["']([^"']*)\*\*[^"']*["']/.test("var t = '<b>本机浏览器</b>';");
+  if (!mdPos || !mdNeg) {
+    err('29-c ① 的判据自检不成立（含连续星号的字面量认不出 / 不含的误报）—— 这条网会假绿或假红');
+    cBad++;
+  }
+
+  /* ---- ① 扫 `src/` 的全部字符串字面量 ---- */
+  const SRC = path.join(ROOT, 'src');
+  const srcFiles = [];
+  (function walk(d) {
+    fs.readdirSync(d).forEach(f => {
+      const p = path.join(d, f);
+      if (fs.statSync(p).isDirectory()) walk(p);
+      else if (/\.js$/.test(f)) srcFiles.push(p);
+    });
+  })(SRC);
+  const rel = f => path.relative(ROOT, f).split(path.sep).join('/');
+  const mdHits = [];
+  srcFiles.forEach(p => {
+    let code;
+    try { code = fs.readFileSync(p, 'utf8'); } catch (e) { return; }
+    const C = stripComments(code);
+    const re = /(['"])((?:\\.|(?!\1)[^\\])*)\1/g;   /* 只认**字符串字面量**：注释已剥掉 */
+    let m;
+    while ((m = re.exec(C))) {
+      if (m[2].indexOf('**') >= 0) { mdHits.push(rel(p)); break; }
+    }
+  });
+  if (srcFiles.length < 20) {
+    err(`29-c ① 只扫到 ${srcFiles.length} 个 \`src/\` 下的 .js —— 扫描面缩水（先修判据本身）`);
+    cBad++;
+  }
+  if (mdHits.length) {
+    err('29-c ①：这些文件的字符串字面量里出现了两个连续星号（`innerHTML` 不认 markdown，'
+      + '玩家会看到原样的星号）：' + mdHits.join('、') + '　⇒ 强调改用 `<b>…</b>`');
+    cBad++;
+  }
+
+  /* ---- ② 档案名进 HTML 必须转义 ---- */
+  let panSrc = '';
+  try { panSrc = fs.readFileSync(path.join(ROOT, 'src/ui/panels.js'), 'utf8'); }
+  catch (e) { err('读不到 `src/ui/panels.js` —— 29-c ② 抓不到要判的地方（先修判据本身）'); cBad++; }
+  let panHits = { total: 0, list: [] };
+  if (panSrc) {
+    const stmts = htmlStatements(panSrc);
+    panHits = escWindowHits(panSrc);
+    if (stmts.length < 10) {
+      err(`29-c ②：只框出 ${stmts.length} 条「HTML 语句」（应 ≥10）—— 框选失效，`
+        + '这条网正在恒真，先修判据本身');
+      cBad++;
+    }
+    if (panHits.total < 2) {
+      err(`29-c ②：只找到 ${panHits.total} 处「档案名进 HTML」（应 ≥2）—— 锚点失效，`
+        + '这条网正在恒真，先修判据本身（改过变量名就来这里对齐）');
+      cBad++;
+    }
+    const bad = panHits.list.filter(h => !h.escaped);
+    if (bad.length) {
+      err('29-c ②：档案名（**玩家可写文本**）没有过 `esc()` 就进了 HTML —— '
+        + bad.map(h => '`' + h.snippet + '`').join('；')
+        + '　⇒ 玩家把昵称改成 `<b>x</b>` 就会被当标签渲染；改成 `</div><div>` 能拆掉版面');
+      cBad++;
+    }
+    /* ⚠️ 上面那条靠「全局锚点数 ≥ 2」防恒真还不够：把档案行改名（`a.name` → `acc.name`）之后，
+       别处（成就 / 称号面板）的 `a.name` 照样能凑够 2 个 ⇒ 这条网会**静默漏掉那个出口**
+       （第 56 轮反向验证的 B4 组当场逮到）。所以再补两条**就地**断言：
+       ① 档案面板那一段里必须**真的**抓到锚点；② 设置页那一行必须**真的**抓到锚点。 */
+    const pOpen = at(panSrc, 'VIEWS.profile = {');
+    const pBrace = pOpen < 0 ? -1 : panSrc.indexOf('{', pOpen);
+    const pEnd = pBrace < 0 ? -1 : closeOf(panSrc, pBrace);
+    const pSeg = pEnd < 0 ? '' : stripComments(panSrc.slice(pBrace + 1, pEnd - 1));
+    if (pSeg.length < 200) {
+      err('29-c ②：抓不到 `VIEWS.profile` 那一段（实得 ' + pSeg.length + ' 字符）—— '
+        + '「档案面板里的昵称必须转义」这条会恒真，先修判据本身');
+      cBad++;
+    } else {
+      /* 防恒真：段内必须**真的**还有档案名（改名就把这条网打醒）；
+         判转义只认「HTML 语句」里的那些 —— `ask('「' + a.name + '」的密码')` 是
+         **原生输入框**（纯文本出口），它**不该**转义（转义会把 `&lt;` 念给玩家看），
+         所以它天然不在 HTML 语句里，也就不在判据内。 */
+      const segAnchors = nameAnchors(pSeg);
+      const segHtml = escWindowHits(pSeg).list;
+      if (!segAnchors.length) {
+        err('29-c ②：`VIEWS.profile` 段里一个档案名出口都抓不到（面板或变量名改过了）—— '
+          + '这条网正在恒真，先修判据本身（把锚点与本节对齐）');
+        cBad++;
+      }
+      const segBad = segHtml.filter(h => !h.escaped);
+      if (segBad.length) {
+        err('29-c ②：`VIEWS.profile` 段里的档案名没过 `esc()`：'
+          + segBad.map(h => '`' + h.snippet + '`').join('；'));
+        cBad++;
+      }
+    }
+    const rowStmts = stmts.filter(w => /(?:^|[\s(])row\(\s*'档案'/.test(w.text));
+    if (!rowStmts.length) {
+      err('29-c ②：抓不到设置页 `row(\'档案\', …)` 那一句 —— 昵称的第二个出口没人看着了，'
+        + '先修判据本身（锚点与本节对齐）');
+      cBad++;
+    } else if (!nameAnchors(rowStmts.map(w => w.text).join(' ')).length) {
+      err('29-c ②：设置页 `row(\'档案\')` 那一句里抓不到档案名 —— 这条判据正在恒真');
+      cBad++;
+    } else {
+      const miss2 = [];
+      rowStmts.forEach(w => nameAnchors(w.text).forEach(h => { if (!h.escaped) miss2.push(h); }));
+      if (miss2.length) {
+        err('29-c ②：设置页「档案」那一行的昵称没过 `esc()`：'
+          + miss2.map(h => '`' + h.snippet + '`').join('；'));
+        cBad++;
+      }
+    }
+  }
+
+  if (!cBad) {
+    ok(`界面文案纪律：\`src/\` 的 ${srcFiles.length} 个 js 的字符串字面量里 0 处 markdown 残留；`
+      + `档案名进 HTML 的 ${panHits.total} 处全部过了 \`esc()\``);
+  }
+})();
+
 /* ---------------- 30. 读档兜底的接线 ----------------
    `load()` 现在会在读档出问题时给 `St.loadNote()` 留一句话（退备份 / 已重置），
    但如果 main.js 没人读它，这句话就永远不出现 —— 玩家看到的还是「进度莫名没了」。

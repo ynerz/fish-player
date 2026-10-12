@@ -1812,6 +1812,10 @@ G.Panels = (function () {
     render: function (root) {
       var s = St.get();
 
+      /* ⚠️ `name` / `desc` 是**HTML 片段**口径（直接拼进 innerHTML）⇒ 往里放**玩家可写文本**
+         必须自己过 `esc()`。第 56 轮实测：「档案」那一行的 name 里拼的是玩家昵称
+         （`G.Profile` 的档案名 —— 注册 / 改名都写得进去），当时是裸拼的 ⇒ `<b>x</b>` 会被
+         当标签渲染、`</div>` 会把版面拆掉。已改走 `esc()`，并由 `verify [29-c]` 逐点钉住。 */
       function row(name, desc, ctlHtml, onReady) {
         var r = U.el('div', 'set-row');
         r.innerHTML = '<div><div class="set-name">' + name + '</div><div class="set-desc">' + desc + '</div></div>';
@@ -2073,7 +2077,8 @@ G.Panels = (function () {
       });
       /* 账号 / 档案（N1）：设置页只放入口，交互在独立的 VIEWS.profile 里 */
       var pf = (G.Profile && G.Profile.current) ? G.Profile.current() : null;
-      row('档案', pf ? (pf.name + '　' + (pf.hash ? '有密码' : '无密码') + '　uid ' + pf.uid.slice(0, 8))
+      /* 🔴 昵称是**玩家可写文本** ⇒ 进 innerHTML 必须转义（第 56 轮；`verify [29-c]` 逐点钉住） */
+      row('档案', pf ? (esc(pf.name) + '　' + (pf.hash ? '有密码' : '无密码') + '　uid ' + pf.uid.slice(0, 8))
                      : '本机单档（档案模块未启用）',
         '<button class="btn-ghost" id="setProfile">管理</button>', function (c) {
         U.on(c.querySelector('#setProfile'), 'click', function () { G.Audio.click(); open('profile'); });
@@ -2123,8 +2128,11 @@ G.Panels = (function () {
 
       var tip = U.el('div', 'hint-text');
       tip.style.margin = '0 0 10px';
-      tip.innerHTML = '账号只存在**本机浏览器**里：uid 与密码用来区分档案、防止误改，' +
-        '**不是安全凭证**（清掉浏览器数据就会重置）。' +
+      /* ⚠️ 这里是 **innerHTML**，不是 markdown ⇒ 强调要用 `<b>`，写过 `**…**` 会**原样显示**
+         （第 56 轮实测：玩家看到的是「账号只存在**本机浏览器**里」）。
+         `verify [29-c]` 判据 ① 盯住这条（`src/` 的字符串字面量里不许再出现连续的星号）。 */
+      tip.innerHTML = '账号只存在<b>本机浏览器</b>里：uid 与密码用来区分档案、防止误改，' +
+        '<b>不是安全凭证</b>（清掉浏览器数据就会重置）。' +
         (P.isSecure() ? '' : ' ⚠️ 当前环境没有可用的加密模块（subtle），密码走降级弱哈希。') +
         (P.note() ? '　·　' + P.note() : '');
       root.appendChild(tip);
@@ -2132,9 +2140,11 @@ G.Panels = (function () {
       var list = U.el('div', 'pick-list');
       P.list().forEach(function (a) {
         var row = U.el('div', 'pick-row' + (a.cur ? ' on' : ''));
-        row.innerHTML = '<div class="pr-main"><div class="pr-name">' + a.name +
+        /* 🔴 `a.name` = 玩家昵称 ⇒ 必须转义（同上）。`a.uid` 是随机十六进制串、没有尖括号，
+           但仍然走同一条 `esc()` —— 出口处一律转义比「逐个论证它安全」可靠。 */
+        row.innerHTML = '<div class="pr-main"><div class="pr-name">' + esc(a.name) +
           (a.locked ? '　🔒' : '') + '</div>' +
-          '<div class="pr-desc">uid ' + a.uid.slice(0, 8) + '　' +
+          '<div class="pr-desc">uid ' + esc(a.uid.slice(0, 8)) + '　' +
           (a.locked ? '有密码' : '无密码') + (a.cur ? '　·　当前档案' : '') + '</div></div>';
         var ops = U.el('div', 'net-ops');
         function btn(label, cls, fn) {

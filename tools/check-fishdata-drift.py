@@ -55,10 +55,27 @@ def parse_args(argv=None):
 REV = parse_args().rev                    # ⚠️ 只解析、不做任何动作（见上面的口径）
 
 
+def die(msg):
+    """用户可见的失败出口 —— **唯一一处**（与 `tools/check-prompt-drift.py` 那句
+    `✘ 取不到 …` 同源：同一族的两个工具，失败时给人的东西必须长得一样）。
+
+    🔴 这里原本是 `assert r.returncode == 0, …`（两处）。`assert` 不配当校验口，两个理由：
+      ① `python -O`（以及任何带 `-O` 的打包/嵌入解释器）会**把 assert 整段剥掉**
+         ⇒ 校验静默消失、工具带着脏输入继续跑；
+      ② 它的报错形态是**裸 traceback**（`AssertionError: ('src/data/fish.js', "fatal: …")`），
+         对一个「拿 rev 名当输入」的工具来说，人根本看不出是 rev 写错了。
+    ⚠️ 退出码 1（不是 2）：rev 取不到是**运行期失败**，不是「命令行用错了」——
+       用法错（未知开关）走 argparse 自己的退出码 2（§32-x）。
+    """
+    sys.stderr.write("✘ %s\n" % msg)
+    sys.exit(1)
+
+
 def git_show(rel):
     r = subprocess.run(["git", "show", "%s:%s" % (REV, rel)], capture_output=True, text=True,
                        errors="replace", cwd=".")
-    assert r.returncode == 0, (rel, r.stderr[:200])
+    if r.returncode != 0:
+        die("取不到 %s:%s —— %s" % (REV, rel, r.stderr.strip()[:200]))
     return r.stdout
 
 
@@ -87,7 +104,8 @@ def main():
             "new Function(require('fs').readFileSync('_tmp/old-fish.js','utf8')).call(global);"
             "console.log(JSON.stringify(global.G.FISH));"],
             capture_output=True, text=True, errors="replace", cwd=".")
-        assert r.returncode == 0, r.stderr[:300]
+        if r.returncode != 0:
+            die("node 求值 `%s` 版 fish.js 失败 —— %s" % (REV, (r.stderr or "").strip()[:300]))
         OLD_FISH = json.loads(r.stdout.strip().splitlines()[-1])
 
         # ② 旧 gen-art.py → 放到 tools/ 下（ROOT 靠 __file__ 定位），并覆写它的 TRAITS

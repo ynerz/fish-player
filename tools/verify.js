@@ -9320,8 +9320,6 @@ if (!refBad) {
     + `（含 tools/；另有 ${refExempt} 处按豁免待还账）`);
 }
 
-
-
 /* ---------------- 49. SS / SSS 两场的奇幻点题（逐条描述 + 四张网） ----------------
    由来（2026-10-09 晚，用户口径）：「SS 鱼场和 SSS 渔场的鱼的名字基本都不是现实中的鱼了，
    都有一定的奇幻元素，看看现有的提示词是不是还是不够奇幻，一定要符合它的名称，
@@ -13249,6 +13247,71 @@ console.log('\n[32-z] 面板可达性：`VIEWS.<键>` 必须有人能打开它�
   if (!pBad) {
     ok(`${viewKeys.length} 个面板全部可达（顶栏 tab ${tabs.length} 个 + 代码打开点 ${openVals.length} 处），`
       + '且每个 tab 都有实现：' + viewKeys.join(' / '));
+  }
+})();
+
+console.log('\n[32-aa] `tools/*.py` 里的 `assert` 不当「用户可见的校验口」（第 63 轮 · Q107）');
+(function () {
+  /* 【由头】第 63 轮 C 类审计铺的新面 = 「工具的**运行时失败**长什么样」。这一族此前只查过
+     「help / 自报文案 ↔ 实际行为」（第 53 轮 §32-q/r）与「一条都没量到不许当成功」（第 57 轮
+     `[32-v]`），**没查过**「校验失败时人拿到什么」。实测（可执行反例）：
+       `python tools/check-fishdata-drift.py definitely-not-a-rev` ⇒ `assert r.returncode == 0, …`
+       抛**裸 traceback**：`AssertionError: ('src/data/fish.js', "fatal: invalid object name '…'")`
+       —— 对一个「输入就是一个 rev 名」的工具，人看不出是自己 rev 写错了。
+       同族对照：姊妹工具 `check-prompt-drift.py` 给的是干净一行 `✘ 取不到 <rev>:…`。
+       ⇒ **同一族的两个工具，失败时给人的东西必须长得一样**（收成一句 `✘ …` + 退出 1）。
+     🔴 为什么 `assert` 不配当校验口（两条，都独立成立）：
+       ① `python -O`（以及任何带 `-O` 的打包 / 嵌入解释器）会把 assert **整段剥掉**
+          ⇒ 校验静默消失，工具带着脏输入继续往下跑；
+       ② 它的报错形态是 traceback，而「工具怎么失败」本身是**界面**的一部分。
+     ⚠️ 退出码：校验失败 = **1**（运行期失败）；用法错（未知开关）才走 argparse 的 **2**
+        （口径见 `tools/argv.js`，js 侧同源）。
+     判据：`tools/*.py`（**测试宿主** `test-*.py` 除外 —— 那里的断言是测试语义，不是校验口）
+     里不许出现 `assert` 语句。⚠️ 跑在**剥过注释与 docstring** 的源码上（注释里提到不算）。
+     ⚠️ 针串与合成样本**拼接造**（本节的文案里也有这些词，写字面量会自我喂饱 —— 项目惯例）。 */
+  const dir = path.join(ROOT, 'tools');
+  let files = [];
+  try { files = fs.readdirSync(dir).filter(f => f.endsWith('.py')); }
+  catch (e) { err('32-aa 读不到 `tools/`（先修判据本身）'); return; }
+  const NEEDLE_ASSERT = 'ass' + 'ert';
+  const TEST_HOST = /^test-.*\.py$/;      /* 测试宿主：断言是它的语义 */
+  const MIN_FILES = 25;
+  const reAssert = new RegExp('^\\s*' + NEEDLE_ASSERT + '\\s');
+  /* 判据自检：坏样本必须认得出；注释样本必须放过（stripPy 已剥，这里顺带锁住原语） */
+  const selfOk = reAssert.test('    ' + NEEDLE_ASSERT + ' r.returncode == 0')
+    && reAssert.test('\t' + NEEDLE_ASSERT + ' x')
+    && !reAssert.test('    # 提到过 ' + NEEDLE_ASSERT + ' 这个词');
+  if (!selfOk) {
+    err('32-aa 的判据自检不成立（认不出 `' + NEEDLE_ASSERT + '` 语句 / 或把注释当成了语句）'
+      + '—— 这条判据会静默失效，先修判据本身');
+    return;
+  }
+  let aBad = 0, scanned = 0;
+  const asserts = [];
+  files.forEach(f => {
+    if (TEST_HOST.test(f)) return;
+    let code;
+    try { code = stripPy(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (e) { return; }
+    scanned++;
+    code.split(/\r?\n/).forEach((ln, i) => {
+      if (reAssert.test(ln)) asserts.push(`tools/${f}:${i + 1}`);
+    });
+  });
+  if (scanned < MIN_FILES) {
+    err(`32-aa 只扫到 ${scanned} 个非测试宿主的 \`tools/*.py\`（少于 ${MIN_FILES}）—— `
+      + '扫描面多半坏了，不许让这条判据静默退化成恒真的空断言'); aBad++;
+  }
+  if (asserts.length) {
+    err(`${asserts.length} 处 \`tools/*.py\` 用 \`${NEEDLE_ASSERT}\` 当校验口 —— `
+      + '`python -O` 会把它们**整段剥掉**（校验静默消失），而且报错是**裸 traceback**，'
+      + '看不出输入哪里不对：\n       ' + asserts.join('\n       ')
+      + '\n       ⇒ 改成「打印一行人话（`✘ …`）+ 非 0 退出」：`sys.exit(1)`；'
+      + '用法错才走 argparse 的 `2`（口径见 `tools/argv.js`）'); aBad++;
+  }
+  if (!aBad) {
+    ok(`\`tools/*.py\`（非测试宿主 ${scanned} 个）里 0 处 \`${NEEDLE_ASSERT}\` 当校验口`
+      + '—— 校验失败给的是一行人话 + 退出 1，不是 traceback'
+      + '（姊妹工具同款：`check-prompt-drift.py` 的 `✘ 取不到 …`）');
   }
 })();
 

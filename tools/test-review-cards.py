@@ -1970,6 +1970,53 @@ def main():
               "`%s %s` 一个字节都不写（`%s` 逐字节未变）"
               % (_name, _flag, os.path.basename(_doc)))
 
+    print("\n[33] 「点名了不存在的东西」⇒ 如实 + 非 0 退出（空表 + 退出 0 = 假成功；第 63 轮 Q110）")
+    # 由来：三个工具的**点名**路径对同一个输入给了三种答案（实测 2026-10-13）：
+    #   `pick-card.py ZZZ`       ⇒ 「❌ manifest 里没有 ZZZ —— id 写错了？」+ 退出 1  ← 对的那个
+    #   `check-cards.py ZZZ`     ⇒ 空表 + 「共 0 张，硬性不合格 0 个槽位」+ **退出 0**（假成功）
+    #   `measure-shine.py ZZZ`   ⇒ 「(没有闪光卡)」+ **退出 0**；给不存在的**文件路径**时
+    #                              更是直接 `FileNotFoundError` traceback
+    #   `facet-count.py 不存在`  ⇒ 表里写「不存在」+ **退出 0**
+    # ⇒ 收口到 `pick-card.py` / Q89（`verify [32-v]`）那条口径：**一条都没量到 ≠ 成功**。
+    # 判法 = **真 spawn** 看退出码与文案（静态判据判不了「退出码是不是 0」这件事）。
+    def _run33(name, *a):
+        return subprocess.run([sys.executable, os.path.join(TOOLS, name)] + list(a),
+                              capture_output=True, text=True, errors="replace", cwd=ROOT)
+
+    _bogus33 = "ZZZZ-no-such-id"
+    _c33 = _run33("check-cards.py", _bogus33)
+    _t33 = (_c33.stdout or "") + (_c33.stderr or "")
+    check(_c33.returncode == 1 and "不存在" in _t33,
+          "`check-cards.py <不存在的 id>` 退出 1 且明说「不存在」（实得 rc=%d）—— "
+          "原先是一张空表 +「硬性不合格 0 个槽位」+ 退出 0，那是最会让人安心的假话"
+          % _c33.returncode)
+    check("Traceback" not in _t33, "`check-cards.py <不存在的 id>` 不许抛 traceback")
+
+    _m33 = _run33("measure-shine.py", _bogus33)
+    _mt33 = (_m33.stdout or "") + (_m33.stderr or "")
+    check(_m33.returncode == 1 and "没有闪光卡" in _mt33,
+          "`measure-shine.py <不存在的 id>` 退出 1 且明说「没有闪光卡」（实得 rc=%d）"
+          % _m33.returncode)
+    check("Traceback" not in _mt33, "`measure-shine.py <不存在的 id>` 不许抛 traceback")
+
+    _mp33 = _run33("measure-shine.py", os.path.join("_tmp", "no-such-shine-card.png"))
+    _mpt33 = (_mp33.stdout or "") + (_mp33.stderr or "")
+    check(_mp33.returncode == 1 and "文件不存在" in _mpt33 and "Traceback" not in _mpt33,
+          "`measure-shine.py <不存在的文件路径>` 退出 1 且明说「文件不存在」、**不是** "
+          "`FileNotFoundError` traceback（实得 rc=%d）" % _mp33.returncode)
+
+    _f33 = _run33("facet-count.py", os.path.join("_tmp", "no-such-facet.png"))
+    _ft33 = (_f33.stdout or "") + (_f33.stderr or "")
+    check(_f33.returncode == 1 and "不存在" in _ft33,
+          "`facet-count.py <不存在的文件>` 退出 1 且表里写「不存在」（实得 rc=%d）"
+          % _f33.returncode)
+
+    # 正向对照：**真存在**的靶子仍必须退 0 —— 否则上面四条只是「一律报失败」的假网
+    _ok33 = _run33("facet-count.py", "--ref")
+    check(_ok33.returncode == 0,
+          "正向对照：`facet-count.py --ref`（靶子真存在）仍退出 0（实得 rc=%d）—— "
+          "上面那几条不许把正常路径也判成失败" % _ok33.returncode)
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

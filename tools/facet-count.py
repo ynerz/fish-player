@@ -125,13 +125,19 @@ def main(argv=None):
     a = parse_args(argv)
     args = a.files if (a.files and not a.ref) else [REF]
     print("%-46s %8s %10s %8s" % ("file", "色块数", "鱼身px", "每千px"))
+    bad = []
     for p in args:
         if not os.path.exists(p):
-            print("%-46s  不存在" % os.path.basename(p)); continue
+            # 🔴 原先只印一行「不存在」就 `continue`、整支**退出 0** ⇒ 「点了名却什么都没量到」
+            #    看起来是成功的（第 63 轮 Q110，口径同 Q89 / `verify [32-v]`）。
+            print("%-46s  不存在" % os.path.basename(p)); bad.append(os.path.basename(p)); continue
         n, area, base = facet_density(p)
         d = (n / area * 1000) if area else 0
         print("%-46s %8d %10d %8.2f" % (os.path.basename(p), n, area, d))
     print("\n靶子（v9 标准图）≈ 3.6 / 千px。低于 2.5 = 块面偏少，高于 5 = 发碎。")
+    if bad:
+        print("\n✘ 点名了 %d 个文件，其中 %d 个不存在：%s" % (len(args), len(bad), "、".join(bad)))
+        sys.exit(1)
 
 
 if __name__ == "__main__":

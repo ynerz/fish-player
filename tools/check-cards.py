@@ -449,14 +449,21 @@ def main(argv=None):
                        if MASTER_RE.match(f) or MORPH_RE.match(f))
 
     if not files:
-        print("assets/cards/ 下没有卡片（<id>.png / <id>-<档>.png）"); return
+        print("assets/cards/ 下没有卡片（<id>.png / <id>-<档>.png）")
+        sys.exit(1)          # 「一条都没量到」= 失败（口径同 Q89 / `verify [32-v]`），别退 0
 
     # ① 先把每张图算一遍（`analyze()` 要扫像素，不便宜 ⇒ 一张图只算一次），
     #    ② 再按**鱼 → 槽位**归组判（跨档判据要「同一批的其它档」才算得出来）。
-    per_path, order = {}, []
+    per_path, order, missing = {}, [], []
     for p in files:
         if not os.path.exists(p):
-            print("  缺文件：%s" % p); continue
+            # 🔴 只是「报告一行」不算处理完（第 63 轮 Q110）：原先这里 `continue` 之后
+            #    照常打出「共 0 张，硬性不合格 0 个槽位」并**退出 0** —— 点名一个不存在的
+            #    id 会拿到一个**看起来一切正常**的空表。姊妹工具 `pick-card.py` 给的是
+            #    「❌ manifest 里没有 ZZZ —— id 写错了？」+ 退出 1 ⇒ 收口到那个口径。
+            print("  缺文件：%s" % p)
+            missing.append(os.path.basename(p))
+            continue
         per_path[p] = analyze(p)
         order.append(p)
     judged, slots = slot_verdicts(per_path)
@@ -508,6 +515,14 @@ def main(argv=None):
         print("跨档一致性提示 %d 张（同鱼各档之间漂移偏大；**只是提示、不是不合格**）：" % len(drift))
         for fid, why in drift:
             print("  ⚠ %s  %s" % (fid, "、".join(why)))
+
+    # 🔴 点名了却不存在 ⇒ **非 0 退出**（第 63 轮 Q110）。理由与 Q89 同源：
+    #    「一条都没量到」不许当成功 —— 否则打出来的那张「共 0 张，硬性不合格 0 个槽位」
+    #    是一句**会让人安心**的假话（点名拼错 id 时最常见的形态）。
+    if missing:
+        print("\n✘ 点名了 %d 个目标，其中 %d 个在 assets/cards/ 下不存在：%s"
+              % (len(files), len(missing), "、".join(missing)))
+        sys.exit(1)
 
 
 if __name__ == "__main__":

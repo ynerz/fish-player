@@ -173,21 +173,30 @@ def main(argv=None):
         ids = sorted(f[:-10] for f in os.listdir(CARDS)
                      if f.endswith("-shiny.png") and not f.startswith("_"))
     print("（亮度 / 闪度% / 本地对比）")
-    out = []
+    out, bad = [], []
     for f in files:
+        if not os.path.exists(f):
+            # 🔴 原先这里是裸 `Image.open(f)` ⇒ **FileNotFoundError traceback**（第 63 轮 Q110）。
+            #    同族：`tools/pydeps.py` 那条纪律「工具怎么失败本身是界面的一部分」。
+            out.append("%-30s (文件不存在)" % os.path.basename(f)); bad.append(f); continue
         im = Image.open(f)
         r = measure(im)
         out.append(line(os.path.basename(f), r) if r else "%-30s (区域像素不足)" % os.path.basename(f))
     for fid in ids:
         p = os.path.join(CARDS, fid + "-shiny.png")
         if not os.path.exists(p):
-            out.append("%-30s (没有闪光卡)" % fid)
+            out.append("%-30s (没有闪光卡)" % fid); bad.append(fid)
             continue
         r = measure(Image.open(p))
         out.append(line(fid, r) if r else "%-30s (区域像素不足)" % fid)
     print("\n".join(out))
     print("\n注：区域按剪影几何切分（头 2%~22%、背/腹 = 35%~65% 按列上下对半），只用于相对比较。")
     print("    闪度 = (L>%d 且 局部对比>%d) 的像素占比；Δ(背-腹)=正 ⇒ 腹部更不闪。" % (T_ABS, T_HP))
+    # 点名了却量不到 ⇒ 非 0 退出（同 Q89 / `[32-v]` / Q110）：一句话说清是哪几个，
+    # 而不是让人对着一排「(没有闪光卡)」猜「这算成功还是失败」。
+    if bad:
+        print("\n✘ 点名了 %d 个目标，其中 %d 个量不到：%s" % (len(files) + len(ids), len(bad), "、".join(bad)))
+        sys.exit(1)
 
 
 if __name__ == "__main__":

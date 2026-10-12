@@ -12061,6 +12061,97 @@ console.log('\n[32-w] 洗注释只有顶层两个入口：py 的 `stripPy()` / j
   }
 })();
 
+console.log('\n[32-v] 工具「一条都没量到」不许当成功（外部程序解析唯一入口 + 退出码如实）');
+(function () {
+  const REL = 'tools/measure-silhouette.py';
+  const P = path.join(ROOT, REL);
+  let raw;
+  try { raw = fs.readFileSync(P, 'utf8'); }
+  catch (e) { err(`32-v 读不到 \`${REL}\`（先修判据本身）`); return; }
+  /* ⚠️ 被测文件是 **`.py`** ⇒ 洗注释必须走 `stripPy()`（剥 `#`），不能拿 JS 口径的
+     `stripComments()` —— 后者只认 `//` 与块注释，py 的行尾 `#` 会整片留下把判据喂饱
+     （本轮第一版就是这么写的，反向验证的负对照当场逮到）。再叠 `blankStrings()`。 */
+  const C = blankStrings(stripPy(raw));
+  const RUN = 'subproc' + 'ess.run(';         /* 拼接造针串：别让本节的报错文案把自己喂饱 */
+  let vBad = 0;
+
+  /* ---- ⑥ 合成样本自检：两条原语（取函数体 / 数调用点）先各自证一次 ----
+     ⚠️ 定义关键字与针串都用**拼接**造：verify.js 里出现「反斜杠 + 定义关键字 + 空格」这种字面量，
+        会被第 42 节的「按位置切函数体」判据当成我自己又写了一次那种写法（本轮第一版就踩了）。 */
+  const DEF = 'def ';
+  const S_FN = DEF + 'zz(a):\n    x = 1\n    return x\n';
+  const S_RUN = DEF + 'zz(a):\n    ' + RUN + '[a, "x"])\n' + DEF + 'yy(b):\n    ' + RUN + '[b, "y"])\n';
+  const selfOk = (function () {
+    try {
+      const b1 = bodyOf(S_FN, DEF + 'zz(');
+      const b2 = bodyOf(S_RUN, DEF + 'zz(');
+      const nAll = S_RUN.split(RUN).length - 1;
+      const nIn = b2.split(RUN).length - 1;
+      return has(b1, 'return x') && nAll === 2 && nIn === 1;
+    } catch (e) { return false; }
+  })();
+  if (!selfOk) {
+    err('32-v 的判据自检不成立（`bodyOf()` 取函数体 / 数 `subprocess` 调用点这两个原语没能各自认对）'
+      + ' —— 这条网会假绿，先修判据本身');
+    vBad++;
+  }
+
+  /* ---- ①②③④⑤ 真扫这个工具 ---- */
+  let bodyResolve = '', bodyProfile = '', bodyMain = '';
+  try { bodyResolve = bodyOf(C, 'def resolve_ffmpeg('); } catch (e) { bodyResolve = ''; }
+  try { bodyProfile = bodyOf(C, 'def profile_of('); } catch (e) { bodyProfile = ''; }
+  try { bodyMain = bodyOf(C, 'def main('); } catch (e) { bodyMain = ''; }
+  if (!bodyResolve) {
+    err('32-v：`' + REL + '` 里取不到 `resolve_ffmpeg()` 的函数体 ⇒ 外部程序的解析不再收口于一处'
+      + '（本节要判的就是「唯一入口」，取不到**不能**当通过）');
+    vBad++;
+  }
+  if (!bodyProfile) {
+    err('32-v：`' + REL + '` 里取不到 `profile_of()` 的函数体 ⇒ 量图那一段的判据全部失效'
+      + '（取不到**不能**当通过）');
+    vBad++;
+  }
+  const nAll = C.split(RUN).length - 1;
+  const nProfile = bodyProfile ? bodyProfile.split(RUN).length - 1 : 0;
+  if (nAll === 0) {
+    err('32-v：`' + REL + '` 里数不到 `subprocess` 的调用点 ⇒ 判据的正则失效（这条网正在恒真，先修判据）');
+    vBad++;
+  } else if (bodyProfile && nAll !== nProfile) {
+    err(`32-v：外部程序的调用点共 ${nAll} 处，其中只有 ${nProfile} 处在量图函数体内 ⇒ `
+      + '别处还有一处直接拿写死的路径去起进程（换台机器就崩在 FileNotFoundError，且不报「是路径的问题」）');
+    vBad++;
+  }
+  const FF_VAR = '[' + 'ff,';
+  if (bodyProfile && !has(bodyProfile, FF_VAR)) {
+    err('32-v：量图函数里的外部程序**不是** `resolve_ffmpeg()` 的解析结果（实参形态对不上）'
+      + ' —— 解析收口这一条就没落地');
+    vBad++;
+  }
+  if (bodyResolve) {
+    const NEED_ENV = 'os.environ'.slice(3);        /* `environ` —— 环境变量那一级 */
+    const NEED_WHICH = 'which(';
+    if (!has(bodyResolve, NEED_ENV) || !has(bodyResolve, NEED_WHICH)) {
+      err('32-v：`resolve_ffmpeg()` 里没有「环境变量」与「PATH 查找」这两级回退 ⇒ '
+        + '外部程序仍然只认某台机器上的一个位置（本项目反复栽的「配方不能复现」）');
+      vBad++;
+    }
+  }
+  if (!has(bodyMain, 'if not ff')) {
+    err('32-v：`main()` 里没有「解析不到外部程序就报错」这一支 ⇒ 找不到 ffmpeg 会一路跑到量图那步，'
+      + '报出来的是子进程的报错而不是「去装一个」');
+    vBad++;
+  }
+  if (!has(bodyMain, 'if n_bad')) {
+    err('32-v：`main()` 里没有按「失败条数」决定退出码的那一支 ⇒ '
+      + '**一条都没量到也可能以 0 退出**（本节的正题：静默假成功）');
+    vBad++;
+  }
+  if (!vBad) {
+    ok('工具「没量到」不再是假成功：原因分流 + 有任何失败以 1 退出 + 外部程序解析收在 '
+      + '`resolve_ffmpeg()` 一处（环境变量 / PATH 两级回退都在）');
+  }
+})();
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

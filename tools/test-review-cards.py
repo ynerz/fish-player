@@ -1431,6 +1431,59 @@ def main():
     check(all(set(x.split(",")) <= fish_ids for x in ids) and ids,
           "打印的 --list 值都是鱼 id（实得 %d 条命令）" % len(ids))
 
+    print("\n[26] `measure-silhouette.py`：「一条都没量到」不许当成功（本轮修的真缺陷）")
+    # 病根（2026-10-12 第 57 轮实测）：待测目录不存在时，六行全印「测量失败」而**退出码 0**
+    #   —— 一份看起来正常的表格 + 成功退出码，实际一条数据都没有。同轮还查出它文件头里
+    #   两处不实（`_m3d` vs 代码里的 `m3d`；写着「或改参数指定目录」而当时没有参数解析）。
+    # 判法：真 spawn 这个工具，逐条看**退出码 + 文案**；另有「盘上文件一个字节都没动」的守卫
+    #   （它是只读工具，任何写盘都是事故）。
+    SIL = os.path.join(TOOLS, "measure-silhouette.py")
+    _watch = [os.path.join(ROOT, "src", "data", "fish.js"),
+              os.path.join(ROOT, "src", "data", "fields.js"),
+              os.path.join(ROOT, "tools", "fish-traits.json")]
+    _before = {}
+    for _p in _watch:
+        with io.open(_p, "rb") as _fh:
+            _before[_p] = hashlib.md5(_fh.read()).hexdigest()
+
+    def run_sil(*args):
+        return subprocess.run([sys.executable, SIL] + list(args),
+                              capture_output=True, text=True, errors="replace", cwd=ROOT)
+
+    _empty = os.path.join(TMP, "sil-empty")
+    if not os.path.isdir(_empty):
+        os.makedirs(_empty)
+    r_miss = run_sil("--mine-dir", _empty, "--only", "fish,shark")
+    check(r_miss.returncode == 1,
+          "待测图不在盘上 ⇒ **退出码 1**（实得 %d）—— 旧的「全印测量失败却退 0」是假成功"
+          % r_miss.returncode)
+    check("图不在" in r_miss.stdout,
+          "逐侧说清「是哪一种没量到」（输出里要有『图不在』，不是一句『测量失败』）")
+    r_help = run_sil("--help")
+    check(r_help.returncode == 0 and "usage" in r_help.stdout,
+          "`--help` 退出码 0 且打出 usage（此前它没有参数解析，只能量写死的那两个目录）")
+    r_bad = run_sil()
+    check(r_bad.returncode == 2,
+          "缺 `--mine-dir` ⇒ 用法错（退出码 2，实得 %d）" % r_bad.returncode)
+
+    # 正控：给一张真图 ⇒ 退出码 0 且真量出宽高比（否则「恒退 1」的判据就是空转）
+    _mine = os.path.join(TMP, "sil-mine")
+    if not os.path.isdir(_mine):
+        os.makedirs(_mine)
+    _ref = os.path.join(ROOT, "docs", "images", "v9-ref", "fish.jpg")
+    if os.path.isfile(_ref):
+        shutil.copyfile(_ref, os.path.join(_mine, "fish.png"))
+        r_ok = run_sil("--mine-dir", _mine, "--only", "fish")
+        check(r_ok.returncode == 0 and "成功 1 / 失败 0" in r_ok.stdout,
+              "给一张真图 ⇒ 退出码 0 且打印出宽高比（正控：说明上面那两条不是「恒退 1」）")
+    else:
+        check(False, "`docs/images/v9-ref/fish.jpg` 不在 ⇒ 正控跑不了（先修测试宿主）")
+
+    _moved = [p for p in _watch if hashlib.md5(io.open(p, "rb").read()).hexdigest() != _before[p]]
+    check(not _moved, "量轮廓的工具**一个字节都没写盘**（它是只读工具）：%s" % (_moved or "未变"))
+    for _d in (_empty, _mine):                      # 收尾不留临时目录（同「不留后台进程」那条规矩）
+        shutil.rmtree(_d, ignore_errors=True)
+
     print("\n" + "=" * 52)
     if fails:
         print("\u2716 未通过：%d 项\n" % len(fails))

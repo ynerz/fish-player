@@ -12032,7 +12032,7 @@ console.log('\n[32-u] 事件总线：emit ↔ on 双向必须对上（零消费�
      ⑥ 合成样本自检：取函数体 / 数调用点两个原语各认对一次。
    ⚠️ 行为面（真 spawn 一次，看退出码与文案）在 `tools/test-review-cards.py` 的 **[26]** 节——
       `verify` 起不了外部命令（本机 `spawnSync` 返回 EBUSY，见第 39 节的注释）。 */
-console.log('\n[32-x] `tools/*.py` 每个都必须有 `-h/--help` 出口（手写 argv 会把 `--help` 当参数照跑）');
+console.log('\n[32-x] `tools/*.py` 的**命令行工具**每个都必须有 `-h/--help` 出口（纯库模块免检；手写 argv 会把 `--help` 当参数照跑）');
 (function () {
   /* 【由头】第 57 轮开工第一量就撞上（Q90）：`python tools/gen-fish.py --help`
      **真的重写了 `src/data/fish.js` 362 行**、退出码 0 —— 手写 argv 只做
@@ -12060,38 +12060,53 @@ console.log('\n[32-x] `tools/*.py` 每个都必须有 `-h/--help` 出口（手�
   /* 拼接造针串：本节的报错文案里也写着这些词，直接写字面量会被自己喂饱（项目惯例） */
   const NEEDLE_PARSER = 'Argument' + 'Parser(';
   const NEEDLE_HAND = 'in ' + 'sys.argv';
-  const MIN_FILES = 25, MIN_EXIT = 25;
+  const NEEDLE_MAIN = '__main' + '__';       /* 有入口 = 命令行工具；没有 = 纯库模块（Q95） */
+  const MIN_FILES = 25, MIN_EXIT = 25, MIN_LIB = 1;
 
   /* 判据自检：两种原语各认对一次（好样本必须认得出、坏样本也必须认得出） */
   const selfOk = has('ap = argparse.' + NEEDLE_PARSER + 'prog="x")', NEEDLE_PARSER)
-    && has('if "--dry" ' + NEEDLE_HAND + '[1:]:', NEEDLE_HAND);
+    && has('if "--dry" ' + NEEDLE_HAND + '[1:]:', NEEDLE_HAND)
+    && has('if ' + NEEDLE_MAIN + ' == "x":', NEEDLE_MAIN);
   if (!selfOk) {
-    err('32-x 的判据自检不成立（认不出 `Argument' + 'Parser(` 或认不出手写开关判定）—— '
-      + '那两条判据会静默失效，先修判据本身');
+    err('32-x 的判据自检不成立（认不出 `Argument' + 'Parser(` 或认不出手写开关判定 / '
+      + '`' + NEEDLE_MAIN + '` 入口）—— 那几条判据会静默失效，先修判据本身');
     return;
   }
   let xBad = 0, scanned = 0;
-  const noExit = [], hand = [];
+  const noExit = [], hand = [], libs = [];
   files.forEach(f => {
     let code;
     try { code = stripPy(fs.readFileSync(path.join(dir, f), 'utf8')); } catch (e) { return; }
     scanned++;
-    if (!has(code, NEEDLE_PARSER)) noExit.push('tools/' + f);
+    /* 🆕 Q95（第 59 轮）：`tools/*.py` 里出现了**纯库模块**（`wash.py`：只提供函数、没有
+       命令行面）⇒ 「每个 `.py` 都必须有 usage 出口」这条要按「有没有入口」分两类。
+       豁免口径**现算**（有没有 `__main__`），且豁免必须**仍然需要**（库模块数为 0 ⇒ 报红 ——
+       否则将来某天全部文件都有入口时，这条豁免会静默变成一句空话）。 */
+    const isLib = !has(code, NEEDLE_MAIN);
+    if (isLib) { libs.push('tools/' + f); } else if (!has(code, NEEDLE_PARSER)) { noExit.push('tools/' + f); }
     if (has(code, NEEDLE_HAND)) hand.push('tools/' + f);
   });
   if (scanned < MIN_FILES) {
     err(`32-x 只扫到 ${scanned} 个 \`tools/*.py\`（少于 ${MIN_FILES}）—— 扫描面多半坏了，`
       + '不许让这条判据静默退化成恒真的空断言'); xBad++;
   }
-  if (scanned - noExit.length < MIN_EXIT) {
-    err(`32-x 只有 ${scanned - noExit.length} 个工具认得出 usage 出口（少于 ${MIN_EXIT}）—— `
-      + '`Argument' + 'Parser(` 的认法要跟着改，否则这条判据会静默失效'); xBad++;
+  if (scanned - libs.length - noExit.length < MIN_EXIT) {
+    err(`32-x 只有 ${scanned - libs.length - noExit.length} 个命令行工具认得出 usage 出口`
+      + `（少于 ${MIN_EXIT}）—— \`Argument' + 'Parser(\` 的认法要跟着改，否则这条判据会静默失效`);
+    xBad++;
+  }
+  if (libs.length < MIN_LIB) {
+    err('32-x：`tools/*.py` 里一个**纯库模块**（没有 `' + NEEDLE_MAIN + '` 入口）都没有 —— '
+      + '上面那条豁免已经过期（库模块被删了？还是它偷偷加了入口却还在这儿免检？），'
+      + '把豁免删掉或把 `wash.py` 找回来'); xBad++;
   }
   if (noExit.length) {
     err(`${noExit.length} 个 \`tools/*.py\` 没有 usage 出口（文件里找不到 \`${NEEDLE_PARSER}\`）—— `
       + '手写 argv 的工具会把 `--help`（乃至任何拼错的开关）**当成位置参数照跑**：\n       '
       + noExit.join('\n       ')
-      + '\n       ⇒ 参数面改用 stdlib `argparse`（`-h` 退出 0 / 未知开关退出 2）'); xBad++;
+      + '\n       ⇒ 参数面改用 stdlib `argparse`（`-h` 退出 0 / 未知开关退出 2）；'
+      + '确实是纯库模块（没有 `' + NEEDLE_MAIN + '` 入口）就会自动免检，'
+      + '但别为了免检而把入口删掉'); xBad++;
   }
   if (hand.length) {
     err(`${hand.length} 个 \`tools/*.py\` 还在用手写开关判定（\`${NEEDLE_HAND}\`）—— `
@@ -12099,9 +12114,10 @@ console.log('\n[32-x] `tools/*.py` 每个都必须有 `-h/--help` 出口（手�
       + hand.join('\n       ') + '\n       ⇒ 一律走 `argparse` 的 `args.<dest>`'); xBad++;
   }
   if (!xBad) {
-    ok(`\`tools/*.py\` 的 ${scanned} 个工具都有 usage 出口（\`${NEEDLE_PARSER}\`），`
-      + `且 0 处手写开关判定（\`${NEEDLE_HAND}\`）—— \`-h\` 退出 0 / 未知开关退出 2 `
-      + '（行为面在 `tools/test-review-cards.py` [28]）');
+    ok(`\`tools/*.py\` 的 ${scanned - libs.length} 个命令行工具都有 usage 出口`
+      + `（\`${NEEDLE_PARSER}\`）+ ${libs.length} 个**纯库模块**免检（没有 \`${NEEDLE_MAIN}\` 入口：`
+      + `${libs.join('、')}），且 0 处手写开关判定（\`${NEEDLE_HAND}\`）—— \`-h\` 退出 0 / `
+      + '未知开关退出 2 （行为面在 `tools/test-review-cards.py` [28]）');
   }
 })();
 

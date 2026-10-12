@@ -34,7 +34,8 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageStat
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 TMP = os.path.join(ROOT, "_tmp")
-
+sys.path.insert(0, HERE)
+import wash  # noqa: E402  —— 洗注释的**唯一实现**（py 侧；Q95）
 fails = []
 
 
@@ -248,22 +249,62 @@ def main():
     if bad_body == body:
         check(False, "反向自检没造出差异（分隔符写法变了？判据要跟着改）")
     else:
+        # 🔴 2026-10-12（第 59 轮）实测的坑：这条自检**不是幂等的**。
+        #   它会故意在仓库根写出垃圾文件（`C02` / `D07`），而清理只对「本次新增的」生效
+        #    ⇒ 上一轮中途挂掉 / 判据本身报红（`added2` 为空 ⇒ 清理什么都没删）时，
+        #    垃圾留在仓库根：`git status` 从此一直脏，**而下一次跑这条自检会因为
+        #    「它已经在那儿了」而判红 —— 自证其罪、且永远不会自愈**（本轮真撞上：
+        #    根目录躺着 22:57 生成的 `C02` / `D07`，这一节直接红）。
+        #    修法三件：① 垃圾名**从坏脚本现算**（`>` 之后那个分词）；② 跑之前先把
+        #    同名残留删掉并**如实报出来**（上一轮的锅不许算这一轮）；③ 放进 `finally` 清理。
+        # ⚠️ 只从**带 `->` 的那几行**里现算垃圾名，而且只认合法文件名字符 ——
+        #    否则会把脚本里别处的 `>nul`（设备名）与路径分隔符也当成垃圾名
+        #    （第一版就中招：`junk_names` 里混进 `\` 与 `nul`，而 `ROOT/nul` 在 Windows 上
+        #    `os.path.exists()` 竟然为真 ⇒ 最后那条「清干净了」永远报红）。
+        junk_names = []
+        for _ln in bad_body.split("\r\n"):
+            if "->" not in _ln:
+                continue
+            for _m in re.finditer(r"->\s*([A-Za-z0-9_.-]+)", _ln):
+                if _m.group(1) not in junk_names:
+                    junk_names.append(_m.group(1))
+        check(bool(junk_names),
+              "坏脚本的重定向目标能现算出来（%r）—— 算不出来说明这节的自检要跟着改"
+              % (junk_names or "无"))
+        stale = [j for j in junk_names if os.path.exists(os.path.join(ROOT, j))]
+        if stale:
+            # 如实报告 + 清掉：这是**上一轮**留下的（本轮这一节的自检产物在 finally 里清）
+            check(False, "仓库根有上一轮自检残留的垃圾文件 %r —— 已清掉；"
+                         "它会让 `git status` 一直脏、并让本节自检永远报红（本轮已加幂等保护）"
+                  % (stale,))
+            for j in stale:
+                try:
+                    os.remove(os.path.join(ROOT, j))
+                except OSError:
+                    pass
         bad_cmd = os.path.join(TMP, "dry-run-bad.cmd")
         io.open(bad_cmd, "w", encoding="ascii", newline="").write(bad_body)
         before2 = set(os.listdir(ROOT))
         try:
-            subprocess.run(["cmd", "/c", bad_cmd], capture_output=True, text=True,
-                           errors="replace", cwd=ROOT, timeout=60)
-        except subprocess.TimeoutExpired:
-            pass
-        added2 = sorted(set(os.listdir(ROOT)) - before2)
-        check(bool(added2), "判据自检：改回 `->` 的写法**确实**会在仓库根写出文件（%r）"
-                            "—— 这正是要拦的那个 bug" % (added2[:3] or "居然没写出来"))
-        for junk in added2:                      # 自检产物当场清掉
             try:
-                os.remove(os.path.join(ROOT, junk))
-            except OSError:
+                subprocess.run(["cmd", "/c", bad_cmd], capture_output=True, text=True,
+                               errors="replace", cwd=ROOT, timeout=60)
+            except subprocess.TimeoutExpired:
                 pass
+            added2 = sorted(set(os.listdir(ROOT)) - before2)
+            check(bool(added2), "判据自检：改回 `->` 的写法**确实**会在仓库根写出文件（%r）"
+                                "—— 这正是要拦的那个 bug" % (added2[:3] or "居然没写出来"))
+        finally:
+            # 清理一律走 finally（中途抛异常 / 判红也不留垃圾；口径同 `verify [32-y]`）
+            for junk in set(added2 if "added2" in dir() else []) | set(junk_names):
+                p_junk = os.path.join(ROOT, junk)
+                if os.path.exists(p_junk):
+                    try:
+                        os.remove(p_junk)
+                    except OSError:
+                        pass
+        check(not [j for j in junk_names if os.path.exists(os.path.join(ROOT, j))],
+              "自检产物清干净了（仓库根不留垃圾：%r）" % (junk_names,))
 
     print("\n[9] shape_note：内部形态模板键翻成中文；交叉提示只提示不报错")
     # 为什么这条要有测试：评审页以前把 `fish.js` 第 4 参**裸印**在卡片上（`A03 · 稀有 · fish`），
@@ -711,10 +752,11 @@ def main():
     check(_over and all(GA.size_band(f).startswith("a huge massive ") for f in _over),
           "maxKg 超出最后一档的 %d 条走兜底（不兜底 = 不报错、只是静默少一句）" % len(_over))
     # ④ 唯一实现：form_profile 体内不许再摸 SIZE_BANDS（判据剥注释与 docstring —— 散文里提到不算）
-    _src = io.open(os.path.join(TOOLS, "gen-art.py"), encoding="utf-8").read()
+    _src = wash.read_washed(os.path.join(TOOLS, "gen-art.py"))
     _body = _src.split("def form_profile(f):")[1].split("\ndef ")[0]
-    _code = re.sub(r'""".*?"""', "", _body, flags=re.S)
-    _code = re.sub(r"#[^\n]*", "", _code)
+    # 洗注释走共用实现（Q95）：`wash.read_washed()` 已剥 docstring + 整行/行尾 `#`，
+    # 所以这里不再自己 re.sub 一遍（原先那份是**不看引号**的裸正则，口径与顶层分家）。
+    _code = _body
     check(len(_code) > 200 and "size_band(f)" in _code,
           "form_profile 体内确实调了 size_band(f)（取不到函数体就报这里的红）")
     check("SIZE_BANDS" not in _code,
@@ -812,10 +854,10 @@ def main():
     # ① 口径：正式默认 cn_latin，且 `NAME_MODE =` 只有一处（A/B 三挡只是开关）
     check(GA2.NAME_MODE == "cn_latin",
           "正式默认是 cn_latin（A/B 对拍定稿后的口径）—— 实得 %r" % (GA2.NAME_MODE,))
-    _gasrc = io.open(os.path.join(TOOLS, "gen-art.py"), encoding="utf-8").read()
-    # ⚠️ 先剥**整行注释**再数（硬规矩 ①）：不剥的话，注释里写一句 `NAME_MODE = off …`
-    #    就能把这条计数判据喂饱（反向验证里专有一组负对照证明它现在不会被喂饱）。
-    _gacode = re.sub(r"(?m)^\s*#.*$", "", _gasrc)
+    # ⚠️ 洗注释走共用实现 `wash.strip_py()`（Q95）：整行 + 行尾 `#` 都剥、且**引号里的 `#` 不动**。
+    #    原先这里是 `re.sub(r"(?m)^\s*#.*$", "", …)` —— 只剥整行，行尾注释会留下喂饱这条计数判据
+    #    （第 55 轮 Q83 在 JS 侧修过同一个坑，这里是 py 侧那一半）。
+    _gacode = wash.read_washed(os.path.join(TOOLS, "gen-art.py"))
     check(len(re.findall(r"^NAME_MODE = ", _gacode, re.M)) == 1,
           "`NAME_MODE =` 只有一处定义（另起一份 = 两个默认值）")
     # ② 真数据：362 条全都带得出名字；有 species 的条必须带拉丁名，没有的不许自己补括号
@@ -963,10 +1005,8 @@ def main():
               % (_edge_delta(_rim), _edge_delta(_rf)))
         check(_rf.getchannel("A").tobytes() == _rim.getchannel("A").tobytes(),
               "真卡面：alpha 也逐字节不变")
-    # 实现唯一 + 规格消费（静态，剥注释；与 verify §53 ⑦ 同源但这里是 python 侧的自检）
-    _psrc = io.open(os.path.join(TOOLS, "prep-cards.py"), encoding="utf-8").read()
-    _pcode = re.sub(r'"""[\s\S]*?"""', "", _psrc)
-    _pcode = re.sub(r"#[^\n]*", "", _pcode)
+    # 实现唯一 + 规格消费（静态，剥注释走共用实现；与 verify §53 ⑦ 同源但这里是 python 侧的自检）
+    _pcode = wash.read_washed(os.path.join(TOOLS, "prep-cards.py"))
     check(len(re.findall(r"def bleed\(", _pcode)) == 1
           and len(re.findall(r"bleed\(", _pcode)) == 2,
           "bleed() 只有一处实现 + 一处调用（实得 %d / %d）"
@@ -1044,9 +1084,9 @@ def main():
               and _RR.normalize_argv(["30"]) == ["--budget-min", "30"]
               and _RR.normalize_argv(["--budget-min", "30"]) == ["--budget-min", "30"],
               "两种位置形态各归到正确的选项上，选项形态原样通过")
-        _rr_src = io.open(rr_test, encoding="utf-8").read()
-        _rr_code = re.sub(r'"""[\s\S]*?"""', "", _rr_src)
-        _rr_code = re.sub(r"#[^\n]*", "", _rr_code)
+        # 洗注释走共用实现（Q95）：这一份原先是**不看引号**的裸正则 `#[^\n]*` ——
+        # 会把 `'#a87a1f'` 这类字符串从中间撕开（JS 侧第 57 轮 Q88 修过同一个坑）。
+        _rr_code = wash.read_washed(rr_test)
         check(len(re.findall(r"def normalize_argv\(", _rr_code)) == 1,
               "`normalize_argv()` 只有一处实现（实得 %d 处）—— 两份必然分家"
               % len(re.findall(r"def normalize_argv\(", _rr_code)))
@@ -1593,15 +1633,24 @@ def main():
 
     # 宿主自己不参与（它跑完就会 `sys.exit`，而且正在运行的就是它）
     _me28 = os.path.basename(os.path.abspath(__file__))
-    _pys28 = sorted(f for f in os.listdir(TOOLS)
-                    if f.endswith(".py") and f != _me28)
+    _pys28_all = sorted(f for f in os.listdir(TOOLS)
+                        if f.endswith(".py") and f != _me28)
+    # 🆕 Q95（第 59 轮）：`tools/wash.py` 是**纯库模块**（没有 `__main__` 入口、没有命令行面）
+    #   ⇒ 它不该被要求「`--help` 打得出 usage」。豁免口径 = **有没有 `__main__` 入口**（现算，
+    #   不看文件名白名单），并且这条豁免**必须仍然需要**（真的存在库模块，否则报红 —— 同 §40 口径）。
+    _lib28 = [f for f in _pys28_all
+              if "__main__" not in wash.strip_py(io.open(os.path.join(TOOLS, f), encoding="utf-8").read())]
+    _pys28 = [f for f in _pys28_all if f not in _lib28]
+    check(len(_lib28) >= 1,
+          "纯库模块（无 `__main__` 入口）%d 个：%s —— 一个都没有说明豁免已过期（要么库模块被删了，"
+          "要么它偷偷加了入口却还在这儿免检）" % (len(_lib28), "、".join(_lib28) or "无"))
+    check(len(_pys28) >= 20,
+          "`tools/*.py` 的命令行工具扫到 %d 个（少于 20 ⇒ 扫描面坏了，这一节会变成空断言）"
+          % len(_pys28))
 
     def run_py28(name, *a):
         return subprocess.run([sys.executable, os.path.join(TOOLS, name)] + list(a),
                               capture_output=True, text=True, errors="replace", cwd=ROOT)
-
-    check(len(_pys28) >= 20,
-          "`tools/*.py` 扫到 %d 个（少于 20 ⇒ 扫描面坏了，这一节会变成空断言）" % len(_pys28))
 
     _no_help, _no2 = [], []
     for _name in _pys28:
@@ -1685,6 +1734,133 @@ def main():
           "抛异常那一刻 `tools/_drift_old.py` **确实在盘上**（否则「清理掉」这条是空转）")
     check(not os.path.exists(_DRIFT),
           "异常路径下 `finally` 仍把它清掉（这就是 Q92 的正题：裸放最后一行的 `os.remove` 做不到）")
+
+    print("\n[30] py 侧洗注释：抽值前必须洗（注释里的假数据不算数据）+ 与 js 侧逐字节同源（Q95）")
+    # 为什么有这一节（2026-10-12 第 59 轮实测的洞）：`review-cards.load_fish()` 从
+    #   `src/data/fish.js` 里正则抽鱼表，读的是**源码原文** ⇒ 往注释里写一行
+    #   `// F('A99', '假鱼', 3, 'fish', '#123456')`，评审台就从 362 条变成 **363 条**
+    #   （`A99` 真的进了表格），一句都不报错 —— 正是本项目最高频的「注释喂饱判据」。
+    #   同族还有 `load_fields()`（钓场下拉凭空多一项）、`load_shape_cn()`、
+    #   `measure-palette-facets.read_fish()`（色相直方图被注释里的色值污染）。
+    _RE_FISH = r"F\('([A-Z]+\d+)',\s*'([^']*)',\s*(\d),\s*'([a-z]+)',\s*'(#[0-9A-Fa-f]{6})'"
+    _sb30 = os.path.join(TMP, "wash-gate30")
+    try:
+        if os.path.isdir(_sb30):
+            shutil.rmtree(_sb30)
+        os.makedirs(_sb30)
+        # ① 机制（沙盒，不动真数据）：三种形态的注释里各放一条假记录，洗过之后只认真的那条
+        _fake = os.path.join(_sb30, "sample.js")
+        _txt = ("// F('A99', '假鱼·行注释', 3, 'fish', '#123456')\n"
+                "F('A01', '真记录', 3, 'fish', '#abcdef')\n"
+                "/* F('A98', '假鱼·块注释', 3, 'fish', '#654321') */\n"
+                "/* 跨行块注释\n   F('A97', '假鱼·跨行', 3, 'fish', '#0f0f0f') */\n")
+        io.open(_fake, "w", encoding="utf-8").write(_txt)
+        _ids_raw = [m[0] for m in re.findall(_RE_FISH, _txt)]
+        _ids_wash = [m[0] for m in re.findall(_RE_FISH, wash.read_washed(_fake))]
+        check(len(_ids_raw) == 4,
+              "负对照：**不洗**的话 4 条（含 3 条注释里的假记录）全都会被抓到 —— 这一节确实有牙")
+        check(_ids_wash == ["A01"],
+              "洗过之后只认真记录（实得 %r；注释里的 3 条假记录一条都不许进来）" % (_ids_wash,))
+        # ①-b py 口径：注释与 docstring 里的假记录也不许被抽到
+        _fakepy = os.path.join(_sb30, "sample.py")
+        _ptxt = ('x = 1  # NEEDLE=True 这一句是行尾注释\n'
+                 '"""NEEDLE=True 这一段是 docstring"""\n'
+                 "NEEDLE = True\n"
+                 "s = '#a87a1f'  # 引号里的井号不是注释\n")
+        _pcode = wash.read_washed(_fakepy.replace(".py", ".py")) if False else wash.strip_py(_ptxt)
+        check(len(re.findall(r"NEEDLE = True", _pcode)) == 1,
+              "py 口径：整行 / 行尾 / docstring 里的 `NEEDLE = True` 都不算（只留真那一处）")
+        check("'#a87a1f'" in _pcode,
+              "py 口径：**引号里的 `#` 一个字节都不许动**（撕开它 = 色值字符串被切半，判据再也找不到）")
+        # ② 三个 loader（+ 量图工具）必须真的走共用实现：从**函数体**里判，不看全文出现过
+        R = load_review()
+        for _mod, _rel, _fn in ((R, "review-cards.py", "load_fish"),
+                                (R, "review-cards.py", "load_fields"),
+                                (R, "review-cards.py", "load_shape_cn")):
+            _src = wash.strip_py(io.open(os.path.join(TOOLS, _rel), encoding="utf-8").read())
+            _body = _src.split("def %s(" % _fn)[1].split("\ndef ")[0]
+            check("wash.read_washed(" in _body,
+                  "`%s()` 读源码走 `wash.read_washed()`（抽值前先洗——抓不到就是又直接 `io.open().read()` 了）" % _fn)
+        _mp = wash.strip_py(io.open(os.path.join(TOOLS, "measure-palette-facets.py"), encoding="utf-8").read())
+        _mpbody = _mp.split("def read_fish(")[1].split("\ndef ")[0]
+        check("wash.read_washed(" in _mpbody,
+              "`measure-palette-facets.read_fish()` 同样先洗（它是色相直方图那条标尺）")
+        # ③ 跨语言对拍：py 的 `tools/wash.py` 与 js 的 `tools/wash.js` 在同一批真文件上必须逐字节相同
+        #    （两边是**有意保留的两份实现** —— 宿主语言不同，唯一的防线就是对拍；行尾按 LF 归一，
+        #     因为 python 文本模式本来就把 CRLF 翻译成 LF，那不是口径差异）
+        _node = shutil.which("node")
+        if not _node:
+            print("      · 跳过跨语言对拍：本机 PATH 里没有 node（环境问题，不是代码问题）")
+        else:
+            _files30 = ["src/data/fish.js", "src/data/fields.js", "src/data/config.js",
+                        "src/render/fishart.js", "src/ui/panels.js", "tools/gen-art.py",
+                        "tools/prep-cards.py", "tools/review-cards.py",
+                        "assets/css/style.css", "tools/wash.py"]
+            _prog = (
+                "const fs=require('fs'),crypto=require('crypto');"
+                "const {wash}=require('./tools/wash.js');"
+                "const F=" + json.dumps(_files30) + ";"
+                "const l=[];"
+                "for(const r of F){const s=wash(r,fs.readFileSync(r,'utf8')).split('\\r\\n').join('\\n');"
+                "l.push(crypto.createHash('md5').update(s,'utf8').digest('hex')+' '+r);}"
+                "console.log(l.join('\\n'));")
+            _r30 = subprocess.run([_node, "-e", _prog], capture_output=True, text=True,
+                                  errors="replace", cwd=ROOT)
+            if _r30.returncode != 0:
+                check(False, "跨语言对拍跑不起来（node 退出码 %d）：%s"
+                      % (_r30.returncode, (_r30.stderr or "").strip()[:160]))
+            else:
+                _js = dict((ln.split(" ", 1)[1], ln.split(" ", 1)[0]) for ln in _r30.stdout.strip().split("\n"))
+                _diff30 = []
+                for _rel in _files30:
+                    _mine = hashlib.md5(wash.read_washed(os.path.join(ROOT, _rel)).encode("utf-8")).hexdigest()
+                    if _js.get(_rel) != _mine:
+                        _diff30.append(_rel)
+                check(len(_js) == len(_files30),
+                      "js 侧回报了 %d/%d 个文件（少于就说明那边的清单/实现坏了）" % (len(_js), len(_files30)))
+                check(not _diff30,
+                      "py 的 `tools/wash.py` 与 js 的 `tools/wash.js` 在 %d 个真文件上**逐字节相同**"
+                      "（另有 %d 个不一致：%s）"
+                      % (len(_files30), len(_diff30), "、".join(_diff30) or "无"))
+        # ④ py 侧也不许再有**局部**洗注释实现（与 `verify [32-w]` 同款纪律，只是这一侧归 python 管）。
+        #    判法：扫每个 `.py` 的代码面，找 `re.sub(` 的那些调用，看**它紧跟着的正则实参**是不是
+        #    在剥注释（含 `#[^` 这种「井号到行尾」或三引号）—— 名称无关，所以「换个名字照样抄」
+        #    也抓得到。针串全部**拼接造**，否则本节的示例文本会把自己喂饱（硬规矩 ①/㊳）。
+        #    ⚠️ **有意保留的一个假报类**：把「洗注释的写法」原样**抄进字符串字面量**（例如当测试样本）
+        #       也会被判红 —— 判据分不清「真的在洗」与「引用一个洗的写法」。要留这种样本请按
+        #       项目惯例**拼接**造针串（`"re." + "sub("` 这样），那样就不会被自己喂饱。
+        _SUB = "re." + "sub("
+        _HASH = "#[" + "^"
+        _Q3 = '"' * 3
+        _lit30 = _SUB + "r'" + _HASH          # 形态一：re.sub(r'#[^…', …)
+        _lit31 = _SUB + "r\"" + _HASH          # 形态二：re.sub(r"#[^…", …)
+        _lit32 = _SUB + "r'" + _Q3             # 形态三：re.sub(r'"""…', …)
+        _lit33 = _SUB + "r\"" + _Q3            # 形态四：re.sub(r"""…", …)
+
+        def _local_washers30(code):
+            hits = 0
+            for _n in (_lit30, _lit31, _lit32, _lit33):
+                hits += code.count(_n)
+            return hits
+
+        # 自检：合成样本必须被认出来（拼接造，别让本节自己的示例喂饱判据）
+        _s30 = "x = " + _SUB + "r'" + _HASH + "\\n]*', '', s)"
+        check(_local_washers30(_s30) >= 1,
+              "自检：局部洗注释的针串在合成样本上必须命中（否则本条判据恒真、白过）")
+        _local30 = []
+        for _f in sorted(os.listdir(TOOLS)):
+            if not _f.endswith(".py") or _f == "wash.py":
+                continue
+            _code = wash.strip_py(io.open(os.path.join(TOOLS, _f), encoding="utf-8").read())
+            _n30 = _local_washers30(_code)
+            if _n30:
+                _local30.append("%s（%d 处）" % (_f, _n30))
+        check(not _local30,
+              "`tools/*.py` 里没有局部的洗注释实现（有就收口到 `tools/wash.py`）—— 另有 %d 个：%s"
+              % (len(_local30), "、".join(_local30) or "无"))
+    finally:
+        if os.path.isdir(_sb30):
+            shutil.rmtree(_sb30, ignore_errors=True)
 
     print("\n" + "=" * 52)
     if fails:

@@ -30,6 +30,8 @@ from collections import Counter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
+import wash  # noqa: E402  —— 洗注释的**唯一实现**（py 侧；Q95）
 CARDS = os.path.join(ROOT, 'assets', 'cards')
 SEED = 7          # 样本固定 ⇒ 两次跑逐字相同（本项目对「带随机性的工具」的硬规矩）
 N_SAMPLE = 24
@@ -47,7 +49,9 @@ def band(deg):
 
 
 def read_fish():
-    raw = io.open(os.path.join(ROOT, 'src', 'data', 'fish.js'), encoding='utf-8').read()
+    # ⚠️ **先洗注释再抽色值**（Q95）：注释里写一个 `#rrggbb` 会被算进色相直方图 /
+    #    面片密度标尺 —— 那是「先量后改」的标尺，被注释污染就没人看得出来。
+    raw = wash.read_washed(os.path.join(ROOT, 'src', 'data', 'fish.js'))
     rows = re.findall(r"F\('([A-Z]+\d+)', '([^']*)', (\d), '([a-z]+)', '(#[0-9a-fA-F]{6})'", raw)
     if not rows:
         sys.exit('[!] 从 fish.js 里一条都认不出 —— 生成格式变了，先修本工具的正则')

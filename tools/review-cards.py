@@ -43,6 +43,9 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
+import wash  # noqa: E402  —— 洗注释的**唯一实现**（py 侧；Q95）
+
 CARDS = os.path.join(ROOT, "assets", "cards")
 RAR_CN = ["普通", "稀有", "史诗", "传说"]
 MORPH_CN = [("normal", "原色"), ("bright", "彩虹色"), ("albino", "白化"),
@@ -71,7 +74,9 @@ def load_shape_cn():
        只能验「键集与 `fishart.TPL` 对齐」，**验不出「同一个键两边叫法不同」**。
        2026-10-10 用户要求给图鉴也加体型筛选时，顺势把这份表提到了 config.js。
     """
-    src = io.open(os.path.join(ROOT, "src", "data", "config.js"), encoding="utf-8").read()
+    # ⚠️ **先洗注释再抽值**（Q95，2026-10-12 第 59 轮实测）：不洗的话，源码**注释里**
+    #    写一行 `shapeCn: { … }` 形态的示例就能喂饱这条正则（评审台凭空多出几条标签）。
+    src = wash.read_washed(os.path.join(ROOT, "src", "data", "config.js"))
     m = re.search(r"shapeCn\s*:\s*\{([\s\S]*?)\}", src)
     if not m:
         raise SystemExit("❌ config.js 里找不到 CONFIG.shapeCn —— 评审台的体型标签从那儿读")
@@ -91,7 +96,9 @@ SHAPE_CN = load_shape_cn()
 #   页内 JS 靠 Python 注入的 `<option>` 取文本，绝不在页里再抄一份中文表（第二份真相）。
 def load_fields():
     """钓场 id → 中文名（**按 `fields.js` 自己的顺序**，即「由近及远」）。"""
-    src = io.open(os.path.join(ROOT, "src", "data", "fields.js"), encoding="utf-8").read()
+    # ⚠️ 同上：**先洗注释再抽值**（Q95）—— 注释里写一行 `id: 'X' … name: 'Y'` 会让
+    #    评审台的钓场下拉凭空多一项，且 `len(out) < 5` 那条兜底抓不到（假数据只会让它更多）。
+    src = wash.read_washed(os.path.join(ROOT, "src", "data", "fields.js"))
     out = []
     for m in re.finditer(r"id:\s*'([A-Z]+)'([\s\S]{0,400}?)name:\s*'([^']*)'", src):
         out.append((m.group(1), m.group(3)))
@@ -231,7 +238,11 @@ def field_of(fid):
 
 
 def load_fish():
-    src = io.open(os.path.join(ROOT, "src", "data", "fish.js"), encoding="utf-8").read()
+    # 🔴 **先洗注释再抽值**（Q95，2026-10-12 第 59 轮实测的洞）：不洗的话，
+    #   往 `fish.js` 的**注释**里写一行 `// F('A99', '假鱼', 3, 'fish', '#123456')`
+    #   就能让评审台从 362 条变成 **363 条** —— `A99` 真的进了表格，而且一句都不报错。
+    #   （本项目最高频的坑型「注释喂饱判据」，JS 侧由 `tools/wash.js` 挡着，py 侧此前没有。）
+    src = wash.read_washed(os.path.join(ROOT, "src", "data", "fish.js"))
     out = []
     # 第 5 个参数就是主色（`body`），筛选「色相带」要用它
     for i, n, r, sh, body in re.findall(

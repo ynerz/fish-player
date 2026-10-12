@@ -3792,7 +3792,7 @@ console.log('\n[32-k] 音频素材名 ↔ `G.Audio` 方法名（死素材 / 名�
      反向验证里用**注释**做负对照（注释里的 `X.dest` 不算消费方）。 */
 console.log('\n[32-l] `tools/*.py` 的命令行开关必须有消费方（零消费 = 参数接受但什么也不做）');
 (function () {
-  const MIN_FLAGS = 70;        // 实测 93（2026-10-11 口径，25 个文件）；少于它说明扫描面坏了
+  const MIN_FLAGS = 70;        // 下限：2026-10-13 复核实得 106 个开关 / 24 个脚本（2026-10-11 是 93 / 25）
 
   /* 括号配平取 `add_argument( … )` 的整段实参（帮助文案里可能有括号 ⇒ 认引号） */
   const specsOf = (code) => {
@@ -4271,8 +4271,12 @@ console.log('\n[32-p] `tools/` 入口的开关组合语义：同用时不许静�
 
   /* ① `--brief` ⇒ `--stale`：`if args.brief:` 之后若干行内必须出现 `args.stale = True`。
      ⚠️ 中间那些注释行剥完会变成纯空白行 ⇒ 窗口按**行数**给足（12 行），不按「非空行」。
-     ⚠️ 行尾按 `\r?\n` 写：`tools/gen-art.py` 是 **CRLF**（实测），只认 `\n` 会让这条判据
-        在本文件上**恒假**（第一次写就栽了：正控样本过了、真文件报红）。 */
+     ⚠️ 行尾按 `\r?\n` 写：**「某个文件用哪种行尾」是可变事实，别当依据** —— 本仓
+        `core.autocrlf=true`，而工具重写文件时写的是 LF ⇒ 同一批 `.py` 里两种都有
+        （2026-10-13 第 62 轮实测：`gen-art.py` 是 **LF**、`gen-captions.py` 是 CRLF）。
+        只认 `\n` 会在被改成 CRLF 的那些文件上**恒假**（第一次写就栽了：正控样本过了、真文件报红）。
+        🔴 所以这里**不许**写「某某文件是 CRLF」这类断言 —— 它会随「谁最后写了这个文件」失效
+        （原文这么写着，第 62 轮逐条复核时逮到，见 §17.52）。 */
   const briefImpliesStale = (code) => {
     const b = bodyOf(code, 'def main(');
     if (!b) return null;                       /* 切不到 ⇒ 交给调用方报错，别静默放行 */
@@ -4535,7 +4539,8 @@ console.log('\n[32-q] `tools/` 入口的值域校验与现算文案（写错档�
       }
     }
     /* help 现算：`--rar` 的 add_argument 实参里必须引用那个常量
-       ⚠️ `\r?\n`：`gen-art.py` 是 CRLF（同 `briefImpliesStale` 那条注释）。 */
+       ⚠️ `\r?\n`：理由同 `briefImpliesStale` 那条注释 —— **别断言某个文件是 CRLF**，
+          盘上的风格会随「谁最后写了它」变（2026-10-13 实测：`gen-art.py` 是 LF）。 */
     const spec = (gaCode.match(/ap\.add_argument\("--rar"[\s\S]{0,400}?\)\r?\n/) || [''])[0];
     if (!spec || !has(spec, 'RAR_DEFAULT_CAP')) {
       err('32-q：`gen-art.py` 的 `--rar` help 没有**引用** `RAR_DEFAULT_CAP` 现算'

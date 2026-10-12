@@ -3376,6 +3376,29 @@ G_('CLI · js 工具的命令行契约（未知开关 / 缺值 / 互斥必须报
     { cwd: SANDBOX, encoding: 'utf8', timeout: 60000 });
   const fishMd5 = md5('src/data/fish.js'), fieldsMd5 = md5('src/data/fields.js');
 
+  /* ① 用法错一律**退出码 2** + 报错文案说到点子上。
+     ⚠️ 表定义在「能不能起子进程」那一步**之前**：跳过时的文案要用它的长度现算，
+        不写死条数（写死就会跟着这张表漂 —— 本项目的老坑）。 */
+  const BAD = [
+    ['build.js', ['--out', '--release'], '看起来是另一个开关'],
+    ['build.js', ['--out'], '缺一个值'],
+    ['build.js', ['--check', '--out', 'x.html'], '不能同时用'],
+    ['build.js', ['--zzz'], '不认识的开关'],
+    ['balance.js', ['--emit', '--check'], '不能同时用'],
+    ['balance.js', ['--zzz'], '不认识的开关'],
+    ['browser-probe.js', ['--zzz'], '不认识的开关'],
+    ['browser-probe.js', ['--wait'], '缺一个值'],
+    ['browser-probe.js', ['a', 'b', 'c', 'd'], '位置参数最多 3 个'],
+    ['fix-rarity-price.js', ['--zzz'], '不认识的开关'],
+    ['solve-drop.js', ['--zzz'], '不认识的开关'],
+    /* 🔴 2026-10-13（第 61 轮，Q100）：下面两组是**新面** —— 这两个入口此前连
+       `process.argv` 都不提，`verify §32-s` 的旧扫描面看不到它们，
+       `--zzz` / `--help` 被静默忽略且**照跑真活**（`tune.js` 会把整套扫描跑一遍）。
+       `KNOWN = []`（不接受任何开关）是合法声明，见 `tools/argv.js`。 */
+    ['check-roster.js', ['--zzz'], '不认识的开关'],
+    ['tune.js', ['--help'], '不认识的开关'],
+  ];
+
   /* 🔴 2026-10-12（第 57 轮）：本机 `spawnSync` 会**对所有可执行文件**返回 `EBUSY`
      （实测 `cmd` 与 `node.exe` 各一次：`{status:null, error:'spawnSync … EBUSY'}`；
      同一天 `tools/verify.js` 的 `.cmd` 真跑面也栽在同一个东西上；而 python 的 `subprocess`
@@ -3389,25 +3412,11 @@ G_('CLI · js 工具的命令行契约（未知开关 / 缺值 / 互斥必须报
   const BOOT = run('build.js', ['--check']);
   if (BOOT.error && BOOT.status === null) {
     ok('⚠️ 本机起不了外部命令（`spawnSync` → ' + BOOT.error.message + '）—— 这一节'
-      + '（11 组坏用法 + 4 组对照，共 28 项）**这趟跳过**；'
+      + '（' + BAD.length + ' 组坏用法 + 4 组对照）**这趟跳过**；'
       + '源码面 `verify §32-s` 仍在生效，行为面由 `tools/test-review-cards.py` 覆盖');
     return;
   }
 
-  /* ① 用法错一律**退出码 2** + 报错文案说到点子上 */
-  const BAD = [
-    ['build.js', ['--out', '--release'], '看起来是另一个开关'],
-    ['build.js', ['--out'], '缺一个值'],
-    ['build.js', ['--check', '--out', 'x.html'], '不能同时用'],
-    ['build.js', ['--zzz'], '不认识的开关'],
-    ['balance.js', ['--emit', '--check'], '不能同时用'],
-    ['balance.js', ['--zzz'], '不认识的开关'],
-    ['browser-probe.js', ['--zzz'], '不认识的开关'],
-    ['browser-probe.js', ['--wait'], '缺一个值'],
-    ['browser-probe.js', ['a', 'b', 'c', 'd'], '位置参数最多 3 个'],
-    ['fix-rarity-price.js', ['--zzz'], '不认识的开关'],
-    ['solve-drop.js', ['--zzz'], '不认识的开关'],
-  ];
   let sawNoUsage = 0;
   BAD.forEach(([rel, args, needle]) => {
     const r = run(rel, args);
@@ -3418,7 +3427,7 @@ G_('CLI · js 工具的命令行契约（未知开关 / 缺值 / 互斥必须报
     ok(err.indexOf(needle) >= 0, `  …文案说到点子上（含「${needle}」）`,
       err.trim().split('\n').slice(-2).join(' / ').slice(0, 140));
   });
-  ok(sawNoUsage === 0, '11 组坏用法全部给出了**能指到原因**的文案（不是笼统的「参数错误」）');
+  ok(sawNoUsage === 0, `${BAD.length} 组坏用法全部给出了**能指到原因**的文案（不是笼统的「参数错误」）`);
 
   /* ② 坏用法**不许在盘上留下任何东西**（旧行为写出了一个叫 `--release` 的 944 KB 文件） */
   const left = fs.readdirSync(SANDBOX);

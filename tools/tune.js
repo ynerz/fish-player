@@ -1,9 +1,17 @@
 /* =========================================================
    tools/tune.js  —  参数扫描：为每个稀有度挑选合适的「逃窜强度」
-   用法： node tools/tune.js
+   用法： node tools/tune.js   （**不接受任何开关**）
    ========================================================= */
 const fs = require('fs'), path = require('path');
 const ROOT = path.join(__dirname, '..');
+
+/* 命令行契约（2026-10-13 第 61 轮，Q100）：本工具**不接受任何开关**。
+   见 `tools/check-roster.js` 的同段注释 —— 这个文件原先连 `process.argv` 都没有，
+   `verify §32-s` 的旧扫描面（按「提没提 process.argv」现算）看不到它，
+   于是 `node tools/tune.js --help` 会**静默忽略开关、真跑一遍整套扫描**（实测退出码 0）。 */
+const { checkKnown } = require('./argv');
+const KNOWN = [];
+checkKnown(process.argv.slice(2), KNOWN, 'tune.js');
 
 /* ---------- 固定随机种子 ----------
    扫描要跑真实对局，而 fight.js 内部用 Math.random —— 不固定种子的话，

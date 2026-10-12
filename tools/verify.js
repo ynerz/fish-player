@@ -4512,11 +4512,20 @@ console.log('\n[32-r] 工具自报的「下一步命令」必须真能跑（照�
    修法 = 契约收进**唯一一处** `tools/argv.js`（`fail` / `checkKnown` / `needValue` / `checkExclusive`），
    各工具只**声明**自己的 `KNOWN` / `EXCLUSIVE` 并调用它们。判据四组（全部剥注释）：
      (a) `tools/argv.js` 存在、导出那四个名字、坏用法只有**一个出口**（`process.exit(2)` 全项目仅此一处）；
-     (b) 每个手写解析 argv 的 js 工具都 `require('./argv')` + 调 `checkKnown(argv, KNOWN, …)`，
+     (b) 每个**入口形态**的 js 工具都 `require('./argv')` + 调 `checkKnown(argv, KNOWN, …)`，
          且同文件的 `KNOWN` 与「真正比对的开关」**双向相等**（多 = 零消费登记；少 = 会被误报成未知开关）；
      (c) 值类开关必须经 `needValue()`（文件里不许再有裸 `argv[++i]`）；
          声明了 `EXCLUSIVE` 的文件必须交给 `checkExclusive()`，且 `build.js` / `balance.js` 那两张非空；
-     (d) 判据自检（开关抽取的正/负控）+「扫不到 5 个解析 argv 的文件就报错」（空集自检）。
+     (d) 判据自检（开关抽取的正/负控 + 入口分类的正/负控）+「扫不到 6 个入口就报错」（空集自检）。
+   🔴 **2026-10-13（第 61 轮，Q100）—— (b) 的扫描面换过一次**，这条教训比修法本身值钱：
+     旧扫描面是「文件里出现 `process.argv`」，也就是**按"写法"取**；结果是
+     `check-roster.js` / `tune.js` 这两个**真正入口**（它们一个字都不提 argv）对这条网
+     **完全不可见** ⇒ `--zzz` 被静默忽略、`node tools/tune.js --help` **真跑了整套扫描**、
+     退出码 0（实测）。现在改成**按"身份"取** —— 入口分类由文件之间的关系现推
+     （被 `require('./x')` 过 = 库；全文无 `require(` = 页面片段；其余 = 入口），
+     与 py 侧 `[32-x]`（按「有没有 `__main__` 入口」现推）同源。
+     同族：`KNOWN = []` 是**合法**的（表示「本工具不接受任何开关」），
+     它和「有开关却漏登记」由 (b) 的双向对拍区分开。
    ⚠️ 本节判的是**机制在不在**；「真报错了吗」由行为面兜 —— `tools/test.js` 的
       「CLI · js 工具的命令行契约」那一节**真 spawn** 每个坏用法，断言**退出码 2** + 报错文案，
       并复核沙盒目录里没留下垃圾文件。 */
@@ -4597,23 +4606,76 @@ console.log('\n[32-s] `tools/*.js` 的命令行契约：未知开关 / 缺值 / 
     }
   }
 
-  /* ---- 扫描面：手写解析 argv 的 js 工具（现算，别写死名单）---- */
+  /* ---- 扫描面：**入口分类**（现算，不写死名单）----
+     🔴 2026-10-13（第 61 轮，Q100）：旧扫描面是「文件里出现 `process.argv`」——
+        它把「**是不是一个入口**」错当成了「**有没有提过 `process.argv`**」。
+        实测的反例：`check-roster.js` / `tune.js` 是货真价实的入口，却一个字都不提 argv
+        ⇒ 它们对这条网**完全不可见**，于是 `--zzz` 被静默忽略、`node tools/tune.js --help`
+        **真跑了一遍整套扫描**、退出码 0（与 py 侧第 57 轮 Q90 的 `gen-fish.py --help`
+        会重写 362 行 `fish.js` 是同一族坏法 —— 判据的扫描面**按"写法"取**而不是**按"身份"取**）。
+        改成与 py 侧 `[32-x]`（按「有没有 `__main__` 入口」现推）同源的口径 ——
+        「**是不是入口**」由**文件之间的关系**现推，三类各自算出来、**没有名单**：
+          · **库**      = 被 `tools/` 里别的文件 `require('./x')` 过（`argv.js` / `pipeline.js` / `wash.js`）
+          · **页面片段** = 全文没有 `require(` **且** 没有 `module.exports`
+                          （`probe-*.js`，只在浏览器页面里求值，不是命令行工具）
+          · **其余**    = 入口 ⇒ 必须走本节的命令行契约
+        ⚠️ 页面片段那两个条件**都要**：只写「没有 `require(`」时，一个「被 require 的库」
+           只要**所有**引用方把 `require('./x')` 改写成拼接式，它就会**静默掉进「页面片段」**
+           而退出这张网（RV 第 61 轮 V6 组实测 —— 反向验证逮到的假绿）。带上
+           `module.exports` 这一条，库/入口都不会再被误判成片段。
+        唯一保留的名字是**门禁宿主**：`verify.js` / `test.js` 自己不是「工具」。 */
   let allJs = [];
-  try { allJs = fs.readdirSync(path.join(ROOT, 'tools')).filter(f => /\.js$/.test(f)); }
-  catch (e) { err('读不到 `tools/` 目录 —— 32-s 的扫描面作废（先修判据本身）'); sBad++; }
-  /* ⚠️ 门禁宿主自己不算「工具」：`verify.js` / `test.js` 里当然会出现 `process.argv`
-     （它们要启动别的进程 / 自己读 argv），也会在**报错文案里**提到这些写法 ⇒ 一律排除。 */
-  const HOSTS = ['verify.js', 'test.js'];
-  const parseFiles = [];
+  const jsRaw = {};
+  try {
+    allJs = fs.readdirSync(path.join(ROOT, 'tools')).filter(f => /\.js$/.test(f));
+  } catch (e) { err('读不到 `tools/` 目录 —— 32-s 的扫描面作废（先修判据本身）'); sBad++; }
+  allJs.forEach(f => { jsRaw[f] = readJs('tools/' + f); });
+  /* 被 require 过的（相对路径 `./x` 形态）—— 这一列同时是「库」的判据与「契约实现」的定位 */
+  const libSet = [];
   allJs.forEach(f => {
-    if (f === 'argv.js' || HOSTS.indexOf(f) >= 0) return;   // 契约的实现本身不解析命令行
-    const raw = readJs('tools/' + f);
-    if (raw !== null && has(stripJs(raw), 'process.argv')) parseFiles.push(f);
+    const raw = jsRaw[f];
+    if (raw === null) return;
+    const re = /require\(\s*['"]\.\/([\w.-]+)['"]\s*\)/g; let m;
+    while ((m = re.exec(stripJs(raw)))) libSet.push(m[1] + '.js');
   });
-  const MIN_PARSE_FILES = 5;
+  const isSnippetCode = (code) => !/\brequire\s*\(/.test(code) && !/module\s*\.\s*exports\b/.test(code);
+  const classifyWith = (f, code, req) => req.indexOf(f) >= 0 ? 'lib' : (isSnippetCode(code) ? 'page' : 'cli');
+  const classifyJs = (f, code) => classifyWith(f, code, libSet);
+  const HOSTS = ['verify.js', 'test.js'];
+  const parseFiles = allJs.filter(f => {
+    const raw = jsRaw[f];
+    if (raw === null) return false;
+    if (HOSTS.indexOf(f) >= 0) return false;         // 门禁宿主不是「被检工具」
+    return classifyJs(f, stripJs(raw)) === 'cli';
+  });
+  /* 判据自检：分类器的正 / 负控（三个类别各认一次，且「被 require 过」优先于「有 require」）*/
+  const SYN_REQ = ['lap.js'];
+  const selfCls = [
+    classifyWith('lap.js', "const x = 1;", SYN_REQ),
+    classifyWith('probe.js', "(function(){ document.body; })();", SYN_REQ),
+    classifyWith('cli.js', "const fs = require('fs');", SYN_REQ),
+    classifyWith('lap2.js', "const fs = require('fs');", SYN_REQ),
+    classifyWith('lib3.js', "module.exports = { a: 1 };", SYN_REQ),
+  ].join(',');
+  if (selfCls !== 'lib,page,cli,cli,cli') {
+    err('32-s 的入口分类自检不成立（库 / 页面片段 / 入口三类必须各认一次，'
+      + '且「被 require 过」优先于「文件里有 require」；只 export 不 require 的**不是**页面片段）'
+      + ' —— 扫描面会跑偏');
+    sBad++;
+  }
+  if (libSet.indexOf('argv.js') < 0) {
+    err('32-s 的入口分类自检不成立（`require(\'./argv\')` 没能把 `argv.js` 认成库）——'
+      + ' 契约的实现本身会被当成入口、要求它自己 require 自己');
+    sBad++;
+  }
+  const MIN_PARSE_FILES = 6;
   if (parseFiles.length < MIN_PARSE_FILES) {
-    err(`32-s(b) 只认出 ${parseFiles.length} 个「手写解析 argv 的 js 工具」（少于 ${MIN_PARSE_FILES}）——`
-      + ' 扫描面多半坏了（判据按「文件里出现 process.argv」现算）');
+    err(`32-s(b) 只认出 ${parseFiles.length} 个「入口形态的 js 工具」（少于 ${MIN_PARSE_FILES}）——`
+      + ' 扫描面多半坏了（判据按 `tools/*.js` 的入口分类现算）');
+    sBad++;
+  }
+  if (libSet.length < 1 || allJs.filter(f => { const r = jsRaw[f]; return r && isSnippetCode(stripJs(r)); }).length < 1) {
+    err('32-s 的入口分类自检不成立（「库」或「页面片段」为空 —— 三类里少一类 = 分类口径塌了）');
     sBad++;
   }
   const exit2Files = [];
@@ -4683,7 +4745,7 @@ console.log('\n[32-s] `tools/*.js` 的命令行契约：未知开关 / 缺值 / 
     }
   });
   if (!sBad) {
-    ok(`\`tools/*.js\` 的 ${parseFiles.length} 个手写 argv 工具都走 \`tools/argv.js\` 的契约：`
+    ok(`\`tools/*.js\` 的 ${parseFiles.length} 个**入口形态**工具都走 \`tools/argv.js\` 的契约：`
       + '不认识的开关 / 有值开关缺值 / 互斥同给一律报错（退出码 2），'
       + '`KNOWN` 与真正比对的开关**双向相等**，坏用法只有 `fail()` 一个出口'
       + '（行为侧断言见 `tools/test.js` 的「CLI · js 工具的命令行契约」）');

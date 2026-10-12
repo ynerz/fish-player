@@ -43,13 +43,20 @@ function fail(tool, msg) {
 /**
  * 不认识的开关一律报错 —— **不许静默当成位置参数**（工具的位置参数是 url / 路径，
  * 一个多出来的 `--zzz` 会让整串位置参数整体串位，报出来的错还指不到原因）。
+ *
+ * ⚠️ **空表是合法的**（2026-10-13 第 61 轮，Q100）：`known = []` 表示「这个工具**不接受任何开关**」。
+ *    以前这里把空表当内部错误 —— 于是「本来就没有开关」的入口（`check-roster.js` / `tune.js`）
+ *    干脆**不接 `argv.js`**，`--zzz` 静默忽略、`--help` 直接跑真活且退出码 0（实测）。
+ *    「没有开关」和「有开关却漏登记」是两件事：后者由 `verify §32-s(b)` 的
+ *    KNOWN ↔ 真正比对的开关**双向**对拍逮住（`KNOWN = []` 而文件里比对开关 ⇒ 报红）。
  * @returns {string[]} 本次命令行里**出现过**的合法开关（供 checkExclusive 用）
  */
 function checkKnown(argv, known, tool) {
-  if (!Array.isArray(known) || known.length === 0) fail(tool, '内部错误：合法开关表是空的');
+  if (!Array.isArray(known)) fail(tool, '内部错误：合法开关表必须是数组');
   const bad = argv.filter(t => typeof t === 'string' && t.length > 1 && t.charAt(0) === '-' && known.indexOf(t) < 0);
   if (bad.length) {
-    fail(tool, '不认识的开关：' + bad.join(' ') + '（合法开关：' + known.join(' ') + '）');
+    const legal = known.length ? '合法开关：' + known.join(' ') : '本工具不接受任何开关（直接运行即可）';
+    fail(tool, '不认识的开关：' + bad.join(' ') + '（' + legal + '）');
   }
   return known.filter(k => argv.indexOf(k) >= 0);
 }

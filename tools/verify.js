@@ -12717,6 +12717,101 @@ console.log('\n[32-v] 工具「一条都没量到」不许当成功（外部程�
   }
 })();
 
+/* ---------------- 32-z. 面板可达性：`VIEWS.<键>` 必须有人能打开它（第 60 轮）----
+   由来（2026-10-13 第 60 轮，Q98）：14 个面板各有 `VIEWS.<键>` 实现，而「谁能打开它」此前
+   **只有正方向半张网** —— `[50-c] ④` 判「顶栏每个 `data-panel` 都有 `VIEWS` 实现」（tab 点下去
+   不许是空的），但**反方向没人管**：新做一个面板、忘了给它加入口（顶栏 tab / `P.open()` /
+   底部槽位），它就成了一件玩家**永远看不到**的东西 —— 代码在、门禁绿、界面上查无此物。
+   这正是本项目最在乎的那类「不报错但静默失效」（㉜ / 32-d / 32-g / 32-h 同族，只是换成了面板）。
+
+   判据：
+     (a) 每个 `VIEWS.<键>` 必须至少有一个**打开点**，三种都算（全部**现推**，不写死名单）：
+         ① `index.html` 的 `data-panel="<键>"`；
+         ② 整个 `src/` 目录下任意 `.js` 里的 `open('<键>'`（`P.open` / `G.Panels.open` / 面板内
+            那个局部 `open` 都落在这上面 —— 星号配斜杠别写出来，会提前闭合块注释）；
+         ③ 槽位走的是 `G.Panels.open(p)`（`p` = 那个 tab 的 data-panel），所以 ① 已经覆盖它。
+     (b) **反方向泛化**：`index.html` 里每个 `data-panel` 值都必须有 `VIEWS.<键>`（`[50-c] ④`
+         只判了 `diary` 一个；这里全判，否则点下去没反应的 tab 会一直留着）。
+     (c) 抓不到就报错（键数 < 10 / 打开点 < 5 ⇒ 扫描面坏了，不是「项目突然只剩两个面板」）。
+     (d) 判据自检（合成样本：有入口 / 没入口两种都要认对）。 */
+console.log('\n[32-z] 面板可达性：`VIEWS.<键>` 必须有人能打开它（做出来没人能开 = 玩家永远看不到）');
+(function () {
+  let pBad = 0;
+  const uniq2 = a => Array.from(new Set(a)).sort();
+  const panelsRaw = (() => {
+    try { return fs.readFileSync(path.join(ROOT, 'src/ui/panels.js'), 'utf8'); }
+    catch (e) { err('读不到 `src/ui/panels.js` —— 32-z 抓不到要判的地方（先修判据本身）'); pBad++; return ''; }
+  })();
+  const htmlRaw2 = (() => {
+    try { return fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8'); }
+    catch (e) { err('读不到 `index.html` —— 32-z 抓不到入口那一侧'); pBad++; return ''; }
+  })();
+  const panelsCode = stripComments(panelsRaw);
+  const htmlCode = stripMarkup(htmlRaw2);
+
+  /* 面板键（现推） */
+  const viewKeys = uniq2((panelsCode.match(/VIEWS\s*\.\s*([A-Za-z_$][\w$]*)\s*=/g) || [])
+    .map(s => s.replace(/^VIEWS\s*\.\s*/, '').replace(/\s*=$/, '')));
+  /* 打开点①：index.html 的 data-panel */
+  const tabs = uniq2((htmlCode.match(/data-panel\s*=\s*["']([A-Za-z_$][\w$]*)["']/g) || [])
+    .map(s => s.replace(/^data-panel\s*=\s*["']/, '').replace(/["']$/, '')));
+  /* ⚠️ 取值只许用 `[^(]*\(\s*['"]` 这一种切法：`^.*['"]` 是**贪婪**的 ⇒ 会把整串
+     `open('dialog'` 吃光、每个键都变成空串（第一版就是这么写的，6 个面板全被判成「没入口」）。 */
+  const openKeyOf = s => s.replace(/^[^(]*\(\s*['"]/, '').replace(/['"]$/, '');
+  /* 打开点②：src 下所有 `open('<键>'`（含 P.open / G.Panels.open / 面板内局部 open） */
+  const openVals = [];
+  (function walkSrc(dir) {
+    let names = [];
+    try { names = fs.readdirSync(path.join(ROOT, dir)); } catch (e) { return; }
+    names.forEach(n => {
+      const rel = dir + '/' + n;
+      let st = null;
+      try { st = fs.statSync(path.join(ROOT, rel)); } catch (e) { return; }
+      if (st.isDirectory()) { walkSrc(rel); return; }
+      if (!/\.js$/.test(n)) return;
+      let code = '';
+      try { code = stripComments(fs.readFileSync(path.join(ROOT, rel), 'utf8')); } catch (e) { return; }
+      (code.match(/\bopen\s*\(\s*['"]([A-Za-z_$][\w$]*)['"]/g) || []).forEach(s => {
+        openVals.push({ key: openKeyOf(s), at: rel });
+      });
+    });
+  })('src');
+
+  /* 判据自检：合成样本（正 / 负各一） */
+  const SAMPLE = "var v = ['book', 'dialog'];\nVIEWS.book = { render: function () {} };\n"
+    + "P.open('dialog');";
+  const sampleKeys = uniq2((SAMPLE.match(/VIEWS\s*\.\s*([A-Za-z_$][\w$]*)\s*=/g) || [])
+    .map(s => s.replace(/^VIEWS\s*\.\s*/, '').replace(/\s*=$/, '')));
+  const sampleOpen = (SAMPLE.match(/\bopen\s*\(\s*['"]([A-Za-z_$][\w$]*)['"]/g) || []).map(openKeyOf);
+  if (sampleKeys.length !== 1 || sampleKeys[0] !== 'book' || sampleOpen.join(',') !== 'dialog') {
+    err('32-z 的判据自检不成立（面板键 / 打开点没能各自认对）');
+    pBad++;
+  }
+
+  if (viewKeys.length < 10 || tabs.length < 5) {
+    err(`32-z 只认出 ${viewKeys.length} 个面板键 / ${tabs.length} 个顶栏 tab`
+      + '（少于 10 / 5）—— 扫描面多半坏了（判据按 `VIEWS.<键> =` 与 `data-panel=` 现算）');
+    pBad++;
+  }
+  const opened = {};
+  tabs.concat(openVals.map(o => o.key)).forEach(k => { opened[k] = (opened[k] || 0) + 1; });
+  const unreachable = viewKeys.filter(k => !opened[k]);
+  if (unreachable.length) {
+    err(`这些面板做出来了但**没有任何入口**（玩家永远看不到、还不报错）：${unreachable.join('、')}`
+      + ' —— 给它加一个入口：顶栏 `data-panel="<键>"`（`index.html`）或 `P.open(\'<键>\')`');
+    pBad++;
+  }
+  const ghostTabs = tabs.filter(k => viewKeys.indexOf(k) < 0);
+  if (ghostTabs.length) {
+    err(`顶栏这些 tab 在 \`panels.js\` 里没有对应的 VIEWS（点了没有任何反应）：${ghostTabs.join('、')}`);
+    pBad++;
+  }
+  if (!pBad) {
+    ok(`${viewKeys.length} 个面板全部可达（顶栏 tab ${tabs.length} 个 + 代码打开点 ${openVals.length} 处），`
+      + '且每个 tab 都有实现：' + viewKeys.join(' / '));
+  }
+})();
+
 console.log('\n' + '='.repeat(52));
 if (errors) {
   console.log(`\u2716 自检未通过：${errors} 个错误、${warns} 个警告\n`);

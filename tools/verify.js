@@ -12260,6 +12260,138 @@ console.log('\n[53-c] 样式里的类选择器必须有消费方（零消费的�
   }
 })();
 
+/* ---------------- 53-d. 动画名：`@keyframes` ↔ `animation` 双向（样式面第 5 个方向） ----------------
+   由来（第 65 轮 C/A 审计铺的新面）：第 52 轮把样式面收成「四个方向」——
+   `53-b` 自定义属性 / `53-c` 类选择器 / `11-j` 静态 id / `11-k` 静态 class。
+   **`@keyframes` 这条一直在网外**，而它比前四个更容易静默失效：
+   `animation: fadein .3s`（少一个大写字母）**不报任何错**，浏览器只是「不动」——
+   玩家看到的是「这个提示框没有淡入」，而不是一条错误；反过来，删掉规则时**留下 `@keyframes`**
+   也一样无声无息（与 `book-sum`「删 DOM 忘删 CSS」同族）。
+
+   判据（**双向**，缺一都报红）：
+     ① **定义 → 引用**：每个 `@keyframes <名字>` 都要在同一单元的 `animation` / `animation-name` 里被点到；
+     ② **引用 → 定义**：`animation` 简写里解析出来的名字都要有对应的 `@keyframes` 定义。
+
+   口径与注意事项：
+     - 扫描面 = **与 `53-b` / `53-c` 完全同款的 7 个「样式单元」**（`assets/css/style.css` 一个 +
+       每个 `docs/*.html` 的**页内** `<style>` 各一个），洗注释走顶层 `stripMarkup`。
+     - **按单元判，不按全项目判**：docs 页是**独立产物**（实测 6 页都没有 `<link>` 引 `style.css`）⇒
+       某页引用了 `style.css` 里的名字，在浏览器里**真的不会动**，必须报红。
+     - **大小写敏感**：CSS 动画名就是大小写敏感的（`@keyframes ToastIn` ≠ `animation:toastin`）⇒ 逐字节比。
+     - `animation` 简写里名字可以出现在任何位置（`flash .5s` / `.5s flash`）⇒ 按空白分词后**剔除**
+       关键字（`none` / `infinite` / `alternate` …）与时长 / `cubic-bezier(…)` / `steps(…)` 这类**非名字** token。
+     - 消费面（字面量）也算「有人用」：`src/` 下的 `.js` 里写 `el.style.animation = 'flash .5s'` 是合法用法
+       （实测当前 0 处）⇒ 与 `53-c` 的「字面量也算消费」同一取舍，宁可漏报不可误报。
+     - 判不了的事写明：它判不了「那条规则今天还达得到吗」（同 `53-c` 的取舍）。
+   ⚠️ 这一族（样式面）到此是 **7 个单元 × 6 个方向**；`@keyframes` 是第 5 个方向、
+     `var()` 的反方向是第 6 个方向（`53-b` 那一段里）—— **别再当新面重扫**。 */
+console.log('\n[53-d] 动画名双向：每个 `@keyframes` 都要有人 animate，每个 `animation` 名都要有定义');
+(function () {
+  let aBad = 0;
+  const stripCss = stripMarkup;      // 与顶层同源（剥块注释）
+  const stripPayload = stripMarkup;  // 与 53-c 同源：HTML 注释 + 块注释 + 页内 `//`
+  const KF_DEF = /@(?:-[A-Za-z]+-)?keyframes\s+([A-Za-z_][\w-]*)/g;
+  const ANIM_DECL = /animation(?:-name)?\s*:\s*([^;{}]+)/g;
+  /* 简写里不是名字的 token：关键字 + 时长 / 函数式缓动 */
+  const NOT_NAME = /^(?:none|infinite|normal|reverse|alternate|alternate-reverse|forwards|backwards|both|running|paused|ease|linear|ease-in|ease-out|ease-in-out|step-start|step-end|inherit|initial|unset|revert|revert-layer)$/;
+  const namesIn = (css) => {
+    const out = [];
+    ANIM_DECL.lastIndex = 0;
+    let m;
+    while ((m = ANIM_DECL.exec(css))) {
+      m[1].split(',').forEach(part => {
+        part.trim().split(/\s+/).forEach(t => {
+          if (/^[A-Za-z_][\w-]*$/.test(t) && !NOT_NAME.test(t)) out.push(t);
+        });
+      });
+    }
+    return out;
+  };
+  const defsIn = (css) => {
+    const out = [];
+    KF_DEF.lastIndex = 0;
+    let m;
+    while ((m = KF_DEF.exec(css))) out.push(m[1]);
+    return [...new Set(out)];
+  };
+
+  /* ---- 样式单元（与 53-b / 53-c 同款） ---- */
+  const blob = [];
+  (function walk(rel) {
+    fs.readdirSync(path.join(ROOT, rel), { withFileTypes: true }).forEach(e => {
+      const r = rel + '/' + e.name;
+      if (e.isDirectory()) { if (e.name !== '__pycache__') walk(r); }
+      else if (/\.js$/.test(e.name)) blob.push(stripPayload(fs.readFileSync(path.join(ROOT, r), 'utf8')));
+    });
+  })('src');
+  blob.push(stripPayload(fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8')));
+  const hay = blob.join('\n');
+  const docPages = fs.readdirSync(path.join(ROOT, 'docs')).filter(n => /\.html$/.test(n));
+  const units = [{
+    name: 'assets/css/style.css',
+    css: stripCss(fs.readFileSync(path.join(ROOT, 'assets/css/style.css'), 'utf8')),
+    use: hay,
+  }];
+  docPages.forEach(n => {
+    const code = stripPayload(fs.readFileSync(path.join(ROOT, 'docs', n), 'utf8'));
+    const blocks = code.match(/<style[^>]*>[\s\S]*?<\/style>/gi) || [];
+    if (!blocks.length) return;
+    const css = stripCss(blocks.map(b => b.replace(/<\/?style[^>]*>/gi, '')).join('\n'));
+    if (!css.trim()) return;
+    let body = code;
+    blocks.forEach(b => { body = body.replace(b, '\n'); });   // 定义不许喂饱自己
+    units.push({ name: 'docs/' + n, css: css, use: body });
+  });
+
+  let defTotal = 0, refTotal = 0;
+  const dead = [], dangling = [];
+  units.forEach(u => {
+    const defs = defsIn(u.css), refs = namesIn(u.css);
+    defTotal += defs.length; refTotal += refs.length;
+    const refSet = new Set(refs);
+    defs.forEach(d => {
+      /* 「有人用」= 简写里点到 **或** 消费面里有字面量（`el.style.animation = '…'` 这种） */
+      if (!refSet.has(d) && u.use.indexOf(d) < 0) dead.push(u.name + ' 的 @keyframes ' + d);
+    });
+    [...new Set(refs)].forEach(r => { if (defs.indexOf(r) < 0) dangling.push(u.name + ' 的 animation:' + r); });
+  });
+
+  /* 自检（合成样本）：**两个方向都要真生效** ——
+     `zz-dead` 只定义没人 animate、`zz-ghost` 只被 animate 没定义、`zz-live` 两头齐全。
+     另外三条反例（`none` / `2s` / `cubic-bezier(…)`）**不许**被当成名字，否则方向 ② 会满屏假报。 */
+  const S_CSS = '@keyframes zz-dead{from{opacity:0}} @keyframes zz-live{to{opacity:1}}'
+    + ' .a{animation:zz-live .3s ease} .b{animation-name:zz-ghost}'
+    + ' .c{animation:none} .d{animation:2s linear} .e{animation:zz-live .3s cubic-bezier(.2,.9,.3,1.2)}';
+  const sDefs = defsIn(S_CSS), sRefs = namesIn(S_CSS);
+  const sDead = sDefs.filter(d => sRefs.indexOf(d) < 0);
+  const sGhost = [...new Set(sRefs)].filter(r => sDefs.indexOf(r) < 0);
+  if (defTotal < 8 || refTotal < 8 || units.length < 6
+      || sDead.join() !== 'zz-dead' || sGhost.join() !== 'zz-ghost'
+      || namesIn('.x{animation:none}').length !== 0
+      || namesIn('.x{animation:2s linear}').length !== 0
+      || namesIn('.x{animation:flash .5s ease}').join() !== 'flash') {
+    err('53-d 的判据自检不成立（合成样本该抓 `zz-dead` / `zz-ghost` 各一个，实抓 ['
+      + sDead.join(', ') + '] / [' + sGhost.join(', ') + ']；'
+      + `扫描面只认到 ${defTotal} 个 @keyframes / ${refTotal} 个动画名（${units.length} 个样式单元）`
+      + '）—— 判据会退化成摆设，先修本节自身');
+    aBad++;
+  }
+  if (dead.length) {
+    err('这些 `@keyframes` 定义了却没人 animate（浏览器里等于一段死代码）：' + dead.join('、')
+      + ' —— 要么把消费方接回来，要么删掉（同 `book-sum`：删规则别只删一半）');
+    aBad++;
+  }
+  if (dangling.length) {
+    err('这些 `animation` 指向了一个不存在的 `@keyframes`（名字拼错 = 这条动画永远不会跑、'
+      + '而且浏览器不报错）：' + dangling.join('、') + ' —— 把名字拼对，或者把定义补上');
+    aBad++;
+  }
+  if (!aBad) {
+    ok(`${units.length} 个样式单元里 ${defTotal} 个 \`@keyframes\` 全部有人 animate、`
+      + `${refTotal} 个动画名全部有定义（双向 0 缺口）`);
+  }
+})();
+
 /* ---------------- 54. 长线目标系统（每日 / 周常 / 成就 / 彩蛋）必须有网 ----------------
    由来：整套 B5 长线目标系统（`data/goals.js` + `core/goals.js` + 面板那一屏）**此前一条判据都没有** ——
    成就写错 metric、同 metric 的 need 重复、彩蛋 hint 把答案写在题面上、概率阶梯倒挂、

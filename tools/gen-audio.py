@@ -25,8 +25,13 @@
     python tools/gen-audio.py --only ambience    # 重出某一条（会覆盖 assets/audio/<id>.mp3）
     python tools/gen-audio.py --all --skip-existing
 
-⚠️ 生成走 `~/.workbuddy/comfy/txt2audio.py`，那个脚本**不支持 .flac 输出**
-   （`FORMATS["flac"] = None` 却被当元组解包 ⇒ TypeError）。这里一律出 mp3。
+⚠️ 生成走 `~/.workbuddy/comfy/txt2audio.py`。**本仓库一律出 mp3**（`assets/audio/<id>.mp3`
+   是既定产物口径，`G.Audio` 的加载路径也照它写的）。
+   ⚠️ 2026-10-13（第 65 轮还账）：那个工具**曾经**在 `--format flac` 上必崩
+   （`FORMATS["flac"] = None` 被当元组解包 ⇒ `TypeError`），**现在已经修好** ——
+   `-o x.flac` / `--format flac` 可用、`-o x.wav` 这类出不了的后缀会干净报错（退出码 2，
+   不再静默产出一个后缀在说谎的 mp3）、连不上服务时是一行话。
+   要改成本仓库出无损，得连 `G.Audio` 的加载路径与 `assets/audio/` 的口径一起动（属产品取舍）。
 """
 
 import argparse

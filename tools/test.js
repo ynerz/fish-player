@@ -7512,6 +7512,86 @@ G_('Panels · 全量真渲染（14 个面板逐个 open 一遍）');
   G.FishArt = prevFishArt;
 })();
 
+/* =========================================================
+   FishArt · 每个体型真渲染（2026-10-13 加）
+   =========================================================
+   为什么要有它：`fishart.js` 的 `TPL[shape]` 缺键是**静默失效** ——
+   `draw()` 里写的是 `TPL[fish.shape] || TPL.fish`，少一个键只会悄悄回落画成通用鱼；
+   语法、`verify §43` 的键集双向、甚至真浏览器截图**都看不出来**（画出来就是一条正常的鱼）。
+   所以这里做**行为面**的把关：43 个体型逐个真调一次 `draw()`，把绘制动作序列当指纹 ——
+   既要「不抛错 / 不是空白」，也要「新体型彼此、以及与被替换的旧体型都不许画成一个样」。
+
+   ⚠️ 指纹用**动作条数 + 前 40 个动作**，不用像素：本文件跑在 Node 里没有真画布，
+      像素那层交给真浏览器（`tools/style-preview.html`，口径同「图鉴懒绘制」那节）。
+   ⚠️ 动作条数下限取 20：实测最省的一个体型也有 40+ 条，低于 20 只可能是「画了半截就返回」。
+   ========================================================= */
+G_('FishArt · 每个体型真渲染（全部体型逐个 draw 一遍）');
+(function () {
+  /* ⚠️ `fishart.js` **不在**顶部那份沙箱文件清单里（它只在运行时由 index.html 加载），
+     所以这里按需加载一次 —— 同 `audio.js` 那几节的做法。不加载的话 `G.FishArt` 是
+     `undefined`，整节会以「每个体型都抛 Cannot read properties of undefined」假红。 */
+  const prevFishArt = G.FishArt;
+  new Function(fs.readFileSync(path.join(ROOT, 'src/render/fishart.js'), 'utf8')).call(global);
+
+  const recCtx = () => {
+    const ops = [];
+    const grad = { addColorStop() {} };
+    const ctx = new Proxy({}, {
+      get(t, k) {
+        if (k === 'canvas') return { width: 600, height: 400 };
+        if (k === 'measureText') return () => ({ width: 0 });
+        if (k === 'createLinearGradient' || k === 'createRadialGradient') return () => grad;
+        if (k === 'createPattern') return () => null;
+        return (...a) => {
+          ops.push(String(k) + ':' + a.map(v => (typeof v === 'number' ? Math.round(v) : '')).join(';'));
+        };
+      },
+      set() { return true; },
+    });
+    return { ctx: ctx, ops: ops };
+  };
+  /* ⚠️ 体型号**不写死**（它会随「继续加体型」涨）—— 改成与 `fishart.js` 里现算的
+     `TPL.<键> =` 键集对拍。第 ㊸ 节做的是同一件事，这里再来一遍是**行为面**版本：
+     那边只比键集，这边还要证明「每个键真能画出来」（下面逐个 `draw()`）。 */
+  const tplRaw = (fs.readFileSync(path.join(ROOT, 'src/render/fishart.js'), 'utf8')
+    .match(/\bTPL\.[A-Za-z][A-Za-z0-9]*\s*=/g) || [])
+    .map(s => s.replace('TPL.', '').replace(/\s*=$/, ''));
+  const tplKeys = tplRaw.filter((v, i) => tplRaw.indexOf(v) === i);
+  const shapes = Object.keys(CFG.shapeCn);
+  ok(shapes.length === tplKeys.length && tplKeys.length > 0,
+     `shapeCn 的 ${shapes.length} 个体型与 fishart 的 ${tplKeys.length} 个 TPL 键同长`);
+
+  const noFish = [], threw = [], thin = [], fp = {};
+  shapes.forEach(sh => {
+    const f = G.FISH.filter(x => x.shape === sh)[0];
+    if (!f) { noFish.push(sh); return; }
+    const rec = recCtx();
+    try { G.FishArt.draw(rec.ctx, f, 300, 200, 200, {}); }
+    catch (e) { threw.push(sh + '：' + e.message); return; }
+    if (rec.ops.length < 20) thin.push(sh + '（只有 ' + rec.ops.length + ' 个绘制动作）');
+    fp[sh] = rec.ops.length + '|' + rec.ops.slice(0, 40).join(',');
+  });
+  ok(!noFish.length, '每个体型都至少有一条真鱼在用（否则那个 TPL 键根本调不到）', noFish.join('、'));
+  ok(!threw.length, `${shapes.length} 个体型逐个 FishArt.draw() 都不抛错`, threw.join(' / '));
+  ok(!thin.length, '每个体型都画出了实质内容（< 20 个动作 = 画了半截就返回）', thin.join('、'));
+
+  /* 🔴 2026-10-13 加的那 12 个「古代生物」体型：**任意两个体型都不许画成同一个样**。
+     加它们全部理由就是「原来的螺 / 沙蚕 / 海百合画出来不像样」—— 所以「画成一样」
+     等于白加一个键（而且没有任何别的门禁抓得到：键集对得上、draw 也不抛错）。
+     判据取**全量两两**而不是只比新加的 12 个：新体型与被替换的旧体型同样要比。 */
+  const same = [];
+  for (let i = 0; i < shapes.length; i++) {
+    for (let j = i + 1; j < shapes.length; j++) {
+      const a = shapes[i], b = shapes[j];
+      if (fp[a] && fp[a] === fp[b]) same.push(a + '=' + b);
+    }
+  }
+  ok(!same.length, `${shapes.length} 个体型的绘制指纹两两都不相同（画成一个样 = 白加一个键）`,
+     same.join(' / '));
+
+  G.FishArt = prevFishArt;
+})();
+
 /* ---------- 汇总 ---------- */
 console.log('\n' + '='.repeat(52));
 if (fail) { console.log(`\u2716 测试未通过：${pass} 通过 / ${fail} 失败\n`); process.exit(1); }

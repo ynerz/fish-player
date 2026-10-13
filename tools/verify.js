@@ -13999,6 +13999,91 @@ console.log('\n[32-af] 每个面板都要在 `tools/test.js` 里留下 Node 侧�
   ok(`${keys.length} 个面板全部在 \`tools/test.js\` 里被点名（与行为侧「全量真渲染」一节一起看）`);
 })();
 
+console.log('\n[32-ag] 字面量形态的 `G.<模块>.<成员>`：成员必须真的存在（第 ㉜ 节的反方向）');
+(function () {
+  /* 【由头】第 65 轮 C/A 审计铺的新面。这一族此前四条网都是**同一个方向**：
+     `[32]` 导出面有没有消费方 · `[32-b]` 已删死接口不许复活 · `[32-c]` 平台子能力 ·
+     `[32-d]` 模块内部状态「只写不读」。
+     **反方向一直没有网**：「谁在用**一个不存在**的成员」。它的失败形态是运行期 `TypeError`，
+     而**藏在冷分支里就等于静默** —— 本项目吃过同族的亏（`CardArt.used().hit` 那条计数器
+     写在走不到的分支上 ⇒ 恒为 0，面板在说谎；见 §17.31）。
+     判据：把 `index.html` 里的模块按序跑进 `vm` 沙箱（与 `[11]` / `[54]` 用**同一个真身**），
+     再对 `src/` 里每个**字面量**形态的 `G.X.y` 判 `y in G[X]`。
+     ⚠️ **动态取值不在判据内**：`G.Audio[sfxName]` / `G.U[key]` 这类静态判不了（判了必假报）——
+       这是**有意留的口子**，别当漏网重扫；真要判得靠运行期探针。
+     ⚠️ DOM 依赖的模块（实测 `devtools.js` / `main.js`）不进沙箱 ⇒ 它们的**使用面照样判**
+       （扫的是文件文本），只是不作为「被访问的模块」。
+     ⚠️ 模块本身不在真身里 ⇒ 报红（要么挂载名拼错、要么 DOM 延后集合变了）——
+       这条同时是**判据自检**：它一响，说明本节的扫描面已经不可信。 */
+  /* ⚠️ 判「真身」要用 **`sandbox.G`**，不是顶层那个 `G` ——
+     顶层 `G` 只装了「用 `new Function` 跑进 Node global」的那几个数据模块
+     （`config` / `fields` / `fish` / `items` / `goals` / `util` / `loot` / `fight`），
+     而 `sandbox` 才是按 `index.html` 的**加载顺序**跑起来的完整一份（`[11]` / `[54]` 都用它）。
+     第一版写成顶层 `G` ⇒ 当场把 140 处 `G.Platform.*` 全判成「模块不存在」（假报）。 */
+  const SG = sandbox.G || {};
+  const memberExists = (X, y) => {
+    const M = SG[X];
+    if (M == null) return null;              // 模块本身不在真身里
+    if (typeof M !== 'object' && typeof M !== 'function') return null;
+    return y in M;
+  };
+  /* 自检（合成样本，直接拿真身当样本）：存在的成员必须认「在」、瞎编的必须认「不在」 */
+  const sOk = memberExists('CONFIG', 'version');
+  const sNo = memberExists('CONFIG', 'zzNope65');
+  const sMod = memberExists('ZzNope65', 'x');
+  if (sOk !== true || sNo !== false || sMod !== null) {
+    err('32-ag 的判据自检不成立（合成样本该得 true / false / null，实得 '
+      + [sOk, sNo, sMod].join(' / ') + '）—— 判据会退化成摆设，先修本节自身');
+    return;
+  }
+  const files = [];
+  (function walk(rel) {
+    fs.readdirSync(path.join(ROOT, rel), { withFileTypes: true }).forEach(e => {
+      const r = rel + '/' + e.name;
+      if (e.isDirectory()) { if (e.name !== '__pycache__') walk(r); }
+      else if (/\.js$/.test(e.name)) files.push(r);
+    });
+  })('src');
+  const use = {};
+  files.forEach(rel => {
+    let code = '';
+    try { code = stripComments(fs.readFileSync(path.join(ROOT, rel), 'utf8')); } catch (e) { return; }
+    const re = /\bG\.([A-Z][A-Za-z0-9_]*)\.([A-Za-z_$][\w$]*)/g;
+    let m;
+    while ((m = re.exec(code))) {
+      const k = m[1] + '.' + m[2];
+      (use[k] = use[k] || []).push(rel);
+    }
+  });
+  const keys = Object.keys(use);
+  const noMod = [], miss = [];
+  keys.forEach(k => {
+    const cut = k.indexOf('.');
+    const X = k.slice(0, cut), y = k.slice(cut + 1);
+    const r = memberExists(X, y);
+    if (r === null) noMod.push('G.' + X + '（用在 ' + use[k][0] + '）');
+    else if (r === false) miss.push(k + '  ← ' + [...new Set(use[k])].join(', '));
+  });
+  if (keys.length < 150) {
+    err(`32-ag 只认出 ${keys.length} 个字面量成员组合（少于 150）—— `
+      + '扫法或沙箱多半坏了，不许让这条判据静默退化成空断言');
+    return;
+  }
+  if (noMod.length) {
+    err('这些模块**不在沙箱真身里**（被访问到了却不存在）：' + noMod.join('、')
+      + ' —— 要么挂载名拼错，要么 `index.html` 的加载顺序 / DOM 延后集合变了'
+      + '（后者一响，本节的扫描面就不可信了）');
+    return;
+  }
+  if (miss.length) {
+    err('这些地方在用**不存在的成员**（运行到就是 `TypeError`，藏在冷分支里就等于静默）：'
+      + miss.join('、') + ' —— 名字拼对，或者把成员补上');
+    return;
+  }
+  ok(`${files.length} 个源文件里 ${keys.length} 个字面量成员组合全部在真身上存在`
+    + `（动态取值不在此列，见本节注释）`);
+})();
+
 console.log('\n[32-ae] 有值开关的**值**不许漏成位置参数（argv 循环里读了值就必须推进下标；第 64 轮）');
 (function () {
   /* 【由头】第 64 轮**真撞上**的真 bug（我自己跑真浏览器时被它挡住）：

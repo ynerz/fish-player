@@ -13890,6 +13890,78 @@ console.log('\n[48-c] 文档的小节号在同一份文档里只许出现一次�
   if (!cBad) ok(`${files.length} 份 \`docs/*.md\` 共 ${headings} 个带节号的标题，节号全部唯一（0 处重号）`);
 })();
 
+console.log('\n[48-d] 源码里提到的 `docs/<文件名>` 必须真的存在（文档改名 / 删页之后引用会指向空气）');
+(function () {
+  /* 【由头】第 65 轮 C/A 审计铺的新面：`[48]` 管的是「`docs/X.md §N「标题」`」这种**带节号**的引用，
+     `[48-b]` 管「活文档里别写行号」，`[48-c]` 管「同一份文档里节号别重号」——
+     而**反引号里那种光秃秃的文件名**（`见 docs/AI素材方案.md`）**一直没有网**。
+     这在本项目是真会咬人的形态：`docs/3D渲染方案.md` 早就随程序化 3D 路线整体删除，
+     而 `src/render/fishpaint.js` 的文件头还在提它（那一处的注释里写着「该文档已随路线删除」——
+     所以它是**有意的留痕**，见下）。
+     ⚠️ 判据的两个必要口径：
+       ① **先洗注释**：注释里可以、也应该写「某文档已被删掉」这类留痕（`fishpaint.js` 就是），
+          不洗注释会把**正确的留痕**判成漂移 —— 本项目已经因为「注释喂饱判据 / 判据误伤注释」
+          来回踩过好几次（硬规矩 ① / `11-j` / `11-k` / `[50-c]` 同族）。
+       ② **排除门禁宿主** `tools/verify.js` / `tools/test.js`：它们内部有**合成样本字符串**
+          （`const S_JS_OK = "const WRITES = ['docs/x.html']…"`），扫进去必假报。
+          这也是全项目对「扫 `tools/*.js`」的既定口径（第 64 轮）。
+     ⚠️ 判不了的事写明：它只判「盘上有没有这个文件」，**判不了**「那份文档现在还说不说得通」。 */
+  const EXCLUDE = { 'tools/verify.js': 1, 'tools/test.js': 1 };
+  const walkFiles = (dir, re, out) => {
+    fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true }).forEach(e => {
+      const rel = dir + '/' + e.name;
+      if (e.isDirectory()) { if (e.name !== '__pycache__') walkFiles(rel, re, out); }
+      else if (re.test(e.name) && !EXCLUDE[rel]) out.push(rel);
+    });
+    return out;
+  };
+  const files = walkFiles('src', /\.(js|html)$/, []).concat(walkFiles('tools', /\.(js|py)$/, []));
+  files.push('index.html');
+  const REF = /docs\/([0-9A-Za-z._\-\u4e00-\u9fa5]+\.(?:md|html|png|jpg|jpeg|js|css|json))/g;
+  const missingDocRefs = (text) => {
+    const out = [];
+    REF.lastIndex = 0;
+    let m;
+    while ((m = REF.exec(text))) {
+      if (!fs.existsSync(path.join(ROOT, 'docs', m[1]))) out.push('docs/' + m[1]);
+    }
+    return [...new Set(out)];
+  };
+  /* 自检（合成样本）：不存在的文档名必被抓、存在的不许报 */
+  const S_REF = '见 docs/zz-nope65.md 与 docs/GDD.md';
+  const sMiss = missingDocRefs(S_REF);
+  if (sMiss.join() !== 'docs/zz-nope65.md') {
+    err('48-d 的判据自检不成立（合成样本该只抓 `docs/zz-nope65.md`、实抓 ['
+      + sMiss.join(', ') + ']）—— 这条断言会静默失效，先修判据本身');
+    return;
+  }
+  let docRefs = 0, dBad = 0;
+  const bad = [];
+  files.forEach(rel => {
+    let code = '';
+    try { code = stripComments(fs.readFileSync(path.join(ROOT, rel), 'utf8')); } catch (e) { return; }
+    /* 先数「洗注释后还剩多少处」：全为 0 说明洗法或认法变了（不许让判据静默退化成空断言） */
+    REF.lastIndex = 0;
+    let m;
+    while ((m = REF.exec(code))) docRefs++;
+    missingDocRefs(code).forEach(x => { dBad++; bad.push(rel + ' → ' + x); });
+  });
+  if (docRefs < 20) {
+    err(`48-d 洗注释后只认出 ${docRefs} 处 \`docs/<文件名>\` 引用（少于 20）—— `
+      + '扫描面或认法多半坏了，不许让这条判据静默退化成空断言');
+    dBad++;
+  }
+  if (bad.length) {
+    err('这些地方引用的 `docs/<文件名>` 盘上不存在：' + bad.join('、')
+      + ' —— 文档改名 / 删页之后引用没跟着改，照它去翻文档只会翻到空气'
+      + '（真要有意留痕，把文件名写进**注释**里，本判据先洗注释）');
+    dBad++;
+  }
+  if (!dBad) {
+    ok(`${files.length} 个源文件里 ${docRefs} 处 \`docs/<文件名>\` 引用全部指向盘上真实存在的文件`);
+  }
+})();
+
 console.log('\n[32-af] 每个面板都要在 `tools/test.js` 里留下 Node 侧的真渲染证据（新增面板别再三零覆盖）');
 (function () {
   /* 【由头】第 56 轮审计发现 `VIEWS.profile` 是 14 个面板里**唯一**在 `tools/test.js` 里

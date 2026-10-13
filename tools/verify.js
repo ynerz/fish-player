@@ -12111,10 +12111,35 @@ console.log('\n[53-b] 样式里定义的自定义属性必须有消费方（零�
   });
   units.push({ name: 'assets/css/style.css + index.html',
                files: ['assets/css/style.css', 'index.html'] });
-  let defCount = 0;
+  let defCount = 0, useCount = 0;
   const dead = [];
+  /* ---------- 反方向（第 65 轮补）：`var(--x)` 用了却没定义 ----------
+     由来：`[53-b]` 原来**只判「定义了没人用」**这一个方向。反过来那个方向同样静默失效，
+     而且更隐蔽：`color:var(--ink3)` 少一个字符、或那一页的 `<style>` 忘了定义它，
+     **CSS 不报错** —— 这一条声明直接变成 invalid at computed-value time，
+     浏览器按「继承 / 初始值」处理 ⇒ 页面上是「颜色不太对」，不是一条错误。
+     ⚠️ 口径：`var(--x, #fff)` **带了 fallback 就是合法的**（CSS 规范允许，本项目的
+       docs 页也确实靠它做「局部覆盖 + 兜底」）⇒ 有 fallback 不算缺口。
+       ⚠️ 但**空 fallback 不算**：`var(--x,)` / `var(--x, )` 在规范里同样会让整条声明
+       invalid at computed-value time —— 那不叫兜底，照报。
+     ⚠️ 按**单元**判（与上面同一套单元模型）：`--x` 定义在别的单元不算「有人定义」——
+       那些单元在浏览器里互不可见（docs 页是独立产物，实测 6 页都没有 `<link>` 引 style.css）。
+     ⚠️ 判不了的事写明：它判不了「那个 `var()` 所在的规则今天还达得到吗」（同 `53-c` 的取舍）。 */
+  const undefVarsOf = (useText, defText) => {
+    const defined = new Set((defText.match(/(--[A-Za-z0-9_-]+)\s*:/g) || [])
+      .map(s => s.replace(/\s*:$/, '')));
+    const out = [];
+    const re = /var\(\s*(--[A-Za-z0-9_-]+)([^)]*)/g;
+    let m;
+    while ((m = re.exec(useText))) {
+      const hasFallback = /^\s*,\s*\S/.test(m[2] || '');
+      if (!hasFallback && !defined.has(m[1])) out.push(m[1]);
+    }
+    return [...new Set(out)];
+  };
+  const undef = [];
   units.forEach(u => {
-    let defs = [], uses = '';
+    let defs = [], uses = '', defSrc = '';
     u.files.forEach(rel => {
       let raw = '';
       try { raw = fs.readFileSync(path.join(ROOT, rel), 'utf8'); } catch (e) { return; }
@@ -12124,6 +12149,7 @@ console.log('\n[53-b] 样式里定义的自定义属性必须有消费方（零�
         ? code
         : (code.match(/<style[^>]*>([\s\S]*?)<\/style>/gi) || []).join('\n');
       (styleSrc.match(/(--[A-Za-z0-9_-]+)\s*:/g) || []).forEach(m => defs.push(m.replace(/\s*:$/, '')));
+      defSrc += styleSrc + '\n';
       uses += code;
     });
     defs = [...new Set(defs)];
@@ -12132,13 +12158,24 @@ console.log('\n[53-b] 样式里定义的自定义属性必须有消费方（零�
       const re = new RegExp('var\\(\\s*' + d.replace(/[-]/g, '\\-') + '\\s*[,)]');
       if (!re.test(uses)) dead.push(u.name + ' 里的 ' + d);
     });
+    undefVarsOf(uses, defSrc).forEach(v => { undef.push(u.name + ' 里的 var(' + v + ')'); });
+    /* 引用总数（去重后的变量名）—— 只为报口写数字用 */
+    useCount += [...new Set((uses.match(/var\(\s*(--[A-Za-z0-9_-]+)/g) || [])
+      .map(s => s.match(/--[A-Za-z0-9_-]+/)[0]))].length;
   });
-  /* 自检：合成样本 —— 「定义了没人用」必被抓、「有人用」必放过 */
+  /* 自检：合成样本 —— 「定义了没人用」必被抓、「有人用」必放过；
+     反方向：「裸 var() 没定义」必被抓、「带 fallback」「有定义」必放过 */
   const S_DEF = ':root{ --zz-unused:#123456; --zz-used:#654321; } b{ color:var(--zz-used); }';
   const selfDead = [...new Set((S_DEF.match(/(--[A-Za-z0-9_-]+)\s*:/g) || []).map(m => m.replace(/\s*:$/, '')))]
     .filter(d => !new RegExp('var\\(\\s*' + d.replace(/[-]/g, '\\-') + '\\s*[,)]').test(S_DEF));
-  if (selfDead.join() !== '--zz-unused' || defCount < 40) {
-    err(`53-b 的判据自检不成立（合成样本该抓 1 个、实抓 ${selfDead.length} 个；`
+  const S_USE = 'b{ color:var(--zz-ok); background:var(--zz-fb, #fff);'
+    + ' border-color:var(--zz-miss); outline-color:var(--zz-miss2, ) }';
+  const selfUndef = undefVarsOf(S_USE, ':root{ --zz-ok:#123; }');
+  if (selfDead.join() !== '--zz-unused' || defCount < 40
+      || selfUndef.join() !== '--zz-miss,--zz-miss2'
+      || undefVarsOf('b{color:var(--zz-x, #fff)}', ':root{}').length !== 0) {
+    err(`53-b 的判据自检不成立（合成样本该抓 1 个零消费 / 实抓 ${selfDead.length} 个；`
+      + `该抓 [--zz-miss, --zz-miss2] / 实抓 [${selfUndef.join(', ')}]；`
       + `扫描面只认到 ${defCount} 个自定义属性）—— 判据会退化成摆设，先修本节自身`);
     vBad++;
   }
@@ -12147,8 +12184,16 @@ console.log('\n[53-b] 样式里定义的自定义属性必须有消费方（零�
       + ' —— 零消费的声明会让人误以为有这套语义色，删掉（要用就真的用起来）');
     vBad++;
   }
+  if (undef.length) {
+    err(`样式里这些 \`var(--x)\` 引用了一个**没有定义**的变量（也没有写 fallback）：${undef.join('、')}`
+      + ' —— CSS 不会报错，这条声明会变成 invalid at computed-value time，'
+      + '浏览器按「继承 / 初始值」处理 ⇒ 页面上只是「颜色 / 间距不太对」。'
+      + '拼写对不上就改对；真要允许缺省，写成 `var(--x, 兜底值)`');
+    vBad++;
+  }
   if (!vBad) {
-    ok(`${units.length} 个样式单元里 ${defCount} 个自定义属性全部有消费方（0 个零消费）`);
+    ok(`${units.length} 个样式单元里 ${defCount} 个自定义属性全部有消费方（0 个零消费）、`
+      + `${useCount} 个被 \`var()\` 引用的变量全部有定义（带兜底 / 空兜底的另计，双向 0 缺口）`);
   }
 })();
 
